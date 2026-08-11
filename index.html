@@ -241,6 +241,7 @@
   }
   .teacher-row .trow-top{display:flex;align-items:center;justify-content:space-between;gap:14px;flex-wrap:wrap;}
   .trow-notes{font-size:11.5px;color:var(--ink-soft);background:var(--green-100);border-radius:6px;padding:8px 10px;margin-top:8px;line-height:1.6;white-space:pre-wrap;}
+  .trow-pay{font-size:11.5px;color:var(--ink);font-weight:700;margin-top:6px;}
   .teacher-row .name{font-weight:700;font-size:14.5px;min-width:90px;}
   .student-level-badge{
     display:inline-block;font-size:10px;font-weight:700;color:var(--green-800);background:var(--green-100);
@@ -1073,6 +1074,35 @@
     <div class="card">
       <h2>登録済み講師一覧</h2>
       <div class="teacher-list" id="teacherList"></div>
+    </div>
+
+    <div class="card">
+      <h2>全講師の給与を一括設定<span class="help-tip" tabindex="0">?<span class="help-tip-text">現在登録されているすべての講師のコマ単価・特別単価をまとめて上書きします。教科・希望曜日・備考などはそのまま維持されます。</span></span></h2>
+      <div class="pay-input-row">
+        <div class="pay-input-item">
+          <label for="bulkPayRateInput">コマ単価（円/コマ）</label>
+          <input type="text" inputmode="numeric" id="bulkPayRateInput" placeholder="例：2200">
+        </div>
+      </div>
+      <div style="height:14px"></div>
+      <label class="chip" style="display:inline-flex;">
+        <input type="checkbox" id="bulkPayEarlyToggle">
+        <span>最初の◯コマだけ特別単価にする</span>
+      </label>
+      <div id="bulkPayEarlyArea" class="pay-input-row" style="display:none;margin-top:10px;">
+        <div class="pay-input-item">
+          <label for="bulkPayEarlyCount">対象コマ数</label>
+          <input type="text" inputmode="numeric" id="bulkPayEarlyCount" placeholder="例：50">
+        </div>
+        <div class="pay-input-item">
+          <label for="bulkPayEarlyRate">その間の単価（円/コマ）</label>
+          <input type="text" inputmode="numeric" id="bulkPayEarlyRate" placeholder="例：2700">
+        </div>
+      </div>
+      <div class="form-actions">
+        <button class="primary" id="bulkPayApplyBtn">全員に適用する</button>
+        <span class="form-msg" id="bulkPayMsg"></span>
+      </div>
     </div>
 
     <div class="card">
@@ -2082,6 +2112,22 @@ function subjectTags(t){
   }).join('');
 }
 
+// 講師一覧に表示する給与条件の要約テキストを組み立てる
+function paySummaryText(t){
+  const parts = [];
+  parts.push(`コマ単価 ${(t.perLessonRate||0).toLocaleString()}円`);
+  parts.push(`交通費 ${(t.dailyTransport||0).toLocaleString()}円/日`);
+  if(t.earlyLessonException && t.earlyLessonException.lessonCount>0){
+    parts.push(`最初の${t.earlyLessonException.lessonCount}コマは${t.earlyLessonException.rate.toLocaleString()}円`);
+  }
+  if(t.raiseSchedule && t.raiseSchedule.length>0){
+    const sorted = [...t.raiseSchedule].sort((a,b)=> a.yearMonth < b.yearMonth ? -1 : 1);
+    const raiseTexts = sorted.map(r=>`${r.yearMonth}〜${r.rate.toLocaleString()}円`);
+    parts.push(`昇給：${raiseTexts.join('／')}`);
+  }
+  return parts.join('　｜　');
+}
+
 function renderTeacherList(){
   scheduleSave();
   const wrap = document.getElementById('teacherList');
@@ -2104,6 +2150,7 @@ function renderTeacherList(){
           <button class="del-btn" data-id="${t.id}">削除</button>
         </div>
       </div>
+      <div class="trow-pay">${paySummaryText(t)}</div>
       ${t.notes ? `<div class="trow-notes">${t.notes.replace(/</g,'&lt;').replace(/\n/g,'<br>')}</div>` : ''}
       <div class="wl-mini">
         <div class="wl-mini-head">
@@ -5082,6 +5129,35 @@ async function init(){
   });
   document.getElementById('addRaiseBtn').addEventListener('click', ()=>{ addRaiseRow(); });
   document.getElementById('saveBtn').addEventListener('click', handleSave);
+  document.getElementById('bulkPayEarlyToggle').addEventListener('change', (e)=>{
+    document.getElementById('bulkPayEarlyArea').style.display = e.target.checked ? 'flex' : 'none';
+  });
+  document.getElementById('bulkPayApplyBtn').addEventListener('click', async ()=>{
+    const msg = document.getElementById('bulkPayMsg');
+    if(teachers.length===0){ msg.textContent = '講師が1人も登録されていません。'; return; }
+    let rate = parseInt(document.getElementById('bulkPayRateInput').value, 10);
+    if(!Number.isFinite(rate) || rate<0){ msg.textContent = 'コマ単価を入力してください。'; return; }
+
+    let earlyLessonException = null;
+    if(document.getElementById('bulkPayEarlyToggle').checked){
+      let cnt = parseInt(document.getElementById('bulkPayEarlyCount').value, 10);
+      let earlyRate = parseInt(document.getElementById('bulkPayEarlyRate').value, 10);
+      if(!Number.isFinite(cnt) || cnt<=0){ msg.textContent = '特別単価の対象コマ数を入力してください。'; return; }
+      if(!Number.isFinite(earlyRate) || earlyRate<0) earlyRate = 0;
+      earlyLessonException = {lessonCount: cnt, rate: earlyRate};
+    }
+
+    teachers.forEach(t=>{
+      t.perLessonRate = rate;
+      t.earlyLessonException = earlyLessonException;
+    });
+    msg.textContent = '保存中…';
+    await saveTeachers();
+    renderTeacherList();
+    renderMatrix();
+    renderMatching();
+    msg.textContent = `${teachers.length}名に適用しました。`;
+  });
   document.getElementById('bulkImportBtn').addEventListener('click', async ()=>{
     const msg = document.getElementById('bulkImportMsg');
     const raw = document.getElementById('bulkImportInput').value.trim();
