@@ -233,6 +233,7 @@
     border:1px solid var(--border);border-radius:10px;padding:12px 16px;background:#fdfcf9;
   }
   .teacher-row .trow-top{display:flex;align-items:center;justify-content:space-between;gap:14px;flex-wrap:wrap;}
+  .trow-notes{font-size:11.5px;color:var(--ink-soft);background:var(--green-100);border-radius:6px;padding:8px 10px;margin-top:8px;line-height:1.6;white-space:pre-wrap;}
   .teacher-row .name{font-weight:700;font-size:14.5px;min-width:90px;}
   .student-level-badge{
     display:inline-block;font-size:10px;font-weight:700;color:var(--green-800);background:var(--green-100);
@@ -1021,6 +1022,10 @@
         </div>
       </div>
 
+      <div style="height:18px"></div>
+      <label class="field-label" for="teacherNotesInput">備考（勤務希望日・通勤方法・経験など自由記述）</label>
+      <textarea id="teacherNotesInput" rows="3" style="width:100%;padding:9px 12px;border:1px solid var(--border);border-radius:8px;font-family:inherit;font-size:13px;background:#fdfcf9;resize:vertical;"></textarea>
+
       <div class="form-actions">
         <button class="primary" id="saveBtn">登録する</button>
         <button class="ghost" id="cancelBtn" style="display:none;">キャンセル</button>
@@ -1031,6 +1036,383 @@
     <div class="card">
       <h2>登録済み講師一覧</h2>
       <div class="teacher-list" id="teacherList"></div>
+    </div>
+
+    <div class="card">
+      <h2>講師の一括インポート<span class="help-tip" tabindex="0">?<span class="help-tip-text">採用管理シート等から抽出した講師データを、まとめて登録できます。既存の登録済み講師には追加され、上書きはされません。</span></span></h2>
+      <p class="desc" style="margin-top:2px;">下のテキスト欄にJSON形式のデータが入っています。内容を確認のうえ「インポートする」を押してください。</p>
+      <textarea id="bulkImportInput" rows="8" style="width:100%;padding:10px 12px;border:1px solid var(--border);border-radius:8px;font-family:monospace;font-size:11.5px;background:#fdfcf9;">[
+  {
+    "name": "村田 歴桜",
+    "subjects": [
+      {
+        "level": "小学",
+        "subject": "国語",
+        "preferred": false
+      },
+      {
+        "level": "小学",
+        "subject": "算数",
+        "preferred": false
+      },
+      {
+        "level": "小学",
+        "subject": "英語",
+        "preferred": false
+      },
+      {
+        "level": "小学",
+        "subject": "理科",
+        "preferred": false
+      },
+      {
+        "level": "小学",
+        "subject": "社会",
+        "preferred": false
+      },
+      {
+        "level": "中学",
+        "subject": "国語",
+        "preferred": false
+      },
+      {
+        "level": "中学",
+        "subject": "数学",
+        "preferred": false
+      },
+      {
+        "level": "中学",
+        "subject": "英語",
+        "preferred": false
+      },
+      {
+        "level": "中学",
+        "subject": "理科",
+        "preferred": false
+      },
+      {
+        "level": "中学",
+        "subject": "社会",
+        "preferred": false
+      },
+      {
+        "level": "高校",
+        "subject": "国語",
+        "preferred": false
+      },
+      {
+        "level": "高校",
+        "subject": "数学",
+        "preferred": false
+      },
+      {
+        "level": "高校",
+        "subject": "英語",
+        "preferred": false
+      },
+      {
+        "level": "高校",
+        "subject": "理科",
+        "preferred": false
+      },
+      {
+        "level": "高校",
+        "subject": "社会",
+        "preferred": false
+      }
+    ],
+    "perLessonRate": 0,
+    "dailyTransport": 0,
+    "notes": "【勤務希望日】18:20、20:00スタートコマはどの曜日も出勤できる可能性高い\n【勤務希望日数/月】就活・ゼミのバランス見ながら（後期日程は9月中旬に確定）\n【通勤方法】住吉\n【塾講師経験】あり（TOMAS）\n【備考】中学受験：都立両国✕／芝✕。高校受験：都立日比谷〇／学芸大附属〇／市川〇／開成✕／渋谷教育学園幕張✕。大学受験：慶應理工〇／早稲田先進理工〇／東京大学理一✕"
+  },
+  {
+    "name": "大竹 敦子",
+    "subjects": [
+      {
+        "level": "小学",
+        "subject": "国語",
+        "preferred": true
+      }
+    ],
+    "perLessonRate": 0,
+    "dailyTransport": 0,
+    "notes": "【勤務希望日】月・火の早めの時間、それ以外の曜日\n【勤務希望日数/月】週1、2回。曜日によっては全コマも可能\n【通勤方法】中野（電車）\n【塾講師経験】あり（集団授業）\n【備考】週1回で他塾で勤務中。元公務員、結婚後に公文でアルバイト。中学受験国語が専門でそれ以外は指導経験なし"
+  },
+  {
+    "name": "中村 駿",
+    "subjects": [
+      {
+        "level": "小学",
+        "subject": "国語",
+        "preferred": false
+      },
+      {
+        "level": "小学",
+        "subject": "算数",
+        "preferred": false
+      },
+      {
+        "level": "小学",
+        "subject": "英語",
+        "preferred": false
+      },
+      {
+        "level": "中学",
+        "subject": "国語",
+        "preferred": false
+      },
+      {
+        "level": "中学",
+        "subject": "数学",
+        "preferred": false
+      },
+      {
+        "level": "中学",
+        "subject": "英語",
+        "preferred": false
+      }
+    ],
+    "perLessonRate": 0,
+    "dailyTransport": 0,
+    "notes": "【勤務希望日】火・木は柔軟に対応可（9-18時が勤務時間）。月水金は20時のコマがギリギリ。土は極力入りたい\n【通勤方法】菊川\n【塾講師経験】あり（個別・スクールIE）\n【備考】両親が千葉在住、体調に不安あり"
+  },
+  {
+    "name": "小泉 嵐",
+    "subjects": [
+      {
+        "level": "小学",
+        "subject": "国語",
+        "preferred": false
+      },
+      {
+        "level": "小学",
+        "subject": "算数",
+        "preferred": false
+      },
+      {
+        "level": "小学",
+        "subject": "理科",
+        "preferred": false
+      },
+      {
+        "level": "小学",
+        "subject": "社会",
+        "preferred": false
+      },
+      {
+        "level": "中学",
+        "subject": "国語",
+        "preferred": false
+      },
+      {
+        "level": "中学",
+        "subject": "数学",
+        "preferred": false
+      },
+      {
+        "level": "中学",
+        "subject": "理科",
+        "preferred": false
+      },
+      {
+        "level": "中学",
+        "subject": "社会",
+        "preferred": false
+      }
+    ],
+    "perLessonRate": 0,
+    "dailyTransport": 0,
+    "notes": "【勤務希望日】週2、3日\n【勤務希望日数/月】1日複数コマ可\n【通勤方法】南砂（バス・自転車）\n【塾講師経験】なし\n【備考】少林寺。英語は聞き取りが苦手なため対応教科から除外。中学は「英語以外なら多分大丈夫」と本人申告（確信度やや低め）"
+  },
+  {
+    "name": "青木 順正",
+    "subjects": [
+      {
+        "level": "小学",
+        "subject": "国語",
+        "preferred": false
+      },
+      {
+        "level": "小学",
+        "subject": "算数",
+        "preferred": false
+      },
+      {
+        "level": "小学",
+        "subject": "英語",
+        "preferred": false
+      },
+      {
+        "level": "小学",
+        "subject": "理科",
+        "preferred": false
+      },
+      {
+        "level": "小学",
+        "subject": "社会",
+        "preferred": false
+      },
+      {
+        "level": "中学",
+        "subject": "国語",
+        "preferred": false
+      },
+      {
+        "level": "中学",
+        "subject": "数学",
+        "preferred": false
+      },
+      {
+        "level": "中学",
+        "subject": "英語",
+        "preferred": false
+      },
+      {
+        "level": "中学",
+        "subject": "理科",
+        "preferred": false
+      },
+      {
+        "level": "中学",
+        "subject": "社会",
+        "preferred": false
+      },
+      {
+        "level": "高校",
+        "subject": "国語",
+        "preferred": false
+      },
+      {
+        "level": "高校",
+        "subject": "数学",
+        "preferred": false
+      },
+      {
+        "level": "高校",
+        "subject": "英語",
+        "preferred": false
+      },
+      {
+        "level": "高校",
+        "subject": "理科",
+        "preferred": false
+      },
+      {
+        "level": "高校",
+        "subject": "社会",
+        "preferred": false
+      }
+    ],
+    "perLessonRate": 0,
+    "dailyTransport": 0,
+    "notes": "【勤務希望日】9月に確定予定、現状未定。週2〜3希望\n【勤務希望日数/月】入れるだけ\n【通勤方法】駒沢大学駅（電車）\n【塾講師経験】あり（早稲田アカデミー、集団）\n【備考】散歩が趣味、クイズ研究会所属。来年3月卒業予定"
+  },
+  {
+    "name": "佐藤 希美",
+    "subjects": [
+      {
+        "level": "小学",
+        "subject": "国語",
+        "preferred": false
+      },
+      {
+        "level": "小学",
+        "subject": "算数",
+        "preferred": false
+      },
+      {
+        "level": "小学",
+        "subject": "英語",
+        "preferred": false
+      },
+      {
+        "level": "小学",
+        "subject": "理科",
+        "preferred": false
+      },
+      {
+        "level": "小学",
+        "subject": "社会",
+        "preferred": false
+      },
+      {
+        "level": "中学",
+        "subject": "理科",
+        "preferred": false
+      },
+      {
+        "level": "中学",
+        "subject": "数学",
+        "preferred": false
+      }
+    ],
+    "perLessonRate": 0,
+    "dailyTransport": 0,
+    "notes": "【勤務希望日】18:00〜\n【勤務希望日数/月】週2回\n【通勤方法】菊川\n【塾講師経験】なし\n【備考】保育園で勤務中。「中学生理数」を理科・数学と解釈"
+  },
+  {
+    "name": "田口 瑠菜",
+    "subjects": [
+      {
+        "level": "小学",
+        "subject": "国語",
+        "preferred": false
+      },
+      {
+        "level": "小学",
+        "subject": "算数",
+        "preferred": false
+      },
+      {
+        "level": "小学",
+        "subject": "英語",
+        "preferred": false
+      },
+      {
+        "level": "小学",
+        "subject": "理科",
+        "preferred": false
+      },
+      {
+        "level": "小学",
+        "subject": "社会",
+        "preferred": false
+      },
+      {
+        "level": "中学",
+        "subject": "国語",
+        "preferred": false
+      },
+      {
+        "level": "中学",
+        "subject": "数学",
+        "preferred": false
+      },
+      {
+        "level": "中学",
+        "subject": "英語",
+        "preferred": false
+      },
+      {
+        "level": "中学",
+        "subject": "理科",
+        "preferred": false
+      },
+      {
+        "level": "中学",
+        "subject": "社会",
+        "preferred": false
+      }
+    ],
+    "perLessonRate": 0,
+    "dailyTransport": 0,
+    "notes": "【勤務希望日】月・水・土。月曜は17時ごろ清澄着、水曜は19時ごろ、土曜は入れる分だけ\n【勤務希望日数/月】週2、3\n【通勤方法】柴又/実家（電車）\n【塾講師経験】なし（塾通いは3つ経験）\n【備考】部活・サークルあり。本人が「高校生はしんどいかも」と申告したため高校の対応教科は登録せず"
+  }
+]</textarea>
+      <div class="form-actions">
+        <button class="primary" id="bulkImportBtn">インポートする</button>
+        <span class="form-msg" id="bulkImportMsg"></span>
+      </div>
     </div>
 
     <div class="card">
@@ -1574,6 +1956,7 @@ function resetForm(){
   document.getElementById('nameInput').value = '';
   document.getElementById('perLessonRateInput').value = '1500';
   document.getElementById('dailyTransportInput').value = '500';
+  document.getElementById('teacherNotesInput').value = '';
   document.querySelectorAll('#subjectArea input[type=checkbox]').forEach(cb=>{
     cb.checked = false;
     cb.dispatchEvent(new Event('change'));
@@ -1589,6 +1972,7 @@ function fillFormForEdit(t){
   document.getElementById('nameInput').value = t.name;
   document.getElementById('perLessonRateInput').value = String(t.perLessonRate!=null ? t.perLessonRate : 1500);
   document.getElementById('dailyTransportInput').value = String(t.dailyTransport!=null ? t.dailyTransport : 500);
+  document.getElementById('teacherNotesInput').value = t.notes || '';
   document.querySelectorAll('#subjectArea input[type=checkbox]').forEach(cb=>{
     const match = t.subjects.find(s=>s.level===cb.dataset.level && s.subject===cb.dataset.subject);
     cb.checked = !!match;
@@ -1622,13 +2006,14 @@ async function handleSave(){
   if(!Number.isFinite(perLessonRate) || perLessonRate<0) perLessonRate = 0;
   let dailyTransport = parseInt(document.getElementById('dailyTransportInput').value, 10);
   if(!Number.isFinite(dailyTransport) || dailyTransport<0) dailyTransport = 0;
+  const notes = document.getElementById('teacherNotesInput').value.trim();
 
   msg.textContent = '保存中…';
   if(editingId){
     const idx = teachers.findIndex(t=>t.id===editingId);
-    if(idx>-1) teachers[idx] = {id:editingId, name, subjects, perLessonRate, dailyTransport};
+    if(idx>-1) teachers[idx] = {id:editingId, name, subjects, perLessonRate, dailyTransport, notes};
   }else{
-    teachers.push({id:'t-'+Date.now()+'-'+Math.random().toString(36).slice(2,7), name, subjects, perLessonRate, dailyTransport});
+    teachers.push({id:'t-'+Date.now()+'-'+Math.random().toString(36).slice(2,7), name, subjects, perLessonRate, dailyTransport, notes});
   }
   const ok = await saveTeachers();
   if(ok){
@@ -1670,6 +2055,7 @@ function renderTeacherList(){
           <button class="del-btn" data-id="${t.id}">削除</button>
         </div>
       </div>
+      ${t.notes ? `<div class="trow-notes">${t.notes.replace(/</g,'&lt;').replace(/\n/g,'<br>')}</div>` : ''}
       <div class="wl-mini">
         <div class="wl-mini-head">
           <span>対応可能${wl.totalAvail}コマ中、${wl.filled}コマが確定済み</span>
@@ -4599,6 +4985,40 @@ async function init(){
     });
   });
   document.getElementById('saveBtn').addEventListener('click', handleSave);
+  document.getElementById('bulkImportBtn').addEventListener('click', async ()=>{
+    const msg = document.getElementById('bulkImportMsg');
+    const raw = document.getElementById('bulkImportInput').value.trim();
+    if(!raw){ msg.textContent = 'データが入力されていません。'; return; }
+    let list;
+    try{
+      list = JSON.parse(raw);
+      if(!Array.isArray(list)) throw new Error('配列ではありません');
+    }catch(err){
+      msg.textContent = 'JSON形式が正しくありません。内容を確認してください。';
+      return;
+    }
+    let count = 0;
+    list.forEach(item=>{
+      if(!item.name || !Array.isArray(item.subjects)) return;
+      teachers.push({
+        id: 't-'+Date.now()+'-'+Math.random().toString(36).slice(2,7),
+        name: item.name,
+        subjects: item.subjects,
+        perLessonRate: item.perLessonRate!=null ? item.perLessonRate : 0,
+        dailyTransport: item.dailyTransport!=null ? item.dailyTransport : 0,
+        notes: item.notes || '',
+      });
+      count++;
+    });
+    if(count===0){ msg.textContent = '有効なデータが見つかりませんでした。'; return; }
+    msg.textContent = '保存中…';
+    await saveTeachers();
+    renderTeacherList();
+    renderMatrix();
+    renderMatching();
+    document.getElementById('bulkImportInput').value = '';
+    msg.textContent = `${count}名を登録しました。`;
+  });
   document.getElementById('cancelBtn').addEventListener('click', resetForm);
   document.getElementById('subjectFilter').addEventListener('change', renderMatrix);
   document.getElementById('showBadgesToggle').addEventListener('change', (e)=>{
