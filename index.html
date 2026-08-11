@@ -1000,7 +1000,6 @@
   <section id="view-manage" class="view">
     <div class="card">
       <h2><span id="formModeTitle">講師を登録</span><span class="help-tip" tabindex="0">?<span class="help-tip-text">氏名・対応可能教科を入力してください。スケジュール（出勤可能日）は「講師スケジュール管理」タブで月ごとに提出します。</span></span></h2>
-      <p class="desc" style="color:var(--danger);">※テスト公開用：入力内容は保存されません。</p>
 
       <label class="field-label" for="nameInput">講師名</label>
       <input type="text" id="nameInput" placeholder="例：田中 太郎">
@@ -1974,7 +1973,7 @@ async function saveStudents(){
   return true;
 }
 
-// ---- 割当確定・定員管理（セッション内メモリのみ／テスト公開用） ----
+// ---- 割当確定・定員管理（Firestoreで永続化） ----
 let assignments = []; // {id, studentId, courseId, subject, day, slot, teacherId}（loadStudents()内でシード投入）
 let roomCapacity = 12; // 教室全体のブース数上限
 let teacherCapacity = 2; // 1コマあたり、講師1人が同時に受け持てる生徒数（教室共通のルール）
