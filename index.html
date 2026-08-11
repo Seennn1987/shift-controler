@@ -163,6 +163,13 @@
   .subj-item{display:inline-flex;align-items:center;gap:2px;}
 
   .pay-input-row{display:flex;gap:16px;flex-wrap:wrap;}
+  .raise-row{display:flex;gap:10px;align-items:center;margin-bottom:8px;flex-wrap:wrap;}
+  .raise-row input[type=month]{padding:8px 10px;border:1px solid var(--border);border-radius:7px;font-family:inherit;font-size:13px;background:#fdfcf9;}
+  .raise-row input[type=text]{padding:8px 10px;border:1px solid var(--border);border-radius:7px;font-family:inherit;font-size:13px;background:#fdfcf9;width:120px;}
+  .raise-row .raise-label{font-size:12px;color:var(--ink-soft);}
+  .raise-row .remove-raise-btn{
+    border:none;background:transparent;color:var(--danger);font-size:11px;font-weight:700;cursor:pointer;padding:4px 8px;
+  }
   .pay-input-item{display:flex;flex-direction:column;gap:6px;}
   .pay-input-item label{font-size:11.5px;font-weight:700;color:var(--green-800);}
   .pay-input-item input{
@@ -1022,6 +1029,32 @@
         </div>
       </div>
 
+      <div style="height:14px"></div>
+      <label class="chip" style="display:inline-flex;">
+        <input type="checkbox" id="earlyExceptionToggle">
+        <span>最初の◯コマだけ特別単価にする</span>
+      </label>
+      <div id="earlyExceptionArea" class="pay-input-row" style="display:none;margin-top:10px;">
+        <div class="pay-input-item">
+          <label for="earlyExceptionCount">対象コマ数（最初から何コマ分か）</label>
+          <input type="text" inputmode="numeric" id="earlyExceptionCount" placeholder="例：50">
+        </div>
+        <div class="pay-input-item">
+          <label for="earlyExceptionRate">その間の単価（円/コマ）</label>
+          <input type="text" inputmode="numeric" id="earlyExceptionRate" placeholder="例：2700">
+        </div>
+      </div>
+
+      <div style="height:14px"></div>
+      <label class="chip" style="display:inline-flex;">
+        <input type="checkbox" id="raiseScheduleToggle">
+        <span>時期によって単価を変える（昇給）</span>
+      </label>
+      <div id="raiseScheduleArea" style="display:none;margin-top:10px;">
+        <div id="raiseScheduleList"></div>
+        <button type="button" class="ghost" id="addRaiseBtn" style="margin-top:8px;">＋ 昇給を追加</button>
+      </div>
+
       <div style="height:18px"></div>
       <label class="field-label" for="teacherNotesInput">備考（勤務希望日・通勤方法・経験など自由記述）</label>
       <textarea id="teacherNotesInput" rows="3" style="width:100%;padding:9px 12px;border:1px solid var(--border);border-radius:8px;font-family:inherit;font-size:13px;background:#fdfcf9;resize:vertical;"></textarea>
@@ -1645,6 +1678,51 @@ function fillBaseAvailArea(baseAvailability){
   });
 }
 
+// ---- 昇給スケジュール（講師登録フォーム上での一時管理） ----
+function renderRaiseScheduleList(){
+  const wrap = document.getElementById('raiseScheduleList');
+  if(!wrap) return;
+  if(formRaiseSchedule.length===0){
+    wrap.innerHTML = '<div class="empty-note" style="padding:8px 0;">まだ昇給の予定が追加されていません。</div>';
+    return;
+  }
+  wrap.innerHTML = formRaiseSchedule.map((r, idx)=>`
+    <div class="raise-row" data-idx="${idx}">
+      <span class="raise-label">適用開始</span>
+      <input type="month" class="raise-month-input" data-idx="${idx}" value="${r.yearMonth}">
+      <span class="raise-label">〜 単価</span>
+      <input type="text" inputmode="numeric" class="raise-rate-input" data-idx="${idx}" value="${r.rate}" placeholder="円/コマ">
+      <span class="raise-label">円</span>
+      <button type="button" class="remove-raise-btn" data-idx="${idx}">削除</button>
+    </div>
+  `).join('');
+  wrap.querySelectorAll('.raise-month-input').forEach(inp=>{
+    inp.addEventListener('change', ()=>{ formRaiseSchedule[Number(inp.dataset.idx)].yearMonth = inp.value; });
+  });
+  wrap.querySelectorAll('.raise-rate-input').forEach(inp=>{
+    inp.addEventListener('change', ()=>{
+      let v = parseInt(inp.value, 10);
+      if(!Number.isFinite(v) || v<0) v = 0;
+      inp.value = String(v);
+      formRaiseSchedule[Number(inp.dataset.idx)].rate = v;
+    });
+  });
+  wrap.querySelectorAll('.remove-raise-btn').forEach(btn=>{
+    btn.addEventListener('click', ()=>{
+      formRaiseSchedule.splice(Number(btn.dataset.idx), 1);
+      renderRaiseScheduleList();
+    });
+  });
+}
+function addRaiseRow(yearMonth, rate){
+  const t = new Date();
+  formRaiseSchedule.push({
+    yearMonth: yearMonth || `${t.getFullYear()}-${pad2(t.getMonth()+1)}`,
+    rate: rate!=null ? rate : 0,
+  });
+  renderRaiseScheduleList();
+}
+
 // 対象月内で、その曜日に該当する実日付のいずれかで対応可能なら、その曜日は対応可能とみなす（優先度は最も高いものを採用）
 // 月のスケジュールが未提出（レコードなし）の場合は全日×（対応不可）扱い
 function getWeekdayAvailabilityInMonth(teacherId, weekday, slot, yearMonth){
@@ -1799,6 +1877,7 @@ const HARDCODED_TEACHER_SCHEDULES = [
 let teachers = [];
 let editingId = null;
 let dataReady = false;
+let formRaiseSchedule = []; // [{yearMonth, rate}] 講師登録フォーム上での一時状態
 
 // ---------- データ読み込み（ハードコーディング版：storageは使用しない） ----------
 async function loadTeachers(){
@@ -1885,6 +1964,14 @@ function resetForm(){
   document.getElementById('perLessonRateInput').value = '1500';
   document.getElementById('dailyTransportInput').value = '500';
   document.getElementById('teacherNotesInput').value = '';
+  document.getElementById('earlyExceptionToggle').checked = false;
+  document.getElementById('earlyExceptionArea').style.display = 'none';
+  document.getElementById('earlyExceptionCount').value = '';
+  document.getElementById('earlyExceptionRate').value = '';
+  document.getElementById('raiseScheduleToggle').checked = false;
+  document.getElementById('raiseScheduleArea').style.display = 'none';
+  formRaiseSchedule = [];
+  renderRaiseScheduleList();
   document.querySelectorAll('#subjectArea input[type=checkbox]').forEach(cb=>{
     cb.checked = false;
     cb.dispatchEvent(new Event('change'));
@@ -1902,6 +1989,19 @@ function fillFormForEdit(t){
   document.getElementById('perLessonRateInput').value = String(t.perLessonRate!=null ? t.perLessonRate : 1500);
   document.getElementById('dailyTransportInput').value = String(t.dailyTransport!=null ? t.dailyTransport : 500);
   document.getElementById('teacherNotesInput').value = t.notes || '';
+
+  const hasEarly = !!(t.earlyLessonException && t.earlyLessonException.lessonCount>0);
+  document.getElementById('earlyExceptionToggle').checked = hasEarly;
+  document.getElementById('earlyExceptionArea').style.display = hasEarly ? 'flex' : 'none';
+  document.getElementById('earlyExceptionCount').value = hasEarly ? String(t.earlyLessonException.lessonCount) : '';
+  document.getElementById('earlyExceptionRate').value = hasEarly ? String(t.earlyLessonException.rate) : '';
+
+  const hasRaise = !!(t.raiseSchedule && t.raiseSchedule.length>0);
+  document.getElementById('raiseScheduleToggle').checked = hasRaise;
+  document.getElementById('raiseScheduleArea').style.display = hasRaise ? 'block' : 'none';
+  formRaiseSchedule = hasRaise ? JSON.parse(JSON.stringify(t.raiseSchedule)) : [];
+  renderRaiseScheduleList();
+
   document.querySelectorAll('#subjectArea input[type=checkbox]').forEach(cb=>{
     const match = t.subjects.find(s=>s.level===cb.dataset.level && s.subject===cb.dataset.subject);
     cb.checked = !!match;
@@ -1939,12 +2039,30 @@ async function handleSave(){
   const notes = document.getElementById('teacherNotesInput').value.trim();
   const baseAvailability = readBaseAvailArea();
 
+  let earlyLessonException = null;
+  if(document.getElementById('earlyExceptionToggle').checked){
+    let cnt = parseInt(document.getElementById('earlyExceptionCount').value, 10);
+    let rate = parseInt(document.getElementById('earlyExceptionRate').value, 10);
+    if(!Number.isFinite(cnt) || cnt<=0){ msg.textContent = '特別単価の対象コマ数を入力してください。'; return; }
+    if(!Number.isFinite(rate) || rate<0) rate = 0;
+    earlyLessonException = {lessonCount: cnt, rate: rate};
+  }
+
+  let raiseSchedule = null;
+  if(document.getElementById('raiseScheduleToggle').checked){
+    if(formRaiseSchedule.length===0){ msg.textContent = '昇給の予定を1件以上追加するか、チェックを外してください。'; return; }
+    for(const r of formRaiseSchedule){
+      if(!r.yearMonth){ msg.textContent = '昇給の適用開始年月を入力してください。'; return; }
+    }
+    raiseSchedule = JSON.parse(JSON.stringify(formRaiseSchedule)).sort((a,b)=> a.yearMonth < b.yearMonth ? -1 : 1);
+  }
+
   msg.textContent = '保存中…';
   if(editingId){
     const idx = teachers.findIndex(t=>t.id===editingId);
-    if(idx>-1) teachers[idx] = {id:editingId, name, subjects, perLessonRate, dailyTransport, notes, baseAvailability};
+    if(idx>-1) teachers[idx] = {id:editingId, name, subjects, perLessonRate, dailyTransport, notes, baseAvailability, earlyLessonException, raiseSchedule};
   }else{
-    teachers.push({id:'t-'+Date.now()+'-'+Math.random().toString(36).slice(2,7), name, subjects, perLessonRate, dailyTransport, notes, baseAvailability});
+    teachers.push({id:'t-'+Date.now()+'-'+Math.random().toString(36).slice(2,7), name, subjects, perLessonRate, dailyTransport, notes, baseAvailability, earlyLessonException, raiseSchedule});
   }
   const ok = await saveTeachers();
   if(ok){
@@ -2545,6 +2663,45 @@ function computeTeacherOpenings(dateStr, onlyTeacherId){
 
 // その日の実際のレッスン一覧（欠席・振替反映済み）から、売上・講師コスト・コスト率を計算する
 // includeTransport指定時は交通費込みの合計コストとコスト率を返す。省略時はグローバル設定(finIncludeTransport)に従う
+// 指定講師の、指定日"より前"の実施コマ累計数を数える（開校期間の最初の開始日を起点とする。計算コストを抑えるため最大370日分までで打ち切る）
+function countTeacherLessonsBefore(teacherId, dateStr){
+  if(terms.length===0) return 0;
+  let earliestStart = null;
+  terms.forEach(t=>{ if(!earliestStart || t.startDate < earliestStart) earliestStart = t.startDate; });
+  if(!earliestStart || earliestStart >= dateStr) return 0;
+  let count = 0;
+  let d = new Date(earliestStart+'T00:00:00');
+  const end = new Date(dateStr+'T00:00:00');
+  let guard = 0;
+  while(d < end && guard < 370){
+    const ds = toDateStr(d.getFullYear(), d.getMonth(), d.getDate());
+    const list = getEffectiveDayAssignments(ds);
+    count += list.filter(a=>a.teacherId===teacherId).length;
+    d.setDate(d.getDate()+1);
+    guard++;
+  }
+  return count;
+}
+
+// その講師の、指定日に適用されるコマ単価を判定する（優先順位：①最初のXコマ特例 → ②昇給スケジュール → ③基本単価）
+function getTeacherRateForDate(teacher, dateStr){
+  if(teacher.earlyLessonException && teacher.earlyLessonException.lessonCount > 0){
+    const before = countTeacherLessonsBefore(teacher.id, dateStr);
+    if(before < teacher.earlyLessonException.lessonCount){
+      return teacher.earlyLessonException.rate;
+    }
+  }
+  if(teacher.raiseSchedule && teacher.raiseSchedule.length > 0){
+    const ym = dateStr.slice(0,7);
+    const applicable = teacher.raiseSchedule.filter(r=>r.yearMonth <= ym);
+    if(applicable.length > 0){
+      applicable.sort((a,b)=> a.yearMonth < b.yearMonth ? 1 : -1);
+      return applicable[0].rate;
+    }
+  }
+  return teacher.perLessonRate || 0;
+}
+
 function computeDayFinance(dateStr, includeTransport){
   if(includeTransport===undefined) includeTransport = finIncludeTransport;
   const status = getDayStatus(dateStr);
@@ -2569,7 +2726,7 @@ function computeDayFinance(dateStr, includeTransport){
   teacherSlotSet.forEach(key=>{
     const tid = key.split('|')[0];
     const teacher = teachers.find(t=>t.id===tid);
-    lessonCost += teacher ? (teacher.perLessonRate || 0) : 0;
+    lessonCost += teacher ? getTeacherRateForDate(teacher, dateStr) : 0;
   });
   // 交通費（出勤日1回だけ）は別集計にしておき、含める/含めないを切り替えられるようにする
   let transportCost = 0;
@@ -4916,6 +5073,14 @@ async function init(){
       renderFinance();
     });
   });
+  document.getElementById('earlyExceptionToggle').addEventListener('change', (e)=>{
+    document.getElementById('earlyExceptionArea').style.display = e.target.checked ? 'flex' : 'none';
+  });
+  document.getElementById('raiseScheduleToggle').addEventListener('change', (e)=>{
+    document.getElementById('raiseScheduleArea').style.display = e.target.checked ? 'block' : 'none';
+    if(e.target.checked && formRaiseSchedule.length===0) addRaiseRow();
+  });
+  document.getElementById('addRaiseBtn').addEventListener('click', ()=>{ addRaiseRow(); });
   document.getElementById('saveBtn').addEventListener('click', handleSave);
   document.getElementById('bulkImportBtn').addEventListener('click', async ()=>{
     const msg = document.getElementById('bulkImportMsg');
