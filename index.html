@@ -1026,6 +1026,10 @@
       <label class="field-label" for="teacherNotesInput">備考（勤務希望日・通勤方法・経験など自由記述）</label>
       <textarea id="teacherNotesInput" rows="3" style="width:100%;padding:9px 12px;border:1px solid var(--border);border-radius:8px;font-family:inherit;font-size:13px;background:#fdfcf9;resize:vertical;"></textarea>
 
+      <div style="height:22px"></div>
+      <label class="field-label">基本の対応可能曜日・コマ<span class="help-tip" tabindex="0">?<span class="help-tip-text">面接時にヒアリングした「基本的にこの曜日・コマなら出勤できる／したい」を登録します。実際の月ごとの出退勤とは別の、参考プロフィールです。マスをクリックするたびに「×不可→○特に希望→△対応可能→×不可」の順に切り替わります。</span></span></label>
+      <div id="baseAvailArea"></div>
+
       <div class="form-actions">
         <button class="primary" id="saveBtn">登録する</button>
         <button class="ghost" id="cancelBtn" style="display:none;">キャンセル</button>
@@ -1123,7 +1127,69 @@
     ],
     "perLessonRate": 0,
     "dailyTransport": 0,
-    "notes": "【勤務希望日】18:20、20:00スタートコマはどの曜日も出勤できる可能性高い\n【勤務希望日数/月】就活・ゼミのバランス見ながら（後期日程は9月中旬に確定）\n【通勤方法】住吉\n【塾講師経験】あり（TOMAS）\n【備考】中学受験：都立両国✕／芝✕。高校受験：都立日比谷〇／学芸大附属〇／市川〇／開成✕／渋谷教育学園幕張✕。大学受験：慶應理工〇／早稲田先進理工〇／東京大学理一✕"
+    "notes": "【勤務希望日】18:20、20:00スタートコマはどの曜日も出勤できる可能性高い\n【勤務希望日数/月】就活・ゼミのバランス見ながら（後期日程は9月中旬に確定）\n【通勤方法】住吉\n【塾講師経験】あり（TOMAS）\n【備考】中学受験：都立両国✕／芝✕。高校受験：都立日比谷〇／学芸大附属〇／市川〇／開成✕／渋谷教育学園幕張✕。大学受験：慶應理工〇／早稲田先進理工〇／東京大学理一✕",
+    "baseAvailability": [
+      {
+        "day": "月",
+        "slot": 6,
+        "priority": "normal"
+      },
+      {
+        "day": "火",
+        "slot": 6,
+        "priority": "normal"
+      },
+      {
+        "day": "水",
+        "slot": 6,
+        "priority": "normal"
+      },
+      {
+        "day": "木",
+        "slot": 6,
+        "priority": "normal"
+      },
+      {
+        "day": "金",
+        "slot": 6,
+        "priority": "normal"
+      },
+      {
+        "day": "土",
+        "slot": 6,
+        "priority": "normal"
+      },
+      {
+        "day": "月",
+        "slot": 7,
+        "priority": "normal"
+      },
+      {
+        "day": "火",
+        "slot": 7,
+        "priority": "normal"
+      },
+      {
+        "day": "水",
+        "slot": 7,
+        "priority": "normal"
+      },
+      {
+        "day": "木",
+        "slot": 7,
+        "priority": "normal"
+      },
+      {
+        "day": "金",
+        "slot": 7,
+        "priority": "normal"
+      },
+      {
+        "day": "土",
+        "slot": 7,
+        "priority": "normal"
+      }
+    ]
   },
   {
     "name": "大竹 敦子",
@@ -1136,7 +1202,19 @@
     ],
     "perLessonRate": 0,
     "dailyTransport": 0,
-    "notes": "【勤務希望日】月・火の早めの時間、それ以外の曜日\n【勤務希望日数/月】週1、2回。曜日によっては全コマも可能\n【通勤方法】中野（電車）\n【塾講師経験】あり（集団授業）\n【備考】週1回で他塾で勤務中。元公務員、結婚後に公文でアルバイト。中学受験国語が専門でそれ以外は指導経験なし"
+    "notes": "【勤務希望日】月・火の早めの時間、それ以外の曜日\n【勤務希望日数/月】週1、2回。曜日によっては全コマも可能\n【通勤方法】中野（電車）\n【塾講師経験】あり（集団授業）\n【備考】週1回で他塾で勤務中。元公務員、結婚後に公文でアルバイト。中学受験国語が専門でそれ以外は指導経験なし",
+    "baseAvailability": [
+      {
+        "day": "月",
+        "slot": 4,
+        "priority": "preferred"
+      },
+      {
+        "day": "火",
+        "slot": 4,
+        "priority": "preferred"
+      }
+    ]
   },
   {
     "name": "中村 駿",
@@ -1174,7 +1252,64 @@
     ],
     "perLessonRate": 0,
     "dailyTransport": 0,
-    "notes": "【勤務希望日】火・木は柔軟に対応可（9-18時が勤務時間）。月水金は20時のコマがギリギリ。土は極力入りたい\n【通勤方法】菊川\n【塾講師経験】あり（個別・スクールIE）\n【備考】両親が千葉在住、体調に不安あり"
+    "notes": "【勤務希望日】火・木は柔軟に対応可（9-18時が勤務時間）。月水金は20時のコマがギリギリ。土は極力入りたい\n【通勤方法】菊川\n【塾講師経験】あり（個別・スクールIE）\n【備考】両親が千葉在住、体調に不安あり",
+    "baseAvailability": [
+      {
+        "day": "火",
+        "slot": 4,
+        "priority": "normal"
+      },
+      {
+        "day": "火",
+        "slot": 5,
+        "priority": "normal"
+      },
+      {
+        "day": "木",
+        "slot": 4,
+        "priority": "normal"
+      },
+      {
+        "day": "木",
+        "slot": 5,
+        "priority": "normal"
+      },
+      {
+        "day": "月",
+        "slot": 7,
+        "priority": "normal"
+      },
+      {
+        "day": "水",
+        "slot": 7,
+        "priority": "normal"
+      },
+      {
+        "day": "金",
+        "slot": 7,
+        "priority": "normal"
+      },
+      {
+        "day": "土",
+        "slot": 4,
+        "priority": "preferred"
+      },
+      {
+        "day": "土",
+        "slot": 5,
+        "priority": "preferred"
+      },
+      {
+        "day": "土",
+        "slot": 6,
+        "priority": "preferred"
+      },
+      {
+        "day": "土",
+        "slot": 7,
+        "priority": "preferred"
+      }
+    ]
   },
   {
     "name": "小泉 嵐",
@@ -1222,7 +1357,8 @@
     ],
     "perLessonRate": 0,
     "dailyTransport": 0,
-    "notes": "【勤務希望日】週2、3日\n【勤務希望日数/月】1日複数コマ可\n【通勤方法】南砂（バス・自転車）\n【塾講師経験】なし\n【備考】少林寺。英語は聞き取りが苦手なため対応教科から除外。中学は「英語以外なら多分大丈夫」と本人申告（確信度やや低め）"
+    "notes": "【勤務希望日】週2、3日\n【勤務希望日数/月】1日複数コマ可\n【通勤方法】南砂（バス・自転車）\n【塾講師経験】なし\n【備考】少林寺。英語は聞き取りが苦手なため対応教科から除外。中学は「英語以外なら多分大丈夫」と本人申告（確信度やや低め）",
+    "baseAvailability": []
   },
   {
     "name": "青木 順正",
@@ -1305,7 +1441,8 @@
     ],
     "perLessonRate": 0,
     "dailyTransport": 0,
-    "notes": "【勤務希望日】9月に確定予定、現状未定。週2〜3希望\n【勤務希望日数/月】入れるだけ\n【通勤方法】駒沢大学駅（電車）\n【塾講師経験】あり（早稲田アカデミー、集団）\n【備考】散歩が趣味、クイズ研究会所属。来年3月卒業予定"
+    "notes": "【勤務希望日】9月に確定予定、現状未定。週2〜3希望\n【勤務希望日数/月】入れるだけ\n【通勤方法】駒沢大学駅（電車）\n【塾講師経験】あり（早稲田アカデミー、集団）\n【備考】散歩が趣味、クイズ研究会所属。来年3月卒業予定",
+    "baseAvailability": []
   },
   {
     "name": "佐藤 希美",
@@ -1348,7 +1485,69 @@
     ],
     "perLessonRate": 0,
     "dailyTransport": 0,
-    "notes": "【勤務希望日】18:00〜\n【勤務希望日数/月】週2回\n【通勤方法】菊川\n【塾講師経験】なし\n【備考】保育園で勤務中。「中学生理数」を理科・数学と解釈"
+    "notes": "【勤務希望日】18:00〜\n【勤務希望日数/月】週2回\n【通勤方法】菊川\n【塾講師経験】なし\n【備考】保育園で勤務中。「中学生理数」を理科・数学と解釈",
+    "baseAvailability": [
+      {
+        "day": "月",
+        "slot": 6,
+        "priority": "normal"
+      },
+      {
+        "day": "火",
+        "slot": 6,
+        "priority": "normal"
+      },
+      {
+        "day": "水",
+        "slot": 6,
+        "priority": "normal"
+      },
+      {
+        "day": "木",
+        "slot": 6,
+        "priority": "normal"
+      },
+      {
+        "day": "金",
+        "slot": 6,
+        "priority": "normal"
+      },
+      {
+        "day": "土",
+        "slot": 6,
+        "priority": "normal"
+      },
+      {
+        "day": "月",
+        "slot": 7,
+        "priority": "normal"
+      },
+      {
+        "day": "火",
+        "slot": 7,
+        "priority": "normal"
+      },
+      {
+        "day": "水",
+        "slot": 7,
+        "priority": "normal"
+      },
+      {
+        "day": "木",
+        "slot": 7,
+        "priority": "normal"
+      },
+      {
+        "day": "金",
+        "slot": 7,
+        "priority": "normal"
+      },
+      {
+        "day": "土",
+        "slot": 7,
+        "priority": "normal"
+      }
+    ]
   },
   {
     "name": "田口 瑠菜",
@@ -1406,7 +1605,54 @@
     ],
     "perLessonRate": 0,
     "dailyTransport": 0,
-    "notes": "【勤務希望日】月・水・土。月曜は17時ごろ清澄着、水曜は19時ごろ、土曜は入れる分だけ\n【勤務希望日数/月】週2、3\n【通勤方法】柴又/実家（電車）\n【塾講師経験】なし（塾通いは3つ経験）\n【備考】部活・サークルあり。本人が「高校生はしんどいかも」と申告したため高校の対応教科は登録せず"
+    "notes": "【勤務希望日】月・水・土。月曜は17時ごろ清澄着、水曜は19時ごろ、土曜は入れる分だけ\n【勤務希望日数/月】週2、3\n【通勤方法】柴又/実家（電車）\n【塾講師経験】なし（塾通いは3つ経験）\n【備考】部活・サークルあり。本人が「高校生はしんどいかも」と申告したため高校の対応教科は登録せず",
+    "baseAvailability": [
+      {
+        "day": "月",
+        "slot": 5,
+        "priority": "normal"
+      },
+      {
+        "day": "月",
+        "slot": 6,
+        "priority": "normal"
+      },
+      {
+        "day": "月",
+        "slot": 7,
+        "priority": "normal"
+      },
+      {
+        "day": "水",
+        "slot": 6,
+        "priority": "normal"
+      },
+      {
+        "day": "水",
+        "slot": 7,
+        "priority": "normal"
+      },
+      {
+        "day": "土",
+        "slot": 4,
+        "priority": "preferred"
+      },
+      {
+        "day": "土",
+        "slot": 5,
+        "priority": "preferred"
+      },
+      {
+        "day": "土",
+        "slot": 6,
+        "priority": "preferred"
+      },
+      {
+        "day": "土",
+        "slot": 7,
+        "priority": "preferred"
+      }
+    ]
   }
 ]</textarea>
       <div class="form-actions">
@@ -1416,7 +1662,7 @@
     </div>
 
     <div class="card">
-      <h2>講師基本スケジュール<span class="help-tip" tabindex="0">?<span class="help-tip-text">講師が月次スケジュールで申告した「対応可能な曜日・コマ」の型を一覧表示します。月次の申告パターンであり、実際の空き状況は「カレンダー」タブの「講師空き状況」で確認できます。</span></span></h2>
+      <h2>講師基本スケジュール<span class="help-tip" tabindex="0">?<span class="help-tip-text">面接時にヒアリングした「基本的にこの曜日・コマなら出勤できる／したい」を、講師登録時に設定した内容で一覧表示します。各コマに講師がバランスよく配置できているかを見るための参考プロフィールで、実際のマッチングや月次の出退勤には使われません（実際の月次スケジュールは「講師スケジュール管理」タブで提出します）。</span></span></h2>
       <div class="filter-bar">
         <select id="subjectFilter">
           <option value="">教科で絞り込み（すべて表示）</option>
@@ -1717,6 +1963,51 @@ function cycleTeacherState(state){
   return 'none';
 }
 
+// ---- 講師登録時の「基本の対応可能曜日・コマ」（面接時ヒアリング用のプロフィール。実際のマッチングには使わない） ----
+function buildBaseAvailArea(){
+  const area = document.getElementById('baseAvailArea');
+  if(!area) return;
+  let thead = '<thead><tr><th></th>' + SLOTS.map(s=>`<th>${s.label}</th>`).join('') + '</tr></thead>';
+  let tbody = '<tbody>';
+  DAYS.forEach(day=>{
+    tbody += `<tr><th>${day}</th>`;
+    SLOTS.forEach(slot=>{
+      tbody += `<td><button type="button" class="ts-cell-btn st-none" data-day="${day}" data-slot="${slot.id}">×</button></td>`;
+    });
+    tbody += '</tr>';
+  });
+  tbody += '</tbody>';
+  area.innerHTML = `<div class="ts-grid-scroll"><table class="ts-grid">${thead}${tbody}</table></div>`;
+  area.querySelectorAll('.ts-cell-btn').forEach(btn=>{
+    btn.addEventListener('click', ()=>{
+      const cur = btn.classList.contains('st-preferred') ? 'preferred' : (btn.classList.contains('st-normal') ? 'normal' : 'none');
+      const next = cycleTeacherState(cur);
+      btn.className = `ts-cell-btn st-${next}`;
+      btn.textContent = next==='none' ? '×' : (next==='preferred' ? '○' : '△');
+    });
+  });
+}
+// フォーム上のグリッドの現在の状態を読み取り、{day,slot,priority}の配列にする（×は除外）
+function readBaseAvailArea(){
+  const result = [];
+  document.querySelectorAll('#baseAvailArea .ts-cell-btn').forEach(btn=>{
+    const state = btn.classList.contains('st-preferred') ? 'preferred' : (btn.classList.contains('st-normal') ? 'normal' : 'none');
+    if(state==='none') return;
+    result.push({day:btn.dataset.day, slot:Number(btn.dataset.slot), priority:state});
+  });
+  return result;
+}
+// 登録済みデータをもとに、フォーム上のグリッドへ状態を反映する
+function fillBaseAvailArea(baseAvailability){
+  const list = baseAvailability || [];
+  document.querySelectorAll('#baseAvailArea .ts-cell-btn').forEach(btn=>{
+    const match = list.find(e=>e.day===btn.dataset.day && e.slot===Number(btn.dataset.slot));
+    const state = match ? match.priority : 'none';
+    btn.className = `ts-cell-btn st-${state}`;
+    btn.textContent = state==='none' ? '×' : (state==='preferred' ? '○' : '△');
+  });
+}
+
 // 対象月内で、その曜日に該当する実日付のいずれかで対応可能なら、その曜日は対応可能とみなす（優先度は最も高いものを採用）
 // 月のスケジュールが未提出（レコードなし）の場合は全日×（対応不可）扱い
 function getWeekdayAvailabilityInMonth(teacherId, weekday, slot, yearMonth){
@@ -1961,6 +2252,7 @@ function resetForm(){
     cb.checked = false;
     cb.dispatchEvent(new Event('change'));
   });
+  fillBaseAvailArea([]);
   document.getElementById('formModeTitle').textContent = '講師を登録';
   document.getElementById('saveBtn').textContent = '登録する';
   document.getElementById('cancelBtn').style.display = 'none';
@@ -1982,6 +2274,7 @@ function fillFormForEdit(t){
       if(star){ star.dataset.preferred='1'; star.textContent='★'; star.classList.add('active'); }
     }
   });
+  fillBaseAvailArea(t.baseAvailability);
   document.getElementById('formModeTitle').textContent = `${t.name} さんを編集`;
   document.getElementById('saveBtn').textContent = '更新する';
   document.getElementById('cancelBtn').style.display = 'inline-block';
@@ -2007,13 +2300,14 @@ async function handleSave(){
   let dailyTransport = parseInt(document.getElementById('dailyTransportInput').value, 10);
   if(!Number.isFinite(dailyTransport) || dailyTransport<0) dailyTransport = 0;
   const notes = document.getElementById('teacherNotesInput').value.trim();
+  const baseAvailability = readBaseAvailArea();
 
   msg.textContent = '保存中…';
   if(editingId){
     const idx = teachers.findIndex(t=>t.id===editingId);
-    if(idx>-1) teachers[idx] = {id:editingId, name, subjects, perLessonRate, dailyTransport, notes};
+    if(idx>-1) teachers[idx] = {id:editingId, name, subjects, perLessonRate, dailyTransport, notes, baseAvailability};
   }else{
-    teachers.push({id:'t-'+Date.now()+'-'+Math.random().toString(36).slice(2,7), name, subjects, perLessonRate, dailyTransport, notes});
+    teachers.push({id:'t-'+Date.now()+'-'+Math.random().toString(36).slice(2,7), name, subjects, perLessonRate, dailyTransport, notes, baseAvailability});
   }
   const ok = await saveTeachers();
   if(ok){
@@ -4787,8 +5081,8 @@ function renderMatrix(){
         tbody += `<td class="cell closed-day-col" data-day="${day}"><div class="cell-closed-label">定休日</div></td>`;
         return;
       }
-      // その曜日・コマに入れる講師を抽出
-      let avail = teachers.filter(t => isAvailable(t, day, slot.id));
+      // その曜日・コマに「基本的に対応可能」と登録時に申告している講師を抽出（実際の月次提出とは無関係）
+      let avail = teachers.filter(t => (t.baseAvailability||[]).some(e=>e.day===day && e.slot===slot.id));
       if(filterVal){
         avail = avail.filter(t => t.subjects.some(s=>s.level===filterLevel && s.subject===filterSubject));
       }
@@ -4894,6 +5188,7 @@ function switchCalMode(mode){
 // ---------- init ----------
 async function init(){
   buildSubjectArea();
+  buildBaseAvailArea();
   buildSubjectFilterOptions();
   renderLegend();
   document.getElementById('matrixWrap').innerHTML = '<div class="loading">読み込み中…</div>';
@@ -5007,6 +5302,7 @@ async function init(){
         perLessonRate: item.perLessonRate!=null ? item.perLessonRate : 0,
         dailyTransport: item.dailyTransport!=null ? item.dailyTransport : 0,
         notes: item.notes || '',
+        baseAvailability: item.baseAvailability || [],
       });
       count++;
     });
