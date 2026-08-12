@@ -407,9 +407,10 @@ function render(){
   const isSubmitted = entry.status==='submitted';
   localOverrides = {}; // 月を切り替えたら下書きはリセットする
 
+  const adminNote = entry.submittedBy==='admin' ? '（教室長が代理入力した内容です。内容をご確認ください）' : '';
   document.getElementById('statusBar').innerHTML = isSubmitted
-    ? '<span class="status-badge submitted">確定</span><span>この月は提出済みです。セルをクリックして変更内容を選び、最後に「変更をリクエストする」を押すとまとめて教室長に届きます（押すまでは送信されません）。</span>'
-    : '<span class="status-badge draft">未提出</span><span>セルをクリックして入力し「この内容で提出する」を押してください。</span>';
+    ? `<span class="status-badge submitted">確定</span><span>この月は提出済みです${adminNote}。セルをクリックして変更内容を選び、最後に「変更をリクエストする」を押すとまとめて教室長に届きます（押すまでは送信されません）。</span>`
+    : `<span class="status-badge draft">未提出</span><span>セルをクリックして入力し「この内容で提出する」を押してください${adminNote}。</span>`;
 
   const total = daysInYearMonth(yearMonth);
   let thead = '<thead><tr><th>日付</th>' + SLOTS.map(s=>`<th>${s.label}</th>`).join('') + '</tr></thead>';
@@ -469,6 +470,7 @@ async function handleCellClick(btn, entry, isSubmitted, yearMonth){
     entry.days[dateStr] = entry.days[dateStr] || [];
     entry.days[dateStr] = entry.days[dateStr].filter(e=>e.slot!==slot);
     if(next!=='none') entry.days[dateStr].push({slot, priority:next});
+    entry.submittedBy = 'teacher'; // 講師本人が触ったことを記録
     btn.className = `cell-btn st-${next}`;
     btn.innerHTML = labelFor(next);
     await saveMonthEntry(yearMonth, entry);
@@ -553,6 +555,7 @@ document.getElementById('submitBtn').addEventListener('click', async ()=>{
   const yearMonth = `${curYear}-${pad2(curMonth+1)}`;
   const entry = getMonthEntry(yearMonth);
   entry.status = 'submitted';
+  entry.submittedBy = 'teacher';
   const msg = document.getElementById('formMsg');
   msg.textContent = '提出中…';
   await saveMonthEntry(yearMonth, entry);
