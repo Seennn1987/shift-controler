@@ -343,6 +343,8 @@
     padding:6px 8px;background:#fdfcf9;
   }
   .cell-t .t-name{font-weight:700;color:var(--ink);display:block;margin-bottom:4px;}
+  .cell-t .t-mark{font-weight:900;font-size:13px;margin-right:4px;color:var(--ink-soft);}
+  .cell-t .t-mark.mark-preferred{color:var(--ink);}
   .cell-t .t-badges{display:flex;flex-wrap:wrap;gap:3px;}
   .subj-badge{
     display:inline-block;font-size:10.5px;font-weight:700;padding:2px 7px;border-radius:5px;
@@ -350,11 +352,13 @@
   }
   .cell-summary{border-top:1px dashed var(--border);padding-top:6px;}
   .cell-total{font-size:11px;font-weight:700;color:var(--green-800);margin-bottom:5px;}
-  .cell-summary-tags{display:flex;flex-wrap:wrap;gap:4px;}
+  .cell-summary-row{display:flex;align-items:center;flex-wrap:wrap;gap:4px;margin-bottom:3px;}
+  .cell-summary-level{font-size:9.5px;font-weight:700;color:var(--ink-soft);min-width:24px;flex-shrink:0;}
   .sum-tag{
     font-size:10.5px;font-weight:700;
     padding:2px 7px;border-radius:5px;border:1px solid transparent;
   }
+  .sum-tag-empty{background:transparent;border-style:dashed;}
   tr.day-start td, tr.day-start th{border-top:2px solid var(--green-700);}
 
   .empty-state{
@@ -2653,12 +2657,7 @@ function summarizeTeacherSubjects(t){
   return labels;
 }
 
-// コマ集計タグのキー（例：国小、数中）と並び順
-function catLevelKey(level, subject){
-  return SUBJECT_CATEGORY[subject] + LEVEL_ABBR[level];
-}
-const SUM_ORDER = [];
-CATS.forEach(cat=>{ LEVELS_ORDER.forEach(lv=> SUM_ORDER.push(cat + LEVEL_ABBR[lv])); });
+
 
 
 // ---------- 講師データ（テスト用シードデータ：講師8名） ----------
@@ -5747,9 +5746,12 @@ function renderMatrix(){
         return;
       }
 
-      // 講師名＋対応教科を1つのボックスにまとめて表示
+      // 講師名＋対応教科を1つのボックスにまとめて表示（○/△を名前の前に付ける）
       let teacherLines = '';
       avail.forEach(t=>{
+        const entry = (t.baseAvailability||[]).find(e=>e.day===day && e.slot===slot.id);
+        const isPreferred = entry && entry.priority==='preferred';
+        const mark = isPreferred ? '○' : '△';
         let effectiveTeacher = t;
         if(filterVal){
           // フィルタ時は該当教科のみを対象に要約する
@@ -5759,33 +5761,32 @@ function renderMatrix(){
         const badges = labels.map(l=>
           `<span class="subj-badge" style="background:${l.color.bg};color:${l.color.text};border-color:${l.color.border};">${l.text}</span>`
         ).join('');
-        teacherLines += `<div class="cell-t"><span class="t-name">${t.name}</span><span class="t-badges">${badges}</span></div>`;
+        teacherLines += `<div class="cell-t"><span class="t-mark ${isPreferred?'mark-preferred':'mark-normal'}">${mark}</span><span class="t-name">${t.name}</span><span class="t-badges">${badges}</span></div>`;
       });
 
-      // コマごとの教科別対応可能人数の集計（例：国小1）
-      const counts = {};
-      avail.forEach(t=>{
-        let subs = t.subjects;
-        if(filterVal){ subs = subs.filter(s=>s.level===filterLevel && s.subject===filterSubject); }
-        subs.forEach(s=>{
-          const key = catLevelKey(s.level, s.subject);
-          counts[key] = counts[key] || {n:0, level:s.level, subject:s.subject};
-          counts[key].n += 1;
-        });
+      // 学年別・全5教科の対応可能人数（0人の教科は点線枠で「人がいない」ことを強調）
+      let levelRows = '';
+      LEVELS_ORDER.forEach(lv=>{
+        if(filterVal && filterLevel!==lv) return; // フィルタ中は該当学年のみ表示
+        const subjectsForLevel = SUBJECT_MAP[lv];
+        const tags = subjectsForLevel.map(sub=>{
+          if(filterVal && filterSubject!==sub) return '';
+          const n = avail.filter(t=>t.subjects.some(s=>s.level===lv && s.subject===sub)).length;
+          const c = subjectColor(lv, sub);
+          if(n===0){
+            return `<span class="sum-tag sum-tag-empty" style="border-color:${c.border};color:${c.border};">${SUBJECT_ABBR[sub]}0</span>`;
+          }
+          return `<span class="sum-tag" style="background:${c.bg};color:${c.text};border-color:${c.border};">${SUBJECT_ABBR[sub]}${n}</span>`;
+        }).filter(Boolean).join('');
+        if(!tags) return;
+        levelRows += `<div class="cell-summary-row"><span class="cell-summary-level">${lv}</span>${tags}</div>`;
       });
-      const summaryTags = SUM_ORDER
-        .filter(key => counts[key])
-        .map(key=>{
-          const c = subjectColor(counts[key].level, counts[key].subject);
-          return `<span class="sum-tag" style="background:${c.bg};color:${c.text};border-color:${c.border};">${key}${counts[key].n}</span>`;
-        })
-        .join('');
 
       tbody += `<td class="cell">
         <div class="cell-teachers">${teacherLines}</div>
         <div class="cell-summary">
           <div class="cell-total">コマ合計：${avail.length}人</div>
-          <div class="cell-summary-tags">${summaryTags}</div>
+          ${levelRows}
         </div>
       </td>`;
     });
