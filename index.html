@@ -607,6 +607,10 @@
   .ta-slot-check{display:flex;align-items:center;gap:8px;font-size:13px;}
   .ta-cand-area{margin-top:8px;padding-top:8px;border-top:1px dashed var(--border);}
   .ta-resolved{font-size:12px;color:var(--ink-soft);margin-top:6px;display:flex;align-items:center;gap:8px;}
+  .ta-student-row{display:flex;align-items:center;gap:10px;flex-wrap:wrap;padding:6px 0 6px 26px;font-size:12.5px;}
+  .ta-student-label{min-width:140px;}
+  .ta-resolved-inline{font-size:11.5px;color:var(--ink-soft);display:flex;align-items:center;gap:6px;}
+  .ta-cand-area{flex-basis:100%;margin-left:26px;padding-top:6px;}
   .absence-quick-row select, .absence-quick-row input{
     padding:8px 10px;border:1px solid var(--border);border-radius:7px;font-family:inherit;font-size:13px;background:#fff;
     min-width:180px;
@@ -2546,34 +2550,49 @@ function recordTeacherAbsence(teacherId, dateStr, slots){
 }
 
 // その日その枠に代講候補になりうる講師を探す（欠勤本人を除外、その枠にいる全生徒の教科・学年に対応でき、空きがある講師）
-function findSubstituteCandidates(dateStr, slot, absentTeacherId, studentEntries){
+// その日その枠・その生徒1人分について、代講候補になりうる講師を探す
+// （実際の当日の負荷=getEffectiveDayAssignmentsベースで空きを判定するため、同じ枠内で他の生徒に既に代講が決まっていても正しく数えられる）
+function findSubstituteCandidatesForStudent(dateStr, slot, absentTeacherId, studentId, subject){
+  const student = students.find(s=>s.id===studentId);
+  if(!student) return [];
   const status = getDayStatus(dateStr);
   if(status.type!=='open') return [];
   const weekday = status.weekday;
-  const needed = studentEntries.length;
+  const dayList = getEffectiveDayAssignments(dateStr);
   return teachers.filter(t=>{
     if(t.id===absentTeacherId) return false;
     if(!isAvailable(t, weekday, slot)) return false;
-    const canTeachAll = studentEntries.every(e=>{
-      const student = students.find(s=>s.id===e.studentId);
-      return student && t.subjects.some(ts=>ts.level===student.level && ts.subject===e.subject);
-    });
-    if(!canTeachAll) return false;
-    const used = countTeacherSlot(t.id, weekday, slot, null);
-    return (teacherCapacity - used) >= needed;
+    if(!t.subjects.some(ts=>ts.level===student.level && ts.subject===subject)) return false;
+    const used = dayList.filter(a=>a.teacherId===t.id && a.slot===slot).length;
+    return used < teacherCapacity;
   });
 }
 
-// 代講講師を確定する（その日その枠だけ担当者が変わる。曜日パターン自体は変更しない）
-function confirmSubstitute(teacherId, dateStr, slot, substituteTeacherId){
-  teacherSubstitutions = teacherSubstitutions.filter(s=>!(s.teacherId===teacherId && s.date===dateStr && s.slot===slot));
-  teacherSubstitutions.push({id:'tsub-'+Date.now()+'-'+Math.random().toString(36).slice(2,6), teacherId, date:dateStr, slot, substituteTeacherId});
+// 代講講師を確定する（その日その枠・その生徒だけ担当者が変わる。曜日パターン自体は変更しない）
+// studentIdを省略すると、その枠の全員に一括適用する
+function confirmSubstitute(teacherId, dateStr, slot, substituteTeacherId, studentId){
+  studentId = studentId || null;
+  teacherSubstitutions = teacherSubstitutions.filter(s=>!(s.teacherId===teacherId && s.date===dateStr && s.slot===slot && s.studentId===studentId));
+  teacherSubstitutions.push({id:'tsub-'+Date.now()+'-'+Math.random().toString(36).slice(2,6), teacherId, date:dateStr, slot, substituteTeacherId, studentId});
+
+  // 代講講師にも、既存の「授業の承認」の仕組みで通知する（単発の代講であることが分かるよう日付を添える）
+  const status = getDayStatus(dateStr);
+  const weekday = status.weekday;
+  const targets = studentId
+    ? [{studentId}]
+    : assignments.filter(a=>a.teacherId===teacherId && a.day===weekday && a.slot===slot);
+  targets.forEach(a=>{
+    const original = assignments.find(x=>x.teacherId===teacherId && x.day===weekday && x.slot===slot && x.studentId===a.studentId);
+    if(!original) return;
+    issueAssignmentApproval(original.studentId, original.courseId, original.subject, weekday, slot, substituteTeacherId, dateStr);
+  });
 }
-function cancelSubstitute(teacherId, dateStr, slot){
-  teacherSubstitutions = teacherSubstitutions.filter(s=>!(s.teacherId===teacherId && s.date===dateStr && s.slot===slot));
+function cancelSubstitute(teacherId, dateStr, slot, studentId){
+  studentId = studentId || null;
+  teacherSubstitutions = teacherSubstitutions.filter(s=>!(s.teacherId===teacherId && s.date===dateStr && s.slot===slot && s.studentId===studentId));
 }
 
-// 代講が見つからない・選ばない場合：その枠の生徒全員を、既存の生徒側「欠席」フローに乗せる
+// 代講が見つからない・選ばない場合：対象の生徒を、既存の生徒側「欠席」フローに乗せる（1人単位でも複数人まとめてでも使える）
 function resolveSlotViaStudentAbsence(teacherId, dateStr, slot, studentEntries){
   const status = getDayStatus(dateStr);
   if(status.type!=='open') return;
@@ -2686,7 +2705,9 @@ function getEffectiveDayAssignments(dateStr){
   assignments.forEach(a=>{
     if(a.day!==weekday) return;
     if(findAbsenceFor(a.studentId, a.courseId, dateStr, a.day, a.slot)) return;
-    const sub = teacherSubstitutions.find(s=>s.teacherId===a.teacherId && s.date===dateStr && s.slot===a.slot);
+    // studentId指定ありの代講（この生徒だけ）を優先し、なければ全体向け（studentId:null）の代講を見る
+    const sub = teacherSubstitutions.find(s=>s.teacherId===a.teacherId && s.date===dateStr && s.slot===a.slot && s.studentId===a.studentId)
+      || teacherSubstitutions.find(s=>s.teacherId===a.teacherId && s.date===dateStr && s.slot===a.slot && !s.studentId);
     const effectiveTeacherId = sub ? sub.substituteTeacherId : a.teacherId;
     list.push({studentId:a.studentId, courseId:a.courseId, subject:a.subject, slot:a.slot, teacherId:effectiveTeacherId, kind:'normal', source:a.source, substituted: !!sub, originalTeacherId: sub ? a.teacherId : null});
   });
@@ -3993,20 +4014,22 @@ function countRoomSlot(day, slot, excludeStudentId){
 
 // 新しく確定した授業を、講師専用ページで承認してもらうためのチケットを発行する
 // （講師がログインアカウントを持っている場合のみ。持っていない講師には何もしない）
-async function issueAssignmentApproval(studentId, courseId, subject, day, slot, teacherId){
+async function issueAssignmentApproval(studentId, courseId, subject, day, slot, teacherId, oneTimeDate){
   const teacher = teachers.find(t=>t.id===teacherId);
   if(!teacher || !teacher.loginUid) return;
   const student = students.find(s=>s.id===studentId);
   if(!student) return;
   try{
-    await fbDb.collection('assignmentApprovals').add({
+    const payload = {
       adminUid: fbAuth.currentUser.uid,
       teacherId, teacherLoginUid: teacher.loginUid,
       studentName: student.name, studentGrade: gradeLabel(student),
       subject, day, slot,
       status: 'pending',
       createdAt: firebase.firestore.FieldValue.serverTimestamp(),
-    });
+    };
+    if(oneTimeDate) payload.oneTimeDate = oneTimeDate; // 指定日のみの代講の場合、その日付を明記する
+    await fbDb.collection('assignmentApprovals').add(payload);
   }catch(err){
     console.error('承認チケット発行エラー:', err);
   }
@@ -4764,34 +4787,38 @@ function renderTeacherAbsencePanel(teacherId, dateStr){
     const slot = SLOTS.find(s=>s.id===slotId);
     const studentEntries = lessonsBySlot[slotId];
     const isMarked = ta && ta.slots.includes(slotId);
-    const sub = teacherSubstitutions.find(s=>s.teacherId===teacherId && s.date===dateStr && s.slot===slotId);
-    const studentsLabel = studentEntries.map(e=>{
-      const st = students.find(s=>s.id===e.studentId);
-      return `${st?st.name:'?'}（${e.subject}）`;
-    }).join('、');
 
-    let statusHtml = '';
-    if(sub){
-      const subTeacher = teachers.find(t=>t.id===sub.substituteTeacherId);
-      statusHtml = `<div class="ta-resolved">代講：${subTeacher?subTeacher.name:'?'}先生 <button type="button" class="cancel-absence-btn" data-cancel-sub="${slotId}">取り消す</button></div>`;
-    }else if(isMarked){
-      statusHtml = `<div class="ta-resolved">生徒側の欠席として処理済み（振替は「カレンダー」タブから対応できます）</div>`;
-    }
+    let studentRowsHtml = '';
+    studentEntries.forEach(e=>{
+      const st = students.find(s=>s.id===e.studentId);
+      const studentLabel = `${st?st.name:'?'}（${e.subject}）`;
+      const sub = teacherSubstitutions.find(s=>s.teacherId===teacherId && s.date===dateStr && s.slot===slotId && s.studentId===e.studentId);
+      let stStatusHtml = '';
+      if(sub){
+        const subTeacher = teachers.find(t=>t.id===sub.substituteTeacherId);
+        stStatusHtml = `<span class="ta-resolved-inline">代講：${subTeacher?subTeacher.name:'?'}先生 <button type="button" class="cancel-absence-btn" data-cancel-sub="${slotId}" data-cancel-student="${e.studentId}">取り消す</button></span>`;
+      }
+      studentRowsHtml += `<div class="ta-student-row" data-slot="${slotId}" data-student="${e.studentId}" data-subject="${e.subject}">
+        <span class="ta-student-label">${studentLabel}</span>
+        ${!sub ? `<button type="button" class="ghost ta-find-sub-btn" data-slot="${slotId}" data-student="${e.studentId}" data-subject="${e.subject}">代講を探す</button>` : ''}
+        ${stStatusHtml}
+        <div class="ta-cand-area" id="taCand-${slotId}-${e.studentId}" style="display:none;"></div>
+      </div>`;
+    });
 
     rowsHtml += `<div class="ta-slot-row">
       <label class="ta-slot-check">
         <input type="checkbox" class="ta-slot-checkbox" data-slot="${slotId}" ${isMarked?'checked disabled':''}>
-        <span><b>${slot.label}（${slot.time}）</b>　${studentsLabel}</span>
+        <span><b>${slot.label}（${slot.time}）</b></span>
       </label>
-      ${!isMarked ? `<button type="button" class="ghost ta-find-sub-btn" data-slot="${slotId}">代講を探す</button>` : ''}
-      <div class="ta-cand-area" id="taCand-${slotId}" style="display:none;"></div>
-      ${statusHtml}
+      ${studentRowsHtml}
+      ${isMarked ? `<div class="ta-resolved">この枠は欠勤対応済みです</div>` : ''}
     </div>`;
   });
 
   panel.innerHTML = `<div class="card">
     <h2>${teacher.name}先生の欠勤対応（${dateStr}）</h2>
-    <p class="desc">対応するコマにチェックを入れ、「代講を探す」から代講講師を選ぶか、見つからない場合はそのまま生徒側の欠席として処理してください。</p>
+    <p class="desc">1コマに複数の生徒がいる場合は、生徒ごとに個別に代講を探せます（同じ先生でも別の先生でも構いません）。見つからない場合は「代講せず欠席にする」から、その生徒だけ既存の振替フローに乗せられます。</p>
     <label class="chip" style="display:inline-flex;margin-bottom:10px;">
       <input type="checkbox" id="taAllSlotsCheckbox">
       <span>全コマ欠勤にする</span>
@@ -4809,26 +4836,25 @@ function renderTeacherAbsencePanel(teacherId, dateStr){
   panel.querySelectorAll('.ta-find-sub-btn').forEach(btn=>{
     btn.addEventListener('click', ()=>{
       const slotId = Number(btn.dataset.slot);
-      const checkbox = panel.querySelector(`.ta-slot-checkbox[data-slot="${slotId}"]`);
-      if(!checkbox.checked){ checkbox.checked = true; }
-      const candArea = document.getElementById(`taCand-${slotId}`);
+      const studentId = btn.dataset.student;
+      const subject = btn.dataset.subject;
+      const candArea = document.getElementById(`taCand-${slotId}-${studentId}`);
       const isOpen = candArea.style.display !== 'none';
       if(isOpen){ candArea.style.display = 'none'; return; }
 
-      const studentEntries = lessonsBySlot[slotId];
-      const candidates = findSubstituteCandidates(dateStr, slotId, teacherId, studentEntries);
+      const candidates = findSubstituteCandidatesForStudent(dateStr, slotId, teacherId, studentId, subject);
       let html = '';
       if(candidates.length===0){
         html = `<div class="match-none">対応できる代講候補が見つかりませんでした。</div>
-          <button type="button" class="no-makeup-btn" data-fallback-slot="${slotId}">代講せず、生徒の欠席として処理する</button>`;
+          <button type="button" class="no-makeup-btn" data-fallback-slot="${slotId}" data-fallback-student="${studentId}">代講せず欠席にする</button>`;
       }else{
         candidates.forEach(c=>{
           html += `<div class="match-cand">
             <span>${c.name}先生</span>
-            <button type="button" class="confirm-makeup-btn" data-confirm-sub="${slotId}" data-sub-teacher="${c.id}">この先生に代講してもらう</button>
+            <button type="button" class="confirm-makeup-btn" data-confirm-sub="${slotId}" data-confirm-student="${studentId}" data-sub-teacher="${c.id}">この先生に代講してもらう</button>
           </div>`;
         });
-        html += `<button type="button" class="no-makeup-btn" data-fallback-slot="${slotId}" style="margin-top:6px;">代講せず、生徒の欠席として処理する</button>`;
+        html += `<button type="button" class="no-makeup-btn" data-fallback-slot="${slotId}" data-fallback-student="${studentId}" style="margin-top:6px;">代講せず欠席にする</button>`;
       }
       candArea.innerHTML = html;
       candArea.style.display = 'block';
@@ -4836,7 +4862,8 @@ function renderTeacherAbsencePanel(teacherId, dateStr){
       candArea.querySelectorAll('[data-confirm-sub]').forEach(cbtn=>{
         cbtn.addEventListener('click', ()=>{
           const s = Number(cbtn.dataset.confirmSub);
-          confirmSubstitute(teacherId, dateStr, s, cbtn.dataset.subTeacher);
+          const sid = cbtn.dataset.confirmStudent;
+          confirmSubstitute(teacherId, dateStr, s, cbtn.dataset.subTeacher, sid);
           recordTeacherAbsence(teacherId, dateStr, [s]);
           renderMatching();
           renderTeacherAbsencePanel(teacherId, dateStr);
@@ -4845,7 +4872,9 @@ function renderTeacherAbsencePanel(teacherId, dateStr){
       candArea.querySelectorAll('[data-fallback-slot]').forEach(fbtn=>{
         fbtn.addEventListener('click', ()=>{
           const s = Number(fbtn.dataset.fallbackSlot);
-          resolveSlotViaStudentAbsence(teacherId, dateStr, s, lessonsBySlot[s]);
+          const sid = fbtn.dataset.fallbackStudent;
+          const entry = lessonsBySlot[s].find(e=>e.studentId===sid);
+          if(entry) resolveSlotViaStudentAbsence(teacherId, dateStr, s, [entry]);
           recordTeacherAbsence(teacherId, dateStr, [s]);
           renderMatching();
           renderTeacherAbsencePanel(teacherId, dateStr);
@@ -4857,7 +4886,8 @@ function renderTeacherAbsencePanel(teacherId, dateStr){
   panel.querySelectorAll('[data-cancel-sub]').forEach(btn=>{
     btn.addEventListener('click', ()=>{
       const slotId = Number(btn.dataset.cancelSub);
-      cancelSubstitute(teacherId, dateStr, slotId);
+      const studentId = btn.dataset.cancelStudent;
+      cancelSubstitute(teacherId, dateStr, slotId, studentId);
       if(ta){ ta.slots = ta.slots.filter(s=>s!==slotId); if(ta.slots.length===0) cancelTeacherAbsence(ta.id); }
       renderMatching();
       renderTeacherAbsencePanel(teacherId, dateStr);
