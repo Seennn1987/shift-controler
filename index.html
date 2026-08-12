@@ -240,16 +240,34 @@
     border:1px solid var(--border);border-radius:10px;padding:12px 16px;background:#fdfcf9;
   }
   .teacher-row .trow-top{display:flex;align-items:center;justify-content:space-between;gap:14px;flex-wrap:wrap;}
-  .trow-notes{font-size:11.5px;color:var(--ink-soft);background:var(--green-100);border-radius:6px;padding:8px 10px;margin-top:8px;line-height:1.6;white-space:pre-wrap;}
-  .trow-pay{font-size:11.5px;color:var(--ink);font-weight:700;margin-top:6px;}
+  .trow-pay{font-size:11.5px;color:var(--ink);font-weight:700;margin-top:8px;}
   .teacher-row .name{font-weight:700;font-size:14.5px;min-width:90px;}
   .student-level-badge{
     display:inline-block;font-size:10px;font-weight:700;color:var(--green-800);background:var(--green-100);
     padding:2px 7px;border-radius:5px;margin-left:6px;vertical-align:middle;
   }
-  .teacher-row .tags{display:flex;flex-wrap:wrap;gap:5px;flex:1;}
   .mini-tag{font-size:11px;background:var(--green-100);color:var(--green-800);padding:3px 8px;border-radius:6px;font-weight:600;}
   .row-actions{display:flex;gap:6px;flex-shrink:0;}
+
+  /* 教科タグの学年別3段表示 */
+  .subject-level-block{margin-top:8px;display:flex;flex-direction:column;gap:5px;}
+  .subject-level-row{display:flex;align-items:center;gap:6px;flex-wrap:wrap;}
+  .subject-level-label{font-size:11px;font-weight:700;color:var(--ink-soft);min-width:32px;flex-shrink:0;}
+
+  /* 備考欄（半幅）＋基本対応可能コマのミニ表の左右分割 */
+  .trow-split{display:flex;gap:16px;margin-top:8px;flex-wrap:wrap;align-items:flex-start;}
+  .trow-notes-col{flex:1 1 45%;min-width:220px;}
+  .trow-grid-col{flex:1 1 45%;min-width:220px;}
+  .trow-notes{font-size:11.5px;color:var(--ink-soft);background:var(--green-100);border-radius:6px;padding:8px 10px;line-height:1.6;white-space:pre-wrap;word-break:break-word;}
+  .ba-mini-title{font-size:10.5px;font-weight:700;color:var(--ink-soft);margin-bottom:4px;}
+  table.ba-mini-grid{border-collapse:collapse;width:100%;}
+  table.ba-mini-grid th, table.ba-mini-grid td{border:1px solid var(--border);text-align:center;font-size:10px;padding:3px 2px;}
+  table.ba-mini-grid thead th{background:var(--green-100);color:var(--ink-soft);font-weight:700;}
+  table.ba-mini-grid tbody th{background:#fdfcf9;font-weight:700;color:var(--ink-soft);}
+  table.ba-mini-grid td.ba-preferred{background:var(--green-100);color:var(--ink);font-weight:900;}
+  table.ba-mini-grid td.ba-normal{color:var(--ink-soft);font-weight:700;}
+  table.ba-mini-grid td.ba-none{color:#ddd;}
+
   .row-actions button{
     border:none;background:transparent;font-family:inherit;font-size:12.5px;cursor:pointer;
     padding:6px 10px;border-radius:7px;font-weight:700;
@@ -2425,11 +2443,11 @@ function cycleTeacherState(state){
 function buildBaseAvailArea(){
   const area = document.getElementById('baseAvailArea');
   if(!area) return;
-  let thead = '<thead><tr><th></th>' + SLOTS.map(s=>`<th>${s.label}</th>`).join('') + '</tr></thead>';
+  let thead = '<thead><tr><th></th>' + DAYS.map(d=>`<th>${d}</th>`).join('') + '</tr></thead>';
   let tbody = '<tbody>';
-  DAYS.forEach(day=>{
-    tbody += `<tr><th>${day}</th>`;
-    SLOTS.forEach(slot=>{
+  SLOTS.forEach(slot=>{
+    tbody += `<tr><th>${slot.label}</th>`;
+    DAYS.forEach(day=>{
       tbody += `<td><button type="button" class="ts-cell-btn st-none" data-day="${day}" data-slot="${slot.id}">×</button></td>`;
     });
     tbody += '</tr>';
@@ -2862,12 +2880,38 @@ async function handleSave(){
 }
 
 // ---------- teacher list ----------
-function subjectTags(t){
-  return t.subjects.map(s=>{
-    const c = subjectColor(s.level, s.subject);
-    const star = s.preferred ? '★' : '';
-    return `<span class="mini-tag" style="background:${c.bg};color:${c.text};border:1px solid ${c.border};">${star}${s.level}${s.subject}</span>`;
-  }).join('');
+// 教科タグを学年（小学・中学・高校）ごとに3段で表示する
+function subjectTagsByLevel(t){
+  const rows = ['小学','中学','高校'].map(level=>{
+    const list = t.subjects.filter(s=>s.level===level);
+    if(list.length===0) return '';
+    const tags = list.map(s=>{
+      const c = subjectColor(s.level, s.subject);
+      const star = s.preferred ? '★' : '';
+      return `<span class="mini-tag" style="background:${c.bg};color:${c.text};border:1px solid ${c.border};">${star}${s.subject}</span>`;
+    }).join('');
+    return `<div class="subject-level-row"><span class="subject-level-label">${level}</span>${tags}</div>`;
+  }).filter(Boolean);
+  return rows.join('') || '<div class="empty-note" style="padding:4px 0;">対応可能教科が未登録です</div>';
+}
+
+// 講師一覧に表示する「基本の対応可能曜日・コマ」のミニ表（縦軸=コマ、横軸=曜日）
+function buildBaseAvailMiniGrid(t){
+  const list = t.baseAvailability || [];
+  if(list.length===0) return '<div class="empty-note" style="padding:4px 0;">基本の対応可能曜日・コマが未登録です</div>';
+  let html = '<table class="ba-mini-grid"><thead><tr><th></th>' + DAYS.map(d=>`<th>${d}</th>`).join('') + '</tr></thead><tbody>';
+  SLOTS.forEach(slot=>{
+    html += `<tr><th>${slot.label}</th>`;
+    DAYS.forEach(day=>{
+      const match = list.find(e=>e.day===day && e.slot===slot.id);
+      const mark = !match ? '×' : (match.priority==='preferred' ? '○' : '△');
+      const cls = !match ? 'ba-none' : (match.priority==='preferred' ? 'ba-preferred' : 'ba-normal');
+      html += `<td class="${cls}">${mark}</td>`;
+    });
+    html += '</tr>';
+  });
+  html += '</tbody></table>';
+  return html;
 }
 
 // 講師一覧に表示する給与条件の要約テキストを組み立てる
@@ -2902,14 +2946,22 @@ function renderTeacherList(){
     row.innerHTML = `
       <div class="trow-top">
         <div class="name">${t.name}</div>
-        <div class="tags">${subjectTags(t)}</div>
         <div class="row-actions">
           <button class="edit-btn" data-id="${t.id}">編集</button>
           <button class="del-btn" data-id="${t.id}">削除</button>
         </div>
       </div>
+      <div class="subject-level-block">${subjectTagsByLevel(t)}</div>
       <div class="trow-pay">${paySummaryText(t)}</div>
-      ${t.notes ? `<div class="trow-notes">${t.notes.replace(/</g,'&lt;').replace(/\n/g,'<br>')}</div>` : ''}
+      <div class="trow-split">
+        <div class="trow-notes-col">
+          ${t.notes ? `<div class="trow-notes">${t.notes.replace(/</g,'&lt;').replace(/\n/g,'<br>')}</div>` : '<div class="empty-note" style="padding:4px 0;">備考なし</div>'}
+        </div>
+        <div class="trow-grid-col">
+          <div class="ba-mini-title">基本の対応可能曜日・コマ</div>
+          ${buildBaseAvailMiniGrid(t)}
+        </div>
+      </div>
       <div class="wl-mini">
         <div class="wl-mini-head">
           <span>対応可能${wl.totalAvail}コマ中、${wl.filled}コマが確定済み</span>
