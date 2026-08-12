@@ -179,6 +179,9 @@
     font-family:inherit;font-size:12px;font-weight:700;padding:6px 14px;border-radius:7px;cursor:pointer;
   }
   .change-req-actions .ghost{border:1px solid var(--border);background:#fff;color:var(--ink-soft);}
+  .approval-badge{font-size:11px;font-weight:700;padding:3px 10px;border-radius:999px;flex-shrink:0;}
+  .approval-badge.pending{border:1px dashed var(--ink-soft);color:var(--ink-soft);}
+  .approval-badge.approved{background:var(--green-100);color:var(--green-900);}
   .raise-row{display:flex;gap:10px;align-items:center;margin-bottom:8px;flex-wrap:wrap;}
   .raise-row input[type=month]{padding:8px 10px;border:1px solid var(--border);border-radius:7px;font-family:inherit;font-size:13px;background:#fdfcf9;}
   .raise-row input[type=text]{padding:8px 10px;border:1px solid var(--border);border-radius:7px;font-family:inherit;font-size:13px;background:#fdfcf9;width:120px;}
@@ -1171,6 +1174,11 @@
     <div class="card" id="changeRequestCard" style="display:none;">
       <h2>講師からの変更リクエスト<span class="help-tip" tabindex="0">?<span class="help-tip-text">提出済みのスケジュールに対して、講師本人が講師専用ページから送った変更依頼の一覧です。承認すると実際のスケジュールに反映されます。</span></span></h2>
       <div id="changeRequestWrap"></div>
+    </div>
+
+    <div class="card" id="approvalStatusCard" style="display:none;">
+      <h2>授業の承認状況<span class="help-tip" tabindex="0">?<span class="help-tip-text">新しく確定した授業について、講師本人が講師専用ページで承認したかどうかの一覧です。ここでの操作は不要です（承認は講師側で行います）。</span></span></h2>
+      <div id="approvalStatusWrap"></div>
     </div>
 
     <div class="card ts-card">
@@ -3600,6 +3608,47 @@ async function loadPendingChangeRequests(){
     return [];
   }
 }
+// ---- 授業の承認状況（教室長側は閲覧のみ。承認操作は講師専用ページで行う） ----
+async function loadAssignmentApprovals(){
+  const user = fbAuth.currentUser;
+  if(!user) return [];
+  try{
+    const snap = await fbDb.collection('assignmentApprovals')
+      .where('adminUid','==',user.uid).orderBy('createdAt','desc').limit(30).get();
+    const list = [];
+    snap.forEach(doc=> list.push({id:doc.id, ...doc.data()}));
+    return list;
+  }catch(err){
+    console.error('承認状況読み込みエラー:', err);
+    return [];
+  }
+}
+async function renderApprovalStatus(){
+  const card = document.getElementById('approvalStatusCard');
+  const wrap = document.getElementById('approvalStatusWrap');
+  if(!card || !wrap) return;
+  const list = await loadAssignmentApprovals();
+  if(list.length===0){
+    card.style.display = 'none';
+    return;
+  }
+  card.style.display = '';
+  wrap.innerHTML = list.map(a=>{
+    const teacher = teachers.find(t=>t.id===a.teacherId);
+    const teacherName = teacher ? teacher.name : '(削除された講師)';
+    const statusHtml = a.status==='approved'
+      ? '<span class="approval-badge approved">承認済み</span>'
+      : '<span class="approval-badge pending">承認待ち</span>';
+    return `<div class="change-req-row">
+      <div class="change-req-main">
+        <span class="change-req-name">${teacherName}</span>
+        <span class="change-req-detail">${a.day}曜${SLOTS.find(s=>s.id===a.slot)?.label||a.slot+'講'}　${a.studentName}（${a.studentGrade||''}）${a.subject}</span>
+      </div>
+      ${statusHtml}
+    </div>`;
+  }).join('');
+}
+
 async function renderChangeRequests(){
   const card = document.getElementById('changeRequestCard');
   const wrap = document.getElementById('changeRequestWrap');
@@ -3652,6 +3701,7 @@ async function renderChangeRequests(){
 function renderTeacherScheduleTab(){
   scheduleSave();
   renderChangeRequests();
+  renderApprovalStatus();
   const wrap = document.getElementById('tsTeacherListWrap');
   if(!wrap) return;
   if(calYear===undefined){
@@ -3831,6 +3881,27 @@ function countRoomSlot(day, slot, excludeStudentId){
   return assignments.filter(a=>a.day===day && a.slot===slot && a.studentId!==excludeStudentId).length;
 }
 
+// 新しく確定した授業を、講師専用ページで承認してもらうためのチケットを発行する
+// （講師がログインアカウントを持っている場合のみ。持っていない講師には何もしない）
+async function issueAssignmentApproval(studentId, courseId, subject, day, slot, teacherId){
+  const teacher = teachers.find(t=>t.id===teacherId);
+  if(!teacher || !teacher.loginUid) return;
+  const student = students.find(s=>s.id===studentId);
+  if(!student) return;
+  try{
+    await fbDb.collection('assignmentApprovals').add({
+      adminUid: fbAuth.currentUser.uid,
+      teacherId, teacherLoginUid: teacher.loginUid,
+      studentName: student.name, studentGrade: gradeLabel(student),
+      subject, day, slot,
+      status: 'pending',
+      createdAt: firebase.firestore.FieldValue.serverTimestamp(),
+    });
+  }catch(err){
+    console.error('承認チケット発行エラー:', err);
+  }
+}
+
 function confirmAssignment(studentId, courseId, subject, day, slot, teacherId, source){
   source = source || 'manual';
   const teacher = teachers.find(t=>t.id===teacherId);
@@ -3848,6 +3919,7 @@ function confirmAssignment(studentId, courseId, subject, day, slot, teacherId, s
   // 既存の割当があれば置き換える
   assignments = assignments.filter(a=>!(a.studentId===studentId && a.courseId===courseId && a.day===day && a.slot===slot));
   assignments.push({id:'asg-'+Date.now()+'-'+Math.random().toString(36).slice(2,6), studentId, courseId, subject, day, slot, teacherId, source});
+  issueAssignmentApproval(studentId, courseId, subject, day, slot, teacherId);
   return {ok:true};
 }
 function cancelAssignment(studentId, courseId, day, slot){
