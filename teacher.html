@@ -90,6 +90,19 @@
   .form-actions{display:flex;align-items:center;gap:12px;margin-top:14px;flex-wrap:wrap;}
   .form-msg{font-size:12px;color:var(--ink-soft);}
   .empty-note{color:var(--ink-soft);font-size:12.5px;padding:10px 2px;}
+  .new-assign-row{
+    display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;
+    border:1px solid var(--border);border-radius:9px;padding:10px 14px;margin-bottom:8px;background:#fdfcf9;
+  }
+  .new-assign-row.approved{opacity:.55;}
+  .na-detail{font-size:13px;}
+  .na-detail b{font-weight:700;}
+  .na-detail .na-sub{font-size:11.5px;color:var(--ink-soft);margin-top:2px;}
+  .approve-btn{
+    border:none;background:var(--green-900);color:#fff;font-family:inherit;font-size:12px;font-weight:700;
+    padding:7px 14px;border-radius:7px;cursor:pointer;flex-shrink:0;
+  }
+  .approved-label{font-size:11.5px;font-weight:700;color:var(--ink-soft);flex-shrink:0;}
 </style>
 </head>
 <body>
@@ -127,6 +140,15 @@
 </header>
 
 <div class="app" id="appRoot" style="display:none;">
+  <div class="card" id="newAssignCard" style="display:none;">
+    <h2>新しく決まった授業</h2>
+    <p class="desc">教室長が確定した授業です。内容を確認して承認してください。</p>
+    <div class="form-actions" style="margin-top:0;margin-bottom:10px;">
+      <button type="button" class="primary" id="approveAllBtn">まとめて承認する</button>
+    </div>
+    <div id="newAssignWrap"></div>
+  </div>
+
   <div class="card">
     <h2>月次スケジュール</h2>
     <p class="desc">クリックするたびに「×不可 → ○特に希望 → △対応可能 → ×不可」の順に切り替わります。未提出の月は直接編集できます。提出済み（確定）の月を変更したい場合は、クリックすると教室長に変更リクエストが届きます（自動では反映されません）。</p>
@@ -252,6 +274,7 @@ async function bootstrap(user){
   if(curYear===undefined){ curYear = t.getFullYear(); curMonth = t.getMonth(); }
   await loadSchedule();
   await loadMyPendingRequests();
+  await renderNewAssignments();
   render();
 }
 
@@ -296,6 +319,77 @@ async function loadMyPendingRequests(){
     pendingRequests = [];
   }
 }
+
+// ---- 新しく決まった授業の承認 ----
+const DAY_ORDER = {'月':0,'火':1,'水':2,'木':3,'金':4,'土':5,'日':6};
+let newAssignments = [];
+
+async function loadNewAssignments(){
+  try{
+    const snap = await fbDb.collection('assignmentApprovals')
+      .where('teacherLoginUid','==',fbAuth.currentUser.uid).where('status','==','pending').get();
+    const list = [];
+    snap.forEach(doc=> list.push({id:doc.id, ...doc.data()}));
+    // 曜日→コマの順に並べる（見出しでグループ化はせず、自然な並びだけにする）
+    list.sort((a,b)=>{
+      const dd = (DAY_ORDER[a.day]??9) - (DAY_ORDER[b.day]??9);
+      if(dd!==0) return dd;
+      return a.slot - b.slot;
+    });
+    return list;
+  }catch(err){
+    console.error('新しい授業の読み込みエラー:', err);
+    return [];
+  }
+}
+
+async function renderNewAssignments(){
+  const card = document.getElementById('newAssignCard');
+  const wrap = document.getElementById('newAssignWrap');
+  newAssignments = await loadNewAssignments();
+  if(newAssignments.length===0){
+    card.style.display = 'none';
+    return;
+  }
+  card.style.display = '';
+  document.getElementById('approveAllBtn').textContent = `まとめて承認する（${newAssignments.length}件）`;
+  wrap.innerHTML = newAssignments.map(a=>{
+    const slotLabel = SLOTS.find(s=>s.id===a.slot);
+    return `<div class="new-assign-row" data-id="${a.id}">
+      <div class="na-detail">
+        <div><b>${a.day}曜${slotLabel?slotLabel.label:a.slot+'講'}</b>　${a.studentName}（${a.studentGrade||''}）　${a.subject}</div>
+      </div>
+      <button type="button" class="approve-btn" data-id="${a.id}">承認する</button>
+    </div>`;
+  }).join('');
+  wrap.querySelectorAll('.approve-btn').forEach(btn=>{
+    btn.addEventListener('click', ()=> approveAssignment(btn.dataset.id));
+  });
+}
+
+async function approveAssignment(id){
+  try{
+    await fbDb.collection('assignmentApprovals').doc(id).update({status:'approved'});
+  }catch(err){
+    console.error('承認エラー:', err);
+    return;
+  }
+  await renderNewAssignments();
+}
+
+document.getElementById('approveAllBtn').addEventListener('click', async ()=>{
+  const btn = document.getElementById('approveAllBtn');
+  btn.disabled = true;
+  try{
+    for(const a of newAssignments){
+      await fbDb.collection('assignmentApprovals').doc(a.id).update({status:'approved'});
+    }
+  }catch(err){
+    console.error('一括承認エラー:', err);
+  }
+  btn.disabled = false;
+  await renderNewAssignments();
+});
 
 function getMonthEntry(yearMonth){
   return (scheduleDoc.months && scheduleDoc.months[yearMonth]) || {status:'draft', days:{}};
