@@ -2552,6 +2552,12 @@ function recordTeacherAbsence(teacherId, dateStr, slots){
 // その日その枠に代講候補になりうる講師を探す（欠勤本人を除外、その枠にいる全生徒の教科・学年に対応でき、空きがある講師）
 // その日その枠・その生徒1人分について、代講候補になりうる講師を探す
 // （実際の当日の負荷=getEffectiveDayAssignmentsベースで空きを判定するため、同じ枠内で他の生徒に既に代講が決まっていても正しく数えられる）
+// その日その枠・その生徒1人分について、代講候補になりうる講師を、追加コストが低い順に並べて返す
+// 優先順位：①その枠に既に1人だけ担当している講師（追加コストゼロ）
+//         ②当日は他のコマで出勤予定があり、この枠が空いている講師（交通費の追加なし）
+//         ③当日の出勤予定はないが、この枠に○/△を申告している講師（コマ単価が低い順）
+//         ④それ以外の対応可能な講師全員（最終手段）
+// ②③④の同グループ内は「得意科目が合うか→コマ単価が低い順」で並べる
 function findSubstituteCandidatesForStudent(dateStr, slot, absentTeacherId, studentId, subject){
   const student = students.find(s=>s.id===studentId);
   if(!student) return [];
@@ -2559,13 +2565,35 @@ function findSubstituteCandidatesForStudent(dateStr, slot, absentTeacherId, stud
   if(status.type!=='open') return [];
   const weekday = status.weekday;
   const dayList = getEffectiveDayAssignments(dateStr);
-  return teachers.filter(t=>{
+
+  const qualified = teachers.filter(t=>{
     if(t.id===absentTeacherId) return false;
-    if(!isAvailable(t, weekday, slot)) return false;
     if(!t.subjects.some(ts=>ts.level===student.level && ts.subject===subject)) return false;
     const used = dayList.filter(a=>a.teacherId===t.id && a.slot===slot).length;
     return used < teacherCapacity;
   });
+
+  function groupOf(t){
+    const usedInSlot = dayList.filter(a=>a.teacherId===t.id && a.slot===slot).length;
+    if(usedInSlot>=1) return 1; // ①既にその枠に生徒がいる（まだ定員に空きがあることはqualifiedの時点で保証済み）
+    const worksElsewhereToday = dayList.some(a=>a.teacherId===t.id && a.slot!==slot);
+    if(worksElsewhereToday) return 2; // ②当日は出勤予定あり、この枠は空き
+    if(isAvailable(t, weekday, slot)) return 3; // ③当日の出勤予定はないが○/△申告あり
+    return 4; // ④それ以外
+  }
+
+  const withKeys = qualified.map(t=>({
+    teacher: t,
+    group: groupOf(t),
+    prefSubject: isPreferredSubjectForTeacher(t, student.level, subject),
+    rate: getTeacherRateForDate(t, dateStr),
+  }));
+  withKeys.sort((a,b)=>{
+    if(a.group !== b.group) return a.group - b.group;
+    if(a.prefSubject !== b.prefSubject) return a.prefSubject ? -1 : 1;
+    return a.rate - b.rate;
+  });
+  return withKeys.map(k=>k.teacher);
 }
 
 // 代講講師を確定する（その日その枠・その生徒だけ担当者が変わる。曜日パターン自体は変更しない）
