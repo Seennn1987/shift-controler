@@ -603,6 +603,10 @@
   }
   .absence-quick-row{display:flex;flex-direction:column;gap:5px;}
   .absence-quick-row label{font-size:11px;font-weight:700;color:var(--green-800);}
+  .ta-slot-row{border:1px solid var(--border);border-radius:9px;padding:10px 14px;margin-bottom:8px;background:#fdfcf9;}
+  .ta-slot-check{display:flex;align-items:center;gap:8px;font-size:13px;}
+  .ta-cand-area{margin-top:8px;padding-top:8px;border-top:1px dashed var(--border);}
+  .ta-resolved{font-size:12px;color:var(--ink-soft);margin-top:6px;display:flex;align-items:center;gap:8px;}
   .absence-quick-row select, .absence-quick-row input{
     padding:8px 10px;border:1px solid var(--border);border-radius:7px;font-family:inherit;font-size:13px;background:#fff;
     min-width:180px;
@@ -990,6 +994,24 @@
           <span class="form-msg" id="absenceQuickMsg"></span>
         </div>
       </div>
+
+      <div class="absence-quick-bar">
+        <button type="button" class="absence-quick-toggle" id="teacherAbsenceQuickToggle">講師の欠勤を登録</button>
+        <div id="teacherAbsenceQuickForm" class="absence-quick-form" style="display:none;">
+          <div class="absence-quick-row">
+            <label for="teacherAbsenceQuickTeacher">講師</label>
+            <select id="teacherAbsenceQuickTeacher"><option value="">講師を選択…</option></select>
+          </div>
+          <div class="absence-quick-row">
+            <label for="teacherAbsenceQuickDate">日付</label>
+            <input type="date" id="teacherAbsenceQuickDate">
+          </div>
+          <button type="button" class="primary" id="teacherAbsenceQuickOpenBtn">この内容で開く</button>
+          <span class="form-msg" id="teacherAbsenceQuickMsg"></span>
+        </div>
+      </div>
+
+      <div id="teacherAbsencePanel" style="display:none;"></div>
     </div>
 
     <div class="card cal-card">
@@ -2403,6 +2425,7 @@ async function saveAppState(){
   if(!ref) return;
   const state = {
     teachers, students, assignments, absences,
+    teacherAbsences, teacherSubstitutions,
     terms, customClosures, preferredPairs,
     tuitionRates, regularClosedDays, holidayAutoDetect,
     roomCapacity, teacherCapacity, finGradientMin, finGradientMax,
@@ -2426,6 +2449,8 @@ async function loadAppStateFromFirestore(){
     students = d.students || [];
     assignments = d.assignments || [];
     absences = d.absences || [];
+    teacherAbsences = d.teacherAbsences || [];
+    teacherSubstitutions = d.teacherSubstitutions || [];
     terms = d.terms || [];
     customClosures = d.customClosures || [];
     preferredPairs = d.preferredPairs || [];
@@ -2442,6 +2467,8 @@ async function loadAppStateFromFirestore(){
     students = [];
     assignments = [];
     absences = [];
+    teacherAbsences = [];
+    teacherSubstitutions = [];
     terms = [];
     customClosures = [];
     preferredPairs = [];
@@ -2456,6 +2483,11 @@ async function loadAppStateFromFirestore(){
 // ---- 欠席・振替（特定の実日付にのみ影響。曜日パターン自体は変えない） ----
 // {id, studentId, courseId, subject, day, slot, date, status:'pending'|'resolved', makeup:null|{date,slot,teacherId}}
 let absences = [];
+// ---- 講師の欠勤・代講（単発の急な欠勤専用。継続的な予定変更は講師本人の月次スケジュール編集で対応する） ----
+// {id, teacherId, date, slots:[4,6], note} 欠勤登録そのもの（取り消し・監査用）
+let teacherAbsences = [];
+// {id, teacherId, date, slot, substituteTeacherId} その日その枠だけ、代講講師が担当する記録（曜日パターン自体は変えない）
+let teacherSubstitutions = [];
 
 function findAbsenceFor(studentId, courseId, dateStr, day, slot){
   return absences.find(ab=> ab.studentId===studentId && ab.courseId===courseId && ab.date===dateStr && ab.day===day && ab.slot===slot) || null;
@@ -2481,6 +2513,82 @@ function markNoMakeup(id){
   const ab = absences.find(a=>a.id===id);
   if(!ab) return;
   ab.status = 'no-makeup';
+}
+
+// ---- 講師の欠勤・代講 ----
+// 指定講師・指定日の、確定授業を「コマ→その枠にいる生徒たち」の形でまとめて返す（代講対象が未確定の生の状態、代講適用前）
+function getTeacherLessonsOnDate(teacherId, dateStr){
+  const status = getDayStatus(dateStr);
+  if(status.type!=='open') return {};
+  const weekday = status.weekday;
+  const bySlot = {};
+  assignments.forEach(a=>{
+    if(a.teacherId!==teacherId || a.day!==weekday) return;
+    if(findAbsenceFor(a.studentId, a.courseId, dateStr, a.day, a.slot)) return; // 既に生徒都合で欠席済みの分は対象外
+    bySlot[a.slot] = bySlot[a.slot] || [];
+    bySlot[a.slot].push({studentId:a.studentId, courseId:a.courseId, subject:a.subject});
+  });
+  return bySlot;
+}
+
+function findTeacherAbsence(teacherId, dateStr){
+  return teacherAbsences.find(ta=>ta.teacherId===teacherId && ta.date===dateStr) || null;
+}
+
+function recordTeacherAbsence(teacherId, dateStr, slots){
+  let ta = findTeacherAbsence(teacherId, dateStr);
+  if(!ta){
+    ta = {id:'tabs-'+Date.now()+'-'+Math.random().toString(36).slice(2,6), teacherId, date:dateStr, slots:[]};
+    teacherAbsences.push(ta);
+  }
+  slots.forEach(s=>{ if(!ta.slots.includes(s)) ta.slots.push(s); });
+  return ta;
+}
+
+// その日その枠に代講候補になりうる講師を探す（欠勤本人を除外、その枠にいる全生徒の教科・学年に対応でき、空きがある講師）
+function findSubstituteCandidates(dateStr, slot, absentTeacherId, studentEntries){
+  const status = getDayStatus(dateStr);
+  if(status.type!=='open') return [];
+  const weekday = status.weekday;
+  const needed = studentEntries.length;
+  return teachers.filter(t=>{
+    if(t.id===absentTeacherId) return false;
+    if(!isAvailable(t, weekday, slot)) return false;
+    const canTeachAll = studentEntries.every(e=>{
+      const student = students.find(s=>s.id===e.studentId);
+      return student && t.subjects.some(ts=>ts.level===student.level && ts.subject===e.subject);
+    });
+    if(!canTeachAll) return false;
+    const used = countTeacherSlot(t.id, weekday, slot, null);
+    return (teacherCapacity - used) >= needed;
+  });
+}
+
+// 代講講師を確定する（その日その枠だけ担当者が変わる。曜日パターン自体は変更しない）
+function confirmSubstitute(teacherId, dateStr, slot, substituteTeacherId){
+  teacherSubstitutions = teacherSubstitutions.filter(s=>!(s.teacherId===teacherId && s.date===dateStr && s.slot===slot));
+  teacherSubstitutions.push({id:'tsub-'+Date.now()+'-'+Math.random().toString(36).slice(2,6), teacherId, date:dateStr, slot, substituteTeacherId});
+}
+function cancelSubstitute(teacherId, dateStr, slot){
+  teacherSubstitutions = teacherSubstitutions.filter(s=>!(s.teacherId===teacherId && s.date===dateStr && s.slot===slot));
+}
+
+// 代講が見つからない・選ばない場合：その枠の生徒全員を、既存の生徒側「欠席」フローに乗せる
+function resolveSlotViaStudentAbsence(teacherId, dateStr, slot, studentEntries){
+  const status = getDayStatus(dateStr);
+  if(status.type!=='open') return;
+  const weekday = status.weekday;
+  studentEntries.forEach(e=>{
+    recordAbsence(e.studentId, e.courseId, e.subject, weekday, slot, dateStr);
+  });
+}
+
+function cancelTeacherAbsence(id){
+  const ta = teacherAbsences.find(t=>t.id===id);
+  if(!ta) return;
+  // 紐づく代講記録も一緒に取り消す（生徒都合の欠席として既に処理された分はそのまま維持する）
+  teacherSubstitutions = teacherSubstitutions.filter(s=>!(s.teacherId===ta.teacherId && s.date===ta.date && ta.slots.includes(s.slot)));
+  teacherAbsences = teacherAbsences.filter(t=>t.id!==id);
 }
 
 // 指定日・指定コマにおける講師の実際の負荷（曜日パターンの確定分から、その日欠席の生徒を除き、振替で入る生徒を足す）
@@ -2578,7 +2686,9 @@ function getEffectiveDayAssignments(dateStr){
   assignments.forEach(a=>{
     if(a.day!==weekday) return;
     if(findAbsenceFor(a.studentId, a.courseId, dateStr, a.day, a.slot)) return;
-    list.push({studentId:a.studentId, courseId:a.courseId, subject:a.subject, slot:a.slot, teacherId:a.teacherId, kind:'normal', source:a.source});
+    const sub = teacherSubstitutions.find(s=>s.teacherId===a.teacherId && s.date===dateStr && s.slot===a.slot);
+    const effectiveTeacherId = sub ? sub.substituteTeacherId : a.teacherId;
+    list.push({studentId:a.studentId, courseId:a.courseId, subject:a.subject, slot:a.slot, teacherId:effectiveTeacherId, kind:'normal', source:a.source, substituted: !!sub, originalTeacherId: sub ? a.teacherId : null});
   });
   absences.forEach(ab=>{
     if(!ab.makeup || ab.makeup.date!==dateStr) return;
@@ -4628,6 +4738,133 @@ function jumpToCalendarForDate(studentId, dateStr){
   window.scrollTo({top:0, behavior:'smooth'});
 }
 
+// ---- 講師の欠勤・代講パネル ----
+function renderTeacherAbsencePanel(teacherId, dateStr){
+  const panel = document.getElementById('teacherAbsencePanel');
+  const teacher = teachers.find(t=>t.id===teacherId);
+  if(!panel || !teacher) return;
+  panel.style.display = '';
+
+  const lessonsBySlot = getTeacherLessonsOnDate(teacherId, dateStr);
+  const slotIds = Object.keys(lessonsBySlot).map(Number).sort((a,b)=>a-b);
+  const ta = findTeacherAbsence(teacherId, dateStr);
+
+  if(slotIds.length===0){
+    panel.innerHTML = `<div class="card">
+      <h2>${teacher.name}先生の欠勤対応（${dateStr}）</h2>
+      <p class="desc">この日、${teacher.name}先生に確定している授業はありません。</p>
+      <button type="button" class="ghost" id="closeTeacherAbsenceBtn">閉じる</button>
+    </div>`;
+    document.getElementById('closeTeacherAbsenceBtn').addEventListener('click', ()=>{ panel.style.display='none'; panel.innerHTML=''; });
+    return;
+  }
+
+  let rowsHtml = '';
+  slotIds.forEach(slotId=>{
+    const slot = SLOTS.find(s=>s.id===slotId);
+    const studentEntries = lessonsBySlot[slotId];
+    const isMarked = ta && ta.slots.includes(slotId);
+    const sub = teacherSubstitutions.find(s=>s.teacherId===teacherId && s.date===dateStr && s.slot===slotId);
+    const studentsLabel = studentEntries.map(e=>{
+      const st = students.find(s=>s.id===e.studentId);
+      return `${st?st.name:'?'}（${e.subject}）`;
+    }).join('、');
+
+    let statusHtml = '';
+    if(sub){
+      const subTeacher = teachers.find(t=>t.id===sub.substituteTeacherId);
+      statusHtml = `<div class="ta-resolved">代講：${subTeacher?subTeacher.name:'?'}先生 <button type="button" class="cancel-absence-btn" data-cancel-sub="${slotId}">取り消す</button></div>`;
+    }else if(isMarked){
+      statusHtml = `<div class="ta-resolved">生徒側の欠席として処理済み（振替は「カレンダー」タブから対応できます）</div>`;
+    }
+
+    rowsHtml += `<div class="ta-slot-row">
+      <label class="ta-slot-check">
+        <input type="checkbox" class="ta-slot-checkbox" data-slot="${slotId}" ${isMarked?'checked disabled':''}>
+        <span><b>${slot.label}（${slot.time}）</b>　${studentsLabel}</span>
+      </label>
+      ${!isMarked ? `<button type="button" class="ghost ta-find-sub-btn" data-slot="${slotId}">代講を探す</button>` : ''}
+      <div class="ta-cand-area" id="taCand-${slotId}" style="display:none;"></div>
+      ${statusHtml}
+    </div>`;
+  });
+
+  panel.innerHTML = `<div class="card">
+    <h2>${teacher.name}先生の欠勤対応（${dateStr}）</h2>
+    <p class="desc">対応するコマにチェックを入れ、「代講を探す」から代講講師を選ぶか、見つからない場合はそのまま生徒側の欠席として処理してください。</p>
+    <label class="chip" style="display:inline-flex;margin-bottom:10px;">
+      <input type="checkbox" id="taAllSlotsCheckbox">
+      <span>全コマ欠勤にする</span>
+    </label>
+    ${rowsHtml}
+    <button type="button" class="ghost" id="closeTeacherAbsenceBtn">閉じる</button>
+  </div>`;
+
+  document.getElementById('closeTeacherAbsenceBtn').addEventListener('click', ()=>{ panel.style.display='none'; panel.innerHTML=''; });
+
+  document.getElementById('taAllSlotsCheckbox').addEventListener('change', (e)=>{
+    panel.querySelectorAll('.ta-slot-checkbox:not(:disabled)').forEach(cb=>{ cb.checked = e.target.checked; });
+  });
+
+  panel.querySelectorAll('.ta-find-sub-btn').forEach(btn=>{
+    btn.addEventListener('click', ()=>{
+      const slotId = Number(btn.dataset.slot);
+      const checkbox = panel.querySelector(`.ta-slot-checkbox[data-slot="${slotId}"]`);
+      if(!checkbox.checked){ checkbox.checked = true; }
+      const candArea = document.getElementById(`taCand-${slotId}`);
+      const isOpen = candArea.style.display !== 'none';
+      if(isOpen){ candArea.style.display = 'none'; return; }
+
+      const studentEntries = lessonsBySlot[slotId];
+      const candidates = findSubstituteCandidates(dateStr, slotId, teacherId, studentEntries);
+      let html = '';
+      if(candidates.length===0){
+        html = `<div class="match-none">対応できる代講候補が見つかりませんでした。</div>
+          <button type="button" class="no-makeup-btn" data-fallback-slot="${slotId}">代講せず、生徒の欠席として処理する</button>`;
+      }else{
+        candidates.forEach(c=>{
+          html += `<div class="match-cand">
+            <span>${c.name}先生</span>
+            <button type="button" class="confirm-makeup-btn" data-confirm-sub="${slotId}" data-sub-teacher="${c.id}">この先生に代講してもらう</button>
+          </div>`;
+        });
+        html += `<button type="button" class="no-makeup-btn" data-fallback-slot="${slotId}" style="margin-top:6px;">代講せず、生徒の欠席として処理する</button>`;
+      }
+      candArea.innerHTML = html;
+      candArea.style.display = 'block';
+
+      candArea.querySelectorAll('[data-confirm-sub]').forEach(cbtn=>{
+        cbtn.addEventListener('click', ()=>{
+          const s = Number(cbtn.dataset.confirmSub);
+          confirmSubstitute(teacherId, dateStr, s, cbtn.dataset.subTeacher);
+          recordTeacherAbsence(teacherId, dateStr, [s]);
+          renderMatching();
+          renderTeacherAbsencePanel(teacherId, dateStr);
+        });
+      });
+      candArea.querySelectorAll('[data-fallback-slot]').forEach(fbtn=>{
+        fbtn.addEventListener('click', ()=>{
+          const s = Number(fbtn.dataset.fallbackSlot);
+          resolveSlotViaStudentAbsence(teacherId, dateStr, s, lessonsBySlot[s]);
+          recordTeacherAbsence(teacherId, dateStr, [s]);
+          renderMatching();
+          renderTeacherAbsencePanel(teacherId, dateStr);
+        });
+      });
+    });
+  });
+
+  panel.querySelectorAll('[data-cancel-sub]').forEach(btn=>{
+    btn.addEventListener('click', ()=>{
+      const slotId = Number(btn.dataset.cancelSub);
+      cancelSubstitute(teacherId, dateStr, slotId);
+      if(ta){ ta.slots = ta.slots.filter(s=>s!==slotId); if(ta.slots.length===0) cancelTeacherAbsence(ta.id); }
+      renderMatching();
+      renderTeacherAbsencePanel(teacherId, dateStr);
+    });
+  });
+}
+
 // 講師1人分の稼働情報（対応可能コマ数・確定済みコマ数・稼働率）を計算する
 function computeTeacherWorkload(t){
   // 対応可能コマ数（曜日×コマの合計）
@@ -5385,6 +5622,31 @@ async function init(){
     if(!dateStr){ msg.textContent = '日付を選択してください。'; return; }
     document.getElementById('absenceQuickForm').style.display = 'none';
     jumpToCalendarForDate(studentId, dateStr);
+  });
+  document.getElementById('teacherAbsenceQuickToggle').addEventListener('click', ()=>{
+    const form = document.getElementById('teacherAbsenceQuickForm');
+    const isOpen = form.style.display !== 'none';
+    if(!isOpen){
+      const sel = document.getElementById('teacherAbsenceQuickTeacher');
+      sel.innerHTML = '<option value="">講師を選択…</option>' +
+        teachers.map(t=>`<option value="${t.id}">${t.name}</option>`).join('');
+      const dateInput = document.getElementById('teacherAbsenceQuickDate');
+      if(!dateInput.value){
+        const t = new Date();
+        dateInput.value = toDateStr(t.getFullYear(), t.getMonth(), t.getDate());
+      }
+      document.getElementById('teacherAbsenceQuickMsg').textContent = '';
+    }
+    form.style.display = isOpen ? 'none' : 'flex';
+  });
+  document.getElementById('teacherAbsenceQuickOpenBtn').addEventListener('click', ()=>{
+    const msg = document.getElementById('teacherAbsenceQuickMsg');
+    const teacherId = document.getElementById('teacherAbsenceQuickTeacher').value;
+    const dateStr = document.getElementById('teacherAbsenceQuickDate').value;
+    if(!teacherId){ msg.textContent = '講師を選択してください。'; return; }
+    if(!dateStr){ msg.textContent = '日付を選択してください。'; return; }
+    document.getElementById('teacherAbsenceQuickForm').style.display = 'none';
+    renderTeacherAbsencePanel(teacherId, dateStr);
   });
   document.getElementById('bulkAutoBtn').addEventListener('click', ()=>{
     const {filled, skipped, total} = bulkAutoAssign();
