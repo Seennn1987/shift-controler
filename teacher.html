@@ -392,7 +392,12 @@ document.getElementById('approveAllBtn').addEventListener('click', async ()=>{
 });
 
 function getMonthEntry(yearMonth){
-  return (scheduleDoc.months && scheduleDoc.months[yearMonth]) || {status:'draft', days:{}};
+  const existing = scheduleDoc.months && scheduleDoc.months[yearMonth];
+  if(existing){
+    if(!existing.id) existing.id = `tsch-${myTeacherId}-${yearMonth}`; // 過去データにidが無い場合の補完
+    return existing;
+  }
+  return {id: `tsch-${myTeacherId}-${yearMonth}`, status:'draft', days:{}};
 }
 
 function render(){
