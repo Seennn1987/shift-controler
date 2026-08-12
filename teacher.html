@@ -65,7 +65,7 @@
   .status-badge.submitted{background:var(--green-100);color:var(--green-900);}
   .status-badge.draft{background:#fdf0d8;color:#8a6100;}
 
-  .grid-scroll{max-height:520px;overflow-y:auto;border:1px solid var(--border);border-radius:8px;}
+  .grid-scroll{border:1px solid var(--border);border-radius:8px;}
   table.grid{border-collapse:collapse;width:100%;}
   table.grid th, table.grid td{border:1px solid var(--border);text-align:center;font-size:12px;padding:0;}
   table.grid thead th{background:var(--green-100);color:var(--green-900);font-weight:700;padding:7px 4px;font-size:11px;position:sticky;top:0;z-index:1;}
@@ -77,6 +77,15 @@
   .cell-btn .req-badge{
     position:absolute;top:1px;right:2px;font-size:8px;font-weight:700;color:var(--danger);
   }
+  .cell-btn.pending-local{border:1.5px dashed var(--green-700);}
+  .cell-btn .local-badge{
+    position:absolute;top:1px;right:2px;font-size:8px;font-weight:700;color:var(--green-700);
+  }
+  .send-request-btn{
+    border:none;background:var(--danger);color:#fff;font-family:inherit;font-size:13px;font-weight:700;
+    padding:10px 16px;border-radius:8px;cursor:pointer;
+  }
+  .send-request-btn:disabled{background:#ccc;cursor:default;}
 
   .form-actions{display:flex;align-items:center;gap:12px;margin-top:14px;flex-wrap:wrap;}
   .form-msg{font-size:12px;color:var(--ink-soft);}
@@ -131,6 +140,7 @@
     <div class="grid-scroll" id="gridWrap"></div>
     <div class="form-actions">
       <button class="primary" id="submitBtn">この内容で提出する</button>
+      <button class="send-request-btn" id="sendRequestBtn" style="display:none;">変更をリクエストする（0件）</button>
       <span class="form-msg" id="formMsg"></span>
     </div>
   </div>
@@ -176,6 +186,9 @@ let myAdminUid = null, myTeacherId = null, myTeacherName = '';
 let curYear, curMonth;
 let scheduleDoc = {months:{}};
 let pendingRequests = [];
+let localOverrides = {}; // 提出済み月で、まだ送信していない下書きの変更（key: "日付|コマ" -> 状態）
+
+function cellKey(dateStr, slot){ return `${dateStr}|${slot}`; }
 
 function showLogin(msg){
   document.getElementById('loginScreen').style.display = 'flex';
@@ -293,9 +306,10 @@ function render(){
   document.getElementById('monthTitle').textContent = `${curYear}年${curMonth+1}月`;
   const entry = getMonthEntry(yearMonth);
   const isSubmitted = entry.status==='submitted';
+  localOverrides = {}; // 月を切り替えたら下書きはリセットする
 
   document.getElementById('statusBar').innerHTML = isSubmitted
-    ? '<span class="status-badge submitted">確定</span><span>この月は提出済みです。セルをクリックすると教室長に変更をリクエストできます。</span>'
+    ? '<span class="status-badge submitted">確定</span><span>この月は提出済みです。セルをクリックして変更内容を選び、最後に「変更をリクエストする」を押すとまとめて教室長に届きます（押すまでは送信されません）。</span>'
     : '<span class="status-badge draft">未提出</span><span>セルをクリックして入力し「この内容で提出する」を押してください。</span>';
 
   const total = daysInYearMonth(yearMonth);
@@ -306,13 +320,7 @@ function render(){
     const wd = WEEKDAY_JP[new Date(dateStr+'T00:00:00').getDay()];
     tbody += `<tr><th>${d}日（${wd}）</th>`;
     SLOTS.forEach(slot=>{
-      const cur = (entry.days[dateStr]||[]).find(e=>e.slot===slot.id);
-      const curState = cur ? cur.priority : 'none';
-      const req = pendingRequests.find(r=>r.dateStr===dateStr && r.slot===slot.id);
-      const displayState = req ? req.priority : curState;
-      const cls = req ? `st-${displayState} requested` : `st-${displayState}`;
-      const badge = req ? '<span class="req-badge">申請中</span>' : '';
-      tbody += `<td><button type="button" class="cell-btn ${cls}" data-date="${dateStr}" data-slot="${slot.id}">${labelFor(displayState)}${badge}</button></td>`;
+      tbody += `<td>${buildCellHtml(entry, dateStr, slot.id)}</td>`;
     });
     tbody += '</tr>';
   }
@@ -322,19 +330,43 @@ function render(){
   document.querySelectorAll('.cell-btn').forEach(btn=>{
     btn.addEventListener('click', ()=> handleCellClick(btn, entry, isSubmitted, yearMonth));
   });
+  updateSendButtonState();
+}
+
+// そのセルの「確定値（または既存の申請中の値）」を基準値として返す
+function baselineState(entry, dateStr, slot){
+  const req = pendingRequests.find(r=>r.dateStr===dateStr && r.slot===slot);
+  if(req) return req.priority;
+  const cur = (entry.days[dateStr]||[]).find(e=>e.slot===slot);
+  return cur ? cur.priority : 'none';
+}
+// 表示に使う実際の状態（下書きがあればそれを優先）
+function effectiveState(entry, dateStr, slot){
+  const key = cellKey(dateStr, slot);
+  if(localOverrides.hasOwnProperty(key)) return localOverrides[key];
+  return baselineState(entry, dateStr, slot);
+}
+function buildCellHtml(entry, dateStr, slotId){
+  const key = cellKey(dateStr, slotId);
+  const state = effectiveState(entry, dateStr, slotId);
+  const isDirty = localOverrides.hasOwnProperty(key);
+  const isRequested = !isDirty && pendingRequests.some(r=>r.dateStr===dateStr && r.slot===slotId);
+  let cls = `cell-btn st-${state}`;
+  let badge = '';
+  if(isDirty){ cls += ' pending-local'; badge = '<span class="local-badge">未送信</span>'; }
+  else if(isRequested){ cls += ' requested'; badge = '<span class="req-badge">申請中</span>'; }
+  return `<button type="button" class="${cls}" data-date="${dateStr}" data-slot="${slotId}">${labelFor(state)}${badge}</button>`;
 }
 
 async function handleCellClick(btn, entry, isSubmitted, yearMonth){
   const dateStr = btn.dataset.date;
   const slot = Number(btn.dataset.slot);
-  const cur = (entry.days[dateStr]||[]).find(e=>e.slot===slot);
-  const curState = cur ? cur.priority : 'none';
-  const existingReq = pendingRequests.find(r=>r.dateStr===dateStr && r.slot===slot);
-  const baseState = existingReq ? existingReq.priority : curState;
-  const next = cycleState(baseState);
 
   if(!isSubmitted){
-    // 未提出の月：直接編集してその都度保存する
+    // 未提出の月：今まで通り、直接編集してその都度保存する
+    const cur = (entry.days[dateStr]||[]).find(e=>e.slot===slot);
+    const curState = cur ? cur.priority : 'none';
+    const next = cycleState(curState);
     entry.days[dateStr] = entry.days[dateStr] || [];
     entry.days[dateStr] = entry.days[dateStr].filter(e=>e.slot!==slot);
     if(next!=='none') entry.days[dateStr].push({slot, priority:next});
@@ -344,27 +376,67 @@ async function handleCellClick(btn, entry, isSubmitted, yearMonth){
     return;
   }
 
-  // 提出済みの月：直接は書き換えず、変更リクエストとして送信する
-  try{
-    if(existingReq){
-      await fbDb.collection('scheduleChangeRequests').doc(existingReq.id).update({priority: next});
-      existingReq.priority = next;
-    }else{
-      const docRef = await fbDb.collection('scheduleChangeRequests').add({
-        adminUid: myAdminUid, teacherId: myTeacherId, teacherLoginUid: fbAuth.currentUser.uid,
-        dateStr, slot, priority: next, status:'pending',
-        submittedAt: firebase.firestore.FieldValue.serverTimestamp(),
-      });
-      pendingRequests.push({id:docRef.id, dateStr, slot, priority: next, status:'pending'});
-    }
-    btn.className = `cell-btn st-${next} requested`;
-    btn.innerHTML = `${labelFor(next)}<span class="req-badge">申請中</span>`;
-    document.getElementById('formMsg').textContent = '変更をリクエストしました。教室長の承認をお待ちください。';
-  }catch(err){
-    console.error('変更リクエストエラー:', err);
-    document.getElementById('formMsg').textContent = 'リクエストの送信に失敗しました。通信状況をご確認ください。';
+  // 提出済みの月：クリックしても即送信せず、画面上の下書きだけを進める
+  const key = cellKey(dateStr, slot);
+  const base = baselineState(entry, dateStr, slot);
+  const cur = localOverrides.hasOwnProperty(key) ? localOverrides[key] : base;
+  const next = cycleState(cur);
+  if(next===base){
+    delete localOverrides[key]; // 元の値に戻ったら「変更なし」扱いにする
+  }else{
+    localOverrides[key] = next;
+  }
+  const td = btn.closest('td');
+  td.innerHTML = buildCellHtml(entry, dateStr, slot);
+  td.querySelector('.cell-btn').addEventListener('click', ()=> handleCellClick(td.querySelector('.cell-btn'), entry, isSubmitted, yearMonth));
+  updateSendButtonState();
+}
+
+function updateSendButtonState(){
+  const count = Object.keys(localOverrides).length;
+  const sendBtn = document.getElementById('sendRequestBtn');
+  if(count===0){
+    sendBtn.style.display = 'none';
+  }else{
+    sendBtn.style.display = '';
+    sendBtn.textContent = `変更をリクエストする（${count}件）`;
   }
 }
+
+async function sendPendingChanges(){
+  const yearMonth = `${curYear}-${pad2(curMonth+1)}`;
+  const entry = getMonthEntry(yearMonth);
+  const msg = document.getElementById('formMsg');
+  const keys = Object.keys(localOverrides);
+  if(keys.length===0) return;
+  msg.textContent = '送信中…';
+  try{
+    for(const key of keys){
+      const [dateStr, slotStr] = key.split('|');
+      const slot = Number(slotStr);
+      const priority = localOverrides[key];
+      const existingReq = pendingRequests.find(r=>r.dateStr===dateStr && r.slot===slot);
+      if(existingReq){
+        await fbDb.collection('scheduleChangeRequests').doc(existingReq.id).update({priority});
+        existingReq.priority = priority;
+      }else{
+        const docRef = await fbDb.collection('scheduleChangeRequests').add({
+          adminUid: myAdminUid, teacherId: myTeacherId, teacherLoginUid: fbAuth.currentUser.uid,
+          dateStr, slot, priority, status:'pending',
+          submittedAt: firebase.firestore.FieldValue.serverTimestamp(),
+        });
+        pendingRequests.push({id:docRef.id, dateStr, slot, priority, status:'pending'});
+      }
+    }
+    localOverrides = {};
+    msg.textContent = `✓ ${keys.length}件の変更をリクエストしました。教室長の承認をお待ちください。`;
+    render();
+  }catch(err){
+    console.error('変更リクエストエラー:', err);
+    msg.textContent = 'リクエストの送信に失敗しました。通信状況をご確認ください。';
+  }
+}
+document.getElementById('sendRequestBtn').addEventListener('click', sendPendingChanges);
 
 document.getElementById('prevBtn').addEventListener('click', ()=>{
   curMonth--; if(curMonth<0){ curMonth=11; curYear--; }
