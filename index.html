@@ -2391,7 +2391,7 @@ async function saveTeacherScheduleDoc(sch){
     const snap = await ref.get();
     const existing = snap.exists ? snap.data() : {};
     const months = existing.months || {};
-    months[sch.yearMonth] = {id:sch.id, status:sch.status, days:sch.days};
+    months[sch.yearMonth] = {id:sch.id, status:sch.status, days:sch.days, submittedBy: sch.submittedBy || null};
     await ref.set({
       adminUid: fbAuth.currentUser.uid,
       teacherId: sch.teacherId,
@@ -2413,7 +2413,7 @@ async function loadAllTeacherSchedules(){
       const d = doc.data();
       Object.keys(d.months||{}).forEach(ym=>{
         const m = d.months[ym];
-        result.push({id:m.id, teacherId:d.teacherId, yearMonth:ym, status:m.status, days:m.days||{}});
+        result.push({id:m.id, teacherId:d.teacherId, yearMonth:ym, status:m.status, days:m.days||{}, submittedBy: m.submittedBy || null});
       });
     });
     return result;
@@ -3584,14 +3584,14 @@ function renderCalendarDetail(dateStr){
         const slot = Number(btn.dataset.slot);
         const result = confirmAssignment(student, course, subject, day, slot, teacher);
         if(!result.ok){ alert(result.msg); return; }
-        renderMatching();
+        renderMatching(); renderCalendar(); renderCalendarDetail(dateStr);
       });
     });
     // 確定解除ボタン
     wrap.querySelectorAll('.unconfirm-btn').forEach(btn=>{
       btn.addEventListener('click', ()=>{
         cancelAssignment(btn.dataset.student, btn.dataset.course, btn.dataset.day, Number(btn.dataset.slot));
-        renderMatching();
+        renderMatching(); renderCalendar(); renderCalendarDetail(dateStr);
       });
     });
     // 欠席にするボタン
@@ -3600,21 +3600,21 @@ function renderCalendarDetail(dateStr){
         const {student, course, subject, day, date} = btn.dataset;
         const slot = Number(btn.dataset.slot);
         recordAbsence(student, course, subject, day, slot, date);
-        renderMatching();
+        renderMatching(); renderCalendar(); renderCalendarDetail(dateStr);
       });
     });
     // 欠席取り消しボタン
     wrap.querySelectorAll('.cancel-absence-btn').forEach(btn=>{
       btn.addEventListener('click', ()=>{
         cancelAbsenceRecord(btn.dataset.absence);
-        renderMatching();
+        renderMatching(); renderCalendar(); renderCalendarDetail(dateStr);
       });
     });
     // 振替なしで確定するボタン
     wrap.querySelectorAll('.no-makeup-btn').forEach(btn=>{
       btn.addEventListener('click', ()=>{
         markNoMakeup(btn.dataset.absence);
-        renderMatching();
+        renderMatching(); renderCalendar(); renderCalendarDetail(dateStr);
       });
     });
     // 振替を探すボタン（候補パネルをその場で開く）
@@ -3652,7 +3652,7 @@ function renderCalendarDetail(dateStr){
             const slot = Number(cbtn.dataset.slot);
             const result = confirmMakeup(absence, mDate, slot, teacher);
             if(!result.ok){ alert(result.msg); return; }
-            renderMatching();
+            renderMatching(); renderCalendar(); renderCalendarDetail(dateStr);
           });
         });
       });
@@ -3664,14 +3664,14 @@ function renderCalendarDetail(dateStr){
         const slot = Number(btn.dataset.slot);
         const result = confirmMakeup(absence, date, slot, teacher);
         if(!result.ok){ alert(result.msg); return; }
-        renderMatching();
+        renderMatching(); renderCalendar(); renderCalendarDetail(dateStr);
       });
     });
     // 振替取り消しボタン
     wrap.querySelectorAll('.cancel-makeup-btn').forEach(btn=>{
       btn.addEventListener('click', ()=>{
         cancelMakeup(btn.dataset.absence);
-        renderMatching();
+        renderMatching(); renderCalendar(); renderCalendarDetail(dateStr);
       });
     });
     // 代替日程パネルの開閉
@@ -3898,7 +3898,12 @@ function renderTeacherScheduleTab(){
     const sch = findTeacherSchedule(t.id, yearMonth);
     let statusClass, statusLabel;
     if(!sch){ statusClass='none'; statusLabel='未提出'; }
-    else if(sch.status==='submitted'){ statusClass='submitted'; statusLabel='提出済み'; }
+    else if(sch.status==='submitted'){
+      statusClass='submitted';
+      if(sch.submittedBy==='admin') statusLabel = '提出済み（教室長が代理入力）';
+      else if(sch.submittedBy==='teacher') statusLabel = '提出済み（本人）';
+      else statusLabel = '提出済み';
+    }
     else { statusClass='draft'; statusLabel='入力中（未提出）'; }
 
     let stripHtml = '';
@@ -3985,6 +3990,7 @@ function renderTeacherScheduleGrid(schedule){
       const curState = curEntry ? curEntry.priority : 'none';
       const next = cycleTeacherState(curState);
       setDateSlotState(schedule, dateStr, slot, next);
+      schedule.submittedBy = 'admin'; // 教室長がこの内容を触ったことを記録
       btn.textContent = next==='none' ? '×' : (next==='preferred' ? '○' : '△');
       btn.className = `ts-cell-btn st-${next}`;
       saveTeacherScheduleDoc(schedule);
@@ -5641,6 +5647,7 @@ async function init(){
     const yearMonth = `${calYear}-${pad2(calMonth+1)}`;
     const schedule = getOrCreateDraftSchedule(tsSelectedTeacherId, yearMonth);
     schedule.status = 'submitted';
+    schedule.submittedBy = 'admin'; // 教室長が代理で入力・提出したことを記録
     await saveTeacherScheduleDoc(schedule);
     document.getElementById('tsFormMsg').textContent = '✓ 提出しました。';
     renderTeacherScheduleTab();
