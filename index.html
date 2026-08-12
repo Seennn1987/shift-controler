@@ -1469,6 +1469,9 @@ function getOrCreateDraftSchedule(teacherId, yearMonth){
   if(!sch){
     sch = {id:'tsch-'+Date.now()+'-'+Math.random().toString(36).slice(2,6), teacherId, yearMonth, status:'draft', days:{}};
     teacherSchedules.push(sch);
+  }else if(!sch.id){
+    // 過去のデータでidが欠けている場合はここで補完する（Firestore保存時のエラーを防ぐため）
+    sch.id = 'tsch-'+Date.now()+'-'+Math.random().toString(36).slice(2,6);
   }
   return sch;
 }
@@ -2377,6 +2380,10 @@ function teacherSchedDocRef(teacherId){
   return fbDb.collection('teacherSchedules').doc(`${user.uid}_${teacherId}`);
 }
 async function saveTeacherScheduleDoc(sch){
+  if(!sch.id){
+    // 最終防御：ここまでにidが付与されていなければ、保存直前に必ず補完する（Firestoreはundefinedを保存できないため）
+    sch.id = 'tsch-'+Date.now()+'-'+Math.random().toString(36).slice(2,6);
+  }
   const teacher = teachers.find(t=>t.id===sch.teacherId);
   const ref = teacherSchedDocRef(sch.teacherId);
   if(!ref) return;
@@ -3772,11 +3779,17 @@ async function loadAssignmentApprovals(){
   const user = fbAuth.currentUser;
   if(!user) return [];
   try{
+    // where句1つだけにして、Firestoreの複合索引作成を不要にする（並び替えはクライアント側で行う）
     const snap = await fbDb.collection('assignmentApprovals')
-      .where('adminUid','==',user.uid).orderBy('createdAt','desc').limit(30).get();
+      .where('adminUid','==',user.uid).get();
     const list = [];
     snap.forEach(doc=> list.push({id:doc.id, ...doc.data()}));
-    return list;
+    list.sort((a,b)=>{
+      const ta = (a.createdAt && a.createdAt.toMillis) ? a.createdAt.toMillis() : 0;
+      const tb = (b.createdAt && b.createdAt.toMillis) ? b.createdAt.toMillis() : 0;
+      return tb - ta;
+    });
+    return list.slice(0, 30);
   }catch(err){
     console.error('承認状況読み込みエラー:', err);
     return [];
