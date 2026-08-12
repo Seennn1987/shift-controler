@@ -165,6 +165,20 @@
   .subj-item{display:inline-flex;align-items:center;gap:2px;}
 
   .pay-input-row{display:flex;gap:16px;flex-wrap:wrap;}
+  .login-status-box{font-size:12px;color:var(--ink-soft);}
+  .login-status-box.issued{color:var(--ink);font-weight:700;}
+  .change-req-row{
+    display:flex;align-items:center;justify-content:space-between;gap:14px;flex-wrap:wrap;
+    border:1px solid var(--border);border-radius:9px;padding:10px 14px;margin-bottom:8px;background:#fdfcf9;
+  }
+  .change-req-name{font-weight:700;margin-right:10px;}
+  .change-req-detail{font-size:12.5px;color:var(--ink-soft);}
+  .change-req-note{font-size:11.5px;color:var(--ink-soft);margin-top:4px;}
+  .change-req-actions{display:flex;gap:8px;flex-shrink:0;}
+  .change-req-actions button{
+    font-family:inherit;font-size:12px;font-weight:700;padding:6px 14px;border-radius:7px;cursor:pointer;
+  }
+  .change-req-actions .ghost{border:1px solid var(--border);background:#fff;color:var(--ink-soft);}
   .raise-row{display:flex;gap:10px;align-items:center;margin-bottom:8px;flex-wrap:wrap;}
   .raise-row input[type=month]{padding:8px 10px;border:1px solid var(--border);border-radius:7px;font-family:inherit;font-size:13px;background:#fdfcf9;}
   .raise-row input[type=text]{padding:8px 10px;border:1px solid var(--border);border-radius:7px;font-family:inherit;font-size:13px;background:#fdfcf9;width:120px;}
@@ -1083,6 +1097,22 @@
       <label class="field-label">基本の対応可能曜日・コマ<span class="help-tip" tabindex="0">?<span class="help-tip-text">面接時にヒアリングした「基本的にこの曜日・コマなら出勤できる／したい」を登録します。実際の月ごとの出退勤とは別の、参考プロフィールです。マスをクリックするたびに「×不可→○特に希望→△対応可能→×不可」の順に切り替わります。</span></span></label>
       <div id="baseAvailArea"></div>
 
+      <div style="height:22px"></div>
+      <label class="field-label">講師専用ログイン<span class="help-tip" tabindex="0">?<span class="help-tip-text">ここでメールアドレス・パスワードを設定すると、講師専用ページ（別URL）から本人が月次スケジュールを提出できるようになります。発行後、URLとログイン情報は教室長からご本人へ別途共有してください。</span></span></label>
+      <div id="teacherLoginStatus" class="login-status-box"></div>
+      <div class="pay-input-row" style="margin-top:8px;">
+        <div class="pay-input-item">
+          <label for="teacherLoginEmail">ログイン用メールアドレス</label>
+          <input type="email" id="teacherLoginEmail" placeholder="teacher@example.com">
+        </div>
+        <div class="pay-input-item">
+          <label for="teacherLoginPassword">ログイン用パスワード（6文字以上）</label>
+          <input type="text" id="teacherLoginPassword" placeholder="半角英数字など">
+        </div>
+      </div>
+      <button type="button" class="ghost" id="createTeacherLoginBtn" style="margin-top:10px;">このアカウントを発行する</button>
+      <span class="form-msg" id="teacherLoginMsg"></span>
+
       <div class="form-actions">
         <button class="primary" id="saveBtn">登録する</button>
         <button class="ghost" id="cancelBtn" style="display:none;">キャンセル</button>
@@ -1138,6 +1168,11 @@
 
   <!-- ===== 講師スケジュール（月次提出） ===== -->
   <section id="view-teacherSchedule" class="view">
+    <div class="card" id="changeRequestCard" style="display:none;">
+      <h2>講師からの変更リクエスト<span class="help-tip" tabindex="0">?<span class="help-tip-text">提出済みのスケジュールに対して、講師本人が講師専用ページから送った変更依頼の一覧です。承認すると実際のスケジュールに反映されます。</span></span></h2>
+      <div id="changeRequestWrap"></div>
+    </div>
+
     <div class="card ts-card">
       <div class="cal-header">
         <button type="button" class="cal-nav-btn" id="tsPrevBtn">‹</button>
@@ -1761,6 +1796,12 @@ function resetForm(){
     cb.dispatchEvent(new Event('change'));
   });
   fillBaseAvailArea([]);
+  document.getElementById('teacherLoginEmail').value = '';
+  document.getElementById('teacherLoginPassword').value = '';
+  document.getElementById('teacherLoginMsg').textContent = '';
+  document.getElementById('teacherLoginStatus').textContent = '講師情報を先に登録してから発行できます。';
+  document.getElementById('teacherLoginStatus').className = 'login-status-box';
+  document.getElementById('createTeacherLoginBtn').disabled = true;
   document.getElementById('formModeTitle').textContent = '講師を登録';
   document.getElementById('saveBtn').textContent = '登録する';
   document.getElementById('cancelBtn').style.display = 'none';
@@ -1796,6 +1837,17 @@ function fillFormForEdit(t){
     }
   });
   fillBaseAvailArea(t.baseAvailability);
+  document.getElementById('teacherLoginEmail').value = t.loginEmail || '';
+  document.getElementById('teacherLoginPassword').value = '';
+  document.getElementById('teacherLoginMsg').textContent = '';
+  document.getElementById('createTeacherLoginBtn').disabled = false;
+  if(t.loginUid){
+    document.getElementById('teacherLoginStatus').textContent = `発行済み（${t.loginEmail}）。パスワードを変更したい場合は、新しいパスワードを入力して再度発行してください。`;
+    document.getElementById('teacherLoginStatus').className = 'login-status-box issued';
+  }else{
+    document.getElementById('teacherLoginStatus').textContent = 'まだ発行されていません。';
+    document.getElementById('teacherLoginStatus').className = 'login-status-box';
+  }
   document.getElementById('formModeTitle').textContent = `${t.name} さんを編集`;
   document.getElementById('saveBtn').textContent = '更新する';
   document.getElementById('cancelBtn').style.display = 'inline-block';
@@ -2269,6 +2321,14 @@ const fbDb = firebase.firestore();
 
 let saveTimer = null;
 let firestoreReady = false;
+let secondaryFbApp = null; // 講師アカウント作成時に、教室長のログインを維持したまま使う一時的な接続
+
+function getSecondaryAuth(){
+  if(!secondaryFbApp){
+    secondaryFbApp = firebase.initializeApp(firebaseConfig, 'secondary');
+  }
+  return secondaryFbApp.auth();
+}
 
 function getStateDocRef(){
   const user = fbAuth.currentUser;
@@ -2276,7 +2336,54 @@ function getStateDocRef(){
   return fbDb.collection('appState').doc(user.uid);
 }
 
+// 講師スケジュールは教室長の巨大なデータとは別のコレクションに保存する（講師本人が自分の分だけ読み書きできるようにするため）
+function teacherSchedDocRef(teacherId){
+  const user = fbAuth.currentUser;
+  if(!user) return null;
+  return fbDb.collection('teacherSchedules').doc(`${user.uid}_${teacherId}`);
+}
+async function saveTeacherScheduleDoc(sch){
+  const teacher = teachers.find(t=>t.id===sch.teacherId);
+  const ref = teacherSchedDocRef(sch.teacherId);
+  if(!ref) return;
+  try{
+    const snap = await ref.get();
+    const existing = snap.exists ? snap.data() : {};
+    const months = existing.months || {};
+    months[sch.yearMonth] = {id:sch.id, status:sch.status, days:sch.days};
+    await ref.set({
+      adminUid: fbAuth.currentUser.uid,
+      teacherId: sch.teacherId,
+      teacherLoginUid: teacher ? (teacher.loginUid || null) : null,
+      months,
+      updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
+    }, {merge:true});
+  }catch(err){
+    console.error('講師スケジュール保存エラー:', err);
+  }
+}
+async function loadAllTeacherSchedules(){
+  const user = fbAuth.currentUser;
+  if(!user) return [];
+  try{
+    const snap = await fbDb.collection('teacherSchedules').where('adminUid','==',user.uid).get();
+    const result = [];
+    snap.forEach(doc=>{
+      const d = doc.data();
+      Object.keys(d.months||{}).forEach(ym=>{
+        const m = d.months[ym];
+        result.push({id:m.id, teacherId:d.teacherId, yearMonth:ym, status:m.status, days:m.days||{}});
+      });
+    });
+    return result;
+  }catch(err){
+    console.error('講師スケジュール読み込みエラー:', err);
+    return [];
+  }
+}
+
 // 全データを1つのドキュメントにまとめてFirestoreへ保存する（呼び出しが重ならないよう1.2秒デバウンス）
+// ※teacherSchedulesは別コレクション（teacherSchedules）で管理するため、ここには含めない
 function scheduleSave(){
   if(!firestoreReady) return; // 初回ロードが終わるまでは保存しない（空データで上書きするのを防ぐ）
   if(saveTimer) clearTimeout(saveTimer);
@@ -2287,7 +2394,7 @@ async function saveAppState(){
   const ref = getStateDocRef();
   if(!ref) return;
   const state = {
-    teachers, students, assignments, absences, teacherSchedules,
+    teachers, students, assignments, absences,
     terms, customClosures, preferredPairs,
     tuitionRates, regularClosedDays, holidayAutoDetect,
     roomCapacity, teacherCapacity, finGradientMin, finGradientMax,
@@ -2311,7 +2418,6 @@ async function loadAppStateFromFirestore(){
     students = d.students || [];
     assignments = d.assignments || [];
     absences = d.absences || [];
-    teacherSchedules = d.teacherSchedules || [];
     terms = d.terms || [];
     customClosures = d.customClosures || [];
     preferredPairs = d.preferredPairs || [];
@@ -2328,12 +2434,12 @@ async function loadAppStateFromFirestore(){
     students = [];
     assignments = [];
     absences = [];
-    teacherSchedules = [];
     terms = [];
     customClosures = [];
     preferredPairs = [];
     holidayAutoDetect = false;
   }
+  teacherSchedules = await loadAllTeacherSchedules();
   dataReady = true;
   studentDataReady = true;
   firestoreReady = true;
@@ -3479,8 +3585,73 @@ function syncMonthChange(){
 // =====================================================================
 let tsSelectedTeacherId = null;
 
+// ---- 講師からの変更リクエスト（確定後にスケジュールを変更したい場合、直接上書きせずここに届く） ----
+async function loadPendingChangeRequests(){
+  const user = fbAuth.currentUser;
+  if(!user) return [];
+  try{
+    const snap = await fbDb.collection('scheduleChangeRequests')
+      .where('adminUid','==',user.uid).where('status','==','pending').get();
+    const list = [];
+    snap.forEach(doc=> list.push({id:doc.id, ...doc.data()}));
+    return list;
+  }catch(err){
+    console.error('変更リクエスト読み込みエラー:', err);
+    return [];
+  }
+}
+async function renderChangeRequests(){
+  const card = document.getElementById('changeRequestCard');
+  const wrap = document.getElementById('changeRequestWrap');
+  if(!card || !wrap) return;
+  const requests = await loadPendingChangeRequests();
+  if(requests.length===0){
+    card.style.display = 'none';
+    return;
+  }
+  card.style.display = '';
+  wrap.innerHTML = requests.map(r=>{
+    const teacher = teachers.find(t=>t.id===r.teacherId);
+    const teacherName = teacher ? teacher.name : '(削除された講師)';
+    const mark = r.priority==='none' ? '×不可' : (r.priority==='preferred' ? '○特に希望' : '△対応可能');
+    return `<div class="change-req-row">
+      <div class="change-req-main">
+        <span class="change-req-name">${teacherName}</span>
+        <span class="change-req-detail">${r.dateStr}　${SLOTS.find(s=>s.id===r.slot)?.label||r.slot+'講'}　→　${mark}</span>
+        ${r.note ? `<div class="change-req-note">${r.note.replace(/</g,'&lt;')}</div>` : ''}
+      </div>
+      <div class="change-req-actions">
+        <button class="primary" data-id="${r.id}" data-action="approve">承認</button>
+        <button class="ghost" data-id="${r.id}" data-action="reject">却下</button>
+      </div>
+    </div>`;
+  }).join('');
+
+  wrap.querySelectorAll('button[data-action]').forEach(btn=>{
+    btn.addEventListener('click', async ()=>{
+      const req = requests.find(r=>r.id===btn.dataset.id);
+      if(!req) return;
+      if(btn.dataset.action==='approve'){
+        const yearMonth = req.dateStr.slice(0,7);
+        const schedule = getOrCreateDraftSchedule(req.teacherId, yearMonth);
+        setDateSlotState(schedule, req.dateStr, req.slot, req.priority);
+        await saveTeacherScheduleDoc(schedule);
+      }
+      await fbDb.collection('scheduleChangeRequests').doc(req.id).update({
+        status: btn.dataset.action==='approve' ? 'approved' : 'rejected',
+      });
+      renderChangeRequests();
+      renderTeacherScheduleTab();
+      renderMatrix();
+      renderMatching();
+      renderCalendar();
+    });
+  });
+}
+
 function renderTeacherScheduleTab(){
   scheduleSave();
+  renderChangeRequests();
   const wrap = document.getElementById('tsTeacherListWrap');
   if(!wrap) return;
   if(calYear===undefined){
@@ -3594,6 +3765,7 @@ function renderTeacherScheduleGrid(schedule){
       setDateSlotState(schedule, dateStr, slot, next);
       btn.textContent = next==='none' ? '×' : (next==='preferred' ? '○' : '△');
       btn.className = `ts-cell-btn st-${next}`;
+      saveTeacherScheduleDoc(schedule);
     });
   });
 }
@@ -4909,6 +5081,43 @@ async function init(){
     if(e.target.checked && formRaiseSchedule.length===0) addRaiseRow();
   });
   document.getElementById('addRaiseBtn').addEventListener('click', ()=>{ addRaiseRow(); });
+  document.getElementById('createTeacherLoginBtn').addEventListener('click', async ()=>{
+    const msg = document.getElementById('teacherLoginMsg');
+    if(!editingId){ msg.textContent = '先に講師情報を登録してください。'; return; }
+    const email = document.getElementById('teacherLoginEmail').value.trim();
+    const password = document.getElementById('teacherLoginPassword').value;
+    if(!email){ msg.textContent = 'メールアドレスを入力してください。'; return; }
+    if(!password || password.length<6){ msg.textContent = 'パスワードは6文字以上で入力してください。'; return; }
+    msg.textContent = '発行中…';
+    try{
+      const secAuth = getSecondaryAuth();
+      const cred = await secAuth.createUserWithEmailAndPassword(email, password);
+      const newUid = cred.user.uid;
+      await secAuth.signOut(); // 一時的な接続からはサインアウトする（教室長のログインには影響しない）
+
+      const adminUid = fbAuth.currentUser.uid;
+      await fbDb.collection('teacherAccounts').doc(newUid).set({
+        adminUid, teacherId: editingId, teacherName: document.getElementById('nameInput').value.trim(),
+      });
+
+      const idx = teachers.findIndex(t=>t.id===editingId);
+      if(idx>-1){
+        teachers[idx].loginUid = newUid;
+        teachers[idx].loginEmail = email;
+      }
+      await saveTeachers();
+      renderTeacherList();
+      msg.textContent = '✓ アカウントを発行しました。URLとログイン情報を講師ご本人に共有してください。';
+      document.getElementById('teacherLoginStatus').textContent = `発行済み（${email}）。パスワードを変更したい場合は、新しいパスワードを入力して再度発行してください。`;
+      document.getElementById('teacherLoginStatus').className = 'login-status-box issued';
+    }catch(err){
+      let text = 'アカウントの発行に失敗しました。';
+      if(err.code==='auth/email-already-in-use') text = 'このメールアドレスは既に使われています。';
+      if(err.code==='auth/invalid-email') text = 'メールアドレスの形式が正しくありません。';
+      if(err.code==='auth/weak-password') text = 'パスワードが簡単すぎます。6文字以上の別の文字列にしてください。';
+      msg.textContent = text;
+    }
+  });
   document.getElementById('saveBtn').addEventListener('click', handleSave);
   document.getElementById('bulkPayEarlyToggle').addEventListener('change', (e)=>{
     document.getElementById('bulkPayEarlyArea').style.display = e.target.checked ? 'flex' : 'none';
@@ -5044,11 +5253,12 @@ async function init(){
     tsSelectedTeacherId = null;
     syncMonthChange();
   });
-  document.getElementById('tsSubmitBtn').addEventListener('click', ()=>{
+  document.getElementById('tsSubmitBtn').addEventListener('click', async ()=>{
     if(!tsSelectedTeacherId) return;
     const yearMonth = `${calYear}-${pad2(calMonth+1)}`;
     const schedule = getOrCreateDraftSchedule(tsSelectedTeacherId, yearMonth);
     schedule.status = 'submitted';
+    await saveTeacherScheduleDoc(schedule);
     document.getElementById('tsFormMsg').textContent = '✓ 提出しました。';
     renderTeacherScheduleTab();
     openTeacherScheduleEditor(tsSelectedTeacherId);
