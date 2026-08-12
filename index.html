@@ -5780,10 +5780,10 @@ async function showAppScreen(user){
   document.getElementById('loginUserEmail').textContent = user.email || '';
 
   if(!appInitialized){
+    appInitialized = true; // initを待つ前にロックする（onAuthStateChangedが立て続けに複数回発火しても、init()内のイベント登録が二重に走らないようにするため）
     document.getElementById('loginLoading').style.display = 'block';
     await loadAppStateFromFirestore();
     await init();
-    appInitialized = true;
     document.getElementById('loginLoading').style.display = 'none';
   }
 }
@@ -5817,7 +5817,11 @@ fbAuth.onAuthStateChanged(user=>{
   if(user){
     showAppScreen(user);
   }else{
-    appInitialized = false;
+    if(appInitialized){
+      // 一度初期化済みの状態からログアウトした場合、イベント登録の二重化を避けるためページごと再読み込みする
+      window.location.reload();
+      return;
+    }
     showLoginScreen();
   }
 });
