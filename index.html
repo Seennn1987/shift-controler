@@ -306,9 +306,6 @@
   .badge-toggle input:checked::after{left:16px;}
   .badge-toggle input:focus-visible{outline:2px solid var(--gold);outline-offset:2px;}
 
-  #matrixWrap.hide-badges .t-badges{display:none;}
-  #matrixWrap.hide-badges .cell-t{padding:6px 8px;}
-  #matrixWrap.hide-badges .t-name{margin-bottom:0;}
   select{
     padding:9px 12px;border:1px solid var(--border);border-radius:8px;font-family:inherit;
     font-size:13.5px;background:#fff;color:var(--ink);
@@ -336,21 +333,7 @@
   table.matrix td.cell.dim{opacity:.3;}
 
   .cell-empty{color:var(--ink-soft);font-size:11.5px;padding:6px 2px;}
-  .cell-teachers{display:flex;flex-direction:column;gap:6px;margin-bottom:8px;}
-  .cell-t{
-    font-size:12px;line-height:1.4;
-    border:1px solid var(--border);border-radius:8px;
-    padding:6px 8px;background:#fdfcf9;
-  }
-  .cell-t .t-name{font-weight:700;color:var(--ink);display:block;margin-bottom:4px;}
-  .cell-t .t-mark{font-weight:900;font-size:13px;margin-right:4px;color:var(--ink-soft);}
-  .cell-t .t-mark.mark-preferred{color:var(--ink);}
-  .cell-t .t-badges{display:flex;flex-wrap:wrap;gap:3px;}
-  .subj-badge{
-    display:inline-block;font-size:10.5px;font-weight:700;padding:2px 7px;border-radius:5px;
-    border:1px solid transparent;white-space:nowrap;
-  }
-  .cell-summary{border-top:1px dashed var(--border);padding-top:6px;}
+  .cell-summary{padding-bottom:6px;margin-bottom:8px;border-bottom:1px dashed var(--border);}
   .cell-total{font-size:11px;font-weight:700;color:var(--green-800);margin-bottom:5px;}
   .cell-summary-row{display:flex;align-items:center;flex-wrap:wrap;gap:4px;margin-bottom:3px;}
   .cell-summary-level{font-size:9.5px;font-weight:700;color:var(--ink-soft);min-width:24px;flex-shrink:0;}
@@ -359,6 +342,16 @@
     padding:2px 7px;border-radius:5px;border:1px solid transparent;
   }
   .sum-tag-empty{background:transparent;border-style:dashed;}
+
+  .cell-teachers{display:grid;grid-template-columns:1fr 1fr;gap:4px 6px;}
+  .cell-t{
+    font-size:11.5px;line-height:1.3;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+    border:1px solid var(--border);border-radius:6px;
+    padding:4px 6px;background:#fdfcf9;
+  }
+  .cell-t .t-name{font-weight:700;color:var(--ink);}
+  .cell-t .t-mark{font-weight:900;font-size:12px;margin-right:3px;color:var(--ink-soft);}
+  .cell-t .t-mark.mark-preferred{color:var(--ink);}
   tr.day-start td, tr.day-start th{border-top:2px solid var(--green-700);}
 
   .empty-state{
@@ -2151,13 +2144,9 @@
         <select id="subjectFilter">
           <option value="">教科で絞り込み（すべて表示）</option>
         </select>
-        <label class="badge-toggle">
-          <input type="checkbox" id="showBadgesToggle">
-          <span>教科タグを表示</span>
-        </label>
         <div class="legend" id="colorLegend"></div>
       </div>
-      <div id="matrixWrap" class="hide-badges"></div>
+      <div id="matrixWrap"></div>
     </div>
   </section>
 
@@ -5746,22 +5735,13 @@ function renderMatrix(){
         return;
       }
 
-      // 講師名＋対応教科を1つのボックスにまとめて表示（○/△を名前の前に付ける）
+      // 講師名（○/△付き、1行・改行なし）
       let teacherLines = '';
       avail.forEach(t=>{
         const entry = (t.baseAvailability||[]).find(e=>e.day===day && e.slot===slot.id);
         const isPreferred = entry && entry.priority==='preferred';
         const mark = isPreferred ? '○' : '△';
-        let effectiveTeacher = t;
-        if(filterVal){
-          // フィルタ時は該当教科のみを対象に要約する
-          effectiveTeacher = {name:t.name, subjects:t.subjects.filter(s=>s.level===filterLevel && s.subject===filterSubject)};
-        }
-        const labels = summarizeTeacherSubjects(effectiveTeacher);
-        const badges = labels.map(l=>
-          `<span class="subj-badge" style="background:${l.color.bg};color:${l.color.text};border-color:${l.color.border};">${l.text}</span>`
-        ).join('');
-        teacherLines += `<div class="cell-t"><span class="t-mark ${isPreferred?'mark-preferred':'mark-normal'}">${mark}</span><span class="t-name">${t.name}</span><span class="t-badges">${badges}</span></div>`;
+        teacherLines += `<div class="cell-t"><span class="t-mark ${isPreferred?'mark-preferred':'mark-normal'}">${mark}</span><span class="t-name">${t.name}</span></div>`;
       });
 
       // 学年別・全5教科の対応可能人数（0人の教科は点線枠で「人がいない」ことを強調）
@@ -5783,11 +5763,11 @@ function renderMatrix(){
       });
 
       tbody += `<td class="cell">
-        <div class="cell-teachers">${teacherLines}</div>
         <div class="cell-summary">
           <div class="cell-total">コマ合計：${avail.length}人</div>
           ${levelRows}
         </div>
+        <div class="cell-teachers">${teacherLines}</div>
       </td>`;
     });
     tbody += '</tr>';
@@ -6010,9 +5990,6 @@ async function init(){
   });
   document.getElementById('cancelBtn').addEventListener('click', resetForm);
   document.getElementById('subjectFilter').addEventListener('change', renderMatrix);
-  document.getElementById('showBadgesToggle').addEventListener('change', (e)=>{
-    document.getElementById('matrixWrap').classList.toggle('hide-badges', !e.target.checked);
-  });
   document.getElementById('studentSaveBtn').addEventListener('click', handleStudentSave);
   document.getElementById('studentCancelBtn').addEventListener('click', resetStudentForm);
   document.getElementById('addCourseBtn').addEventListener('click', ()=>{
