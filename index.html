@@ -2387,15 +2387,14 @@ async function saveTeacherScheduleDoc(sch){
   const ref = teacherSchedDocRef(sch.teacherId);
   if(!ref) return;
   try{
-    const snap = await ref.get();
-    const existing = snap.exists ? snap.data() : {};
-    const months = existing.months || {};
-    months[sch.yearMonth] = {id:sch.id, status:sch.status, days:sch.days, submittedBy: sch.submittedBy || null};
+    // 事前にドキュメントを読み込まず、Firestoreのドット記法で該当月のフィールドだけを書き込む
+    // （ドキュメントがまだ1件も存在しない講師でも、事前読み込みで権限エラーになることなく初回保存できるようにするため）
+    const monthKey = `months.${sch.yearMonth}`;
     await ref.set({
       adminUid: fbAuth.currentUser.uid,
       teacherId: sch.teacherId,
       teacherLoginUid: teacher ? (teacher.loginUid || null) : null,
-      months,
+      [monthKey]: {id:sch.id, status:sch.status, days:sch.days, submittedBy: sch.submittedBy || null},
       updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
     }, {merge:true});
   }catch(err){
@@ -5529,11 +5528,19 @@ async function init(){
         teachers[idx].loginEmail = email;
       }
       await saveTeachers();
-      // 既にこの講師のスケジュールが登録済みの場合、そのドキュメント内のteacherLoginUidも今回発行したIDに更新する
-      // （先にスケジュールを入力→後からアカウント発行、という順番だと、これをしないと講師本人がアクセスできないままになる）
+      // この講師のスケジュールドキュメントに、必須フィールド一式（adminUid/teacherId/teacherLoginUid）を確実に用意する
+      // （ドキュメントがまだ1件も存在しない状態だと、セキュリティルールがresource.dataを参照できず、
+      //   teacherLoginUidだけを書き込んでも講師本人が読み込めないままになるため。
+      //   事前読み込みもしない＝存在しないドキュメントの読み込みで権限エラーになることも避ける）
       try{
         const schedRef = teacherSchedDocRef(editingId);
-        if(schedRef) await schedRef.set({ teacherLoginUid: newUid }, {merge:true});
+        if(schedRef){
+          await schedRef.set({
+            adminUid: fbAuth.currentUser.uid,
+            teacherId: editingId,
+            teacherLoginUid: newUid,
+          }, {merge:true});
+        }
       }catch(e){
         console.error('既存スケジュールのteacherLoginUid更新エラー:', e);
       }
