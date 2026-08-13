@@ -2454,6 +2454,26 @@ function startTeacherScheduleListener(){
     });
 }
 
+// ---- 休校日設定（定休日・祝日判定・個別休校日）を講師にも同期する ----
+// 祝日データ（HOLIDAYS_JP）自体は静的データなので、講師専用ページ側にも同じものを複製で持たせている
+let syncClosureSettingsTimer = null;
+function scheduleSyncClosureSettings(){
+  if(syncClosureSettingsTimer) clearTimeout(syncClosureSettingsTimer);
+  syncClosureSettingsTimer = setTimeout(syncClosureSettings, 1200);
+}
+async function syncClosureSettings(){
+  const user = fbAuth.currentUser;
+  if(!user) return;
+  try{
+    await fbDb.collection('classroomSettings').doc(user.uid).set({
+      regularClosedDays, holidayAutoDetect, customClosures,
+      updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
+    }, {merge:true});
+  }catch(err){
+    console.error('休校日設定の同期エラー:', err);
+  }
+}
+
 // ---- 講師本人が「マイカレンダー」で見るための、担当授業一覧の同期 ----
 // （生徒個人情報を含む assignments 全体は講師には見せず、その講師自身が担当する分だけを抜き出して渡す）
 let syncTeacherAssignmentsTimer = null;
@@ -2571,6 +2591,7 @@ async function loadAppStateFromFirestore(){
   }
   teacherSchedules = await loadAllTeacherSchedules();
   startTeacherScheduleListener(); // 以降は講師本人による変更もリアルタイムで反映する
+  await syncClosureSettings(); // 講師側にも休校日設定を同期しておく
   dataReady = true;
   studentDataReady = true;
   firestoreReady = true;
@@ -3130,6 +3151,7 @@ function computeHolidaysInTerms(){
 
 function renderClosedDaySettings(){
   scheduleSave();
+  scheduleSyncClosureSettings();
   // 曜日チェックボックスの状態を反映
   document.querySelectorAll('.closed-day-checkbox').forEach(cb=>{
     cb.checked = regularClosedDays.includes(cb.dataset.day);
@@ -3232,6 +3254,7 @@ function handleClosureSave(){
 }
 function renderClosureList(){
   scheduleSave();
+  scheduleSyncClosureSettings();
   const wrap = document.getElementById('closureList');
   if(!wrap) return;
   if(customClosures.length===0){
