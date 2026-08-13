@@ -3746,10 +3746,21 @@ function renderCalendarDetail(dateStr){
 }
 
 // 月移動時に、カレンダー・マッチング系すべてに対象月の変更を反映する
+// calYear/calMonthで選ばれている月に合わせて、週間予定の表示週を同期する
+// 「今日」がその月に含まれるなら今日を含む週へ、そうでなければその月の1日を含む週へ
+function computeSyncedWeekAnchor(year, month){
+  const todayStr = getTodayStr();
+  const todayDate = new Date(todayStr+'T00:00:00');
+  if(todayDate.getFullYear()===year && todayDate.getMonth()===month){
+    return getWeekMonday(todayStr);
+  }
+  return getWeekMonday(toDateStr(year, month, 1));
+}
+
 function syncMonthChange(){
   referenceYearMonth = `${calYear}-${pad2(calMonth+1)}`;
   // 週間予定の表示週（calWeekAnchor）は独立した状態のため、月間側の見出しとズレないよう毎回同期する
-  calWeekAnchor = getWeekMonday(toDateStr(calYear, calMonth, 1));
+  calWeekAnchor = computeSyncedWeekAnchor(calYear, calMonth);
   renderCalendar();
   if(calMode==='week') renderCalendarWeek();
   renderTeacherScheduleTab();
@@ -5111,6 +5122,9 @@ function renderCalendarWeekGrid(axis){
     d.setDate(monday.getDate()+i);
     weekDates.push(toDateStr(d.getFullYear(), d.getMonth(), d.getDate()));
   }
+  // 週間予定を見ている間は、上段の見出しをこの週が属する月に追従させる（表示のみ。他タブの集計には影響させない）
+  const calTitleEl = document.getElementById('calTitle');
+  if(calTitleEl) calTitleEl.textContent = `${monday.getFullYear()}年${monday.getMonth()+1}月`;
   const fmt = ds=>{ const d=new Date(ds+'T00:00:00'); return `${d.getMonth()+1}/${d.getDate()}`; };
   document.getElementById('calWeekTitle').textContent = `${fmt(weekDates[0])} \u3005 ${fmt(weekDates[5])}`;
 
@@ -5373,7 +5387,7 @@ function switchCalMode(mode){
     const monthStart = toDateStr(calYear, calMonth, 1);
     const monthEnd = toDateStr(calYear, calMonth+1, 0);
     if(!calWeekAnchor || calWeekAnchor < monthStart || calWeekAnchor > monthEnd){
-      calWeekAnchor = getWeekMonday(monthStart);
+      calWeekAnchor = computeSyncedWeekAnchor(calYear, calMonth);
     }
     renderCalendarWeek();
   }
