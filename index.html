@@ -2422,6 +2422,33 @@ async function loadAllTeacherSchedules(){
   }
 }
 
+// 講師スケジュールのリアルタイム監視（講師本人が講師専用ページから提出・変更した内容も、リロードなしで反映する）
+let teacherScheduleUnsub = null;
+function startTeacherScheduleListener(){
+  const user = fbAuth.currentUser;
+  if(!user) return;
+  if(teacherScheduleUnsub) teacherScheduleUnsub();
+  teacherScheduleUnsub = fbDb.collection('teacherSchedules').where('adminUid','==',user.uid)
+    .onSnapshot(snap=>{
+      const result = [];
+      snap.forEach(doc=>{
+        const d = doc.data();
+        Object.keys(d.months||{}).forEach(ym=>{
+          const m = d.months[ym];
+          result.push({id:m.id, teacherId:d.teacherId, yearMonth:ym, status:m.status, days:m.days||{}, submittedBy: m.submittedBy || null});
+        });
+      });
+      teacherSchedules = result;
+      // 現在「講師スケジュール管理」タブを開いている場合は、その場で表示も更新する
+      if(document.getElementById('view-teacherSchedule') && document.getElementById('view-teacherSchedule').classList.contains('active')){
+        renderTeacherScheduleTab();
+        if(tsSelectedTeacherId) openTeacherScheduleEditor(tsSelectedTeacherId);
+      }
+    }, err=>{
+      console.error('講師スケジュール監視エラー:', err);
+    });
+}
+
 // 全データを1つのドキュメントにまとめてFirestoreへ保存する（呼び出しが重ならないよう1.2秒デバウンス）
 // ※teacherSchedulesは別コレクション（teacherSchedules）で管理するため、ここには含めない
 function scheduleSave(){
@@ -2485,6 +2512,7 @@ async function loadAppStateFromFirestore(){
     holidayAutoDetect = false;
   }
   teacherSchedules = await loadAllTeacherSchedules();
+  startTeacherScheduleListener(); // 以降は講師本人による変更もリアルタイムで反映する
   dataReady = true;
   studentDataReady = true;
   firestoreReady = true;
