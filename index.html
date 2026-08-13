@@ -5533,7 +5533,9 @@ async function init(){
         teachers[idx].loginUid = newUid;
         teachers[idx].loginEmail = email;
       }
-      await saveTeachers();
+      // ここは通常のデバウンス保存（scheduleSave）ではなく、即座に確実な保存を行う
+      // （デバウンス中にページを離れると、講師一覧側のloginUidだけが保存されず取り残されるため）
+      await saveAppState();
       // この講師のスケジュールドキュメントに、必須フィールド一式（adminUid/teacherId/teacherLoginUid）を確実に用意する
       // （ドキュメントがまだ1件も存在しない状態だと、セキュリティルールがresource.dataを参照できず、
       //   teacherLoginUidだけを書き込んでも講師本人が読み込めないままになるため。
@@ -5556,7 +5558,34 @@ async function init(){
       document.getElementById('teacherLoginStatus').className = 'login-status-box issued';
     }catch(err){
       let text = 'アカウントの発行に失敗しました。';
-      if(err.code==='auth/email-already-in-use') text = 'このメールアドレスは既に使われています。';
+      if(err.code==='auth/email-already-in-use'){
+        // 既にこのメールアドレスでアカウントが存在する場合、teacherAccountsから
+        // 「この講師に紐づくログインID」を逆引きし、教室長側のデータを自動修復できないか試みる
+        text = 'このメールアドレスは既に使われています。';
+        try{
+          const adminUid = fbAuth.currentUser.uid;
+          const snap = await fbDb.collection('teacherAccounts')
+            .where('adminUid','==',adminUid).where('teacherId','==',editingId).get();
+          if(!snap.empty){
+            const foundUid = snap.docs[0].id;
+            const idx = teachers.findIndex(t=>t.id===editingId);
+            if(idx>-1){
+              teachers[idx].loginUid = foundUid;
+              teachers[idx].loginEmail = email;
+            }
+            await saveAppState();
+            const schedRef = teacherSchedDocRef(editingId);
+            if(schedRef){
+              await schedRef.set({ adminUid, teacherId: editingId, teacherLoginUid: foundUid }, {merge:true});
+            }
+            renderTeacherList();
+            fillFormForEdit(teachers[idx]);
+            text = '✓ 既存のアカウントとの紐付けを自動的に復元しました。';
+          }
+        }catch(e2){
+          console.error('自動復旧エラー:', e2);
+        }
+      }
       if(err.code==='auth/invalid-email') text = 'メールアドレスの形式が正しくありません。';
       if(err.code==='auth/weak-password') text = 'パスワードが簡単すぎます。6文字以上の別の文字列にしてください。';
       msg.textContent = text;
