@@ -55,6 +55,38 @@
   .primary:hover{opacity:.9;}
   .login-msg{font-size:12px;color:var(--danger);text-align:center;margin-top:12px;min-height:16px;}
 
+  .tabs{display:flex;gap:6px;margin-bottom:16px;}
+  .tab-btn{
+    flex:1;border:1px solid var(--border);background:#fff;color:var(--ink-soft);font-family:inherit;font-size:13px;font-weight:700;
+    padding:10px 12px;border-radius:9px;cursor:pointer;
+  }
+  .tab-btn.active{background:var(--green-900);color:#fff;border-color:var(--green-900);}
+  .tab-view{display:none;}
+  .tab-view.active{display:block;}
+
+  .pending-banner{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;}
+  .pending-banner span{font-size:13px;font-weight:700;color:var(--danger);}
+
+  .mycal-day{margin-bottom:14px;}
+  .mycal-date-label{font-size:12.5px;font-weight:700;color:var(--green-800);margin-bottom:6px;}
+  .mycal-date-label.is-today{color:var(--danger);}
+  .mycal-lesson-row{
+    display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;
+    border:1px solid var(--border);border-radius:9px;padding:10px 14px;margin-bottom:6px;background:#fdfcf9;
+  }
+  .mycal-lesson-row.pending{border-style:dashed;border-color:var(--danger);}
+  .mycal-lesson-info{font-size:13px;}
+  .mycal-lesson-info b{font-weight:700;}
+  .mycal-slot-tag{
+    display:inline-block;font-size:11px;font-weight:700;color:var(--ink-soft);background:var(--green-100);
+    padding:2px 8px;border-radius:5px;margin-right:8px;
+  }
+  .mycal-pending-tag{font-size:10.5px;font-weight:700;color:var(--danger);margin-left:8px;}
+  .mycal-approve-btn{
+    border:none;background:var(--green-900);color:#fff;font-family:inherit;font-size:12px;font-weight:700;
+    padding:7px 14px;border-radius:7px;cursor:pointer;flex-shrink:0;
+  }
+
   .month-nav{display:flex;align-items:center;gap:10px;margin-bottom:6px;}
   .nav-btn{border:1px solid var(--border);background:#fff;width:32px;height:32px;border-radius:8px;font-size:15px;cursor:pointer;}
   .month-title{font-size:15px;font-weight:700;flex:1;text-align:center;}
@@ -140,30 +172,47 @@
 </header>
 
 <div class="app" id="appRoot" style="display:none;">
-  <div class="card" id="newAssignCard" style="display:none;">
-    <h2>新しく決まった授業</h2>
-    <p class="desc">教室長が確定した授業です。内容を確認して承認してください。</p>
-    <div class="form-actions" style="margin-top:0;margin-bottom:10px;">
-      <button type="button" class="primary" id="approveAllBtn">まとめて承認する</button>
-    </div>
-    <div id="newAssignWrap"></div>
+  <div class="tabs">
+    <button type="button" class="tab-btn active" data-tab="mycal">マイカレンダー</button>
+    <button type="button" class="tab-btn" data-tab="shift">シフト提出</button>
   </div>
 
-  <div class="card">
-    <h2>月次スケジュール</h2>
-    <p class="desc">クリックするたびに「×不可 → ○特に希望 → △対応可能 → ×不可」の順に切り替わります。未提出の月は直接編集できます。提出済み（確定）の月を変更したい場合は、クリックすると教室長に変更リクエストが届きます（自動では反映されません）。</p>
-    <div class="month-nav">
-      <button type="button" class="nav-btn" id="prevBtn">‹</button>
-      <div class="month-title" id="monthTitle">2026年8月</div>
-      <button type="button" class="nav-btn" id="nextBtn">›</button>
-      <button type="button" class="today-btn" id="todayBtn">今月</button>
+  <div id="tab-mycal" class="tab-view active">
+    <div class="card" id="pendingBannerCard" style="display:none;">
+      <div class="pending-banner">
+        <span id="pendingBannerText"></span>
+        <button type="button" class="primary" id="approveAllBtn">まとめて承認する</button>
+      </div>
     </div>
-    <div class="status-bar" id="statusBar"></div>
-    <div class="grid-scroll" id="gridWrap"></div>
-    <div class="form-actions">
-      <button class="primary" id="submitBtn">この内容で提出する</button>
-      <button class="send-request-btn" id="sendRequestBtn" style="display:none;">変更をリクエストする（0件）</button>
-      <span class="form-msg" id="formMsg"></span>
+    <div class="card">
+      <h2>マイカレンダー<span class="help-tip" tabindex="0">?<span class="help-tip-text">実際に自分が担当する授業を、日付ごとに確認できます。点線で囲まれている授業は、教室長が確定したばかりでまだ承認していないものです。内容を確認して「承認する」を押してください。</span></span></h2>
+      <div class="month-nav">
+        <button type="button" class="nav-btn" id="calPrevBtn">‹</button>
+        <div class="month-title" id="calMonthTitle">2026年8月</div>
+        <button type="button" class="nav-btn" id="calNextBtn">›</button>
+        <button type="button" class="today-btn" id="calTodayBtn">今月</button>
+      </div>
+      <div id="myCalWrap"></div>
+    </div>
+  </div>
+
+  <div id="tab-shift" class="tab-view">
+    <div class="card">
+      <h2>月次スケジュール</h2>
+      <p class="desc">クリックするたびに「×不可 → ○特に希望 → △対応可能 → ×不可」の順に切り替わります。未提出の月は直接編集できます。提出済み（確定）の月を変更したい場合は、クリックすると教室長に変更リクエストが届きます（自動では反映されません）。</p>
+      <div class="month-nav">
+        <button type="button" class="nav-btn" id="prevBtn">‹</button>
+        <div class="month-title" id="monthTitle">2026年8月</div>
+        <button type="button" class="nav-btn" id="nextBtn">›</button>
+        <button type="button" class="today-btn" id="todayBtn">今月</button>
+      </div>
+      <div class="status-bar" id="statusBar"></div>
+      <div class="grid-scroll" id="gridWrap"></div>
+      <div class="form-actions">
+        <button class="primary" id="submitBtn">この内容で提出する</button>
+        <button class="send-request-btn" id="sendRequestBtn" style="display:none;">変更をリクエストする（0件）</button>
+        <span class="form-msg" id="formMsg"></span>
+      </div>
     </div>
   </div>
 </div>
@@ -272,9 +321,12 @@ async function bootstrap(user){
 
   const t = new Date();
   if(curYear===undefined){ curYear = t.getFullYear(); curMonth = t.getMonth(); }
+  if(myCalYear===undefined){ myCalYear = t.getFullYear(); myCalMonth = t.getMonth(); }
   startScheduleListener(); // 講師スケジュールをリアルタイム監視（教室長側の変更も即座に反映される）
+  startMyAssignmentsListener(); // 担当授業一覧（マイカレンダー）をリアルタイム監視
   await loadMyPendingRequests();
-  await renderNewAssignments();
+  newAssignments = await loadNewAssignments();
+  renderMyCalendar();
   render();
 }
 
@@ -325,7 +377,9 @@ async function loadMyPendingRequests(){
 
 // ---- 新しく決まった授業の承認 ----
 const DAY_ORDER = {'月':0,'火':1,'水':2,'木':3,'金':4,'土':5,'日':6};
-let newAssignments = [];
+let newAssignments = []; // 承認待ちチケット（assignmentApprovals）
+let myAssignmentEntries = []; // 実際の担当授業一覧（teacherAssignments、曜日繰り返し＋単発の代講）
+let myCalYear, myCalMonth;
 
 async function loadNewAssignments(){
   try{
@@ -333,12 +387,6 @@ async function loadNewAssignments(){
       .where('teacherLoginUid','==',fbAuth.currentUser.uid).where('status','==','pending').get();
     const list = [];
     snap.forEach(doc=> list.push({id:doc.id, ...doc.data()}));
-    // 曜日→コマの順に並べる（見出しでグループ化はせず、自然な並びだけにする）
-    list.sort((a,b)=>{
-      const dd = (DAY_ORDER[a.day]??9) - (DAY_ORDER[b.day]??9);
-      if(dd!==0) return dd;
-      return a.slot - b.slot;
-    });
     return list;
   }catch(err){
     console.error('新しい授業の読み込みエラー:', err);
@@ -346,38 +394,39 @@ async function loadNewAssignments(){
   }
 }
 
-async function renderNewAssignments(){
-  const card = document.getElementById('newAssignCard');
-  const wrap = document.getElementById('newAssignWrap');
-  newAssignments = await loadNewAssignments();
-  if(newAssignments.length===0){
-    card.style.display = 'none';
-    return;
-  }
-  card.style.display = '';
-  document.getElementById('approveAllBtn').textContent = `まとめて承認する（${newAssignments.length}件）`;
-  wrap.innerHTML = newAssignments.map(a=>{
-    const slotLabel = SLOTS.find(s=>s.id===a.slot);
-    return `<div class="new-assign-row" data-id="${a.id}">
-      <div class="na-detail">
-        <div><b>${a.day}曜${slotLabel?slotLabel.label:a.slot+'講'}</b>　${a.studentName}（${a.studentGrade||''}）　${a.subject}</div>
-      </div>
-      <button type="button" class="approve-btn" data-id="${a.id}">承認する</button>
-    </div>`;
-  }).join('');
-  wrap.querySelectorAll('.approve-btn').forEach(btn=>{
-    btn.addEventListener('click', ()=> approveAssignment(btn.dataset.id));
+// 承認待ちチケットと、実際の担当授業一覧を突き合わせ、該当する授業に承認待ちの目印を付ける
+function findPendingTicket(day, slot, subject, studentName, oneTimeDate){
+  return newAssignments.find(a=>
+    a.day===day && a.slot===slot && a.subject===subject && a.studentName===studentName &&
+    (oneTimeDate ? a.oneTimeDate===oneTimeDate : !a.oneTimeDate)
+  );
+}
+
+let myAssignUnsub = null;
+function startMyAssignmentsListener(){
+  if(myAssignUnsub) myAssignUnsub();
+  const ref = fbDb.collection('teacherAssignments').doc(`${myAdminUid}_${myTeacherId}`);
+  myAssignUnsub = ref.onSnapshot(snap=>{
+    myAssignmentEntries = snap.exists ? (snap.data().entries || []) : [];
+    renderMyCalendar();
+  }, err=>{
+    console.error('担当授業の監視エラー:', err);
   });
 }
 
-async function approveAssignment(id){
+async function refreshPendingAndRender(){
+  newAssignments = await loadNewAssignments();
+  renderMyCalendar();
+}
+
+async function approveTicket(id){
   try{
     await fbDb.collection('assignmentApprovals').doc(id).update({status:'approved'});
   }catch(err){
     console.error('承認エラー:', err);
     return;
   }
-  await renderNewAssignments();
+  await refreshPendingAndRender();
 }
 
 document.getElementById('approveAllBtn').addEventListener('click', async ()=>{
@@ -391,7 +440,90 @@ document.getElementById('approveAllBtn').addEventListener('click', async ()=>{
     console.error('一括承認エラー:', err);
   }
   btn.disabled = false;
-  await renderNewAssignments();
+  await refreshPendingAndRender();
+});
+
+// タブ切り替え
+document.querySelectorAll('.tab-btn').forEach(btn=>{
+  btn.addEventListener('click', ()=>{
+    document.querySelectorAll('.tab-btn').forEach(b=>b.classList.toggle('active', b===btn));
+    const tab = btn.dataset.tab;
+    document.getElementById('tab-mycal').classList.toggle('active', tab==='mycal');
+    document.getElementById('tab-shift').classList.toggle('active', tab==='shift');
+  });
+});
+
+// ---- マイカレンダー（実日付ベースの担当授業一覧） ----
+function renderMyCalendar(){
+  const wrap = document.getElementById('myCalWrap');
+  if(!wrap) return;
+  document.getElementById('calMonthTitle').textContent = `${myCalYear}年${myCalMonth+1}月`;
+
+  const pendingCount = newAssignments.length;
+  const bannerCard = document.getElementById('pendingBannerCard');
+  if(pendingCount>0){
+    bannerCard.style.display = '';
+    document.getElementById('pendingBannerText').textContent = `${pendingCount}件、確認が必要な授業があります`;
+    document.getElementById('approveAllBtn').textContent = `まとめて承認する（${pendingCount}件）`;
+  }else{
+    bannerCard.style.display = 'none';
+  }
+
+  const total = daysInYearMonth(`${myCalYear}-${pad2(myCalMonth+1)}`);
+  const todayStr = toDateStr(new Date().getFullYear(), new Date().getMonth(), new Date().getDate());
+  let html = '';
+  let hasAny = false;
+
+  for(let d=1; d<=total; d++){
+    const dateStr = `${myCalYear}-${pad2(myCalMonth+1)}-${pad2(d)}`;
+    const wd = WEEKDAY_JP[new Date(dateStr+'T00:00:00').getDay()];
+
+    // その日に該当する授業（曜日繰り返し、または単発の代講でこの日付ぴったりのもの）を集める
+    const dayEntries = myAssignmentEntries.filter(e=> e.oneTimeDate ? e.oneTimeDate===dateStr : e.day===wd);
+    if(dayEntries.length===0) continue;
+    hasAny = true;
+
+    dayEntries.sort((a,b)=> a.slot - b.slot);
+    let rowsHtml = '';
+    dayEntries.forEach(e=>{
+      const slotLabel = SLOTS.find(s=>s.id===e.slot);
+      const ticket = findPendingTicket(e.day, e.slot, e.subject, e.studentName, e.oneTimeDate);
+      const isPending = !!ticket;
+      rowsHtml += `<div class="mycal-lesson-row ${isPending?'pending':''}">
+        <div class="mycal-lesson-info">
+          <span class="mycal-slot-tag">${slotLabel?slotLabel.label:e.slot+'講'}</span>
+          <b>${e.studentName}</b>（${e.studentGrade||''}）　${e.subject}
+          ${e.oneTimeDate ? '<span class="mycal-pending-tag" style="color:var(--ink-soft);">単発の代講</span>' : ''}
+          ${isPending ? '<span class="mycal-pending-tag">未承認</span>' : ''}
+        </div>
+        ${isPending ? `<button type="button" class="mycal-approve-btn" data-id="${ticket.id}">承認する</button>` : ''}
+      </div>`;
+    });
+
+    const isToday = dateStr===todayStr;
+    html += `<div class="mycal-day">
+      <div class="mycal-date-label ${isToday?'is-today':''}">${myCalMonth+1}月${d}日（${wd}）${isToday?'（今日）':''}</div>
+      ${rowsHtml}
+    </div>`;
+  }
+
+  wrap.innerHTML = hasAny ? html : '<div class="empty-note">この月に担当している授業はまだありません。</div>';
+  wrap.querySelectorAll('.mycal-approve-btn').forEach(btn=>{
+    btn.addEventListener('click', ()=> approveTicket(btn.dataset.id));
+  });
+}
+
+document.getElementById('calPrevBtn').addEventListener('click', ()=>{
+  myCalMonth--; if(myCalMonth<0){ myCalMonth=11; myCalYear--; }
+  renderMyCalendar();
+});
+document.getElementById('calNextBtn').addEventListener('click', ()=>{
+  myCalMonth++; if(myCalMonth>11){ myCalMonth=0; myCalYear++; }
+  renderMyCalendar();
+});
+document.getElementById('calTodayBtn').addEventListener('click', ()=>{
+  const t = new Date(); myCalYear = t.getFullYear(); myCalMonth = t.getMonth();
+  renderMyCalendar();
 });
 
 function getMonthEntry(yearMonth){
