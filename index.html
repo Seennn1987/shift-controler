@@ -3229,7 +3229,8 @@ function getDayStatus(dateStr){
   const weekday = WEEKDAY_JP[d.getDay()];
 
   if(!isWithinAnyTerm(dateStr)){
-    return {type:'outside', label:'', weekday};
+    const label = terms.length===0 ? '開校期間 未設定' : '開校期間外';
+    return {type:'outside', label, weekday};
   }
   const closure = findCustomClosure(dateStr);
   if(closure){
@@ -4705,6 +4706,11 @@ function renderShortageDashboard(){
   if(!dataReady || !studentDataReady){
     wrap.innerHTML = '<div class="loading">読み込み中…</div>';
     if(summaryLine) summaryLine.textContent = '読み込み中…';
+    return;
+  }
+  if(terms.length===0){
+    wrap.innerHTML = '<div class="empty-state" style="color:var(--danger);font-weight:700;">開校期間が1件も登録されていません。この状態では、カレンダー上の全ての日が「開校期間外」として休校扱いになります。「基本設定」タブ→「開校期間の管理」から、通常期間を登録してください。</div>';
+    if(summaryLine){ summaryLine.textContent = '⚠ 開校期間が未設定です'; summaryLine.classList.add('warn'); }
     return;
   }
   if(students.length===0){
