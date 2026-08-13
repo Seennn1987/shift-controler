@@ -272,22 +272,24 @@ async function bootstrap(user){
 
   const t = new Date();
   if(curYear===undefined){ curYear = t.getFullYear(); curMonth = t.getMonth(); }
-  await loadSchedule();
+  startScheduleListener(); // 講師スケジュールをリアルタイム監視（教室長側の変更も即座に反映される）
   await loadMyPendingRequests();
   await renderNewAssignments();
   render();
 }
 
-async function loadSchedule(){
+let scheduleUnsub = null; // 講師スケジュールのリアルタイム監視解除用
+function startScheduleListener(){
+  if(scheduleUnsub) scheduleUnsub(); // 二重登録を防ぐ
   const ref = fbDb.collection('teacherSchedules').doc(`${myAdminUid}_${myTeacherId}`);
-  try{
-    const snap = await ref.get();
+  scheduleUnsub = ref.onSnapshot(snap=>{
     scheduleDoc = snap.exists ? snap.data() : {months:{}};
     if(!scheduleDoc.months) scheduleDoc.months = {};
-  }catch(err){
-    console.error('スケジュール読み込みエラー:', err);
-    scheduleDoc = {months:{}};
-  }
+    // 教室長側の更新もこの場でリアルタイムに反映する（未送信の下書きは保持したまま）
+    renderKeepingOverrides();
+  }, err=>{
+    console.error('スケジュール監視エラー:', err);
+  });
 }
 
 async function saveMonthEntry(yearMonth, entry){
@@ -400,12 +402,17 @@ function getMonthEntry(yearMonth){
   return {id: `tsch-${myTeacherId}-${yearMonth}`, status:'draft', days:{}};
 }
 
+// 月を切り替えた時に呼ぶ（未送信の下書きをリセットする）
 function render(){
+  localOverrides = {};
+  renderKeepingOverrides();
+}
+// Firestoreのリアルタイム更新を受けて再描画する時に呼ぶ（未送信の下書きは保持する）
+function renderKeepingOverrides(){
   const yearMonth = `${curYear}-${pad2(curMonth+1)}`;
   document.getElementById('monthTitle').textContent = `${curYear}年${curMonth+1}月`;
   const entry = getMonthEntry(yearMonth);
   const isSubmitted = entry.status==='submitted';
-  localOverrides = {}; // 月を切り替えたら下書きはリセットする
 
   const adminNote = entry.submittedBy==='admin' ? '（教室長が代理入力した内容です。内容をご確認ください）' : '';
   document.getElementById('statusBar').innerHTML = isSubmitted
