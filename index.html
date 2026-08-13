@@ -1140,6 +1140,7 @@
         </div>
       </div>
       <button type="button" class="ghost" id="createTeacherLoginBtn" style="margin-top:10px;">このアカウントを発行する</button>
+      <button type="button" class="ghost" id="resyncTeacherLoginBtn" style="margin-top:10px;display:none;">スケジュールとの連携を再同期する</button>
       <span class="form-msg" id="teacherLoginMsg"></span>
 
       <div class="form-actions">
@@ -1838,6 +1839,7 @@ function resetForm(){
   document.getElementById('teacherLoginStatus').textContent = '講師情報を先に登録してから発行できます。';
   document.getElementById('teacherLoginStatus').className = 'login-status-box';
   document.getElementById('createTeacherLoginBtn').disabled = true;
+  document.getElementById('resyncTeacherLoginBtn').style.display = 'none';
   document.getElementById('formModeTitle').textContent = '講師を登録';
   document.getElementById('saveBtn').textContent = '登録する';
   document.getElementById('cancelBtn').style.display = 'none';
@@ -1880,9 +1882,13 @@ function fillFormForEdit(t){
   if(t.loginUid){
     document.getElementById('teacherLoginStatus').textContent = `発行済み（${t.loginEmail}）。パスワードを変更したい場合は、新しいパスワードを入力して再度発行してください。`;
     document.getElementById('teacherLoginStatus').className = 'login-status-box issued';
+    document.getElementById('resyncTeacherLoginBtn').style.display = 'inline-block';
+    document.getElementById('resyncTeacherLoginBtn').dataset.teacherId = t.id;
+    document.getElementById('resyncTeacherLoginBtn').dataset.loginUid = t.loginUid;
   }else{
     document.getElementById('teacherLoginStatus').textContent = 'まだ発行されていません。';
     document.getElementById('teacherLoginStatus').className = 'login-status-box';
+    document.getElementById('resyncTeacherLoginBtn').style.display = 'none';
   }
   document.getElementById('formModeTitle').textContent = `${t.name} さんを編集`;
   document.getElementById('saveBtn').textContent = '更新する';
@@ -5554,6 +5560,27 @@ async function init(){
       if(err.code==='auth/invalid-email') text = 'メールアドレスの形式が正しくありません。';
       if(err.code==='auth/weak-password') text = 'パスワードが簡単すぎます。6文字以上の別の文字列にしてください。';
       msg.textContent = text;
+    }
+  });
+  document.getElementById('resyncTeacherLoginBtn').addEventListener('click', async ()=>{
+    const msg = document.getElementById('teacherLoginMsg');
+    const teacherId = document.getElementById('resyncTeacherLoginBtn').dataset.teacherId;
+    const loginUid = document.getElementById('resyncTeacherLoginBtn').dataset.loginUid;
+    if(!teacherId || !loginUid) return;
+    msg.textContent = '再同期中…';
+    try{
+      const schedRef = teacherSchedDocRef(teacherId);
+      if(schedRef){
+        await schedRef.set({
+          adminUid: fbAuth.currentUser.uid,
+          teacherId: teacherId,
+          teacherLoginUid: loginUid,
+        }, {merge:true});
+      }
+      msg.textContent = '✓ 再同期しました。講師専用ページを開き直して確認してください。';
+    }catch(e){
+      console.error('再同期エラー:', e);
+      msg.textContent = '再同期に失敗しました。Firestoreのルールが正しく公開されているかご確認ください。';
     }
   });
   document.getElementById('saveBtn').addEventListener('click', handleSave);
