@@ -3748,7 +3748,10 @@ function renderCalendarDetail(dateStr){
 // 月移動時に、カレンダー・マッチング系すべてに対象月の変更を反映する
 function syncMonthChange(){
   referenceYearMonth = `${calYear}-${pad2(calMonth+1)}`;
+  // 週間予定の表示週（calWeekAnchor）は独立した状態のため、月間側の見出しとズレないよう毎回同期する
+  calWeekAnchor = getWeekMonday(toDateStr(calYear, calMonth, 1));
   renderCalendar();
+  if(calMode==='week') renderCalendarWeek();
   renderTeacherScheduleTab();
   renderMatrix();
   renderMatching();
@@ -5365,7 +5368,15 @@ function switchCalMode(mode){
   document.getElementById('calModeMonth').style.display = (mode==='month') ? '' : 'none';
   document.getElementById('calModeWeek').style.display = (mode==='week') ? '' : 'none';
   if(mode==='month') renderCalendar();
-  if(mode==='week') renderCalendarWeek();
+  if(mode==='week'){
+    // 週間予定に切り替えるたびに、月間側の見出し（calYear/calMonth）と表示週がズレていないか必ず同期する
+    const monthStart = toDateStr(calYear, calMonth, 1);
+    const monthEnd = toDateStr(calYear, calMonth+1, 0);
+    if(!calWeekAnchor || calWeekAnchor < monthStart || calWeekAnchor > monthEnd){
+      calWeekAnchor = getWeekMonday(monthStart);
+    }
+    renderCalendarWeek();
+  }
 }
 
 // ---------- init ----------
