@@ -845,6 +845,8 @@
   .confirmed-box .cb-label{font-size:11px;font-weight:700;color:var(--green-900);}
   .confirmed-box .cb-teacher{font-size:13px;font-weight:700;color:var(--green-900);}
   .confirmed-box .cb-cap{font-size:11px;color:var(--ink-soft);}
+  .confirmed-box.pending-box{background:transparent;border-style:dashed;border-color:var(--danger);}
+  .pending-label{color:var(--danger)!important;}
   .unconfirm-btn{
     border:none;background:transparent;color:var(--danger);font-size:11px;font-weight:700;
     cursor:pointer;padding:4px 8px;border-radius:6px;margin-left:auto;
@@ -2338,7 +2340,8 @@ async function saveStudents(){
 }
 
 // ---- 割当確定・定員管理（Firestoreで永続化） ----
-let assignments = []; // {id, studentId, courseId, subject, day, slot, teacherId}（loadStudents()内でシード投入）
+let assignments = []; // {id, studentId, courseId, subject, day, slot, teacherId}（確定済み。講師が承認した授業のみここに入る）
+let pendingAssignments = []; // {id, studentId, courseId, subject, day, slot, teacherId, source}（教室長が組んだが、講師がまだ承認していない授業）
 let roomCapacity = 12; // 教室全体のブース数上限
 let teacherCapacity = 2; // 1コマあたり、講師1人が同時に受け持てる生徒数（教室共通のルール）
 
@@ -2383,6 +2386,27 @@ function teacherSchedDocRef(teacherId){
   const user = fbAuth.currentUser;
   if(!user) return null;
   return fbDb.collection('teacherSchedules').doc(`${user.uid}_${teacherId}`);
+}
+// 講師のログインIDを、紐づく全てのドキュメント（teacherSchedules・teacherAssignments）に一括で反映する
+// （どちらか一方だけ更新すると、もう一方が古いままになり権限エラーの原因になるため、必ずこの関数を通す）
+async function syncTeacherLoginUidEverywhere(teacherId, loginUid){
+  const user = fbAuth.currentUser;
+  if(!user) return;
+  const payload = { adminUid: user.uid, teacherId, teacherLoginUid: loginUid };
+  try{
+    const schedRef = teacherSchedDocRef(teacherId);
+    if(schedRef) await schedRef.set(payload, {merge:true});
+  }catch(e){
+    console.error('teacherSchedulesのteacherLoginUid更新エラー:', e);
+  }
+  try{
+    const assignRef = fbDb.collection('teacherAssignments').doc(`${user.uid}_${teacherId}`);
+    await assignRef.set(payload, {merge:true});
+  }catch(e){
+    console.error('teacherAssignmentsのteacherLoginUid更新エラー:', e);
+  }
+  // 念のため、担当授業一覧そのものも今の状態で作り直しておく
+  await syncTeacherAssignments();
 }
 async function saveTeacherScheduleDoc(sch){
   if(!sch.id){
@@ -2454,6 +2478,45 @@ function startTeacherScheduleListener(){
     });
 }
 
+// ---- 講師の承認をもって「承認待ち」から「確定」に昇格させる ----
+// 単発の代講（oneTimeDateあり）は、緊急対応の性質上ここでは対象にしない（teacherSubstitutionsで即時反映済みのため）
+async function promotePendingAssignment(ticket, ticketId){
+  const idx = pendingAssignments.findIndex(p=>{
+    if(!(p.teacherId===ticket.teacherId && p.day===ticket.day && p.slot===ticket.slot && p.subject===ticket.subject)) return false;
+    const student = students.find(s=>s.id===p.studentId);
+    return student && student.name===ticket.studentName;
+  });
+  if(idx===-1) return; // 既に処理済み、または対応する承認待ちが見つからない
+  const entry = pendingAssignments[idx];
+  pendingAssignments.splice(idx, 1);
+  assignments.push(entry);
+  try{
+    await fbDb.collection('assignmentApprovals').doc(ticketId).update({promoted:true});
+  }catch(e){
+    console.error('チケットの昇格フラグ更新エラー:', e);
+  }
+  renderMatching();
+  renderCalendar();
+}
+
+let approvalPromotionUnsub = null;
+function startApprovalPromotionListener(){
+  const user = fbAuth.currentUser;
+  if(!user) return;
+  if(approvalPromotionUnsub) approvalPromotionUnsub();
+  approvalPromotionUnsub = fbDb.collection('assignmentApprovals')
+    .where('adminUid','==',user.uid).where('status','==','approved')
+    .onSnapshot(snap=>{
+      snap.forEach(doc=>{
+        const a = doc.data();
+        if(a.promoted || a.oneTimeDate) return; // 昇格済み、または単発の代講（対象外）はスキップ
+        promotePendingAssignment(a, doc.id);
+      });
+    }, err=>{
+      console.error('承認昇格の監視エラー:', err);
+    });
+}
+
 // ---- 休校日設定（定休日・祝日判定・個別休校日）を講師にも同期する ----
 // 祝日データ（HOLIDAYS_JP）自体は静的データなので、講師専用ページ側にも同じものを複製で持たせている
 let syncClosureSettingsTimer = null;
@@ -2486,7 +2549,7 @@ async function syncTeacherAssignments(){
   if(!user || !dataReady || !studentDataReady) return;
   const loginTeachers = teachers.filter(t=>t.loginUid);
   for(const t of loginTeachers){
-    // 通常の（曜日繰り返しの）担当授業
+    // 通常の（曜日繰り返しの）担当授業（確定済み）
     const entries = assignments.filter(a=>a.teacherId===t.id).map(a=>{
       const student = students.find(s=>s.id===a.studentId);
       return {
@@ -2496,6 +2559,17 @@ async function syncTeacherAssignments(){
         subject: a.subject,
         oneTimeDate: null,
       };
+    });
+    // 承認待ちの授業も、講師のカレンダーに「その日」として表示できるよう含める
+    pendingAssignments.filter(a=>a.teacherId===t.id).forEach(a=>{
+      const student = students.find(s=>s.id===a.studentId);
+      entries.push({
+        day: a.day, slot: a.slot,
+        studentName: student ? student.name : '(削除された生徒)',
+        studentGrade: student ? gradeLabel(student) : '',
+        subject: a.subject,
+        oneTimeDate: null,
+      });
     });
     // この講師が「代講」として単発で担当する授業（該当日だけの特別枠）
     teacherSubstitutions.forEach(sub=>{
@@ -2539,7 +2613,7 @@ async function saveAppState(){
   const ref = getStateDocRef();
   if(!ref) return;
   const state = {
-    teachers, students, assignments, absences,
+    teachers, students, assignments, pendingAssignments, absences,
     teacherAbsences, teacherSubstitutions,
     terms, customClosures, preferredPairs,
     tuitionRates, regularClosedDays, holidayAutoDetect,
@@ -2563,6 +2637,7 @@ async function loadAppStateFromFirestore(){
     teachers = d.teachers || [];
     students = d.students || [];
     assignments = d.assignments || [];
+    pendingAssignments = d.pendingAssignments || [];
     absences = d.absences || [];
     teacherAbsences = d.teacherAbsences || [];
     teacherSubstitutions = d.teacherSubstitutions || [];
@@ -2581,6 +2656,7 @@ async function loadAppStateFromFirestore(){
     teachers = [];
     students = [];
     assignments = [];
+    pendingAssignments = [];
     absences = [];
     teacherAbsences = [];
     teacherSubstitutions = [];
@@ -2591,6 +2667,7 @@ async function loadAppStateFromFirestore(){
   }
   teacherSchedules = await loadAllTeacherSchedules();
   startTeacherScheduleListener(); // 以降は講師本人による変更もリアルタイムで反映する
+  startApprovalPromotionListener(); // 講師が承認したら、承認待ち→確定へ自動的に昇格させる
   dataReady = true;
   studentDataReady = true;
   firestoreReady = true;
@@ -2853,6 +2930,10 @@ function getEffectiveDayAssignments(dateStr){
     const effectiveTeacherId = sub ? sub.substituteTeacherId : a.teacherId;
     list.push({studentId:a.studentId, courseId:a.courseId, subject:a.subject, slot:a.slot, teacherId:effectiveTeacherId, kind:'normal', source:a.source, substituted: !!sub, originalTeacherId: sub ? a.teacherId : null});
   });
+  pendingAssignments.forEach(a=>{
+    if(a.day!==weekday) return;
+    list.push({studentId:a.studentId, courseId:a.courseId, subject:a.subject, slot:a.slot, teacherId:a.teacherId, kind:'normal', source:a.source, pending:true});
+  });
   absences.forEach(ab=>{
     if(!ab.makeup || ab.makeup.date!==dateStr) return;
     list.push({studentId:ab.studentId, courseId:ab.courseId, subject:ab.subject, slot:ab.makeup.slot, teacherId:ab.makeup.teacherId, kind:'makeup'});
@@ -2926,7 +3007,7 @@ function computeDayFinance(dateStr, includeTransport){
   if(includeTransport===undefined) includeTransport = finIncludeTransport;
   const status = getDayStatus(dateStr);
   if(status.type!=='open') return {revenue:0, lessonCost:0, transportCost:0, cost:0, ratio:null, lessonCount:0};
-  const list = getEffectiveDayAssignments(dateStr);
+  const list = getEffectiveDayAssignments(dateStr).filter(a=>!a.pending); // 承認待ちはまだ確定していないため収支に含めない
   if(list.length===0) return {revenue:0, lessonCost:0, transportCost:0, cost:0, ratio:null, lessonCount:0};
 
   let revenue = 0;
@@ -2984,8 +3065,13 @@ function getStudentDateRows(student, dateStr){
       if(ds.day!==weekday) return;
       const slot = SLOTS.find(sl=>sl.id===ds.slot);
       const absence = findAbsenceFor(student.id, course.id, dateStr, ds.day, ds.slot);
-      const existing = findAssignment(student.id, course.id, ds.day, ds.slot);
-      rows.push({slot, course, existing, absence, isMakeupTarget:false});
+      let existing = findAssignment(student.id, course.id, ds.day, ds.slot);
+      let isPending = false;
+      if(!existing){
+        existing = pendingAssignments.find(a=>a.studentId===student.id && a.courseId===course.id && a.day===ds.day && a.slot===ds.slot);
+        isPending = !!existing;
+      }
+      rows.push({slot, course, existing, absence, isMakeupTarget:false, isPending});
     });
   });
   absences.forEach(ab=>{
@@ -3583,17 +3669,30 @@ function renderCalendarDetail(dateStr){
         const teacher = teachers.find(t=>t.id===r.existing.teacherId);
         const used = teacher ? countTeacherSlot(teacher.id, weekday, r.slot.id, null) : 0;
         const autoBadge = r.existing.source==='auto' ? '<span class="auto-badge">自動</span>' : '';
-        html += `<div class="match-slot">
-          <div class="ms-slot-label">${r.slot.label}（${r.slot.time}）</div>
-          <div class="confirmed-box">
-            <span class="cb-label">確定済み${autoBadge}</span>
-            <span class="sched-student-tag" style="background:${c.bg};color:${c.text};">${r.course.subject}</span>
-            <span class="cb-teacher">講師：${teacherHonorific(teacher)}</span>
-            <span class="cb-cap">（定員 ${used}/${teacherCapacity}）</span>
-            <button class="absent-btn" data-student="${filterStudent.id}" data-course="${r.course.id}" data-subject="${r.course.subject}" data-day="${weekday}" data-slot="${r.slot.id}" data-date="${dateStr}">欠席にする</button>
-            <button class="unconfirm-btn" data-student="${filterStudent.id}" data-course="${r.course.id}" data-day="${weekday}" data-slot="${r.slot.id}">確定を解除</button>
-          </div>
-        </div>`;
+        if(r.isPending){
+          html += `<div class="match-slot">
+            <div class="ms-slot-label">${r.slot.label}（${r.slot.time}）</div>
+            <div class="confirmed-box pending-box">
+              <span class="cb-label pending-label">承認待ち${autoBadge}</span>
+              <span class="sched-student-tag" style="background:${c.bg};color:${c.text};">${r.course.subject}</span>
+              <span class="cb-teacher">講師：${teacherHonorific(teacher)}</span>
+              <span class="cb-cap">（講師の承認待ち。承認されると確定します）</span>
+              <button class="unconfirm-btn" data-student="${filterStudent.id}" data-course="${r.course.id}" data-day="${weekday}" data-slot="${r.slot.id}">取り消す</button>
+            </div>
+          </div>`;
+        }else{
+          html += `<div class="match-slot">
+            <div class="ms-slot-label">${r.slot.label}（${r.slot.time}）</div>
+            <div class="confirmed-box">
+              <span class="cb-label">確定済み${autoBadge}</span>
+              <span class="sched-student-tag" style="background:${c.bg};color:${c.text};">${r.course.subject}</span>
+              <span class="cb-teacher">講師：${teacherHonorific(teacher)}</span>
+              <span class="cb-cap">（定員 ${used}/${teacherCapacity}）</span>
+              <button class="absent-btn" data-student="${filterStudent.id}" data-course="${r.course.id}" data-subject="${r.course.subject}" data-day="${weekday}" data-slot="${r.slot.id}" data-date="${dateStr}">欠席にする</button>
+              <button class="unconfirm-btn" data-student="${filterStudent.id}" data-course="${r.course.id}" data-day="${weekday}" data-slot="${r.slot.id}">確定を解除</button>
+            </div>
+          </div>`;
+        }
       }else{
         // 定休日等はそもそも希望登録できないはずだが念のためチェック
         if(regularClosedDays.includes(weekday)){
@@ -4158,10 +4257,12 @@ function countCourseConfirmed(studentId, courseId){
   return assignments.filter(a=>a.studentId===studentId && a.courseId===courseId).length;
 }
 function countTeacherSlot(teacherId, day, slot, excludeStudentId){
-  return assignments.filter(a=>a.teacherId===teacherId && a.day===day && a.slot===slot && a.studentId!==excludeStudentId).length;
+  const all = assignments.concat(pendingAssignments); // 定員は「確定済み＋承認待ち」の両方でふさがる
+  return all.filter(a=>a.teacherId===teacherId && a.day===day && a.slot===slot && a.studentId!==excludeStudentId).length;
 }
 function countRoomSlot(day, slot, excludeStudentId){
-  return assignments.filter(a=>a.day===day && a.slot===slot && a.studentId!==excludeStudentId).length;
+  const all = assignments.concat(pendingAssignments);
+  return all.filter(a=>a.day===day && a.slot===slot && a.studentId!==excludeStudentId).length;
 }
 
 // 新しく確定した授業を、講師専用ページで承認してもらうためのチケットを発行する
@@ -4187,6 +4288,8 @@ async function issueAssignmentApproval(studentId, courseId, subject, day, slot, 
   }
 }
 
+// 教室長がマッチングを確定した時点では、まだ「承認待ち」扱いにする。
+// 講師にログインアカウントが無い場合は、承認という概念がそもそも無いため、即座に確定させる。
 function confirmAssignment(studentId, courseId, subject, day, slot, teacherId, source){
   source = source || 'manual';
   const teacher = teachers.find(t=>t.id===teacherId);
@@ -4201,14 +4304,24 @@ function confirmAssignment(studentId, courseId, subject, day, slot, teacherId, s
     return {ok:false, msg:`${day}曜${SLOTS.find(s=>s.id===slot).label}は教室全体の定員（${roomCapacity}人）に達しています。`};
   }
 
-  // 既存の割当があれば置き換える
+  // 既存の割当（確定済み・承認待ちどちらも）があれば置き換える
   assignments = assignments.filter(a=>!(a.studentId===studentId && a.courseId===courseId && a.day===day && a.slot===slot));
-  assignments.push({id:'asg-'+Date.now()+'-'+Math.random().toString(36).slice(2,6), studentId, courseId, subject, day, slot, teacherId, source});
-  issueAssignmentApproval(studentId, courseId, subject, day, slot, teacherId);
+  pendingAssignments = pendingAssignments.filter(a=>!(a.studentId===studentId && a.courseId===courseId && a.day===day && a.slot===slot));
+
+  const entry = {id:'asg-'+Date.now()+'-'+Math.random().toString(36).slice(2,6), studentId, courseId, subject, day, slot, teacherId, source};
+  if(teacher.loginUid){
+    // ログインアカウントがある講師：承認待ちとして積み、承認チケットを発行する
+    pendingAssignments.push(entry);
+    issueAssignmentApproval(studentId, courseId, subject, day, slot, teacherId);
+  }else{
+    // ログインアカウントが無い講師：承認という概念が無いため、即座に確定させる
+    assignments.push(entry);
+  }
   return {ok:true};
 }
 function cancelAssignment(studentId, courseId, day, slot){
   assignments = assignments.filter(a=>!(a.studentId===studentId && a.courseId===courseId && a.day===day && a.slot===slot));
+  pendingAssignments = pendingAssignments.filter(a=>!(a.studentId===studentId && a.courseId===courseId && a.day===day && a.slot===slot));
 }
 
 // 希望通りの枠に対応できる講師がいない場合の代替候補（学年・教科が対応可能な曜日/コマ）を探す
@@ -5614,22 +5727,7 @@ async function init(){
       // ここは通常のデバウンス保存（scheduleSave）ではなく、即座に確実な保存を行う
       // （デバウンス中にページを離れると、講師一覧側のloginUidだけが保存されず取り残されるため）
       await saveAppState();
-      // この講師のスケジュールドキュメントに、必須フィールド一式（adminUid/teacherId/teacherLoginUid）を確実に用意する
-      // （ドキュメントがまだ1件も存在しない状態だと、セキュリティルールがresource.dataを参照できず、
-      //   teacherLoginUidだけを書き込んでも講師本人が読み込めないままになるため。
-      //   事前読み込みもしない＝存在しないドキュメントの読み込みで権限エラーになることも避ける）
-      try{
-        const schedRef = teacherSchedDocRef(editingId);
-        if(schedRef){
-          await schedRef.set({
-            adminUid: fbAuth.currentUser.uid,
-            teacherId: editingId,
-            teacherLoginUid: newUid,
-          }, {merge:true});
-        }
-      }catch(e){
-        console.error('既存スケジュールのteacherLoginUid更新エラー:', e);
-      }
+      await syncTeacherLoginUidEverywhere(editingId, newUid);
       renderTeacherList();
       msg.textContent = '✓ アカウントを発行しました。URLとログイン情報を講師ご本人に共有してください。';
       document.getElementById('teacherLoginStatus').textContent = `発行済み（${email}）。パスワードを変更したい場合は、新しいパスワードを入力して再度発行してください。`;
@@ -5652,10 +5750,7 @@ async function init(){
               teachers[idx].loginEmail = email;
             }
             await saveAppState();
-            const schedRef = teacherSchedDocRef(editingId);
-            if(schedRef){
-              await schedRef.set({ adminUid, teacherId: editingId, teacherLoginUid: foundUid }, {merge:true});
-            }
+            await syncTeacherLoginUidEverywhere(editingId, foundUid);
             renderTeacherList();
             fillFormForEdit(teachers[idx]);
             text = '✓ 既存のアカウントとの紐付けを自動的に復元しました。';
@@ -5676,14 +5771,7 @@ async function init(){
     if(!teacherId || !loginUid) return;
     msg.textContent = '再同期中…';
     try{
-      const schedRef = teacherSchedDocRef(teacherId);
-      if(schedRef){
-        await schedRef.set({
-          adminUid: fbAuth.currentUser.uid,
-          teacherId: teacherId,
-          teacherLoginUid: loginUid,
-        }, {merge:true});
-      }
+      await syncTeacherLoginUidEverywhere(teacherId, loginUid);
       msg.textContent = '✓ 再同期しました。講師専用ページを開き直して確認してください。';
     }catch(e){
       console.error('再同期エラー:', e);
