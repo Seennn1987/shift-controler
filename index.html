@@ -5529,6 +5529,14 @@ async function init(){
         teachers[idx].loginEmail = email;
       }
       await saveTeachers();
+      // 既にこの講師のスケジュールが登録済みの場合、そのドキュメント内のteacherLoginUidも今回発行したIDに更新する
+      // （先にスケジュールを入力→後からアカウント発行、という順番だと、これをしないと講師本人がアクセスできないままになる）
+      try{
+        const schedRef = teacherSchedDocRef(editingId);
+        if(schedRef) await schedRef.set({ teacherLoginUid: newUid }, {merge:true});
+      }catch(e){
+        console.error('既存スケジュールのteacherLoginUid更新エラー:', e);
+      }
       renderTeacherList();
       msg.textContent = '✓ アカウントを発行しました。URLとログイン情報を講師ご本人に共有してください。';
       document.getElementById('teacherLoginStatus').textContent = `発行済み（${email}）。パスワードを変更したい場合は、新しいパスワードを入力して再度発行してください。`;
