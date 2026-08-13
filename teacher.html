@@ -86,6 +86,9 @@
     border:none;background:var(--green-900);color:#fff;font-family:inherit;font-size:12px;font-weight:700;
     padding:7px 14px;border-radius:7px;cursor:pointer;flex-shrink:0;
   }
+  .mycal-day.is-closed{opacity:.55;}
+  .mycal-lesson-row.closed, .mycal-lesson-row.empty{background:transparent;border-style:dashed;}
+  .mycal-closed-label, .mycal-empty-label{font-size:12px;color:var(--ink-soft);}
 
   .month-nav{display:flex;align-items:center;gap:10px;margin-bottom:6px;}
   .nav-btn{border:1px solid var(--border);background:#fff;width:32px;height:32px;border-radius:8px;font-size:15px;cursor:pointer;}
@@ -239,7 +242,86 @@ const SLOTS = [
 ];
 const WEEKDAY_JP = ['日','月','火','水','木','金','土'];
 
+// 内閣府発表データ（教室長側と同じ祝日一覧を複製で保持）
+const HOLIDAYS_JP = [
+  {date:'2026-01-01', name:'元日'},
+  {date:'2026-01-12', name:'成人の日'},
+  {date:'2026-02-11', name:'建国記念の日'},
+  {date:'2026-02-23', name:'天皇誕生日'},
+  {date:'2026-03-20', name:'春分の日'},
+  {date:'2026-04-29', name:'昭和の日'},
+  {date:'2026-05-03', name:'憲法記念日'},
+  {date:'2026-05-04', name:'みどりの日'},
+  {date:'2026-05-05', name:'こどもの日'},
+  {date:'2026-05-06', name:'休日（振替休日）'},
+  {date:'2026-07-20', name:'海の日'},
+  {date:'2026-08-11', name:'山の日'},
+  {date:'2026-09-21', name:'敬老の日'},
+  {date:'2026-09-22', name:'休日'},
+  {date:'2026-09-23', name:'秋分の日'},
+  {date:'2026-10-12', name:'スポーツの日'},
+  {date:'2026-11-03', name:'文化の日'},
+  {date:'2026-11-23', name:'勤労感謝の日'},
+  {date:'2027-01-01', name:'元日'},
+  {date:'2027-01-11', name:'成人の日'},
+  {date:'2027-02-11', name:'建国記念の日'},
+  {date:'2027-02-23', name:'天皇誕生日'},
+  {date:'2027-03-21', name:'春分の日'},
+  {date:'2027-03-22', name:'休日（振替休日）'},
+  {date:'2027-04-29', name:'昭和の日'},
+  {date:'2027-05-03', name:'憲法記念日'},
+  {date:'2027-05-04', name:'みどりの日'},
+  {date:'2027-05-05', name:'こどもの日'},
+  {date:'2027-07-19', name:'海の日'},
+  {date:'2027-08-11', name:'山の日'},
+  {date:'2027-09-20', name:'敬老の日'},
+  {date:'2027-09-23', name:'秋分の日'},
+  {date:'2027-10-11', name:'スポーツの日'},
+  {date:'2027-11-03', name:'文化の日'},
+  {date:'2027-11-23', name:'勤労感謝の日'},
+];
+
+// 休校日設定（教室長側から同期される。取得できるまでは全日OKとして扱う）
+let regularClosedDays = ['日'];
+let holidayAutoDetect = false;
+let customClosures = [];
+
+function findCustomClosure(dateStr){
+  return customClosures.find(c=> dateStr>=c.startDate && dateStr<=c.endDate) || null;
+}
+function getDayStatus(dateStr){
+  const d = new Date(dateStr+'T00:00:00');
+  const weekday = WEEKDAY_JP[d.getDay()];
+  const closure = findCustomClosure(dateStr);
+  if(closure) return {type:'custom-closed', label:closure.label, weekday};
+  if(regularClosedDays.includes(weekday)) return {type:'closed-weekday', label:'定休日', weekday};
+  if(holidayAutoDetect){
+    const h = HOLIDAYS_JP.find(x=>x.date===dateStr);
+    if(h) return {type:'holiday', label:h.name, weekday};
+  }
+  return {type:'open', label:'', weekday};
+}
+
+let classroomSettingsUnsub = null;
+function startClassroomSettingsListener(){
+  if(classroomSettingsUnsub) classroomSettingsUnsub();
+  const ref = fbDb.collection('classroomSettings').doc(myAdminUid);
+  classroomSettingsUnsub = ref.onSnapshot(snap=>{
+    if(snap.exists){
+      const d = snap.data();
+      regularClosedDays = d.regularClosedDays || ['日'];
+      holidayAutoDetect = !!d.holidayAutoDetect;
+      customClosures = d.customClosures || [];
+    }
+    renderMyCalendar();
+  }, err=>{ console.error('休校日設定の監視エラー:', err); });
+}
+
 function pad2(n){ return String(n).padStart(2,'0'); }
+function toDateStr(y,m,d){
+  const dt = new Date(y, m, d);
+  return `${dt.getFullYear()}-${pad2(dt.getMonth()+1)}-${pad2(dt.getDate())}`;
+}
 function daysInYearMonth(yearMonth){
   const [y,m] = yearMonth.split('-').map(Number);
   return new Date(y, m, 0).getDate();
@@ -324,6 +406,7 @@ async function bootstrap(user){
   if(myCalYear===undefined){ myCalYear = t.getFullYear(); myCalMonth = t.getMonth(); }
   startScheduleListener(); // 講師スケジュールをリアルタイム監視（教室長側の変更も即座に反映される）
   startMyAssignmentsListener(); // 担当授業一覧（マイカレンダー）をリアルタイム監視
+  startClassroomSettingsListener(); // 休校日設定（定休日・祝日・個別休校日）をリアルタイム監視
   await loadMyPendingRequests();
   newAssignments = await loadNewAssignments();
   renderMyCalendar();
@@ -472,42 +555,47 @@ function renderMyCalendar(){
   const total = daysInYearMonth(`${myCalYear}-${pad2(myCalMonth+1)}`);
   const todayStr = toDateStr(new Date().getFullYear(), new Date().getMonth(), new Date().getDate());
   let html = '';
-  let hasAny = false;
 
   for(let d=1; d<=total; d++){
     const dateStr = `${myCalYear}-${pad2(myCalMonth+1)}-${pad2(d)}`;
     const wd = WEEKDAY_JP[new Date(dateStr+'T00:00:00').getDay()];
-
-    // その日に該当する授業（曜日繰り返し、または単発の代講でこの日付ぴったりのもの）を集める
-    const dayEntries = myAssignmentEntries.filter(e=> e.oneTimeDate ? e.oneTimeDate===dateStr : e.day===wd);
-    if(dayEntries.length===0) continue;
-    hasAny = true;
-
-    dayEntries.sort((a,b)=> a.slot - b.slot);
-    let rowsHtml = '';
-    dayEntries.forEach(e=>{
-      const slotLabel = SLOTS.find(s=>s.id===e.slot);
-      const ticket = findPendingTicket(e.day, e.slot, e.subject, e.studentName, e.oneTimeDate);
-      const isPending = !!ticket;
-      rowsHtml += `<div class="mycal-lesson-row ${isPending?'pending':''}">
-        <div class="mycal-lesson-info">
-          <span class="mycal-slot-tag">${slotLabel?slotLabel.label:e.slot+'講'}</span>
-          <b>${e.studentName}</b>（${e.studentGrade||''}）　${e.subject}
-          ${e.oneTimeDate ? '<span class="mycal-pending-tag" style="color:var(--ink-soft);">単発の代講</span>' : ''}
-          ${isPending ? '<span class="mycal-pending-tag">未承認</span>' : ''}
-        </div>
-        ${isPending ? `<button type="button" class="mycal-approve-btn" data-id="${ticket.id}">承認する</button>` : ''}
-      </div>`;
-    });
-
+    const status = getDayStatus(dateStr);
     const isToday = dateStr===todayStr;
-    html += `<div class="mycal-day">
+    const isClosed = status.type!=='open';
+
+    let rowsHtml;
+    if(isClosed){
+      rowsHtml = `<div class="mycal-lesson-row closed"><div class="mycal-lesson-info mycal-closed-label">休校（${status.label}）</div></div>`;
+    }else{
+      const dayEntries = myAssignmentEntries.filter(e=> e.oneTimeDate ? e.oneTimeDate===dateStr : e.day===wd);
+      if(dayEntries.length===0){
+        rowsHtml = `<div class="mycal-lesson-row empty"><div class="mycal-lesson-info mycal-empty-label">確定授業なし</div></div>`;
+      }else{
+        dayEntries.sort((a,b)=> a.slot - b.slot);
+        rowsHtml = dayEntries.map(e=>{
+          const slotLabel = SLOTS.find(s=>s.id===e.slot);
+          const ticket = findPendingTicket(e.day, e.slot, e.subject, e.studentName, e.oneTimeDate);
+          const isPending = !!ticket;
+          return `<div class="mycal-lesson-row ${isPending?'pending':''}">
+            <div class="mycal-lesson-info">
+              <span class="mycal-slot-tag">${slotLabel?slotLabel.label:e.slot+'講'}</span>
+              <b>${e.studentName}</b>（${e.studentGrade||''}）　${e.subject}
+              ${e.oneTimeDate ? '<span class="mycal-pending-tag" style="color:var(--ink-soft);">単発の代講</span>' : ''}
+              ${isPending ? '<span class="mycal-pending-tag">未承認</span>' : ''}
+            </div>
+            ${isPending ? `<button type="button" class="mycal-approve-btn" data-id="${ticket.id}">承認する</button>` : ''}
+          </div>`;
+        }).join('');
+      }
+    }
+
+    html += `<div class="mycal-day ${isClosed?'is-closed':''}">
       <div class="mycal-date-label ${isToday?'is-today':''}">${myCalMonth+1}月${d}日（${wd}）${isToday?'（今日）':''}</div>
       ${rowsHtml}
     </div>`;
   }
 
-  wrap.innerHTML = hasAny ? html : '<div class="empty-note">この月に担当している授業はまだありません。</div>';
+  wrap.innerHTML = html;
   wrap.querySelectorAll('.mycal-approve-btn').forEach(btn=>{
     btn.addEventListener('click', ()=> approveTicket(btn.dataset.id));
   });
