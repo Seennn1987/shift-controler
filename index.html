@@ -1359,17 +1359,16 @@
     </div>
 
     <div class="card">
-      <h2>開校期間の管理<span class="help-tip" tabindex="0">?<span class="help-tip-text">「通常期間」「春期講習」「夏期講習」「冬期講習」など、期間の種別ごとに開始日・終了日を登録します。まずは登録・一覧管理のみで、マッチングへの反映は次のフェーズで対応します。</span></span></h2>
+      <h2>季節講習の管理<span class="help-tip" tabindex="0">?<span class="help-tip-text">通常授業はアプリ利用開始時から常に開校期間です。ここで登録するのは「春期講習」「夏期講習」「冬期講習」のような、通常授業とは別に期間を区切って管理したい季節講習のみです。</span></span></h2>
 
       <div class="term-form">
         <select id="termTypeSelect">
-          <option value="通常期間">通常期間</option>
           <option value="春期講習">春期講習</option>
           <option value="夏期講習">夏期講習</option>
           <option value="冬期講習">冬期講習</option>
           <option value="その他">その他</option>
         </select>
-        <input type="text" id="termNameInput" placeholder="名称（例：2026年度 通常期間）">
+        <input type="text" id="termNameInput" placeholder="名称（例：2026年 夏期講習）">
         <input type="date" id="termStartInput">
         <span class="term-form-sep">〜</span>
         <input type="date" id="termEndInput">
@@ -1392,7 +1391,7 @@
 
       <div style="height:22px"></div>
 
-      <label class="field-label">祝日<span class="help-tip" tabindex="0">?<span class="help-tip-text">ONにすると、開校期間として登録済みの日付範囲内にある祝日（内閣府発表データ）をすべて休校扱いにします。個別の祝日ごとの設定はできません。</span></span></label>
+      <label class="field-label">祝日<span class="help-tip" tabindex="0">?<span class="help-tip-text">ONにすると、祝日（内閣府発表データ）をすべて休校扱いにします。個別の祝日ごとの設定はできません。</span></span></label>
       <div class="chip-row">
         <label class="chip" id="holidayAutoDetectChip">
           <input type="checkbox" id="holidayAutoDetectToggle">
@@ -2778,14 +2777,12 @@ function computeTeacherOpenings(dateStr, onlyTeacherId){
 
 // その日の実際のレッスン一覧（欠席・振替反映済み）から、売上・講師コスト・コスト率を計算する
 // includeTransport指定時は交通費込みの合計コストとコスト率を返す。省略時はグローバル設定(finIncludeTransport)に従う
-// 指定講師の、指定日"より前"の実施コマ累計数を数える（開校期間の最初の開始日を起点とする。計算コストを抑えるため最大370日分までで打ち切る）
+// 指定講師の、指定日"より前"の実施コマ累計数を数える（指定日から遡って最大370日分までで打ち切る。計算コストを抑えるための上限）
+// 指定講師の、指定日"より前"の実施コマ累計数を数える（指定日から遡って最大370日分。計算コストを抑えるための上限）
 function countTeacherLessonsBefore(teacherId, dateStr){
-  if(terms.length===0) return 0;
-  let earliestStart = null;
-  terms.forEach(t=>{ if(!earliestStart || t.startDate < earliestStart) earliestStart = t.startDate; });
-  if(!earliestStart || earliestStart >= dateStr) return 0;
   let count = 0;
-  let d = new Date(earliestStart+'T00:00:00');
+  let d = new Date(dateStr+'T00:00:00');
+  d.setDate(d.getDate()-370);
   const end = new Date(dateStr+'T00:00:00');
   let guard = 0;
   while(d < end && guard < 370){
@@ -2896,12 +2893,8 @@ function getStudentDateRows(student, dateStr){
 // ---- 優先ペアリング（教室長が指定：生徒の教科(コース)単位で講師を優先） ----
 let preferredPairs = []; // {id, studentId, courseId, teacherId}
 
-// ---- 開校期間（通常期間／季節講習など） ----
-// サンプルとして「2026年度 通常期間」と「2026年 夏期講習」を初期登録しておく（セッション内メモリのみ）
-let terms = [
-  {id:'term-1', type:'通常期間', name:'2026年度 通常期間', startDate:'2026-04-01', endDate:'2027-03-31'},
-  {id:'term-2', type:'夏期講習', name:'2026年 夏期講習', startDate:'2026-07-21', endDate:'2026-08-31'},
-];
+// ---- 季節講習（春期・夏期・冬期など。通常授業は常に開校期間なのでここには登録しない） ----
+let terms = [];
 let editingTermId = null;
 
 function addOrUpdateTerm(term){
@@ -2917,7 +2910,7 @@ function deleteTerm(id){
 }
 function resetTermForm(){
   editingTermId = null;
-  document.getElementById('termTypeSelect').value = '通常期間';
+  document.getElementById('termTypeSelect').value = '春期講習';
   document.getElementById('termNameInput').value = '';
   document.getElementById('termStartInput').value = '';
   document.getElementById('termEndInput').value = '';
@@ -2957,14 +2950,13 @@ function renderTermList(){
   const wrap = document.getElementById('termList');
   if(!wrap) return;
   if(terms.length===0){
-    wrap.innerHTML = '<div class="empty-note">まだ開校期間が登録されていません。上のフォームから登録してください。</div>';
+    wrap.innerHTML = '<div class="empty-note">まだ季節講習が登録されていません。上のフォームから登録してください。</div>';
     return;
   }
   const sorted = [...terms].sort((a,b)=> a.startDate < b.startDate ? -1 : 1);
   wrap.innerHTML = sorted.map(t=>{
-    const isSeason = t.type!=='通常期間';
     return `<div class="term-row">
-      <span class="term-type ${isSeason?'season':''}">${t.type}</span>
+      <span class="term-type season">${t.type}</span>
       <span class="term-name">${t.name}</span>
       <span class="term-range">${t.startDate} 〜 ${t.endDate}</span>
       <div class="row-actions">
@@ -3041,19 +3033,13 @@ const HOLIDAYS_JP = [
 const WEEK_FULL = ['日','月','火','水','木','金','土']; // 休校日設定では日曜も選択対象に含める
 
 let regularClosedDays = ['日']; // 例: ['日','水'] 曜日単位の定休日（複数可、日曜も選択可）
-let holidayAutoDetect = false; // ONにすると、開校期間内の祝日をすべて休校扱いにする（個別設定なし）
+let holidayAutoDetect = false; // ONにすると、祝日をすべて休校扱いにする（個別設定なし）
 let customClosures = []; // {id, startDate, endDate, label} 個別の休校日（1日〜期間指定）
 let editingClosureId = null;
 
-// 登録済みの開校期間（terms）の範囲内にある祝日だけを抽出（表示用）
+// 内閣府発表データに含まれる祝日の一覧（表示用。通常授業は常に開校期間のため、期間による絞り込みは行わない）
 function computeHolidaysInTerms(){
-  if(terms.length===0) return [];
-  const set = new Map();
-  HOLIDAYS_JP.forEach(h=>{
-    const inRange = terms.some(t=> h.date >= t.startDate && h.date <= t.endDate);
-    if(inRange) set.set(h.date, h.name);
-  });
-  return [...set.entries()].map(([date,name])=>({date,name})).sort((a,b)=> a.date<b.date?-1:1);
+  return HOLIDAYS_JP.slice().sort((a,b)=> a.date<b.date?-1:1);
 }
 
 function renderClosedDaySettings(){
@@ -3067,12 +3053,12 @@ function renderClosedDaySettings(){
   const wrap = document.getElementById('holidayListWrap');
   if(!wrap) return;
   if(!holidayAutoDetect){
-    wrap.innerHTML = '<div class="empty-note">「祝日をまとめて休校にする」をONにすると、開校期間内の祝日が一覧表示されます。</div>';
+    wrap.innerHTML = '<div class="empty-note">「祝日をまとめて休校にする」をONにすると、祝日が一覧表示されます。</div>';
     return;
   }
   const holidays = computeHolidaysInTerms();
   if(holidays.length===0){
-    wrap.innerHTML = '<div class="empty-note">登録済みの開校期間の範囲内に祝日が見つかりませんでした（開校期間を確認してください）。</div>';
+    wrap.innerHTML = '<div class="empty-note">祝日データが見つかりませんでした。</div>';
     return;
   }
   wrap.innerHTML = holidays.map(h=>`<div class="holiday-row">
@@ -3214,9 +3200,6 @@ function getTodayStr(){
   const t = new Date();
   return toDateStr(t.getFullYear(), t.getMonth(), t.getDate());
 }
-function isWithinAnyTerm(dateStr){
-  return terms.some(t=> dateStr>=t.startDate && dateStr<=t.endDate);
-}
 
 // 指定日のステータスを判定する
 // {type:'outside'|'custom-closed'|'closed-weekday'|'holiday'|'open', label, weekday, count, holidayName, closureLabel}
@@ -3228,10 +3211,7 @@ function getDayStatus(dateStr){
   const d = new Date(dateStr+'T00:00:00');
   const weekday = WEEKDAY_JP[d.getDay()];
 
-  if(!isWithinAnyTerm(dateStr)){
-    const label = terms.length===0 ? '開校期間 未設定' : '開校期間外';
-    return {type:'outside', label, weekday};
-  }
+  // 通常授業は常に開校期間（アプリ利用開始時から継続）。休校となるのは以下の例外のみ
   const closure = findCustomClosure(dateStr);
   if(closure){
     return {type:'custom-closed', label:closure.label, weekday, closureLabel:closure.label};
@@ -3985,7 +3965,7 @@ function renderTeacherScheduleGrid(schedule){
     const wd = WEEKDAY_JP[new Date(dateStr+'T00:00:00').getDay()];
     const closed = regularClosedDays.includes(wd) ||
       (holidayAutoDetect && HOLIDAYS_JP.some(h=>h.date===dateStr)) ||
-      !!findCustomClosure(dateStr) || !isWithinAnyTerm(dateStr);
+      !!findCustomClosure(dateStr);
     tbody += `<tr class="${closed?'ts-row-closed':''}"><th>${d}日<span class="ts-wd">(${wd})</span></th>`;
     SLOTS.forEach(slot=>{
       const entry = (schedule.days[dateStr]||[]).find(e=>e.slot===slot.id);
@@ -4706,11 +4686,6 @@ function renderShortageDashboard(){
   if(!dataReady || !studentDataReady){
     wrap.innerHTML = '<div class="loading">読み込み中…</div>';
     if(summaryLine) summaryLine.textContent = '読み込み中…';
-    return;
-  }
-  if(terms.length===0){
-    wrap.innerHTML = '<div class="empty-state" style="color:var(--danger);font-weight:700;">開校期間が1件も登録されていません。この状態では、カレンダー上の全ての日が「開校期間外」として休校扱いになります。「基本設定」タブ→「開校期間の管理」から、通常期間を登録してください。</div>';
-    if(summaryLine){ summaryLine.textContent = '⚠ 開校期間が未設定です'; summaryLine.classList.add('warn'); }
     return;
   }
   if(students.length===0){
