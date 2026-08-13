@@ -2454,6 +2454,59 @@ function startTeacherScheduleListener(){
     });
 }
 
+// ---- 講師本人が「マイカレンダー」で見るための、担当授業一覧の同期 ----
+// （生徒個人情報を含む assignments 全体は講師には見せず、その講師自身が担当する分だけを抜き出して渡す）
+let syncTeacherAssignmentsTimer = null;
+function scheduleSyncTeacherAssignments(){
+  if(syncTeacherAssignmentsTimer) clearTimeout(syncTeacherAssignmentsTimer);
+  syncTeacherAssignmentsTimer = setTimeout(syncTeacherAssignments, 1200);
+}
+async function syncTeacherAssignments(){
+  const user = fbAuth.currentUser;
+  if(!user || !dataReady || !studentDataReady) return;
+  const loginTeachers = teachers.filter(t=>t.loginUid);
+  for(const t of loginTeachers){
+    // 通常の（曜日繰り返しの）担当授業
+    const entries = assignments.filter(a=>a.teacherId===t.id).map(a=>{
+      const student = students.find(s=>s.id===a.studentId);
+      return {
+        day: a.day, slot: a.slot,
+        studentName: student ? student.name : '(削除された生徒)',
+        studentGrade: student ? gradeLabel(student) : '',
+        subject: a.subject,
+        oneTimeDate: null,
+      };
+    });
+    // この講師が「代講」として単発で担当する授業（該当日だけの特別枠）
+    teacherSubstitutions.forEach(sub=>{
+      if(sub.substituteTeacherId!==t.id) return;
+      const original = assignments.find(a=>
+        a.teacherId===sub.teacherId && a.day===getDayStatus(sub.date).weekday && a.slot===sub.slot &&
+        (!sub.studentId || a.studentId===sub.studentId)
+      );
+      if(!original) return;
+      const student = students.find(s=>s.id===original.studentId);
+      entries.push({
+        day: getDayStatus(sub.date).weekday, slot: sub.slot,
+        studentName: student ? student.name : '(削除された生徒)',
+        studentGrade: student ? gradeLabel(student) : '',
+        subject: original.subject,
+        oneTimeDate: sub.date,
+      });
+    });
+    const ref = fbDb.collection('teacherAssignments').doc(`${user.uid}_${t.id}`);
+    try{
+      await ref.set({
+        adminUid: user.uid, teacherId: t.id, teacherLoginUid: t.loginUid,
+        entries, updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
+      }, {merge:true});
+    }catch(err){
+      console.error('講師カレンダー同期エラー:', err);
+    }
+  }
+}
+
+
 // 全データを1つのドキュメントにまとめてFirestoreへ保存する（呼び出しが重ならないよう1.2秒デバウンス）
 // ※teacherSchedulesは別コレクション（teacherSchedules）で管理するため、ここには含めない
 function scheduleSave(){
@@ -4470,6 +4523,7 @@ async function deleteStudent(id){
 // 生徒の受講科目（コース）ごとに、講師の対応可能条件を突き合わせる
 function renderMatching(){
   scheduleSave();
+  scheduleSyncTeacherAssignments();
   const wrap = document.getElementById('matchingWrap');
   if(!dataReady || !studentDataReady){
     wrap.innerHTML = '<div class="loading">読み込み中…</div>';
