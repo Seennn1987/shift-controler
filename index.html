@@ -2591,10 +2591,11 @@ async function loadAppStateFromFirestore(){
   }
   teacherSchedules = await loadAllTeacherSchedules();
   startTeacherScheduleListener(); // 以降は講師本人による変更もリアルタイムで反映する
-  await syncClosureSettings(); // 講師側にも休校日設定を同期しておく
   dataReady = true;
   studentDataReady = true;
   firestoreReady = true;
+  await syncClosureSettings(); // 講師側にも休校日設定を同期しておく
+  await syncTeacherAssignments(); // 講師のマイカレンダー用データも、ログインのたびに必ず作り直す（過去の同期失敗を自己修復するため）
 }
 
 // ---- 欠席・振替（特定の実日付にのみ影響。曜日パターン自体は変えない） ----
