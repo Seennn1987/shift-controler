@@ -297,11 +297,12 @@ async function saveMonthEntry(yearMonth, entry){
   scheduleDoc.months[yearMonth] = entry;
   const ref = fbDb.collection('teacherSchedules').doc(`${myAdminUid}_${myTeacherId}`);
   try{
+    const monthKey = `months.${yearMonth}`;
     await ref.set({
       adminUid: myAdminUid,
       teacherId: myTeacherId,
       teacherLoginUid: fbAuth.currentUser.uid,
-      months: scheduleDoc.months,
+      [monthKey]: entry,
       updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
     }, {merge:true});
   }catch(err){
