@@ -1591,7 +1591,7 @@ function addRaiseRow(yearMonth, rate){
 function getWeekdayAvailabilityInMonth(teacherId, weekday, slot, yearMonth){
   if(!yearMonth) return null;
   const sch = findTeacherSchedule(teacherId, yearMonth);
-  if(!sch) return null; // 未提出
+  if(!sch || sch.status !== 'submitted') return null; // 未提出（下書きのみも不可）
   const total = daysInYearMonth(yearMonth);
   let best = null;
   for(let d=1; d<=total; d++){
@@ -2723,9 +2723,11 @@ function getTeacherLessonsOnDate(teacherId, dateStr){
   const status = getDayStatus(dateStr);
   if(status.type!=='open') return {};
   const weekday = status.weekday;
+  const yearMonth = dateStr.slice(0,7);
   const bySlot = {};
   assignments.forEach(a=>{
     if(a.teacherId!==teacherId || a.day!==weekday) return;
+    if(!isAssignmentEffectiveInMonth(a, yearMonth)) return;
     if(findAbsenceFor(a.studentId, a.courseId, dateStr, a.day, a.slot)) return; // 既に生徒都合で欠席済みの分は対象外
     bySlot[a.slot] = bySlot[a.slot] || [];
     bySlot[a.slot].push({studentId:a.studentId, courseId:a.courseId, subject:a.subject});
@@ -2841,9 +2843,11 @@ function countTeacherLoadOnDate(teacherId, dateStr, slot, excludeStudentId){
   const status = getDayStatus(dateStr);
   if(status.type!=='open') return 0;
   const weekday = status.weekday;
+  const yearMonth = dateStr.slice(0,7);
   let count = 0;
   assignments.forEach(a=>{
     if(a.teacherId!==teacherId || a.day!==weekday || a.slot!==slot) return;
+    if(!isAssignmentEffectiveInMonth(a, yearMonth)) return;
     if(a.studentId===excludeStudentId) return;
     if(findAbsenceFor(a.studentId, a.courseId, dateStr, a.day, a.slot)) return; // その日欠席なら除外
     count++;
@@ -2861,9 +2865,11 @@ function countRoomLoadOnDate(dateStr, slot, excludeStudentId){
   const status = getDayStatus(dateStr);
   if(status.type!=='open') return 0;
   const weekday = status.weekday;
+  const yearMonth = dateStr.slice(0,7);
   let count = 0;
   assignments.forEach(a=>{
     if(a.day!==weekday || a.slot!==slot) return;
+    if(!isAssignmentEffectiveInMonth(a, yearMonth)) return;
     if(a.studentId===excludeStudentId) return;
     if(findAbsenceFor(a.studentId, a.courseId, dateStr, a.day, a.slot)) return;
     count++;
@@ -2928,8 +2934,10 @@ function getEffectiveDayAssignments(dateStr){
   if(status.type!=='open') return [];
   const weekday = status.weekday;
   const list = [];
+  const yearMonth = dateStr.slice(0,7);
   assignments.forEach(a=>{
     if(a.day!==weekday) return;
+    if(!isAssignmentEffectiveInMonth(a, yearMonth)) return;
     if(findAbsenceFor(a.studentId, a.courseId, dateStr, a.day, a.slot)) return;
     // studentId指定ありの代講（この生徒だけ）を優先し、なければ全体向け（studentId:null）の代講を見る
     const sub = teacherSubstitutions.find(s=>s.teacherId===a.teacherId && s.date===dateStr && s.slot===a.slot && s.studentId===a.studentId)
@@ -2939,6 +2947,7 @@ function getEffectiveDayAssignments(dateStr){
   });
   pendingAssignments.forEach(a=>{
     if(a.day!==weekday) return;
+    if(!isAssignmentEffectiveInMonth(a, yearMonth)) return;
     list.push({studentId:a.studentId, courseId:a.courseId, subject:a.subject, slot:a.slot, teacherId:a.teacherId, kind:'normal', source:a.source, pending:true});
   });
   absences.forEach(ab=>{
@@ -3072,12 +3081,10 @@ function getStudentDateRows(student, dateStr){
       if(ds.day!==weekday) return;
       const slot = SLOTS.find(sl=>sl.id===ds.slot);
       const absence = findAbsenceFor(student.id, course.id, dateStr, ds.day, ds.slot);
-      let existing = findAssignment(student.id, course.id, ds.day, ds.slot);
-      let isPending = false;
-      if(!existing){
-        existing = pendingAssignments.find(a=>a.studentId===student.id && a.courseId===course.id && a.day===ds.day && a.slot===ds.slot);
-        isPending = !!existing;
-      }
+      const yearMonth = dateStr.slice(0,7);
+      const eff = findEffectiveAssignment(student.id, course.id, ds.day, ds.slot, yearMonth);
+      let existing = eff ? eff.entry : null;
+      let isPending = eff ? eff.isPending : false;
       rows.push({slot, course, existing, absence, isMakeupTarget:false, isPending});
     });
   });
@@ -3598,6 +3605,7 @@ function renderCalendarDetail(dateStr){
   const label = `${d.getMonth()+1}月${d.getDate()}日（${weekday}）`;
 
   const filterStudent = calFilterStudentId ? students.find(s=>s.id===calFilterStudentId) : null;
+  const detailYearMonth = dateStr.slice(0,7);
 
   if(filterStudent){
     document.getElementById('calDetailTitle').textContent = `${label}の${filterStudent.name}さん（${gradeLabel(filterStudent)}）の授業`;
@@ -3674,7 +3682,7 @@ function renderCalendarDetail(dateStr){
 
       if(r.existing){
         const teacher = teachers.find(t=>t.id===r.existing.teacherId);
-        const used = teacher ? countTeacherSlot(teacher.id, weekday, r.slot.id, null) : 0;
+        const used = teacher ? countTeacherSlot(teacher.id, weekday, r.slot.id, null, detailYearMonth) : 0;
         const autoBadge = r.existing.source==='auto' ? '<span class="auto-badge">自動</span>' : '';
         if(r.isPending){
           html += `<div class="match-slot">
@@ -3716,7 +3724,7 @@ function renderCalendarDetail(dateStr){
           .map(t => buildCandidateInfo(filterStudent.id, r.course.id, filterStudent.level, r.course.subject, weekday, r.slot.id, t))
           .sort(compareCandidateInfo);
 
-        const roomUsed = countRoomSlot(weekday, r.slot.id, null);
+        const roomUsed = countRoomSlot(weekday, r.slot.id, null, detailYearMonth);
         const roomFull = roomUsed >= roomCapacity;
 
         let candHtml = '';
@@ -4226,8 +4234,12 @@ function isPreferredSubjectForTeacher(teacher, level, subject){
 
 // 候補講師1人分の評価情報（優先ペア／得意科目／優先希望日／残り定員）をまとめる
 // その講師が、指定の曜日・コマ以外に、同じ曜日の別コマも担当しているか（稼働集約＝出勤日数を増やさず交通費比率を抑える）
-function teacherWorksOtherSlotOnWeekday(teacherId, weekday, excludeSlot){
-  return assignments.some(a=> a.teacherId===teacherId && a.day===weekday && a.slot!==excludeSlot);
+function teacherWorksOtherSlotOnWeekday(teacherId, weekday, excludeSlot, yearMonth){
+  const ym = getActiveYearMonth(yearMonth);
+  return assignments.concat(pendingAssignments).some(a=>
+    a.teacherId===teacherId && a.day===weekday && a.slot!==excludeSlot &&
+    isAssignmentEffectiveInMonth(a, ym)
+  );
 }
 
 function buildCandidateInfo(studentId, courseId, level, subject, day, slot, teacher){
@@ -4260,16 +4272,58 @@ function compareCandidateInfo(a, b){
 function findAssignment(studentId, courseId, day, slot){
   return assignments.find(a=>a.studentId===studentId && a.courseId===courseId && a.day===day && a.slot===slot) || null;
 }
-function countCourseConfirmed(studentId, courseId){
-  return assignments.filter(a=>a.studentId===studentId && a.courseId===courseId).length;
+
+// 講師がその月のシフトを提出済みか（提出済みの月だけマッチングを有効とみなす）
+function getActiveYearMonth(yearMonth){
+  if(yearMonth) return yearMonth;
+  if(referenceYearMonth) return referenceYearMonth;
+  const t = new Date();
+  return `${t.getFullYear()}-${pad2(t.getMonth()+1)}`;
 }
-function countTeacherSlot(teacherId, day, slot, excludeStudentId){
+function teacherHasSubmittedMonth(teacherId, yearMonth){
+  const ym = getActiveYearMonth(yearMonth);
+  const sch = findTeacherSchedule(teacherId, ym);
+  return !!(sch && sch.status === 'submitted');
+}
+function isAssignmentEffectiveInMonth(assignment, yearMonth){
+  if(!assignment) return false;
+  return teacherHasSubmittedMonth(assignment.teacherId, yearMonth);
+}
+// 表示・集計用：その月に有効な割当だけ返す（未提出月は null 扱い）
+function findEffectiveAssignment(studentId, courseId, day, slot, yearMonth){
+  const ym = getActiveYearMonth(yearMonth);
+  const confirmed = findAssignment(studentId, courseId, day, slot);
+  if(confirmed && isAssignmentEffectiveInMonth(confirmed, ym)){
+    return {entry: confirmed, isPending: false};
+  }
+  const pending = pendingAssignments.find(a=>a.studentId===studentId && a.courseId===courseId && a.day===day && a.slot===slot);
+  if(pending && isAssignmentEffectiveInMonth(pending, ym)){
+    return {entry: pending, isPending: true};
+  }
+  return null;
+}
+
+function countCourseConfirmed(studentId, courseId, yearMonth){
+  const ym = getActiveYearMonth(yearMonth);
+  return assignments.filter(a=>
+    a.studentId===studentId && a.courseId===courseId && isAssignmentEffectiveInMonth(a, ym)
+  ).length;
+}
+function countTeacherSlot(teacherId, day, slot, excludeStudentId, yearMonth){
+  const ym = getActiveYearMonth(yearMonth);
   const all = assignments.concat(pendingAssignments); // 定員は「確定済み＋承認待ち」の両方でふさがる
-  return all.filter(a=>a.teacherId===teacherId && a.day===day && a.slot===slot && a.studentId!==excludeStudentId).length;
+  return all.filter(a=>
+    a.teacherId===teacherId && a.day===day && a.slot===slot && a.studentId!==excludeStudentId &&
+    isAssignmentEffectiveInMonth(a, ym)
+  ).length;
 }
-function countRoomSlot(day, slot, excludeStudentId){
+function countRoomSlot(day, slot, excludeStudentId, yearMonth){
+  const ym = getActiveYearMonth(yearMonth);
   const all = assignments.concat(pendingAssignments);
-  return all.filter(a=>a.day===day && a.slot===slot && a.studentId!==excludeStudentId).length;
+  return all.filter(a=>
+    a.day===day && a.slot===slot && a.studentId!==excludeStudentId &&
+    isAssignmentEffectiveInMonth(a, ym)
+  ).length;
 }
 
 // 新しく確定した授業を、講師専用ページで承認してもらうためのチケットを発行する
@@ -4370,7 +4424,7 @@ function bulkAutoAssign(){
   students.forEach(s=>{
     s.courses.forEach(course=>{
       course.desiredSlots.forEach(ds=>{
-        if(findAssignment(s.id, course.id, ds.day, ds.slot)) return; // 既に確定済み
+        if(findEffectiveAssignment(s.id, course.id, ds.day, ds.slot, referenceYearMonth)) return; // その月で既に確定済み
         if(regularClosedDays.includes(ds.day)) return; // 定休日はスキップ
         const candidates = teachers.filter(t =>
           isAvailable(t, ds.day, ds.slot) &&
@@ -4692,7 +4746,8 @@ function renderMatching(){
       course.desiredSlots.forEach(ds=>{
         const day = ds.day, slotId = ds.slot;
         const slot = SLOTS.find(sl=>sl.id===slotId);
-        const existing = findAssignment(s.id, course.id, day, slotId);
+        const existingEff = findEffectiveAssignment(s.id, course.id, day, slotId, referenceYearMonth);
+        const existing = existingEff ? existingEff.entry : null;
 
         if(existing){
           const teacher = teachers.find(t=>t.id===existing.teacherId);
@@ -4997,7 +5052,11 @@ function jumpToCalendarForStudent(studentId, courseId){
     alert(`${student.name}さんの「${course.subject}」は、希望する曜日・コマがまだ登録されていません。「生徒登録・マッチング」タブの編集画面から設定してください。`);
     return;
   }
-  const pending = course.desiredSlots.find(ds=> !findAssignment(studentId, courseId, ds.day, ds.slot));
+  const pending = course.desiredSlots.find(ds=>{
+    const nearDate = findNearestFutureDate(ds.day);
+    const ym = nearDate ? nearDate.slice(0,7) : referenceYearMonth;
+    return !findEffectiveAssignment(studentId, courseId, ds.day, ds.slot, ym);
+  });
   const target = pending || course.desiredSlots[0];
   const dateStr = findNearestFutureDate(target.day);
   if(!dateStr){ alert('該当する日付が見つかりませんでした。'); return; }
