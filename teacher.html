@@ -233,6 +233,9 @@ const firebaseConfig = {
 firebase.initializeApp(firebaseConfig);
 const fbAuth = firebase.auth();
 const fbDb = firebase.firestore();
+// ネットワーク環境（VPN・特定の回線等）によっては、既定の通信方式（QUIC/WebChannel）が不安定になり、
+// リアルタイム監視が「権限エラー」のように誤って失敗することがあるため、より安定した通信方式に切り替える
+fbDb.settings({ experimentalAutoDetectLongPolling: true });
 
 const SLOTS = [
   {id:4, label:'4講', time:'14:50〜16:20'},
