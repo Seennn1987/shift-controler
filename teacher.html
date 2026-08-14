@@ -166,6 +166,7 @@
     <div>
       <h1>ピタコマ</h1>
       <div class="sub" id="myNameLabel">講師用ページ</div>
+      <div style="font-size:10px;color:#f0a030;font-weight:700;">BUILD: 2026-08-14-v9</div>
     </div>
     <div class="header-account">
       <span id="loginUserEmail" class="header-email"></span>
@@ -237,6 +238,7 @@ const fbDb = firebase.firestore();
 // ネットワーク環境（VPN・特定の回線等）によっては、既定の通信方式（QUIC/WebChannel）が不安定になり、
 // リアルタイム監視が「権限エラー」のように誤って失敗することがあるため、より安定した通信方式に切り替える
 fbDb.settings({ experimentalAutoDetectLongPolling: true });
+console.log('%cピタコマ 講師用ページ BUILD: 2026-08-14-v9', 'background:#d9822b;color:#fff;font-size:16px;font-weight:bold;padding:8px;');
 
 const SLOTS = [
   {id:4, label:'4講', time:'14:50〜16:20'},
