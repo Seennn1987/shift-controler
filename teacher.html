@@ -311,8 +311,10 @@ let classroomSettingsTimer = null;
 const debugLines = [];
 function debugLog(line){
   const time = new Date().toLocaleTimeString('ja-JP');
-  debugLines.push(`[${time}] ${line}`);
-  if(debugLines.length>30) debugLines.shift();
+  const full = `[${time}] ${line}`;
+  console.log('%c[DEBUG] ' + full, 'color:#d9822b;font-weight:bold;'); // コンソールにも同時出力（見つけやすいよう色付け）
+  debugLines.push(full);
+  if(debugLines.length>50) debugLines.shift();
   const panel = document.getElementById('debugPanel');
   if(panel) panel.textContent = debugLines.join('\n');
 }
@@ -459,6 +461,7 @@ function startScheduleListener(){
       }
       scheduleDoc = snap.exists ? snap.data() : {months:{}};
       if(!scheduleDoc.months) scheduleDoc.months = {};
+      debugLog(`[teacherSchedules] 取得結果を適用します。表示中の月(${curYear}-${pad2(curMonth+1)})のサーバー上のdays=${JSON.stringify((scheduleDoc.months[`${curYear}-${pad2(curMonth+1)}`]||{}).days||{})}`);
       // 教室長側の更新もこの場で反映する（未送信の下書きは保持したまま）
       renderKeepingOverrides();
     }catch(err){
@@ -476,6 +479,7 @@ async function saveMonthEntry(yearMonth, entry){
   scheduleDoc.months[yearMonth] = entry;
   lastLocalScheduleEditAt = Date.now();
   const ref = fbDb.collection('teacherSchedules').doc(`${myAdminUid}_${myTeacherId}`);
+  debugLog(`[保存] 開始 yearMonth=${yearMonth} 内容=${JSON.stringify(entry.days)}`);
   try{
     const monthKey = `months.${yearMonth}`;
     await ref.set({
@@ -485,7 +489,9 @@ async function saveMonthEntry(yearMonth, entry){
       [monthKey]: entry,
       updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
     }, {merge:true});
+    debugLog(`[保存] ★成功★ yearMonth=${yearMonth}`);
   }catch(err){
+    debugLog(`[保存] ★★★失敗★★★ code=${err.code} message=${err.message}`);
     console.error('保存エラー:', err);
     document.getElementById('formMsg').textContent = '保存に失敗しました。通信状況をご確認ください。';
   }
