@@ -2363,6 +2363,8 @@ const firebaseConfig = {
 firebase.initializeApp(firebaseConfig);
 const fbAuth = firebase.auth();
 const fbDb = firebase.firestore();
+// ネットワーク環境によっては既定の通信方式が不安定になることがあるため、より安定した通信方式に切り替える
+fbDb.settings({ experimentalAutoDetectLongPolling: true });
 
 let saveTimer = null;
 let firestoreReady = false;
