@@ -386,8 +386,9 @@ async function bootstrap(user){
     return;
   }
   if(!accSnap.exists){
-    showLogin('このアカウントは講師として登録されていません。教室長にご確認ください。');
-    await fbAuth.signOut();
+    console.error('teacherAccounts lookup failed for uid:', user.uid);
+    showLogin(`このアカウント（ID: ${user.uid}）は講師として登録されていません。教室長にこのIDを伝えてご確認ください。`);
+    // ここでは自動サインアウトしない（原因切り分けのため。ログイン画面には戻さず、この状態を維持する）
     return;
   }
   const d = accSnap.data();
