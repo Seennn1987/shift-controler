@@ -6,34 +6,34 @@
 
 ---
 
-## 開発の進め方（2段階）
+## ① 自分のパソコンで確認（開発中）
 
-### ① 自分のパソコンで素早く確認（コードを書きながら）
+初回だけ:
 
 ```bash
 cd "/Users/shoui/ピタコマ"
+npm install
+```
+
+起動:
+
+```bash
 ./serve.sh
 ```
 
-ブラウザで開く：
+ブラウザで開く:
 
-- 教室長用 → http://localhost:8080/index.html
-- 講師用   → http://localhost:8080/teacher.html
-
-**ここだけで完結します。** 追加のインストール作業は不要です。
-
-### ② 関係者と同じWebページで確認（今まで通り）
-
-変更を GitHub に送ると、次のページに反映されます（数分かかることがあります）。
-
-- 教室長用 → https://seennn1987.github.io/shift-controler/
-- 講師用   → https://seennn1987.github.io/shift-controler/teacher.html
-
-**今は関係者だけが使っているので、このページが「試し用兼・公開ページ」として使えます。** 別途、試し用ページを用意する必要はありません。
+- 教室長用 → http://localhost:5173/index.html
+- 講師用   → http://localhost:5173/teacher.html
 
 ---
 
-## 変更をWebページに反映する手順
+## ② 関係者と共有しているWebページ
+
+**main ブランチに変更を送ると、自動で公開用ファイルが作られ、GitHub Pages に反映されます**（数分かかることがあります）。
+
+- 教室長用 → https://seennn1987.github.io/shift-controler/
+- 講師用   → https://seennn1987.github.io/shift-controler/teacher.html
 
 ```bash
 cd "/Users/shoui/ピタコマ"
@@ -42,8 +42,21 @@ git commit -m "変更内容の説明"
 git push
 ```
 
-数分待ってから、上記の GitHub Pages の URL を開いて確認してください。  
-画面が古いままのときは、ブラウザの再読み込み（スーパーリロード: Mac なら `Cmd + Shift + R`）を試してください。
+画面が古いままのときは、ブラウザの再読み込み（Mac なら `Cmd + Shift + R`）を試してください。
+
+### 初回だけ（GitHub の設定）
+
+リポジトリの **Settings → Pages → Build and deployment → Source** を **GitHub Actions** にしてください。  
+（すでに設定済みなら不要です）
+
+---
+
+## 公開用ファイルを手動で作る場合
+
+```bash
+npm run build    # dist/ フォルダに成果物ができる
+npm run preview  # ビルド結果をローカルで確認
+```
 
 ---
 
@@ -55,18 +68,22 @@ git push
 
 ---
 
-## 次に取り組む開発タスク（HANDOFF.md より）
+## ファイル構成（分割後）
 
-1. **バグ修正**：講師がシフトを出していない月も、マッチングがずっと有効に見えてしまう問題
-2. **画面改善**：カレンダーから「授業マッチング」パネルを開く新しい操作の実装
+| 場所 | 内容 |
+|---|---|
+| `index.html` / `teacher.html` | 画面の骨組み（HTML のみ） |
+| `src/admin/` | 教室長用プログラム |
+| `src/teacher/` | 講師用プログラム |
+| `src/shared/` | 両方で共通（祝日・日付・Firebase など） |
+| `src/admin/seed.js` | テスト用サンプルデータ（本番では未使用） |
+| `dist/` | 公開用ファイル（`npm run build` の結果・Git には含めない） |
 
 ---
 
-## ファイル構成
+## 次に取り組む開発タスク
 
-| ファイル | 内容 |
-|---|---|
-| `index.html` | 教室長用画面（メイン） |
-| `teacher.html` | 講師用画面 |
-| `HANDOFF.md` | 引き継ぎ書（仕様・過去のバグ・Firebase構成など） |
-| `serve.sh` | パソコン上だけの確認用サーバー |
+1. **動作確認** … 分割後の教室長・講師画面の総合テスト
+2. **画面改善（8-2）** … カレンダーから「授業マッチング」パネルを開く新操作
+
+詳細は [HANDOFF.md](./HANDOFF.md) と [docs/ファイル分割計画_v1.0.md](./docs/ファイル分割計画_v1.0.md) を参照してください。

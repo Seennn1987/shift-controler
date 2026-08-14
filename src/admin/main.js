@@ -1,0 +1,12 @@
+import './state.js';
+import './schedule-core.js';
+import './teachers.js';
+import './students-persistence.js';
+import './absences.js';
+import './settings.js';
+import './calendar.js';
+import './teacher-schedule-tab.js';
+import './matching.js';
+import './finance-ui.js';
+import './init.js';
+import './auth.js';

@@ -1,0 +1,14 @@
+{
+  "name": "shift-controler",
+  "private": true,
+  "version": "1.0.0",
+  "description": "ピタコマ - 個別指導塾のコマ管理",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview"
+  },
+  "devDependencies": {
+    "vite": "^6.3.5"
+  }
+}

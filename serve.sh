@@ -1,10 +1,13 @@
 #!/usr/bin/env bash
-# ローカル開発用HTTPサーバー（Firebase Authは file:// より http://localhost 推奨）
+# ローカル開発用（Vite）
 set -euo pipefail
 cd "$(dirname "$0")"
-PORT="${1:-8080}"
-echo "ピタコマ 開発サーバーを起動しました"
-echo "  教室長UI: http://localhost:${PORT}/index.html"
-echo "  講師UI:   http://localhost:${PORT}/teacher.html"
+if [ ! -d node_modules ]; then
+  echo "初回セットアップ: npm install を実行します..."
+  npm install
+fi
+echo "ピタコマ 開発サーバーを起動します"
+echo "  教室長UI → http://localhost:5173/index.html"
+echo "  講師UI   → http://localhost:5173/teacher.html"
 echo "停止: Ctrl+C"
-exec python3 -m http.server "$PORT"
+exec npm run dev
