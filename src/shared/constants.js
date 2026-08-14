@@ -4,6 +4,13 @@ export const SUBJECT_MAP = {
   '高校': ['国語','数学','英語','理科','社会'],
 };
 
+/** 学年レベルの表示順（小学→中学→高校） */
+export const LEVELS_ORDER = ['小学', '中学', '高校'];
+
+export const LEVEL_ABBR = {'小学':'小', '中学':'中', '高校':'高'};
+
+export const SUBJECT_ABBR = {'国語':'国', '算数':'算', '数学':'数', '英語':'英', '理科':'理', '社会':'社'};
+
 export const DAYS = ['月','火','水','木','金','土'];
 
 export const SLOTS = [

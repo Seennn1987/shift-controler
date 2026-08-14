@@ -36,7 +36,7 @@ function getStateDocRef(){
 function teacherSchedDocRef(teacherId){
   const user = fbAuth.currentUser;
   if(!user) return null;
-  return fbDb.collection('S.teacherSchedules').doc(`${user.uid}_${teacherId}`);
+  return fbDb.collection('teacherSchedules').doc(`${user.uid}_${teacherId}`);
 }
 // 講師のログインIDを、紐づく全てのドキュメント（S.teacherSchedules・teacherAssignments）に一括で反映する
 // （どちらか一方だけ更新すると、もう一方が古いままになり権限エラーの原因になるため、必ずこの関数を通す）
@@ -91,7 +91,7 @@ async function loadAllTeacherSchedules(){
   const user = fbAuth.currentUser;
   if(!user) return [];
   try{
-    const snap = await fbDb.collection('S.teacherSchedules').where('adminUid','==',user.uid).get();
+    const snap = await fbDb.collection('teacherSchedules').where('adminUid','==',user.uid).get();
     const result = [];
     snap.forEach(doc=>{
       const d = doc.data();
@@ -112,7 +112,7 @@ function startTeacherScheduleListener(){
   const user = fbAuth.currentUser;
   if(!user) return;
   if(S.teacherScheduleUnsub) S.teacherScheduleUnsub();
-  S.teacherScheduleUnsub = fbDb.collection('S.teacherSchedules').where('adminUid','==',user.uid)
+  S.teacherScheduleUnsub = fbDb.collection('teacherSchedules').where('adminUid','==',user.uid)
     .onSnapshot(snap=>{
       const result = [];
       snap.forEach(doc=>{

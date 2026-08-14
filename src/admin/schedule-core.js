@@ -1,4 +1,4 @@
-import { SUBJECT_MAP, DAYS, SLOTS, WEEKDAY_JP, WEEK_FULL } from '../shared/constants.js';
+import { SUBJECT_MAP, DAYS, SLOTS, WEEKDAY_JP, WEEK_FULL, LEVELS_ORDER, LEVEL_ABBR, SUBJECT_ABBR } from '../shared/constants.js';
 import { HOLIDAYS_JP } from '../shared/holidays.js';
 import { pad2, daysInYearMonth, toDateStr, getTodayStr } from '../shared/date-utils.js';
 import { firebaseConfig, fbAuth, fbDb, STORAGE_KEY, getSecondaryAuth, S } from './state.js';
@@ -166,8 +166,6 @@ function countAvailSlots(teacher){
   return count;
 }
 
-const LEVEL_ABBR = {'小学':'小', '中学':'中', '高校':'高'};
-const SUBJECT_ABBR = {'国語':'国', '算数':'算', '数学':'数', '英語':'英', '理科':'理', '社会':'社'};
 function abbr(level, subject){ return (LEVEL_ABBR[level]||'') + (SUBJECT_ABBR[subject]||''); }
 
 // 生徒の学年表示（例：小5、中3、高2）。gradeが未設定の場合は学年区分のみ表示
@@ -214,7 +212,6 @@ Object.entries(SUBJECT_MAP).forEach(([level, subs])=>{
 const SUBJECT_CATEGORY = {'国語':'国', '算数':'数', '数学':'数', '英語':'英', '理科':'理', '社会':'社'};
 const CATEGORY_REP_SUBJECT = {'国':'国語', '数':'数学', '英':'英語', '理':'理科', '社':'社会'};
 const CATS = ['国','数','英','理','社'];
-const LEVELS_ORDER = ['小学','中学','高校'];
 
 function categoryColor(cat){
   if(cat==='ALL'){
