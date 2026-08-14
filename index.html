@@ -2419,16 +2419,21 @@ async function saveTeacherScheduleDoc(sch){
   const ref = teacherSchedDocRef(sch.teacherId);
   if(!ref) return;
   try{
-    // 事前にドキュメントを読み込まず、Firestoreのドット記法で該当月のフィールドだけを書き込む
-    // （ドキュメントがまだ1件も存在しない講師でも、事前読み込みで権限エラーになることなく初回保存できるようにするため）
-    const monthKey = `months.${sch.yearMonth}`;
+    // まず土台となるフィールド（adminUid等）をドキュメントが無くても作れるよう用意する
     await ref.set({
       adminUid: fbAuth.currentUser.uid,
       teacherId: sch.teacherId,
       teacherLoginUid: teacher ? (teacher.loginUid || null) : null,
+    }, {merge:true});
+    // ここが本題：ドット記法のキーをmonths配下のネスト構造として正しく書き込むには、
+    // set({merge:true})ではなくupdate()を使う必要がある
+    // （set()にドット入りのキーをそのまま渡すと、"months.2026-08"という文字通りの
+    //   フィールド名で保存されてしまい、months配下のネスト構造にならないため）
+    const monthKey = `months.${sch.yearMonth}`;
+    await ref.update({
       [monthKey]: {id:sch.id, status:sch.status, days:sch.days, submittedBy: sch.submittedBy || null},
       updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
-    }, {merge:true});
+    });
   }catch(err){
     console.error('講師スケジュール保存エラー:', err);
   }
