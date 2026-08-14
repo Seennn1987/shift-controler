@@ -305,19 +305,25 @@ function getDayStatus(dateStr){
   return {type:'open', label:'', weekday};
 }
 
-let classroomSettingsUnsub = null;
+let classroomSettingsTimer = null;
 function startClassroomSettingsListener(){
-  if(classroomSettingsUnsub) classroomSettingsUnsub();
-  const ref = fbDb.collection('classroomSettings').doc(myAdminUid);
-  classroomSettingsUnsub = ref.onSnapshot(snap=>{
-    if(snap.exists){
-      const d = snap.data();
-      regularClosedDays = d.regularClosedDays || ['日'];
-      holidayAutoDetect = !!d.holidayAutoDetect;
-      customClosures = d.customClosures || [];
+  if(classroomSettingsTimer) clearInterval(classroomSettingsTimer);
+  const poll = async ()=>{
+    try{
+      const snap = await fbDb.collection('classroomSettings').doc(myAdminUid).get();
+      if(snap.exists){
+        const d = snap.data();
+        regularClosedDays = d.regularClosedDays || ['日'];
+        holidayAutoDetect = !!d.holidayAutoDetect;
+        customClosures = d.customClosures || [];
+      }
+      renderMyCalendar();
+    }catch(err){
+      console.error('休校日設定の読み込みエラー:', err);
     }
-    renderMyCalendar();
-  }, err=>{ console.error('休校日設定の監視エラー:', err); });
+  };
+  poll();
+  classroomSettingsTimer = setInterval(poll, 10000); // 10秒ごとに再取得（常時監視の代わり）
 }
 
 function pad2(n){ return String(n).padStart(2,'0'); }
@@ -417,18 +423,23 @@ async function bootstrap(user){
   render();
 }
 
-let scheduleUnsub = null; // 講師スケジュールのリアルタイム監視解除用
+let scheduleTimer = null; // 講師スケジュールの定期再取得タイマー
 function startScheduleListener(){
-  if(scheduleUnsub) scheduleUnsub(); // 二重登録を防ぐ
+  if(scheduleTimer) clearInterval(scheduleTimer);
   const ref = fbDb.collection('teacherSchedules').doc(`${myAdminUid}_${myTeacherId}`);
-  scheduleUnsub = ref.onSnapshot(snap=>{
-    scheduleDoc = snap.exists ? snap.data() : {months:{}};
-    if(!scheduleDoc.months) scheduleDoc.months = {};
-    // 教室長側の更新もこの場でリアルタイムに反映する（未送信の下書きは保持したまま）
-    renderKeepingOverrides();
-  }, err=>{
-    console.error('スケジュール監視エラー:', err);
-  });
+  const poll = async ()=>{
+    try{
+      const snap = await ref.get();
+      scheduleDoc = snap.exists ? snap.data() : {months:{}};
+      if(!scheduleDoc.months) scheduleDoc.months = {};
+      // 教室長側の更新もこの場で反映する（未送信の下書きは保持したまま）
+      renderKeepingOverrides();
+    }catch(err){
+      console.error('スケジュール読み込みエラー:', err);
+    }
+  };
+  poll();
+  scheduleTimer = setInterval(poll, 10000);
 }
 
 async function saveMonthEntry(yearMonth, entry){
@@ -489,16 +500,21 @@ function findPendingTicket(day, slot, subject, studentName, oneTimeDate){
   );
 }
 
-let myAssignUnsub = null;
+let myAssignTimer = null;
 function startMyAssignmentsListener(){
-  if(myAssignUnsub) myAssignUnsub();
+  if(myAssignTimer) clearInterval(myAssignTimer);
   const ref = fbDb.collection('teacherAssignments').doc(`${myAdminUid}_${myTeacherId}`);
-  myAssignUnsub = ref.onSnapshot(snap=>{
-    myAssignmentEntries = snap.exists ? (snap.data().entries || []) : [];
-    renderMyCalendar();
-  }, err=>{
-    console.error('担当授業の監視エラー:', err);
-  });
+  const poll = async ()=>{
+    try{
+      const snap = await ref.get();
+      myAssignmentEntries = snap.exists ? (snap.data().entries || []) : [];
+      renderMyCalendar();
+    }catch(err){
+      console.error('担当授業の読み込みエラー:', err);
+    }
+  };
+  poll();
+  myAssignTimer = setInterval(poll, 10000);
 }
 
 async function refreshPendingAndRender(){
