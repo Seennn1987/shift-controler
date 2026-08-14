@@ -6075,6 +6075,27 @@ function showLoginScreen(msg){
 }
 
 async function showAppScreen(user){
+  // 教室長UIには「これは教室長のログインか」を確認する仕組みがこれまで無く、
+  // 講師専用ログイン（メールアドレス＋パスワード）でもそのままログインできてしまっていた。
+  // Firebase Authenticationはログイン情報を教室長・講師で共有しているため、
+  // ここで明示的に「講師として登録済みのアカウントではないか」を確認する。
+  try{
+    const teacherAccSnap = await fbDb.collection('teacherAccounts').doc(user.uid).get();
+    if(teacherAccSnap.exists){
+      document.getElementById('loginLoading').style.display = 'none';
+      document.getElementById('loginMsg').textContent = 'このログイン情報は講師専用のものです。教室長としてログインする場合は、教室長用に発行されたアカウントをお使いください。（講師の方は講師専用ページからログインしてください）';
+      await fbAuth.signOut();
+      return;
+    }
+  }catch(err){
+    console.error('アカウント種別の確認エラー:', err);
+    // 確認自体が失敗した場合は、安全側に倒して教室長UIへの進行を止める
+    document.getElementById('loginLoading').style.display = 'none';
+    document.getElementById('loginMsg').textContent = 'ログイン確認中にエラーが発生しました。時間をおいて再度お試しください。';
+    await fbAuth.signOut();
+    return;
+  }
+
   document.getElementById('loginScreen').style.display = 'none';
   document.getElementById('appHeader').style.display = '';
   document.getElementById('appRoot').style.display = '';
