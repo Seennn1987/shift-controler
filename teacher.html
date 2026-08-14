@@ -451,6 +451,12 @@ function startScheduleListener(){
     try{
       const snap = await ref.get();
       debugLog(`[teacherSchedules] 成功 exists=${snap.exists}`);
+      // 直近5秒以内にローカルで編集していた場合、まだサーバー側へ反映しきれていない古いデータで
+      // 上書きしてしまう可能性があるため、今回の取得結果の適用を1回スキップする
+      if(Date.now() - lastLocalScheduleEditAt < 5000){
+        debugLog(`[teacherSchedules] 直近の編集があるため、今回の取得結果の適用をスキップしました`);
+        return;
+      }
       scheduleDoc = snap.exists ? snap.data() : {months:{}};
       if(!scheduleDoc.months) scheduleDoc.months = {};
       // 教室長側の更新もこの場で反映する（未送信の下書きは保持したまま）
@@ -464,9 +470,11 @@ function startScheduleListener(){
   scheduleTimer = setInterval(poll, 10000);
 }
 
+let lastLocalScheduleEditAt = 0; // ローカルで編集した直後は、ポーリングによる古いデータでの上書きを一定時間避けるための記録
 async function saveMonthEntry(yearMonth, entry){
   scheduleDoc.months = scheduleDoc.months || {};
   scheduleDoc.months[yearMonth] = entry;
+  lastLocalScheduleEditAt = Date.now();
   const ref = fbDb.collection('teacherSchedules').doc(`${myAdminUid}_${myTeacherId}`);
   try{
     const monthKey = `months.${yearMonth}`;
