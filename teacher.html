@@ -175,6 +175,7 @@
 </header>
 
 <div class="app" id="appRoot" style="display:none;">
+  <div id="debugPanel" style="background:#fff3cd;border:2px solid #d9822b;border-radius:8px;padding:14px;margin-bottom:16px;font-family:monospace;font-size:11px;white-space:pre-wrap;word-break:break-all;color:#5a4200;"></div>
   <div class="tabs">
     <button type="button" class="tab-btn active" data-tab="mycal">マイカレンダー</button>
     <button type="button" class="tab-btn" data-tab="shift">シフト提出</button>
@@ -306,11 +307,25 @@ function getDayStatus(dateStr){
 }
 
 let classroomSettingsTimer = null;
+// ---- 診断パネル：実際の呼び出し直前の値・エラーの詳細をそのまま画面に表示する ----
+const debugLines = [];
+function debugLog(line){
+  const time = new Date().toLocaleTimeString('ja-JP');
+  debugLines.push(`[${time}] ${line}`);
+  if(debugLines.length>30) debugLines.shift();
+  const panel = document.getElementById('debugPanel');
+  if(panel) panel.textContent = debugLines.join('\n');
+}
+
 function startClassroomSettingsListener(){
   if(classroomSettingsTimer) clearInterval(classroomSettingsTimer);
   const poll = async ()=>{
+    const path = `classroomSettings/${myAdminUid}`;
+    const uidAtCallTime = fbAuth.currentUser ? fbAuth.currentUser.uid : '(null)';
+    debugLog(`[classroomSettings] 呼び出し開始 path=${path} 呼び出し時のcurrentUser.uid=${uidAtCallTime}`);
     try{
       const snap = await fbDb.collection('classroomSettings').doc(myAdminUid).get();
+      debugLog(`[classroomSettings] 成功 exists=${snap.exists}`);
       if(snap.exists){
         const d = snap.data();
         regularClosedDays = d.regularClosedDays || ['日'];
@@ -319,6 +334,7 @@ function startClassroomSettingsListener(){
       }
       renderMyCalendar();
     }catch(err){
+      debugLog(`[classroomSettings] ★失敗★ code=${err.code} message=${err.message}`);
       console.error('休校日設定の読み込みエラー:', err);
     }
   };
@@ -404,6 +420,7 @@ async function bootstrap(user){
   myAdminUid = d.adminUid;
   myTeacherId = d.teacherId;
   myTeacherName = d.teacherName || '';
+  debugLog(`[teacherAccounts] ★成功★ user.uid=${user.uid} → myAdminUid=${myAdminUid} myTeacherId=${myTeacherId} myTeacherName=${myTeacherName}`);
 
   document.getElementById('loginScreen').style.display = 'none';
   document.getElementById('appHeader').style.display = '';
@@ -426,15 +443,20 @@ async function bootstrap(user){
 let scheduleTimer = null; // 講師スケジュールの定期再取得タイマー
 function startScheduleListener(){
   if(scheduleTimer) clearInterval(scheduleTimer);
-  const ref = fbDb.collection('teacherSchedules').doc(`${myAdminUid}_${myTeacherId}`);
+  const docId = `${myAdminUid}_${myTeacherId}`;
+  const ref = fbDb.collection('teacherSchedules').doc(docId);
   const poll = async ()=>{
+    const uidAtCallTime = fbAuth.currentUser ? fbAuth.currentUser.uid : '(null)';
+    debugLog(`[teacherSchedules] 呼び出し開始 docId=${docId} 呼び出し時のcurrentUser.uid=${uidAtCallTime} myAdminUid=${myAdminUid} myTeacherId=${myTeacherId}`);
     try{
       const snap = await ref.get();
+      debugLog(`[teacherSchedules] 成功 exists=${snap.exists}`);
       scheduleDoc = snap.exists ? snap.data() : {months:{}};
       if(!scheduleDoc.months) scheduleDoc.months = {};
       // 教室長側の更新もこの場で反映する（未送信の下書きは保持したまま）
       renderKeepingOverrides();
     }catch(err){
+      debugLog(`[teacherSchedules] ★失敗★ code=${err.code} message=${err.message}`);
       console.error('スケジュール読み込みエラー:', err);
     }
   };
@@ -503,13 +525,18 @@ function findPendingTicket(day, slot, subject, studentName, oneTimeDate){
 let myAssignTimer = null;
 function startMyAssignmentsListener(){
   if(myAssignTimer) clearInterval(myAssignTimer);
-  const ref = fbDb.collection('teacherAssignments').doc(`${myAdminUid}_${myTeacherId}`);
+  const docId = `${myAdminUid}_${myTeacherId}`;
+  const ref = fbDb.collection('teacherAssignments').doc(docId);
   const poll = async ()=>{
+    const uidAtCallTime = fbAuth.currentUser ? fbAuth.currentUser.uid : '(null)';
+    debugLog(`[teacherAssignments] 呼び出し開始 docId=${docId} 呼び出し時のcurrentUser.uid=${uidAtCallTime}`);
     try{
       const snap = await ref.get();
+      debugLog(`[teacherAssignments] 成功 exists=${snap.exists}`);
       myAssignmentEntries = snap.exists ? (snap.data().entries || []) : [];
       renderMyCalendar();
     }catch(err){
+      debugLog(`[teacherAssignments] ★失敗★ code=${err.code} message=${err.message}`);
       console.error('担当授業の読み込みエラー:', err);
     }
   };
