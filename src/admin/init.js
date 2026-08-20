@@ -2,7 +2,7 @@ import { SUBJECT_MAP, DAYS, SLOTS, WEEKDAY_JP, WEEK_FULL } from '../shared/const
 import { HOLIDAYS_JP } from '../shared/holidays.js';
 import { pad2, daysInYearMonth, toDateStr, getTodayStr } from '../shared/date-utils.js';
 import { firebaseConfig, fbAuth, fbDb, STORAGE_KEY, getSecondaryAuth, S } from './state.js';
-import { renderCalendar, syncMonthChange, refreshCalToolbarSecondary } from './calendar.js';
+import { renderCalendar, syncMonthChange, refreshCalToolbarSecondary, setCalFilterFromSelect } from './calendar.js';
 import { getWeekMonday, renderCalendarWeek, renderFinance, renderLegend, renderMatrix, switchCalMode, switchView, toggleCalMode } from './finance-ui.js';
 import { buildStudentLevelArea, genCourseId, handleStudentSave, jumpToCalendarForDate, refreshCourseSubjectOptions, refreshPrefCourseAndTeacherOptions, renderFormCourses, renderMatching, renderPrefPairList, renderStudentList, renderTeacherAbsencePanel, resetStudentForm } from './matching.js';
 import { initMatchingPanel } from './matching-panel.js';
@@ -390,8 +390,8 @@ async function init(){
     e.target.value = String(v);
     renderFinance();
   });
-  document.getElementById('calStudentFilter').addEventListener('change', (e)=>{
-    S.calFilterStudentId = e.target.value;
+  document.getElementById('calFilter').addEventListener('change', (e)=>{
+    setCalFilterFromSelect(e.target.value);
     document.getElementById('calDetailCard').style.display = 'none';
     S.calSelectedDate = null;
     refreshCalToolbarSecondary();

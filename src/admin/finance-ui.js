@@ -3,7 +3,7 @@ import { HOLIDAYS_JP } from '../shared/holidays.js';
 import { pad2, daysInYearMonth, toDateStr, getTodayStr } from '../shared/date-utils.js';
 import { firebaseConfig, fbAuth, fbDb, STORAGE_KEY, getSecondaryAuth, S } from './state.js';
 import { computeDayFinance, computeTeacherOpenings, costRatioColor, getEffectiveDayAssignments, getStudentDateRows } from './absences.js';
-import { calLinesToEntriesHtml, computeSyncedWeekAnchor, getDayStatus, getUnassignedRowsForDate, refreshCalToolbarSecondary, renderCalendar, studentRowToCalLine, updateCalPeriodLabel } from './calendar.js';
+import { calLinesToEntriesHtml, computeSyncedWeekAnchor, getDayStatus, getUnassignedRowsForDate, refreshCalToolbarSecondary, renderCalendar, resolveFilterTeacher, studentRowToCalLine, updateCalPeriodLabel } from './calendar.js';
 import { renderMatching } from './matching.js';
 import { abbr, gradeLabel, subjectColor, teacherHonorific } from './schedule-core.js';
 import { scheduleSave } from './students-persistence.js';
@@ -155,6 +155,7 @@ function renderCalendarWeekGrid(axis){
   refreshCalToolbarSecondary();
 
   const filterStudent = S.calFilterStudentId ? S.students.find(s=>s.id===S.calFilterStudentId) : null;
+  const filterTeacher = resolveFilterTeacher();
 
   const table = document.createElement('table');
   table.className = 'sched';
@@ -180,6 +181,11 @@ function renderCalendarWeekGrid(axis){
       }
       if(filterStudent){
         const cellInner = buildWeekStudentFilterCell(filterStudent, ds, slot);
+        tbody += `<td class="sched-cell week-date-cell" data-date="${ds}">${cellInner}</td>`;
+        return;
+      }
+      if(filterTeacher){
+        const cellInner = buildWeekTeacherFilterCell(filterTeacher, ds, slot);
         tbody += `<td class="sched-cell week-date-cell" data-date="${ds}">${cellInner}</td>`;
         return;
       }
@@ -329,6 +335,31 @@ function buildWeekStudentFilterCell(student, dateStr, slot){
   }
   const lines = rows.map(r=> studentRowToCalLine(r, student));
   return calLinesToEntriesHtml(lines);
+}
+
+function buildWeekTeacherFilterCell(teacher, dateStr, slot){
+  const list = getEffectiveDayAssignments(dateStr).filter(a=>a.teacherId===teacher.id && a.slot===slot.id);
+  if(list.length===0){
+    return '<div class="sched-empty">—</div>';
+  }
+  let studentsHtml = '';
+  list.forEach(a=>{
+    const student = S.students.find(s=>s.id===a.studentId);
+    const studentName = student ? student.name : '(削除された生徒)';
+    const gLabel = student ? gradeLabel(student) : '';
+    const level = student ? student.level : '';
+    const c = level ? subjectColor(level, a.subject) : {bg:'#eee', text:'#333'};
+    const autoBadge = a.source==='auto' ? '<span class="auto-badge">自動</span>' : '';
+    const makeupBadge = a.kind==='makeup' ? '<span class="auto-badge" style="background:#fff;color:var(--ink);border:1px dashed var(--ink);">振替</span>' : '';
+    studentsHtml += `<div class="sched-student-row">
+      <span class="sched-student-tag" style="background:${c.bg};color:${c.text};">${a.subject}</span>
+      <span>${studentName}<span class="grade-tag">${gLabel}</span></span>${autoBadge}${makeupBadge}
+    </div>`;
+  });
+  return `<div class="sched-teacher-box">
+    <div class="sched-teacher-name">${teacherHonorific(teacher)}<span class="sched-cap">（${list.length}/${S.teacherCapacity}）</span></div>
+    ${studentsHtml}
+  </div>`;
 }
 
 // 学年×教科の人数サマリーグリッド（講師基本スケジュール・週間空き状況で共用）

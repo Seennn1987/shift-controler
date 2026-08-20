@@ -2,7 +2,7 @@ import { SLOTS, WEEKDAY_JP } from '../shared/constants.js';
 import { daysInYearMonth, getTodayStr, pad2 } from '../shared/date-utils.js';
 import { S } from './state.js';
 import { getStudentDateRows } from './absences.js';
-import { getDayStatus, refreshCalStudentFilterOptions, renderCalendar } from './calendar.js';
+import { getDayStatus, refreshCalFilterOptions, renderCalendar, clearCalFilter, setCalFilterStudent } from './calendar.js';
 import { bulkAutoAssign, bulkCancelAuto, renderMatching, renderShortageDashboard } from './matching.js';
 import { switchCalMode, switchView, renderCalendarWeek } from './finance-ui.js';
 import { getDateSlotState, gradeLabel, isAvailable, subjectColor, teacherHonorific } from './schedule-core.js';
@@ -116,11 +116,9 @@ function showMatchingStudentView(studentId){
   S.matchingPanelStudentId = studentId;
   S.matchingPanelSlot = null;
   S.calendarDrawerView = 'matching-student';
-  S.calFilterStudentId = studentId;
+  setCalFilterStudent(studentId);
   S.matchingPanelOpen = true;
-  refreshCalStudentFilterOptions();
-  const sel = document.getElementById('calStudentFilter');
-  if(sel) sel.value = studentId;
+  refreshCalFilterOptions();
   applyPanelLayout();
   hideCalDetailCard();
   renderMatchingDesiredBar();
@@ -284,11 +282,9 @@ function bindBackToMenu(root){
     matchingPanelFlashMsg = null;
     matchingPanelFutureOffer = null;
     matchingPanelRenderedPeriodKey = '';
-    S.calFilterStudentId = '';
+    clearCalFilter();
     S.calSelectedDate = null;
-    refreshCalStudentFilterOptions();
-    const sel = document.getElementById('calStudentFilter');
-    if(sel) sel.value = '';
+    refreshCalFilterOptions();
     showMatchingMenuView();
     renderCalendar();
     hideCalDetailCard();
@@ -647,9 +643,9 @@ function selectPanelStudent(studentId){
   S.matchingPanelStudentId = studentId;
   S.matchingPanelSlot = null;
   S.calendarDrawerView = 'matching-student';
-  S.calFilterStudentId = studentId;
+  setCalFilterStudent(studentId);
   switchCalMode('month');
-  refreshCalStudentFilterOptions();
+  refreshCalFilterOptions();
 
   const firstPending = findFirstPendingDate(studentId);
   if(firstPending){
@@ -726,10 +722,8 @@ function onShowDay(e){
   const dateStr = e.detail?.dateStr;
   const studentId = e.detail?.studentId;
   if(studentId){
-    S.calFilterStudentId = studentId;
-    refreshCalStudentFilterOptions();
-    const sel = document.getElementById('calStudentFilter');
-    if(sel) sel.value = studentId;
+    setCalFilterStudent(studentId);
+    refreshCalFilterOptions();
   }
   showDayDetail(dateStr);
 }

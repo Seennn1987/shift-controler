@@ -159,6 +159,40 @@ function buildDayHeat(dateStr){
   });
 }
 
+function getCalFilterValue(){
+  if(S.calFilterStudentId) return `s:${S.calFilterStudentId}`;
+  if(S.calFilterTeacherId) return `t:${S.calFilterTeacherId}`;
+  return '';
+}
+
+function setCalFilterFromSelect(value){
+  S.calFilterStudentId = '';
+  S.calFilterTeacherId = '';
+  if(value.startsWith('s:')) S.calFilterStudentId = value.slice(2);
+  else if(value.startsWith('t:')) S.calFilterTeacherId = value.slice(2);
+}
+
+function setCalFilterStudent(studentId){
+  S.calFilterStudentId = studentId || '';
+  S.calFilterTeacherId = '';
+  syncCalFilterSelect();
+}
+
+function clearCalFilter(){
+  S.calFilterStudentId = '';
+  S.calFilterTeacherId = '';
+  syncCalFilterSelect();
+}
+
+function syncCalFilterSelect(){
+  const sel = document.getElementById('calFilter');
+  if(sel) sel.value = getCalFilterValue();
+}
+
+function hasCalFocusFilter(){
+  return !!(S.calFilterStudentId || S.calFilterTeacherId);
+}
+
 function resolveFilterStudent(){
   if(S.calFilterStudentId){
     return S.students.find(s=> s.id === S.calFilterStudentId) || null;
@@ -167,6 +201,31 @@ function resolveFilterStudent(){
     return S.students.find(s=> s.id === S.matchingPanelStudentId) || null;
   }
   return null;
+}
+
+function resolveFilterTeacher(){
+  if(S.calFilterTeacherId){
+    return S.teachers.find(t=> t.id === S.calFilterTeacherId) || null;
+  }
+  return null;
+}
+
+function buildDayCellLinesForTeacher(dateStr, teacher){
+  return getEffectiveDayAssignments(dateStr)
+    .filter(a=> a.teacherId === teacher.id)
+    .map(a=>{
+      const student = S.students.find(s=> s.id === a.studentId);
+      const subAbbr = SUBJECT_ABBR[a.subject] || a.subject.slice(0,1);
+      const sc = student ? subjectColor(student.level, a.subject) : {bg:'#eee', text:'#333'};
+      const suffix = a.kind==='makeup' ? '(振替)' : '';
+      const studentLabel = student ? shortName(student.name) : '?';
+      return {
+        text: `${subAbbr}:${studentLabel}${suffix}`,
+        cls: a.kind==='makeup' ? 'makeup' : 'confirmed',
+        bg: sc.bg,
+        color: sc.text,
+      };
+    });
 }
 
 function renderCalendar(){
@@ -186,6 +245,7 @@ function renderCalendar(){
   }
 
   const filterStudent = resolveFilterStudent();
+  const filterTeacher = resolveFilterTeacher();
   const MAX_LINES = 3;
 
   const firstDay = new Date(S.calYear, S.calMonth, 1);
@@ -223,6 +283,18 @@ function renderCalendar(){
           entriesHtml += `<div class="cal-entry-more">他${lines.length-MAX_LINES}件</div>`;
         }
         inner += `<div class="cal-entries">${entriesHtml}</div>`;
+      }else if(filterTeacher){
+        const lines = buildDayCellLinesForTeacher(dateStr, filterTeacher);
+        if(lines.length===0) classes.push('no-activity');
+
+        let entriesHtml = '';
+        lines.slice(0, MAX_LINES).forEach(l=>{
+          entriesHtml += calLineToHtml(l);
+        });
+        if(lines.length>MAX_LINES){
+          entriesHtml += `<div class="cal-entry-more">他${lines.length-MAX_LINES}件</div>`;
+        }
+        inner += entriesHtml ? `<div class="cal-entries">${entriesHtml}</div>` : `<div class="cal-heat-empty">−</div>`;
       }else{
         // 教室全体表示時：個別列挙ではなく、コマ別の混雑度を「4講:3コマ」のように文字＋色で縦に並べて示す
         const heat = buildDayHeat(dateStr);
@@ -263,9 +335,7 @@ function renderCalendar(){
     cell.addEventListener('click', ()=>{
       S.calSelectedDate = cell.dataset.date;
       if(S.matchingPanelOpen && S.matchingPanelStudentId && S.calFilterStudentId !== S.matchingPanelStudentId){
-        S.calFilterStudentId = S.matchingPanelStudentId;
-        const filterSel = document.getElementById('calStudentFilter');
-        if(filterSel) filterSel.value = S.matchingPanelStudentId;
+        setCalFilterStudent(S.matchingPanelStudentId);
       }
       renderCalendar();
       document.dispatchEvent(new CustomEvent('calendar:show-day', { detail: { dateStr: cell.dataset.date } }));
@@ -277,21 +347,38 @@ function renderCalendar(){
   refreshCalToolbarSecondary();
 }
 
-function refreshCalStudentFilterOptions(){
-  const sel = document.getElementById('calStudentFilter');
+function refreshCalFilterOptions(){
+  const sel = document.getElementById('calFilter');
   if(!sel) return;
-  const cur = sel.value || S.calFilterStudentId ||
-    (S.matchingPanelOpen && S.matchingPanelStudentId ? S.matchingPanelStudentId : '');
-  sel.innerHTML = '<option value="">すべて（教室全体）</option>' +
-    S.students.map(s=>`<option value="${s.id}">${s.name}（${gradeLabel(s)}）</option>`).join('');
-  if(S.students.some(s=>s.id===cur)){
+  let cur = getCalFilterValue();
+  if(!cur && S.matchingPanelOpen && S.matchingPanelStudentId){
+    cur = `s:${S.matchingPanelStudentId}`;
+  }
+  let html = '<option value="">すべて（教室全体）</option>';
+  if(S.students.length){
+    html += '<optgroup label="生徒">';
+    html += S.students.map(s=>`<option value="s:${s.id}">${s.name}（${gradeLabel(s)}）</option>`).join('');
+    html += '</optgroup>';
+  }
+  if(S.teachers.length){
+    html += '<optgroup label="講師">';
+    html += S.teachers.map(t=>`<option value="t:${t.id}">${t.name}</option>`).join('');
+    html += '</optgroup>';
+  }
+  sel.innerHTML = html;
+  const hasOption = cur && [...sel.options].some(o=> o.value === cur);
+  if(hasOption){
     sel.value = cur;
-    S.calFilterStudentId = cur;
+    setCalFilterFromSelect(cur);
   }else{
     sel.value = '';
     S.calFilterStudentId = '';
+    S.calFilterTeacherId = '';
   }
 }
+
+// 後方互換
+const refreshCalStudentFilterOptions = refreshCalFilterOptions;
 
 
 // 月移動時に、カレンダー・マッチング系すべてに対象月の変更を反映する
@@ -344,7 +431,7 @@ function updateCalPeriodLabel(){
 
 function refreshCalToolbarSecondary(){
   const axisBar = document.getElementById('calWeekAxisBar');
-  const showAxis = S.calMode==='week' && !S.calFilterStudentId;
+  const showAxis = S.calMode==='week' && !hasCalFocusFilter();
   if(axisBar) axisBar.style.display = showAxis ? 'flex' : 'none';
   const toggleWrap = document.getElementById('calOpeningsSubjectToggleWrap');
   const toggle = document.getElementById('calOpeningsShowSubjectsToggle');
@@ -355,4 +442,4 @@ function refreshCalToolbarSecondary(){
 
 // =====================================================================
 
-export { findCustomClosure, getDayStatus, shortName, studentRowToCalLine, calLineToHtml, calLinesToEntriesHtml, buildDayCellLines, buildDayHeat, getUnassignedRowsForDate, renderCalendar, refreshCalStudentFilterOptions, resolveFilterStudent, computeSyncedWeekAnchor, syncMonthChange, updateCalPeriodLabel, refreshCalToolbarSecondary };
+export { findCustomClosure, getDayStatus, shortName, studentRowToCalLine, calLineToHtml, calLinesToEntriesHtml, buildDayCellLines, buildDayCellLinesForTeacher, buildDayHeat, getUnassignedRowsForDate, renderCalendar, refreshCalFilterOptions, refreshCalStudentFilterOptions, resolveFilterStudent, resolveFilterTeacher, getCalFilterValue, setCalFilterFromSelect, setCalFilterStudent, clearCalFilter, hasCalFocusFilter, syncCalFilterSelect, computeSyncedWeekAnchor, syncMonthChange, updateCalPeriodLabel, refreshCalToolbarSecondary };

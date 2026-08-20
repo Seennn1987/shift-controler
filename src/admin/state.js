@@ -44,6 +44,7 @@ export const S = {
   calMonth: undefined,
   calSelectedDate: null,
   calFilterStudentId: '',
+  calFilterTeacherId: '',
   tsSelectedTeacherId: null,
   formCourses: [],
   finYear: undefined,

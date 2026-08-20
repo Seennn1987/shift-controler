@@ -3,7 +3,7 @@ import { HOLIDAYS_JP } from '../shared/holidays.js';
 import { pad2, daysInYearMonth, toDateStr, getTodayStr } from '../shared/date-utils.js';
 import { firebaseConfig, fbAuth, fbDb, STORAGE_KEY, getSecondaryAuth, S } from './state.js';
 import { cancelSubstitute, cancelTeacherAbsence, confirmSubstitute, findSubstituteCandidatesForStudent, findTeacherAbsence, getTeacherLessonsOnDate, recordTeacherAbsence, resolveSlotViaStudentAbsence } from './absences.js';
-import { refreshCalStudentFilterOptions, renderCalendar } from './calendar.js';
+import { refreshCalFilterOptions, renderCalendar, setCalFilterStudent } from './calendar.js';
 import { renderCalendarWeek, switchCalMode, switchView } from './finance-ui.js';
 import { gradeLabel, isAvailable, subjectColor, teacherHonorific } from './schedule-core.js';
 import { applyClosedDayStyling } from './settings.js';
@@ -484,7 +484,7 @@ function renderMatching(){
   renderPrefPairList();
   refreshPrefStudentOptions();
   refreshPrefCourseAndTeacherOptions();
-  refreshCalStudentFilterOptions();
+  refreshCalFilterOptions();
   if(document.getElementById('view-calendar') && document.getElementById('view-calendar').classList.contains('active')){
     if(S.calMode==='week') renderCalendarWeek();
     else renderCalendar();
@@ -656,14 +656,12 @@ function jumpToCalendarForStudent(studentId, courseId){
   const d = new Date(dateStr+'T00:00:00');
   S.calYear = d.getFullYear();
   S.calMonth = d.getMonth();
-  S.calFilterStudentId = studentId;
+  setCalFilterStudent(studentId);
   S.calSelectedDate = dateStr;
 
   switchView('calendar');
   switchCalMode('month');
-  refreshCalStudentFilterOptions();
-  const sel = document.getElementById('calStudentFilter');
-  if(sel) sel.value = studentId;
+  refreshCalFilterOptions();
   renderCalendar();
   document.dispatchEvent(new CustomEvent('calendar:show-day', { detail: { dateStr, studentId } }));
 }
@@ -676,14 +674,12 @@ function jumpToCalendarForDate(studentId, dateStr){
   const d = new Date(dateStr+'T00:00:00');
   S.calYear = d.getFullYear();
   S.calMonth = d.getMonth();
-  S.calFilterStudentId = studentId;
+  setCalFilterStudent(studentId);
   S.calSelectedDate = dateStr;
 
   switchView('calendar');
   switchCalMode('month');
-  refreshCalStudentFilterOptions();
-  const sel = document.getElementById('calStudentFilter');
-  if(sel) sel.value = studentId;
+  refreshCalFilterOptions();
   renderCalendar();
   document.dispatchEvent(new CustomEvent('calendar:show-day', { detail: { dateStr, studentId } }));
   window.scrollTo({top:0, behavior:'smooth'});

@@ -10,7 +10,7 @@ import {
   markNoMakeup,
   recordAbsence,
 } from './absences.js';
-import { getDayStatus, getUnassignedRowsForDate, resolveFilterStudent } from './calendar.js';
+import { getDayStatus, getUnassignedRowsForDate, resolveFilterStudent, resolveFilterTeacher } from './calendar.js';
 import { jumpToCalendarForDate, renderMatching } from './matching.js';
 import { gradeLabel, isAvailable, subjectColor, teacherHonorific } from './schedule-core.js';
 import {
@@ -89,6 +89,7 @@ export function renderDayDetailPanel(container, dateStr){
   const d = new Date(dateStr + 'T00:00:00');
   const label = `${d.getMonth() + 1}月${d.getDate()}日（${weekday}）`;
   const filterStudent = resolveFilterStudent();
+  const filterTeacher = resolveFilterTeacher();
   const detailYearMonth = dateStr.slice(0, 7);
 
   if(filterStudent){
@@ -251,6 +252,39 @@ export function renderDayDetailPanel(container, dateStr){
       }
     });
 
+    container.innerHTML = html;
+    return;
+  }
+
+  if(filterTeacher){
+    const list = getEffectiveDayAssignments(dateStr).filter(a=> a.teacherId === filterTeacher.id);
+    if(list.length === 0){
+      container.innerHTML = `<div class="cal-empty-day">${teacherHonorific(filterTeacher)}は、この日に担当授業がありません。</div>`;
+      return;
+    }
+
+    let html = `<div class="cal-day-note">${teacherHonorific(filterTeacher)}の担当授業を表示しています。</div>`;
+    SLOTS.forEach(slot=>{
+      const slotList = list.filter(a=> a.slot === slot.id);
+      if(slotList.length === 0) return;
+      const used = countTeacherSlot(filterTeacher.id, weekday, slot.id, null, detailYearMonth);
+      html += `<div class="match-slot"><div class="ms-slot-label">${slot.label}（${slot.time}）<span style="font-weight:400;color:var(--ink-soft);"> ／ 定員 ${used}/${S.teacherCapacity}</span></div>`;
+      slotList.forEach(a=>{
+        const student = S.students.find(s=> s.id === a.studentId);
+        const studentName = student ? student.name : '(削除された生徒)';
+        const gLabel = student ? gradeLabel(student) : '';
+        const level = student ? student.level : '';
+        const c = level ? subjectColor(level, a.subject) : {bg:'#eee', text:'#333'};
+        const autoBadge = a.source === 'auto' ? '<span class="auto-badge">自動</span>' : '';
+        const makeupBadge = a.kind === 'makeup' ? '<span class="auto-badge" style="background:#fff;color:var(--ink);border:1px dashed var(--ink);">振替</span>' : '';
+        html += `<div class="confirmed-box">
+          <span class="cb-label">確定${autoBadge}${makeupBadge}</span>
+          <span class="sched-student-tag" style="background:${c.bg};color:${c.text};">${a.subject}</span>
+          <span class="cb-teacher">${studentName}<span class="grade-tag">${gLabel}</span></span>
+        </div>`;
+      });
+      html += '</div>';
+    });
     container.innerHTML = html;
     return;
   }
