@@ -277,12 +277,17 @@
   /* teacher list */
   .teacher-list{display:flex;flex-direction:column;gap:10px;}
   .teacher-row{
-    display:flex;flex-direction:column;gap:8px;
+    display:flex;flex-direction:column;gap:10px;
     border:1px solid var(--border);border-radius:10px;padding:12px 16px;background:var(--surface-card);
   }
-  .teacher-row .trow-top{display:flex;align-items:center;justify-content:space-between;gap:14px;flex-wrap:wrap;}
-  .trow-pay{font-size:11.5px;color:var(--ink);font-weight:700;margin-top:8px;}
-  .teacher-row .name{font-weight:700;font-size:14.5px;min-width:90px;}
+  .teacher-row .trow-top{
+    display:flex;align-items:flex-start;justify-content:space-between;gap:12px;flex-wrap:wrap;
+  }
+  .trow-head-main{display:flex;align-items:baseline;gap:12px;flex-wrap:wrap;flex:1;min-width:0;}
+  .trow-work-start{font-size:11px;color:var(--ink-soft);font-weight:600;line-height:1.4;}
+  .trow-work-start-empty{color:var(--ink-muted, #9aa3ad);font-weight:500;}
+  .trow-pay-inline{font-size:11px;color:var(--ink-soft);font-weight:600;line-height:1.4;}
+  .teacher-row .name{font-weight:700;font-size:14.5px;flex-shrink:0;}
   .student-level-badge{
     display:inline-block;font-size:10px;font-weight:700;color:var(--green-800);background:var(--green-100);
     padding:2px 7px;border-radius:5px;margin-left:6px;vertical-align:middle;
@@ -290,25 +295,67 @@
   .mini-tag{font-size:11px;background:var(--green-100);color:var(--green-800);padding:3px 8px;border-radius:6px;font-weight:600;}
   .row-actions{display:flex;gap:6px;flex-shrink:0;}
 
-  /* 教科タグの学年別3段表示 */
-  .subject-level-block{margin-top:8px;display:flex;flex-direction:column;gap:5px;}
-  .subject-level-row{display:flex;align-items:center;gap:6px;flex-wrap:wrap;}
-  .subject-level-label{font-size:11px;font-weight:700;color:var(--ink-soft);min-width:32px;flex-shrink:0;}
+  /* 講師カード：教科・シフト・備考の3列 */
+  .trow-three-col{
+    display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;align-items:stretch;
+  }
+  .trow-col{
+    --trow-col-body-h:168px;
+    display:flex;flex-direction:column;min-width:0;
+  }
+  .trow-col-title{
+    flex-shrink:0;margin:0 0 6px;font-size:11px;font-weight:700;color:var(--ink);line-height:1.3;
+  }
+  .trow-col-body{
+    height:var(--trow-col-body-h);min-height:var(--trow-col-body-h);max-height:var(--trow-col-body-h);
+    box-sizing:border-box;overflow:hidden;
+  }
+  .trow-col-body-table{
+    display:flex;align-items:stretch;background:transparent;border:none;padding:0;
+  }
+  .trow-col-body-table > table{width:100%;height:100%;flex:1;}
+  .trow-col-body-table > .empty-note,
+  .trow-col-body-table > .subject-matrix-empty{
+    flex:1;width:100%;display:flex;align-items:center;justify-content:center;
+    font-size:12px;text-align:center;color:var(--ink-soft);
+  }
+  .trow-col-body-notes{
+    border:1px solid var(--border);border-radius:0;background:#fff;
+  }
+  .trow-col-body-notes .trow-notes{
+    height:100%;overflow-y:auto;
+    font-size:11.5px;color:var(--ink-soft);padding:8px 10px;line-height:1.55;word-break:break-word;
+  }
+  .trow-col-body-notes .trow-notes-empty{
+    display:flex;align-items:center;justify-content:center;height:100%;color:var(--ink-soft);
+  }
 
-  /* 備考欄（半幅）＋基本対応可能コマのミニ表の左右分割 */
-  .trow-split{display:flex;gap:16px;margin-top:8px;flex-wrap:wrap;align-items:flex-start;}
-  .trow-notes-col{flex:1 1 45%;min-width:220px;}
-  .trow-grid-col{flex:1 1 45%;min-width:220px;}
-  .trow-notes{font-size:11.5px;color:var(--ink-soft);background:var(--green-100);border-radius:6px;padding:8px 10px;line-height:1.6;white-space:pre-wrap;word-break:break-word;}
-  .ba-mini-title{font-size:10.5px;font-weight:700;color:var(--ink-soft);margin-bottom:4px;}
-  table.ba-mini-grid{border-collapse:collapse;width:100%;table-layout:fixed;}
-  table.ba-mini-grid th, table.ba-mini-grid td{border:1px solid var(--border);text-align:center;font-size:13px;padding:4px 2px;}
-  table.ba-mini-grid thead th:first-child, table.ba-mini-grid tbody th{width:40px;}
-  table.ba-mini-grid thead th{background:var(--green-100);color:var(--ink-soft);font-weight:700;font-size:10px;}
-  table.ba-mini-grid tbody th{background:var(--surface-card);font-weight:700;color:var(--ink-soft);font-size:10.5px;}
-  table.ba-mini-grid td.ba-preferred{color:var(--ink);font-weight:900;font-size:16px;}
-  table.ba-mini-grid td.ba-normal{color:var(--ink-soft);font-weight:700;font-size:15px;}
-  table.ba-mini-grid td.ba-none{color:#ddd;}
+  table.subject-matrix{border-collapse:collapse;table-layout:fixed;width:100%;}
+  table.subject-matrix th, table.subject-matrix td{
+    border:1px solid var(--border);text-align:center;padding:3px 2px;line-height:1.2;
+  }
+  table.subject-matrix thead th{
+    background:var(--green-100);color:var(--ink-soft);font-weight:700;font-size:10px;
+  }
+  table.subject-matrix tbody th.subject-matrix-level{
+    background:var(--surface-card);color:var(--ink-soft);font-weight:700;font-size:10.5px;width:28px;
+  }
+  table.subject-matrix td.sub-empty{color:#ccc;font-size:11px;}
+  table.subject-matrix td.sub-on{font-weight:900;font-size:13px;}
+
+  table.ba-mini-grid{border-collapse:collapse;table-layout:fixed;}
+  table.ba-mini-grid th, table.ba-mini-grid td{border:1px solid var(--border);text-align:center;font-size:12px;padding:3px 1px;}
+  table.ba-mini-grid thead th:first-child, table.ba-mini-grid tbody th{width:36px;}
+  table.ba-mini-grid thead th{background:var(--green-100);color:var(--ink-soft);font-weight:700;font-size:9.5px;}
+  table.ba-mini-grid tbody th{background:var(--surface-card);font-weight:700;color:var(--ink-soft);font-size:10px;}
+  table.ba-mini-grid td.ba-preferred{color:var(--ink);font-weight:900;font-size:14px;}
+  table.ba-mini-grid td.ba-normal{color:var(--ink-soft);font-weight:700;font-size:13px;}
+  table.ba-mini-grid td.ba-none{color:#ddd;font-size:12px;}
+
+  @media (max-width:760px){
+    .trow-three-col{grid-template-columns:1fr;}
+    .trow-col{--trow-col-body-h:148px;}
+  }
 
   .row-actions button{
     border:none;background:transparent;font-family:inherit;font-size:12.5px;cursor:pointer;
@@ -319,8 +366,6 @@
   .row-actions .del-btn{color:var(--danger);}
   .row-actions .del-btn:hover{background:var(--danger-bg);}
   .empty-note{color:var(--ink-soft);font-size:13px;padding:20px 4px;text-align:center;}
-
-  .trow-grid-col{flex:1;min-width:0;}
 
   /* matrix view */
   .filter-bar{display:flex;gap:14px;align-items:center;flex-wrap:wrap;margin-bottom:18px;}
@@ -369,11 +414,20 @@
   .cell-empty{color:var(--ink-soft);font-size:11.5px;padding:6px 2px;}
   .cell-summary{padding-bottom:6px;margin-bottom:8px;border-bottom:1px dashed var(--border);}
   .cell-total{font-size:11px;font-weight:700;color:var(--green-800);margin-bottom:5px;}
-  .cell-summary-row{display:flex;align-items:center;flex-wrap:wrap;gap:4px;margin-bottom:3px;}
-  .cell-summary-level{font-size:9.5px;font-weight:700;color:var(--ink-soft);min-width:24px;flex-shrink:0;}
+  .cell-summary-grid{
+    display:grid;
+    grid-template-columns:28px repeat(var(--sum-cols, 5), minmax(28px, 1fr));
+    gap:3px 4px;
+    align-items:stretch;
+  }
+  .cell-summary-level{
+    font-size:9.5px;font-weight:700;color:var(--ink-soft);
+    display:flex;align-items:center;justify-content:flex-start;
+  }
   .sum-tag{
-    font-size:10.5px;font-weight:700;
-    padding:2px 7px;border-radius:5px;border:1px solid transparent;
+    font-size:10.5px;font-weight:700;font-variant-numeric:tabular-nums;
+    padding:2px 2px;border-radius:5px;border:1px solid transparent;
+    display:block;width:100%;text-align:center;box-sizing:border-box;
   }
   .sum-tag-empty{background:transparent;border-style:dashed;}
 

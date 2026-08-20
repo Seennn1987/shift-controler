@@ -1,4 +1,4 @@
-import { SUBJECT_MAP, DAYS, SLOTS, WEEKDAY_JP, WEEK_FULL } from '../shared/constants.js';
+import { SUBJECT_MAP, DAYS, SLOTS, WEEKDAY_JP, WEEK_FULL, LEVELS_ORDER, LEVEL_ABBR, SUBJECT_ABBR } from '../shared/constants.js';
 import { HOLIDAYS_JP } from '../shared/holidays.js';
 import { pad2, daysInYearMonth, toDateStr, getTodayStr } from '../shared/date-utils.js';
 import { firebaseConfig, fbAuth, fbDb, STORAGE_KEY, getSecondaryAuth, S } from './state.js';
@@ -91,9 +91,15 @@ function buildSubjectFilterOptions(){
 }
 
 // ---------- form read/write ----------
+function defaultWorkStartYearMonth(){
+  const now = new Date();
+  return `${now.getFullYear()}-${pad2(now.getMonth()+1)}`;
+}
+
 function resetForm(){
   S.editingId = null;
   document.getElementById('nameInput').value = '';
+  document.getElementById('workStartYearMonthInput').value = defaultWorkStartYearMonth();
   document.getElementById('perLessonRateInput').value = '1500';
   document.getElementById('dailyTransportInput').value = '500';
   document.getElementById('teacherNotesInput').value = '';
@@ -126,6 +132,7 @@ function resetForm(){
 function fillFormForEdit(t){
   S.editingId = t.id;
   document.getElementById('nameInput').value = t.name;
+  document.getElementById('workStartYearMonthInput').value = t.workStartYearMonth || '';
   document.getElementById('perLessonRateInput').value = String(t.perLessonRate!=null ? t.perLessonRate : 1500);
   document.getElementById('dailyTransportInput').value = String(t.dailyTransport!=null ? t.dailyTransport : 500);
   document.getElementById('teacherNotesInput').value = t.notes || '';
@@ -179,6 +186,8 @@ async function handleSave(){
   const msg = document.getElementById('formMsg');
   const name = document.getElementById('nameInput').value.trim();
   if(!name){ msg.textContent = '講師名を入力してください。'; return; }
+  const workStartYearMonth = document.getElementById('workStartYearMonthInput').value;
+  if(!workStartYearMonth){ msg.textContent = '勤務開始年月を選んでください。'; return; }
 
   const subjects = [];
   document.querySelectorAll('#subjectArea input[type=checkbox]:checked').forEach(cb=>{
@@ -215,9 +224,9 @@ async function handleSave(){
   msg.textContent = '保存中…';
   if(S.editingId){
     const idx = S.teachers.findIndex(t=>t.id===S.editingId);
-    if(idx>-1) S.teachers[idx] = {id:S.editingId, name, subjects, perLessonRate, dailyTransport, notes, baseAvailability, earlyLessonException, raiseSchedule};
+    if(idx>-1) S.teachers[idx] = {...S.teachers[idx], id:S.editingId, name, workStartYearMonth, subjects, perLessonRate, dailyTransport, notes, baseAvailability, earlyLessonException, raiseSchedule};
   }else{
-    S.teachers.push({id:'t-'+Date.now()+'-'+Math.random().toString(36).slice(2,7), name, subjects, perLessonRate, dailyTransport, notes, baseAvailability, earlyLessonException, raiseSchedule});
+    S.teachers.push({id:'t-'+Date.now()+'-'+Math.random().toString(36).slice(2,7), name, workStartYearMonth, subjects, perLessonRate, dailyTransport, notes, baseAvailability, earlyLessonException, raiseSchedule});
   }
   const ok = await saveTeachers();
   if(ok){
@@ -229,25 +238,39 @@ async function handleSave(){
 }
 
 // ---------- teacher list ----------
-// 教科タグを学年（小学・中学・高校）ごとに3段で表示する
-function subjectTagsByLevel(t){
-  const rows = ['小学','中学','高校'].map(level=>{
-    const list = t.subjects.filter(s=>s.level===level);
-    if(list.length===0) return '';
-    const tags = list.map(s=>{
-      const c = subjectColor(s.level, s.subject);
-      const star = s.preferred ? '★' : '';
-      return `<span class="mini-tag" style="background:${c.bg};color:${c.text};border:1px solid ${c.border};">${star}${s.subject}</span>`;
-    }).join('');
-    return `<div class="subject-level-row"><span class="subject-level-label">${level}</span>${tags}</div>`;
-  }).filter(Boolean);
-  return rows.join('') || '<div class="empty-note" style="padding:4px 0;">対応可能教科が未登録です</div>';
+// 講師一覧：教科を学年×教科の表形式で表示（小学・中学・高校の3行）
+function buildSubjectMatrix(t){
+  const hasAny = t.subjects && t.subjects.length > 0;
+  if(!hasAny){
+    return '<div class="empty-note subject-matrix-empty">対応可能教科が未登録です</div>';
+  }
+  let html = '<table class="subject-matrix"><thead><tr><th></th>';
+  SUBJECT_MAP['小学'].forEach(subject=>{
+    html += `<th>${SUBJECT_ABBR[subject] || subject.charAt(0)}</th>`;
+  });
+  html += '</tr></thead><tbody>';
+  LEVELS_ORDER.forEach(level=>{
+    html += `<tr><th class="subject-matrix-level">${LEVEL_ABBR[level] || level}</th>`;
+    SUBJECT_MAP[level].forEach(subject=>{
+      const entry = t.subjects.find(s=> s.level === level && s.subject === subject);
+      if(!entry){
+        html += '<td class="sub-empty">—</td>';
+      }else{
+        const c = subjectColor(level, subject);
+        const mark = entry.preferred ? '★' : '○';
+        html += `<td class="sub-on" style="background:${c.bg};color:${c.text};" title="${level} ${subject}">${mark}</td>`;
+      }
+    });
+    html += '</tr>';
+  });
+  html += '</tbody></table>';
+  return html;
 }
 
 // 講師一覧に表示する「基本の対応可能曜日・コマ」のミニ表（縦軸=コマ、横軸=曜日）
 function buildBaseAvailMiniGrid(t){
   const list = t.baseAvailability || [];
-  if(list.length===0) return '<div class="empty-note" style="padding:4px 0;">基本の対応可能曜日・コマが未登録です</div>';
+  if(list.length===0) return '<div class="empty-note">未登録です</div>';
   let html = '<table class="ba-mini-grid"><thead><tr><th></th>' + DAYS.map(d=>`<th>${d}</th>`).join('') + '</tr></thead><tbody>';
   SLOTS.forEach(slot=>{
     html += `<tr><th>${slot.label}</th>`;
@@ -263,6 +286,13 @@ function buildBaseAvailMiniGrid(t){
   return html;
 }
 
+function workStartSummaryText(t){
+  const ym = t.workStartYearMonth;
+  if(!ym) return '勤務開始 未設定';
+  const [y, m] = ym.split('-');
+  return `${y}年${Number(m)}月〜`;
+}
+
 // 講師一覧に表示する給与条件の要約テキストを組み立てる
 function paySummaryText(t){
   const parts = [];
@@ -276,7 +306,7 @@ function paySummaryText(t){
     const raiseTexts = sorted.map(r=>`${r.yearMonth}〜${r.rate.toLocaleString()}円`);
     parts.push(`昇給：${raiseTexts.join('／')}`);
   }
-  return parts.join('　｜　');
+  return parts.join(' · ');
 }
 
 function renderTeacherList(){
@@ -292,21 +322,30 @@ function renderTeacherList(){
     row.className = 'teacher-row';
     row.innerHTML = `
       <div class="trow-top">
-        <div class="name">${t.name}</div>
+        <div class="trow-head-main">
+          <span class="name">${t.name}</span>
+          <span class="trow-work-start${t.workStartYearMonth ? '' : ' trow-work-start-empty'}">${workStartSummaryText(t)}</span>
+          <span class="trow-pay-inline">${paySummaryText(t)}</span>
+        </div>
         <div class="row-actions">
           <button class="edit-btn" data-id="${t.id}">編集</button>
           <button class="del-btn" data-id="${t.id}">削除</button>
         </div>
       </div>
-      <div class="subject-level-block">${subjectTagsByLevel(t)}</div>
-      <div class="trow-pay">${paySummaryText(t)}</div>
-      <div class="trow-split">
-        <div class="trow-notes-col">
-          ${t.notes ? `<div class="trow-notes">${t.notes.replace(/</g,'&lt;').replace(/\n/g,'<br>')}</div>` : '<div class="empty-note" style="padding:4px 0;">備考なし</div>'}
+      <div class="trow-three-col">
+        <div class="trow-col">
+          <div class="trow-col-title">担当教科</div>
+          <div class="trow-col-body trow-col-body-table">${buildSubjectMatrix(t)}</div>
         </div>
-        <div class="trow-grid-col">
-          <div class="ba-mini-title">基本の対応可能曜日・コマ</div>
-          ${buildBaseAvailMiniGrid(t)}
+        <div class="trow-col">
+          <div class="trow-col-title">基本スケジュール</div>
+          <div class="trow-col-body trow-col-body-table">${buildBaseAvailMiniGrid(t)}</div>
+        </div>
+        <div class="trow-col">
+          <div class="trow-col-title">備考</div>
+          <div class="trow-col-body trow-col-body-notes">
+            ${t.notes ? `<div class="trow-notes">${t.notes.replace(/</g,'&lt;').replace(/\n/g,'<br>')}</div>` : '<div class="trow-notes trow-notes-empty">備考なし</div>'}
+          </div>
         </div>
       </div>`;
     wrap.appendChild(row);
@@ -342,4 +381,4 @@ async function deleteTeacher(id){
 
 // =====================================================================
 
-export { loadTeachers, saveTeachers, buildSubjectArea, buildSubjectFilterOptions, resetForm, fillFormForEdit, handleSave, subjectTagsByLevel, buildBaseAvailMiniGrid, paySummaryText, renderTeacherList, deleteTeacher };
+export { loadTeachers, saveTeachers, buildSubjectArea, buildSubjectFilterOptions, resetForm, fillFormForEdit, handleSave, buildSubjectMatrix, buildBaseAvailMiniGrid, paySummaryText, renderTeacherList, deleteTeacher };

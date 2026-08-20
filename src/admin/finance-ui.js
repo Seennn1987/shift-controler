@@ -404,29 +404,29 @@ function renderMatrix(){
       });
 
       // 学年別・全5教科の対応可能人数（0人の教科は点線枠で「人がいない」ことを強調）
-      let levelRows = '';
+      const subjectColCount = filterVal ? 1 : 5;
+      let gridCells = '';
       LEVELS_ORDER.forEach(lv=>{
-        if(filterVal && filterLevel!==lv) return; // フィルタ中は該当学年のみ表示
-        const subjectsForLevel = SUBJECT_MAP[lv];
-        const tags = subjectsForLevel.map(sub=>{
-          if(filterVal && filterSubject!==sub) return '';
+        if(filterVal && filterLevel!==lv) return;
+        gridCells += `<span class="cell-summary-level">${lv}</span>`;
+        SUBJECT_MAP[lv].forEach(sub=>{
+          if(filterVal && filterSubject!==sub) return;
           const n = avail.filter(t=>t.subjects.some(s=>s.level===lv && s.subject===sub)).length;
           const c = subjectColor(lv, sub);
           if(n===0){
-            return `<span class="sum-tag sum-tag-empty" style="border-color:${c.border};color:${c.border};">${SUBJECT_ABBR[sub]}0</span>`;
+            gridCells += `<span class="sum-tag sum-tag-empty" style="border-color:${c.border};color:${c.border};">${SUBJECT_ABBR[sub]}0</span>`;
+          }else{
+            gridCells += `<span class="sum-tag" style="background:${c.bg};color:${c.text};border-color:${c.border};">${SUBJECT_ABBR[sub]}${n}</span>`;
           }
-          return `<span class="sum-tag" style="background:${c.bg};color:${c.text};border-color:${c.border};">${SUBJECT_ABBR[sub]}${n}</span>`;
-        }).filter(Boolean).join('');
-        if(!tags) return;
-        levelRows += `<div class="cell-summary-row"><span class="cell-summary-level">${lv}</span>${tags}</div>`;
+        });
       });
 
       tbody += `<td class="cell">
         <div class="cell-summary">
           <div class="cell-total">コマ合計：${avail.length}人</div>
-          ${levelRows}
+          ${gridCells ? `<div class="cell-summary-grid" style="--sum-cols:${subjectColCount}">${gridCells}</div>` : ''}
         </div>
-        <div class="cell-S.teachers">${teacherLines}</div>
+        <div class="cell-teachers">${teacherLines}</div>
       </td>`;
     });
     tbody += '</tr>';
