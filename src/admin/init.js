@@ -2,7 +2,10 @@ import { SUBJECT_MAP, DAYS, SLOTS, WEEKDAY_JP, WEEK_FULL } from '../shared/const
 import { HOLIDAYS_JP } from '../shared/holidays.js';
 import { pad2, daysInYearMonth, toDateStr, getTodayStr } from '../shared/date-utils.js';
 import { firebaseConfig, fbAuth, fbDb, STORAGE_KEY, getSecondaryAuth, S } from './state.js';
-import { renderCalendar, syncMonthChange, refreshCalToolbarSecondary, setCalFilterFromSelect } from './calendar.js';
+import { renderCalendar, syncMonthChange, refreshCalToolbarSecondary } from './calendar.js';
+import { registerCalFilterUiSync, setCalFilterFromSelect } from './cal-filter.js';
+import { initSearchComboboxes, refreshAbsenceStudentCombobox, refreshAbsenceTeacherCombobox, refreshAllPersonComboboxes } from './filter-ui.js';
+import { setSearchComboboxValue } from './search-combobox.js';
 import { getWeekMonday, renderCalendarWeek, renderFinance, renderLegend, renderMatrix, switchCalMode, switchView, toggleCalMode } from './finance-ui.js';
 import { buildStudentLevelArea, genCourseId, handleStudentSave, jumpToCalendarForDate, refreshCourseSubjectOptions, refreshPrefCourseAndTeacherOptions, renderFormCourses, renderMatching, renderPrefPairList, renderStudentList, renderTeacherAbsencePanel, resetStudentForm } from './matching.js';
 import { initMatchingPanel } from './matching-panel.js';
@@ -78,10 +81,7 @@ function toggleAbsenceDropdown(kind){
 }
 
 function populateStudentAbsenceQuickPanel(){
-  const sel = document.getElementById('absenceQuickStudent');
-  if(!sel) return;
-  sel.innerHTML = '<option value="">生徒を選択…</option>' +
-    S.students.map(s=>`<option value="${s.id}">${s.name}（${gradeLabel(s)}）</option>`).join('');
+  refreshAbsenceStudentCombobox();
   const dateInput = document.getElementById('absenceQuickDate');
   if(dateInput && !dateInput.value){
     const t = new Date();
@@ -92,10 +92,7 @@ function populateStudentAbsenceQuickPanel(){
 }
 
 function populateTeacherAbsenceQuickPanel(){
-  const sel = document.getElementById('teacherAbsenceQuickTeacher');
-  if(!sel) return;
-  sel.innerHTML = '<option value="">講師を選択…</option>' +
-    S.teachers.map(t=>`<option value="${t.id}">${t.name}</option>`).join('');
+  refreshAbsenceTeacherCombobox();
   const dateInput = document.getElementById('teacherAbsenceQuickDate');
   if(dateInput && !dateInput.value){
     const t = new Date();
@@ -107,6 +104,8 @@ function populateTeacherAbsenceQuickPanel(){
 
 // ---------- init ----------
 async function init(){
+  initSearchComboboxes();
+  registerCalFilterUiSync((value)=> setSearchComboboxValue('calFilter', value));
   buildSubjectArea();
   buildBaseAvailArea();
   buildSubjectFilterOptions();
@@ -398,6 +397,12 @@ async function init(){
     if(S.calMode==='week') renderCalendarWeek();
     else renderCalendar();
   });
+  document.getElementById('teacherListFilter')?.addEventListener('change', ()=>{
+    renderTeacherList();
+  });
+  document.getElementById('studentListFilter')?.addEventListener('change', ()=>{
+    renderStudentList();
+  });
   document.getElementById('tsPrevBtn').addEventListener('click', ()=>{
     S.calMonth--;
     if(S.calMonth<0){ S.calMonth=11; S.calYear--; }
@@ -499,6 +504,7 @@ async function init(){
 
   await loadTeachers();
   await loadStudents();
+  refreshAllPersonComboboxes();
   renderTeacherList();
   renderStudentList();
   renderMatrix();

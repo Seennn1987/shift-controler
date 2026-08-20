@@ -3,9 +3,12 @@ import { HOLIDAYS_JP } from '../shared/holidays.js';
 import { pad2, daysInYearMonth, toDateStr, getTodayStr } from '../shared/date-utils.js';
 import { firebaseConfig, fbAuth, fbDb, STORAGE_KEY, getSecondaryAuth, S } from './state.js';
 import { findAbsenceFor, getEffectiveDayAssignments, getStudentDateRows } from './absences.js';
+import { hasCalFocusFilter, registerCalFilterUiSync, resolveFilterStudent, resolveFilterTeacher, setCalFilterStudent } from './cal-filter.js';
+import { refreshCalFilterOptions } from './filter-ui.js';
+import { setSearchComboboxValue } from './search-combobox.js';
 import { getWeekMonday, renderCalendarWeek, renderMatrix } from './finance-ui.js';
 import { renderMatching } from './matching.js';
-import { gradeLabel, subjectColor } from './schedule-core.js';
+import { subjectColor } from './schedule-core.js';
 import { findEffectiveAssignment, renderTeacherScheduleTab } from './teacher-schedule-tab.js';
 
 // カレンダー（トップページ・TimeTree風シンプルUI）
@@ -159,57 +162,6 @@ function buildDayHeat(dateStr){
   });
 }
 
-function getCalFilterValue(){
-  if(S.calFilterStudentId) return `s:${S.calFilterStudentId}`;
-  if(S.calFilterTeacherId) return `t:${S.calFilterTeacherId}`;
-  return '';
-}
-
-function setCalFilterFromSelect(value){
-  S.calFilterStudentId = '';
-  S.calFilterTeacherId = '';
-  if(value.startsWith('s:')) S.calFilterStudentId = value.slice(2);
-  else if(value.startsWith('t:')) S.calFilterTeacherId = value.slice(2);
-}
-
-function setCalFilterStudent(studentId){
-  S.calFilterStudentId = studentId || '';
-  S.calFilterTeacherId = '';
-  syncCalFilterSelect();
-}
-
-function clearCalFilter(){
-  S.calFilterStudentId = '';
-  S.calFilterTeacherId = '';
-  syncCalFilterSelect();
-}
-
-function syncCalFilterSelect(){
-  const sel = document.getElementById('calFilter');
-  if(sel) sel.value = getCalFilterValue();
-}
-
-function hasCalFocusFilter(){
-  return !!(S.calFilterStudentId || S.calFilterTeacherId);
-}
-
-function resolveFilterStudent(){
-  if(S.calFilterStudentId){
-    return S.students.find(s=> s.id === S.calFilterStudentId) || null;
-  }
-  if(S.matchingPanelOpen && S.matchingPanelStudentId){
-    return S.students.find(s=> s.id === S.matchingPanelStudentId) || null;
-  }
-  return null;
-}
-
-function resolveFilterTeacher(){
-  if(S.calFilterTeacherId){
-    return S.teachers.find(t=> t.id === S.calFilterTeacherId) || null;
-  }
-  return null;
-}
-
 function buildDayCellLinesForTeacher(dateStr, teacher){
   return getEffectiveDayAssignments(dateStr)
     .filter(a=> a.teacherId === teacher.id)
@@ -347,38 +299,7 @@ function renderCalendar(){
   refreshCalToolbarSecondary();
 }
 
-function refreshCalFilterOptions(){
-  const sel = document.getElementById('calFilter');
-  if(!sel) return;
-  let cur = getCalFilterValue();
-  if(!cur && S.matchingPanelOpen && S.matchingPanelStudentId){
-    cur = `s:${S.matchingPanelStudentId}`;
-  }
-  let html = '<option value="">すべて（教室全体）</option>';
-  if(S.students.length){
-    html += '<optgroup label="生徒">';
-    html += S.students.map(s=>`<option value="s:${s.id}">${s.name}（${gradeLabel(s)}）</option>`).join('');
-    html += '</optgroup>';
-  }
-  if(S.teachers.length){
-    html += '<optgroup label="講師">';
-    html += S.teachers.map(t=>`<option value="t:${t.id}">${t.name}</option>`).join('');
-    html += '</optgroup>';
-  }
-  sel.innerHTML = html;
-  const hasOption = cur && [...sel.options].some(o=> o.value === cur);
-  if(hasOption){
-    sel.value = cur;
-    setCalFilterFromSelect(cur);
-  }else{
-    sel.value = '';
-    S.calFilterStudentId = '';
-    S.calFilterTeacherId = '';
-  }
-}
-
-// 後方互換
-const refreshCalStudentFilterOptions = refreshCalFilterOptions;
+// refreshCalFilterOptions は filter-ui.js で定義
 
 
 // 月移動時に、カレンダー・マッチング系すべてに対象月の変更を反映する
@@ -442,4 +363,6 @@ function refreshCalToolbarSecondary(){
 
 // =====================================================================
 
-export { findCustomClosure, getDayStatus, shortName, studentRowToCalLine, calLineToHtml, calLinesToEntriesHtml, buildDayCellLines, buildDayCellLinesForTeacher, buildDayHeat, getUnassignedRowsForDate, renderCalendar, refreshCalFilterOptions, refreshCalStudentFilterOptions, resolveFilterStudent, resolveFilterTeacher, getCalFilterValue, setCalFilterFromSelect, setCalFilterStudent, clearCalFilter, hasCalFocusFilter, syncCalFilterSelect, computeSyncedWeekAnchor, syncMonthChange, updateCalPeriodLabel, refreshCalToolbarSecondary };
+export { findCustomClosure, getDayStatus, shortName, studentRowToCalLine, calLineToHtml, calLinesToEntriesHtml, buildDayCellLines, buildDayCellLinesForTeacher, buildDayHeat, getUnassignedRowsForDate, renderCalendar, computeSyncedWeekAnchor, syncMonthChange, updateCalPeriodLabel, refreshCalToolbarSecondary };
+export { getCalFilterValue, setCalFilterFromSelect, setCalFilterStudent, clearCalFilter, hasCalFocusFilter, resolveFilterStudent, resolveFilterTeacher } from './cal-filter.js';
+export { refreshCalFilterOptions, refreshCalFilterOptions as refreshCalStudentFilterOptions } from './filter-ui.js';

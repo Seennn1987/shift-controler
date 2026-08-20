@@ -1,7 +1,9 @@
 import { SUBJECT_MAP, DAYS, SLOTS, WEEKDAY_JP, WEEK_FULL, LEVELS_ORDER, LEVEL_ABBR, SUBJECT_ABBR } from '../shared/constants.js';
+import { sortByNameKana } from '../shared/person-sort.js';
 import { HOLIDAYS_JP } from '../shared/holidays.js';
 import { pad2, daysInYearMonth, toDateStr, getTodayStr } from '../shared/date-utils.js';
 import { firebaseConfig, fbAuth, fbDb, STORAGE_KEY, getSecondaryAuth, S } from './state.js';
+import { refreshSubjectFilterCombobox } from './filter-ui.js';
 import { renderMatrix, switchView } from './finance-ui.js';
 import { renderMatching } from './matching.js';
 import { fillBaseAvailArea, readBaseAvailArea, renderRaiseScheduleList, subjectColor } from './schedule-core.js';
@@ -78,16 +80,7 @@ function buildSubjectArea(){
 }
 
 function buildSubjectFilterOptions(){
-  const sel = document.getElementById('subjectFilter');
-  sel.innerHTML = '<option value="">教科で絞り込み（すべて表示）</option>';
-  Object.entries(SUBJECT_MAP).forEach(([level, subs])=>{
-    subs.forEach(sub=>{
-      const opt = document.createElement('option');
-      opt.value = `${level}-${sub}`;
-      opt.textContent = `${level}｜${sub}`;
-      sel.appendChild(opt);
-    });
-  });
+  refreshSubjectFilterCombobox();
 }
 
 // ---------- form read/write ----------
@@ -99,6 +92,7 @@ function defaultWorkStartYearMonth(){
 function resetForm(){
   S.editingId = null;
   document.getElementById('nameInput').value = '';
+  document.getElementById('nameKanaInput').value = '';
   document.getElementById('workStartYearMonthInput').value = defaultWorkStartYearMonth();
   document.getElementById('perLessonRateInput').value = '1500';
   document.getElementById('dailyTransportInput').value = '500';
@@ -132,6 +126,7 @@ function resetForm(){
 function fillFormForEdit(t){
   S.editingId = t.id;
   document.getElementById('nameInput').value = t.name;
+  document.getElementById('nameKanaInput').value = t.nameKana || '';
   document.getElementById('workStartYearMonthInput').value = t.workStartYearMonth || '';
   document.getElementById('perLessonRateInput').value = String(t.perLessonRate!=null ? t.perLessonRate : 1500);
   document.getElementById('dailyTransportInput').value = String(t.dailyTransport!=null ? t.dailyTransport : 500);
@@ -186,6 +181,8 @@ async function handleSave(){
   const msg = document.getElementById('formMsg');
   const name = document.getElementById('nameInput').value.trim();
   if(!name){ msg.textContent = '講師名を入力してください。'; return; }
+  const nameKana = document.getElementById('nameKanaInput').value.trim();
+  if(!nameKana){ msg.textContent = '読み仮名を入力してください。'; return; }
   const workStartYearMonth = document.getElementById('workStartYearMonthInput').value;
   if(!workStartYearMonth){ msg.textContent = '勤務開始年月を選んでください。'; return; }
 
@@ -224,9 +221,9 @@ async function handleSave(){
   msg.textContent = '保存中…';
   if(S.editingId){
     const idx = S.teachers.findIndex(t=>t.id===S.editingId);
-    if(idx>-1) S.teachers[idx] = {...S.teachers[idx], id:S.editingId, name, workStartYearMonth, subjects, perLessonRate, dailyTransport, notes, baseAvailability, earlyLessonException, raiseSchedule};
+    if(idx>-1) S.teachers[idx] = {...S.teachers[idx], id:S.editingId, name, nameKana, workStartYearMonth, subjects, perLessonRate, dailyTransport, notes, baseAvailability, earlyLessonException, raiseSchedule};
   }else{
-    S.teachers.push({id:'t-'+Date.now()+'-'+Math.random().toString(36).slice(2,7), name, workStartYearMonth, subjects, perLessonRate, dailyTransport, notes, baseAvailability, earlyLessonException, raiseSchedule});
+    S.teachers.push({id:'t-'+Date.now()+'-'+Math.random().toString(36).slice(2,7), name, nameKana, workStartYearMonth, subjects, perLessonRate, dailyTransport, notes, baseAvailability, earlyLessonException, raiseSchedule});
   }
   const ok = await saveTeachers();
   if(ok){
@@ -312,12 +309,21 @@ function paySummaryText(t){
 function renderTeacherList(){
   scheduleSave();
   const wrap = document.getElementById('teacherList');
+  const sorted = sortByNameKana(S.teachers, t=> t.nameKana, t=> t.name);
+  const filterId = document.getElementById('teacherListFilter')?.value || '';
+  const visible = filterId
+    ? sorted.filter(t=> t.id === filterId)
+    : sorted;
   if(S.teachers.length===0){
     wrap.innerHTML = '<div class="empty-note">まだ講師が登録されていません。上のフォームから登録してください。</div>';
     return;
   }
+  if(visible.length===0){
+    wrap.innerHTML = '<div class="empty-note">検索に一致する講師がいません。</div>';
+    return;
+  }
   wrap.innerHTML = '';
-  S.teachers.forEach(t=>{
+  visible.forEach(t=>{
     const row = document.createElement('div');
     row.className = 'teacher-row';
     row.innerHTML = `

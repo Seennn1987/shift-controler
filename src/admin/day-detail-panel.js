@@ -10,7 +10,8 @@ import {
   markNoMakeup,
   recordAbsence,
 } from './absences.js';
-import { getDayStatus, getUnassignedRowsForDate, resolveFilterStudent, resolveFilterTeacher } from './calendar.js';
+import { resolveFilterStudent, resolveFilterTeacher } from './cal-filter.js';
+import { getDayStatus, getUnassignedRowsForDate } from './calendar.js';
 import { jumpToCalendarForDate, renderMatching } from './matching.js';
 import { gradeLabel, isAvailable, subjectColor, teacherHonorific } from './schedule-core.js';
 import {

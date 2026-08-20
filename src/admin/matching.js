@@ -3,7 +3,9 @@ import { HOLIDAYS_JP } from '../shared/holidays.js';
 import { pad2, daysInYearMonth, toDateStr, getTodayStr } from '../shared/date-utils.js';
 import { firebaseConfig, fbAuth, fbDb, STORAGE_KEY, getSecondaryAuth, S } from './state.js';
 import { cancelSubstitute, cancelTeacherAbsence, confirmSubstitute, findSubstituteCandidatesForStudent, findTeacherAbsence, getTeacherLessonsOnDate, recordTeacherAbsence, resolveSlotViaStudentAbsence } from './absences.js';
-import { refreshCalFilterOptions, renderCalendar, setCalFilterStudent } from './calendar.js';
+import { renderCalendar } from './calendar.js';
+import { refreshCalFilterOptions, setCalFilterStudent, refreshCourseSubjectCombobox, refreshPrefCourseCombobox, refreshPrefStudentCombobox, refreshPrefTeacherCombobox, refreshAllPersonComboboxes } from './filter-ui.js';
+import { sortByNameKana } from '../shared/person-sort.js';
 import { renderCalendarWeek, switchCalMode, switchView } from './finance-ui.js';
 import { gradeLabel, isAvailable, subjectColor, teacherHonorific } from './schedule-core.js';
 import { applyClosedDayStyling } from './settings.js';
@@ -96,10 +98,9 @@ function genCourseId(){ return 'c-'+Date.now()+'-'+Math.random().toString(36).sl
 
 function refreshCourseSubjectOptions(){
   const level = getSelectedStudentLevel();
-  const sel = document.getElementById('courseSubjectSelect');
   const already = S.formCourses.map(c=>c.subject);
   const remain = (SUBJECT_MAP[level]||[]).filter(sub=>!already.includes(sub));
-  sel.innerHTML = remain.map(sub=>`<option value="${sub}">${sub}</option>`).join('');
+  refreshCourseSubjectCombobox(remain);
   document.getElementById('addCourseBtn').disabled = remain.length===0;
 }
 
@@ -206,6 +207,7 @@ function renderFormCourses(){
 function resetStudentForm(){
   S.editingStudentId = null;
   document.getElementById('studentNameInput').value = '';
+  document.getElementById('studentNameKanaInput').value = '';
   document.getElementById('studentGradeInput').value = '';
   document.querySelectorAll('input[name=studentLevel]').forEach((r,i)=> r.checked = (i===0));
   S.formCourses = [];
@@ -220,6 +222,7 @@ function resetStudentForm(){
 function fillStudentFormForEdit(s){
   S.editingStudentId = s.id;
   document.getElementById('studentNameInput').value = s.name;
+  document.getElementById('studentNameKanaInput').value = s.nameKana || '';
   document.getElementById('studentGradeInput').value = s.grade ? String(s.grade) : '';
   document.querySelectorAll('input[name=studentLevel]').forEach(r=> r.checked = (r.value===s.level));
   S.formCourses = JSON.parse(JSON.stringify(s.courses));
@@ -237,6 +240,8 @@ async function handleStudentSave(){
   const msg = document.getElementById('studentFormMsg');
   const name = document.getElementById('studentNameInput').value.trim();
   if(!name){ msg.textContent = '生徒名を入力してください。'; return; }
+  const nameKana = document.getElementById('studentNameKanaInput').value.trim();
+  if(!nameKana){ msg.textContent = '読み仮名を入力してください。'; return; }
 
   const level = getSelectedStudentLevel();
   let grade = parseInt(document.getElementById('studentGradeInput').value, 10);
@@ -252,9 +257,9 @@ async function handleStudentSave(){
 
   if(S.editingStudentId){
     const idx = S.students.findIndex(s=>s.id===S.editingStudentId);
-    if(idx>-1) S.students[idx] = {id:S.editingStudentId, name, level, grade, courses};
+    if(idx>-1) S.students[idx] = {id:S.editingStudentId, name, nameKana, level, grade, courses};
   }else{
-    S.students.push({id:'s-'+Date.now()+'-'+Math.random().toString(36).slice(2,7), name, level, grade, courses});
+    S.students.push({id:'s-'+Date.now()+'-'+Math.random().toString(36).slice(2,7), name, nameKana, level, grade, courses});
   }
   await saveStudents();
   resetStudentForm();
@@ -265,12 +270,21 @@ async function handleStudentSave(){
 function renderStudentList(){
   scheduleSave();
   const wrap = document.getElementById('studentList');
+  const sorted = sortByNameKana(S.students, s=> s.nameKana, s=> s.name);
+  const filterId = document.getElementById('studentListFilter')?.value || '';
+  const visible = filterId
+    ? sorted.filter(s=> s.id === filterId)
+    : sorted;
   if(S.students.length===0){
     wrap.innerHTML = '<div class="empty-note">まだ生徒が登録されていません。上のフォームから登録してください。</div>';
     return;
   }
+  if(visible.length===0){
+    wrap.innerHTML = '<div class="empty-note">検索に一致する生徒がいません。</div>';
+    return;
+  }
   wrap.innerHTML = '';
-  S.students.forEach(s=>{
+  visible.forEach(s=>{
     const tags = s.courses.map(course=>{
       const c = subjectColor(s.level, course.subject);
       return `<span class="mini-tag" style="background:${c.bg};color:${c.text};border:1px solid ${c.border};">${course.subject} 週${course.weeklyCount}</span>`;
@@ -484,7 +498,7 @@ function renderMatching(){
   renderPrefPairList();
   refreshPrefStudentOptions();
   refreshPrefCourseAndTeacherOptions();
-  refreshCalFilterOptions();
+  refreshAllPersonComboboxes();
   if(document.getElementById('view-calendar') && document.getElementById('view-calendar').classList.contains('active')){
     if(S.calMode==='week') renderCalendarWeek();
     else renderCalendar();
@@ -496,33 +510,13 @@ function renderMatching(){
 
 // ---- 優先ペアリング設定UI ----
 function refreshPrefStudentOptions(){
-  const sel = document.getElementById('prefStudentSelect');
-  const cur = sel.value;
-  sel.innerHTML = '<option value="">生徒を選択</option>' +
-    S.students.map(s=>`<option value="${s.id}">${s.name}（${s.level}）</option>`).join('');
-  if(S.students.some(s=>s.id===cur)) sel.value = cur;
+  refreshPrefStudentCombobox();
 }
 function refreshPrefCourseAndTeacherOptions(){
-  const studentSel = document.getElementById('prefStudentSelect');
-  const courseSel = document.getElementById('prefCourseSelect');
-  const teacherSel = document.getElementById('prefTeacherSelect');
-  const student = S.students.find(s=>s.id===studentSel.value);
-
-  if(!student){
-    courseSel.innerHTML = '<option value="">先に生徒を選択</option>';
-    courseSel.disabled = true;
-    teacherSel.innerHTML = '<option value="">先に生徒を選択</option>';
-    teacherSel.disabled = true;
-    return;
-  }
-  courseSel.disabled = false;
-  courseSel.innerHTML = student.courses.map(c=>`<option value="${c.id}">${c.subject}</option>`).join('');
-
-  teacherSel.disabled = false;
-  // その生徒の学年に対応できる講師を優先的に上に出す（対応不可でも選べるようにはする）
-  const capable = S.teachers.filter(t=> t.subjects.some(ts=>ts.level===student.level));
-  const others = S.teachers.filter(t=> !capable.includes(t));
-  teacherSel.innerHTML = [...capable, ...others].map(t=>`<option value="${t.id}">${t.name}</option>`).join('');
+  const studentId = document.getElementById('prefStudentSelect')?.value || '';
+  const student = S.students.find(s=> s.id === studentId);
+  refreshPrefCourseCombobox(student, { disabled: !student });
+  refreshPrefTeacherCombobox(student, { disabled: !student });
 }
 
 function renderPrefPairList(){

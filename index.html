@@ -82,7 +82,7 @@
             <p class="cal-action-panel-desc">確定した授業について、欠席・振替・変更を行います。</p>
             <div class="absence-quick-form">
               <div class="absence-quick-row">
-                <label for="absenceQuickStudent">生徒</label>
+                <label for="absenceQuickStudent-trigger">生徒</label>
                 <select id="absenceQuickStudent"><option value="">生徒を選択…</option></select>
               </div>
               <div class="absence-quick-row">
@@ -100,7 +100,7 @@
             <p class="cal-action-panel-desc">確定した授業について、講師の欠勤・代講を行います。</p>
             <div class="absence-quick-form">
               <div class="absence-quick-row">
-                <label for="teacherAbsenceQuickTeacher">講師</label>
+                <label for="teacherAbsenceQuickTeacher-trigger">講師</label>
                 <select id="teacherAbsenceQuickTeacher"><option value="">講師を選択…</option></select>
               </div>
               <div class="absence-quick-row">
@@ -132,7 +132,7 @@
       </div>
 
       <div class="cal-filter-bar">
-        <label for="calFilter">絞り込み：</label>
+        <label for="calFilter-trigger">絞り込み：</label>
         <select id="calFilter"><option value="">すべて（教室全体）</option></select>
       </div>
 
@@ -185,6 +185,10 @@
 
       <label class="field-label" for="nameInput">講師名</label>
       <input type="text" id="nameInput" placeholder="例：田中 太郎">
+
+      <div style="height:14px"></div>
+      <label class="field-label" for="nameKanaInput">読み仮名<span class="help-tip" tabindex="0">?<span class="help-tip-text">ひらがなで入力します。絞り込みの並び順と検索に使います。</span></span></label>
+      <input type="text" id="nameKanaInput" placeholder="例：たなか たろう">
 
       <div style="height:14px"></div>
       <label class="field-label" for="workStartYearMonthInput">勤務開始年月<span class="help-tip" tabindex="0">?<span class="help-tip-text">面接・採用時の勤務開始月を記録します。一覧で在籍時期が一目で分かります。</span></span></label>
@@ -267,6 +271,10 @@
 
     <div class="card">
       <h2>登録済み講師一覧</h2>
+      <div class="list-filter-bar">
+        <label for="teacherListFilter-trigger">絞り込み：</label>
+        <select id="teacherListFilter"><option value="">すべて表示</option></select>
+      </div>
       <div class="teacher-list" id="teacherList"></div>
     </div>
 
@@ -353,6 +361,10 @@
       <label class="field-label" for="studentNameInput">生徒名</label>
       <input type="text" id="studentNameInput" placeholder="例：山田 花子">
 
+      <div style="height:14px"></div>
+      <label class="field-label" for="studentNameKanaInput">読み仮名<span class="help-tip" tabindex="0">?<span class="help-tip-text">ひらがなで入力します。絞り込みの並び順と検索に使います。</span></span></label>
+      <input type="text" id="studentNameKanaInput" placeholder="例：やまだ はなこ">
+
       <div style="height:18px"></div>
       <label class="field-label">学年</label>
       <div class="chip-row" id="studentLevelArea"></div>
@@ -377,6 +389,10 @@
 
     <div class="card">
       <h2>登録済み生徒一覧</h2>
+      <div class="list-filter-bar">
+        <label for="studentListFilter-trigger">絞り込み：</label>
+        <select id="studentListFilter"><option value="">すべて表示</option></select>
+      </div>
       <div class="teacher-list" id="studentList"></div>
     </div>
 

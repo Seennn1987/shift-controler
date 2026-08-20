@@ -904,10 +904,69 @@
   .week-status-tag.waiting{background:var(--brand-50);color:var(--pending-ink);border:1px solid var(--pending-border);}
   .week-status-tag.absent{background:var(--danger-bg);color:var(--danger);border:1px solid var(--danger);}
   .week-status-tag.makeup{background:var(--surface-muted);color:var(--ink);border:1px solid var(--border);}
-  .cal-filter-bar label{font-size:12.5px;font-weight:700;color:var(--green-800);}
+  .cal-filter-bar label{font-size:12.5px;font-weight:700;color:var(--green-800);flex:0 0 auto;}
+  .cal-filter-bar select{width:min(100%, 280px);max-width:280px;flex:0 0 auto;}
+  .cal-filter-bar .search-combobox-wrap{
+    display:flex;align-items:center;gap:8px;flex:0 1 auto;max-width:100%;
+  }
+  .cal-filter-bar .search-combobox{width:min(100%, 240px);max-width:240px;min-width:160px;}
   .cal-filter-bar select{
     padding:7px 10px;border:1px solid var(--border);border-radius:7px;font-family:inherit;font-size:13px;background:#fff;
   }
+
+  .list-search-bar{margin:0 0 10px;}
+  .list-filter-bar{
+    display:flex;align-items:center;gap:10px;margin:0 0 10px;flex-wrap:wrap;
+  }
+  .list-filter-bar label{font-size:12.5px;font-weight:700;color:var(--green-800);flex:0 0 auto;}
+  .list-filter-bar .search-combobox-wrap{
+    display:flex;align-items:center;gap:8px;flex:0 1 auto;max-width:100%;
+  }
+  .list-filter-bar .search-combobox{width:min(100%, 240px);max-width:240px;min-width:160px;}
+
+  .search-combobox-wrap{display:inline-flex;align-items:center;gap:8px;max-width:100%;}
+  .search-combobox{position:relative;min-width:200px;}
+  .search-combobox-trigger.is-active-filter{
+    border-color:var(--green-700);background:var(--green-50);color:var(--green-900);
+  }
+  .search-combobox-clear{
+    flex:0 0 auto;padding:6px 10px;border:1px solid var(--border);border-radius:7px;
+    background:#fff;font-family:inherit;font-size:12px;font-weight:700;color:var(--ink-soft);
+    cursor:pointer;white-space:nowrap;
+  }
+  .search-combobox-clear:hover{background:var(--green-100);color:var(--green-900);border-color:var(--green-700);}
+  .search-combobox-option-reset{font-weight:700;color:var(--green-800);}
+  .search-combobox-trigger{
+    width:100%;box-sizing:border-box;text-align:left;padding:7px 32px 7px 10px;border:1px solid var(--border);
+    border-radius:7px;font-family:inherit;font-size:13px;background:#fff;color:var(--ink);cursor:pointer;
+    white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+    background-image:linear-gradient(45deg, transparent 50%, var(--ink-soft) 50%), linear-gradient(135deg, var(--ink-soft) 50%, transparent 50%);
+    background-position:calc(100% - 16px) calc(50% + 2px), calc(100% - 11px) calc(50% + 2px);
+    background-size:5px 5px, 5px 5px;background-repeat:no-repeat;
+  }
+  .search-combobox-trigger:disabled{opacity:.55;cursor:not-allowed;}
+  .search-combobox-panel{
+    position:absolute;z-index:120;left:0;right:0;top:calc(100% + 4px);background:#fff;border:1px solid var(--border);
+    border-radius:8px;box-shadow:0 8px 24px rgba(0,0,0,.12);overflow:hidden;
+  }
+  .search-combobox-search{
+    width:100%;box-sizing:border-box;border:none;border-bottom:1px solid var(--border);padding:10px 12px;
+    font-family:inherit;font-size:13px;
+  }
+  .search-combobox-search:focus{outline:none;background:var(--green-100);}
+  .search-combobox-list{max-height:280px;overflow-y:auto;padding:6px 0;}
+  .search-combobox-group-label{
+    padding:6px 12px 4px;font-size:10.5px;font-weight:700;color:var(--ink-soft);
+  }
+  .search-combobox-option{
+    display:block;width:100%;text-align:left;border:none;background:transparent;font-family:inherit;
+    font-size:13px;padding:8px 12px;cursor:pointer;color:var(--ink);
+  }
+  .search-combobox-option:hover,.search-combobox-option:focus{background:var(--green-100);outline:none;}
+  .search-combobox-option-muted{color:var(--ink-soft);}
+  .search-combobox-empty{padding:12px;font-size:12.5px;color:var(--ink-soft);text-align:center;}
+  .filter-bar .search-combobox,.pref-pair-form .search-combobox{min-width:180px;flex:1;}
+  .cal-action-panel-grid .search-combobox{min-width:160px;}
 
   .cal-legend{display:flex;gap:16px;margin-top:16px;justify-content:center;flex-wrap:wrap;padding:0 16px;}
   .cal-legend-item{display:flex;align-items:center;gap:5px;font-size:11.5px;color:var(--ink-soft);}
