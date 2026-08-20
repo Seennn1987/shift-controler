@@ -48,81 +48,103 @@
 
 <div class="app" id="appRoot" style="display:none;">
   <div class="tabs">
-    <button class="tab-btn active" data-view="calendar">カレンダー</button>
-    <button class="tab-btn" data-view="manage">講師登録・編集</button>
-    <button class="tab-btn" data-view="teacherSchedule">講師スケジュール管理</button>
-    <button class="tab-btn" data-view="student">生徒登録・マッチング</button>
+    <button class="tab-btn tab-btn-home active" data-view="calendar">カレンダー</button>
+    <button class="tab-btn" data-view="student">生徒登録</button>
+    <button class="tab-btn" data-view="manage">講師登録</button>
+    <button class="tab-btn" data-view="teacherSchedule">シフト管理</button>
     <button class="tab-btn" data-view="finance">分析</button>
-    <button class="tab-btn" data-view="settings">基本設定</button>
+    <button class="tab-btn" data-view="settings">設定</button>
   </div>
 
   <!-- ===== カレンダー ===== -->
   <section id="view-calendar" class="view active">
-    <div class="card cal-summary-card">
-      <div class="cal-summary-top">
-        <div id="shortageSummaryLine" class="cal-summary-line">読み込み中…</div>
-        <button type="button" class="ghost" id="bulkAutoBtn">自動で埋める</button>
-        <button type="button" class="ghost danger-ghost" id="bulkCancelAutoBtn">✕ 自動確定を解除</button>
-        <button type="button" class="cal-summary-toggle" id="shortageToggleBtn">詳細 ▾</button>
+    <div id="calViewShell" class="cal-view-shell">
+    <div class="cal-view-main">
+
+    <div class="cal-status-bar" id="calStatusBar">
+      <div class="cal-status-inner">
+        <div id="shortageSummaryLine" class="cal-status-text">読み込み中…</div>
+        <button type="button" class="btn-text" id="shortageToggleBtn">詳細 ▾</button>
       </div>
-      <div id="bulkAutoResult"></div>
-      <div id="shortageDetailWrap" style="display:none;">
-        <p class="desc" style="margin-top:10px;">週の必要コマ数に対して、まだ確定が足りていない教科だけを一覧表示します。「候補を確認」でその生徒・その日の詳細にジャンプできます。</p>
+      <div id="shortageDetailWrap" class="cal-status-detail" style="display:none;">
+        <p class="desc">週の必要コマ数に対して、まだ確定が足りていない教科だけを一覧表示します。「候補を確認」でその生徒・その日の詳細にジャンプできます。</p>
         <div id="shortageWrap"></div>
       </div>
+    </div>
 
-      <div class="absence-quick-bar">
-        <button type="button" class="absence-quick-toggle" id="absenceQuickToggle">欠席・振替を登録</button>
-        <div id="absenceQuickForm" class="absence-quick-form" style="display:none;">
-          <div class="absence-quick-row">
-            <label for="absenceQuickStudent">生徒</label>
-            <select id="absenceQuickStudent"><option value="">生徒を選択…</option></select>
+    <div class="cal-action-zone card">
+      <div class="cal-zone-label">操作</div>
+      <div class="cal-action-bar">
+        <button type="button" class="btn-primary" id="openMatchingPanelBtn">コマを組む</button>
+        <div class="cal-action-dropdown" id="studentAbsenceDropdown">
+          <button type="button" class="btn-secondary cal-action-menu-btn" id="studentAbsenceActionBtn" aria-expanded="false">生徒都合の変更 ▾</button>
+          <div id="studentAbsenceQuickPanel" class="cal-action-menu" hidden>
+            <p class="cal-action-panel-desc">確定した授業について、欠席・振替・変更を行います。</p>
+            <div class="absence-quick-form">
+              <div class="absence-quick-row">
+                <label for="absenceQuickStudent">生徒</label>
+                <select id="absenceQuickStudent"><option value="">生徒を選択…</option></select>
+              </div>
+              <div class="absence-quick-row">
+                <label for="absenceQuickDate">日付</label>
+                <input type="date" id="absenceQuickDate">
+              </div>
+              <button type="button" class="btn-primary" id="absenceQuickOpenBtn">この内容で開く</button>
+              <span class="form-msg" id="absenceQuickMsg"></span>
+            </div>
           </div>
-          <div class="absence-quick-row">
-            <label for="absenceQuickDate">日付</label>
-            <input type="date" id="absenceQuickDate">
+        </div>
+        <div class="cal-action-dropdown" id="teacherAbsenceDropdown">
+          <button type="button" class="btn-secondary cal-action-menu-btn" id="teacherAbsenceActionBtn" aria-expanded="false">講師都合の変更 ▾</button>
+          <div id="teacherAbsenceQuickPanel" class="cal-action-menu" hidden>
+            <p class="cal-action-panel-desc">確定した授業について、講師の欠勤・代講を行います。</p>
+            <div class="absence-quick-form">
+              <div class="absence-quick-row">
+                <label for="teacherAbsenceQuickTeacher">講師</label>
+                <select id="teacherAbsenceQuickTeacher"><option value="">講師を選択…</option></select>
+              </div>
+              <div class="absence-quick-row">
+                <label for="teacherAbsenceQuickDate">日付</label>
+                <input type="date" id="teacherAbsenceQuickDate">
+              </div>
+              <button type="button" class="btn-primary" id="teacherAbsenceQuickOpenBtn">この内容で開く</button>
+              <span class="form-msg" id="teacherAbsenceQuickMsg"></span>
+            </div>
           </div>
-          <button type="button" class="primary" id="absenceQuickOpenBtn">この内容で開く</button>
-          <span class="form-msg" id="absenceQuickMsg"></span>
         </div>
       </div>
-
-      <div class="absence-quick-bar">
-        <button type="button" class="absence-quick-toggle" id="teacherAbsenceQuickToggle">講師の欠勤を登録</button>
-        <div id="teacherAbsenceQuickForm" class="absence-quick-form" style="display:none;">
-          <div class="absence-quick-row">
-            <label for="teacherAbsenceQuickTeacher">講師</label>
-            <select id="teacherAbsenceQuickTeacher"><option value="">講師を選択…</option></select>
-          </div>
-          <div class="absence-quick-row">
-            <label for="teacherAbsenceQuickDate">日付</label>
-            <input type="date" id="teacherAbsenceQuickDate">
-          </div>
-          <button type="button" class="primary" id="teacherAbsenceQuickOpenBtn">この内容で開く</button>
-          <span class="form-msg" id="teacherAbsenceQuickMsg"></span>
-        </div>
-      </div>
-
+      <p class="cal-action-hint">日付をクリックしても、右のパネルから同じ操作ができます。</p>
       <div id="teacherAbsencePanel" style="display:none;"></div>
     </div>
 
+    <div id="calMatchingMain">
+
     <div class="card cal-card">
-      <div class="cal-header">
-        <button type="button" class="cal-nav-btn" id="calPrevBtn">‹</button>
-        <div class="cal-title" id="calTitle">2026年8月</div>
-        <button type="button" class="cal-nav-btn" id="calNextBtn">›</button>
+      <div class="cal-zone-label cal-zone-label-inset">カレンダー</div>
+      <div class="cal-toolbar">
+        <button type="button" class="cal-mode-toggle" id="calModeToggleBtn" aria-haspopup="true">月間表示 ▾</button>
+        <div class="cal-period-nav">
+          <button type="button" class="cal-nav-btn" id="calPrevBtn" aria-label="前へ">‹</button>
+          <div class="cal-period-label" id="calPeriodLabel">2026年8月</div>
+          <button type="button" class="cal-nav-btn" id="calNextBtn" aria-label="次へ">›</button>
+        </div>
         <button type="button" class="cal-today-btn" id="calTodayBtn">今月</button>
       </div>
-      <div class="cal-mode-tabs">
-        <button type="button" class="cal-mode-btn active" data-mode="month">月間予定</button>
-        <button type="button" class="cal-mode-btn" data-mode="week">週間予定</button>
+
+      <div class="cal-filter-bar">
+        <label for="calStudentFilter">生徒で絞り込み：</label>
+        <select id="calStudentFilter"><option value="">すべて（教室全体）</option></select>
+      </div>
+
+      <div id="calWeekAxisBar" class="week-axis-tabs" style="display:none;">
+        <button type="button" class="week-axis-btn active" data-axis="student">生徒別</button>
+        <button type="button" class="week-axis-btn" data-axis="teacher">講師別</button>
+        <button type="button" class="week-axis-btn" data-axis="openings">空き状況</button>
+        <span class="help-tip" tabindex="0">?<span class="help-tip-text" id="calWeekDesc">生徒ごとの箱に、担当講師を表示します。未確定のコマもここに表示されます。</span></span>
       </div>
 
       <div id="calModeMonth">
-        <div class="cal-filter-bar">
-          <label for="calStudentFilter">生徒で絞り込み：</label>
-          <select id="calStudentFilter"><option value="">すべて（教室全体）</option></select>
-        </div>
+        <div id="matchingDesiredSlotsBar" class="matching-desired-bar" style="display:none;"></div>
         <div class="cal-grid" id="calGrid"></div>
         <div class="cal-legend" id="calLegendWrap">
           <span class="cal-legend-item"><span class="cal-heat-box lv1" style="width:14px;height:12px;display:inline-block;"></span>空きあり</span>
@@ -130,35 +152,32 @@
           <span class="cal-legend-item"><span class="cal-dot closed"></span>定休日</span>
           <span class="cal-legend-item"><span class="cal-dot holiday"></span>祝日休校</span>
           <span class="cal-legend-item"><span class="cal-dot custom"></span>個別休校日</span>
+          <span class="cal-legend-item"><span class="cal-entry pending" style="width:14px;height:12px;display:inline-block;padding:0;"></span>未確定</span>
         </div>
       </div>
 
       <div id="calModeWeek" style="display:none;">
-        <div class="cal-week-header">
-          <button type="button" class="cal-nav-btn" id="calWeekPrevBtn">‹</button>
-          <div class="cal-title" id="calWeekTitle">8/10 〜 8/15</div>
-          <button type="button" class="cal-nav-btn" id="calWeekNextBtn">›</button>
-          <button type="button" class="cal-today-btn" id="calWeekTodayBtn">今週</button>
-        </div>
-        <div class="week-axis-tabs">
-          <button type="button" class="week-axis-btn active" data-axis="teacher">講師軸</button>
-          <button type="button" class="week-axis-btn" data-axis="student">生徒軸</button>
-          <button type="button" class="week-axis-btn" data-axis="openings">空き状況軸</button>
-          <span class="help-tip" tabindex="0">?<span class="help-tip-text" id="calWeekDesc">講師ごとの箱に、担当している生徒を表示します。</span></span>
-        </div>
         <div id="calWeekWrap" style="padding:0 16px;"></div>
+        <div class="cal-legend cal-week-legend" id="calWeekLegendWrap">
+          <span class="cal-legend-item"><span class="cal-entry pending" style="width:14px;height:12px;display:inline-block;padding:0;"></span>未確定</span>
+        </div>
       </div>
     </div>
-    <div class="card" id="calDetailCard" style="display:none;">
+    <div class="card" id="calDetailCard" hidden aria-hidden="true">
       <h2><span id="calDetailTitle">選択した日の授業</span></h2>
       <div id="calDetailWrap"></div>
     </div>
+
+    </div><!-- /calMatchingMain -->
+
+    </div><!-- /cal-view-main -->
+    </div><!-- /calViewShell -->
   </section>
 
   <!-- ===== 講師管理 ===== -->
   <section id="view-manage" class="view">
     <div class="card">
-      <h2><span id="formModeTitle">講師を登録</span><span class="help-tip" tabindex="0">?<span class="help-tip-text">氏名・対応可能教科を入力してください。スケジュール（出勤可能日）は「講師スケジュール管理」タブで月ごとに提出します。</span></span></h2>
+      <h2><span id="formModeTitle">講師を登録</span><span class="help-tip" tabindex="0">?<span class="help-tip-text">氏名・対応可能教科を入力してください。スケジュール（出勤可能日）は「シフト管理」タブで月ごとに提出します。</span></span></h2>
 
       <label class="field-label" for="nameInput">講師名</label>
       <input type="text" id="nameInput" placeholder="例：田中 太郎">
@@ -208,7 +227,7 @@
 
       <div style="height:18px"></div>
       <label class="field-label" for="teacherNotesInput">備考（勤務希望日・通勤方法・経験など自由記述）</label>
-      <textarea id="teacherNotesInput" rows="3" style="width:100%;padding:9px 12px;border:1px solid var(--border);border-radius:8px;font-family:inherit;font-size:13px;background:#fdfcf9;resize:vertical;"></textarea>
+      <textarea id="teacherNotesInput" rows="3" style="width:100%;padding:9px 12px;border:1px solid var(--border);border-radius:8px;font-family:inherit;font-size:13px;background:var(--surface-card);resize:vertical;"></textarea>
 
       <div style="height:22px"></div>
       <label class="field-label">基本の対応可能曜日・コマ<span class="help-tip" tabindex="0">?<span class="help-tip-text">面接時にヒアリングした「基本的にこの曜日・コマなら出勤できる／したい」を登録します。実際の月ごとの出退勤とは別の、参考プロフィールです。マスをクリックするたびに「×不可→○特に希望→△対応可能→×不可」の順に切り替わります。</span></span></label>
@@ -273,7 +292,7 @@
     </div>
 
     <div class="card">
-      <h2>講師基本スケジュール<span class="help-tip" tabindex="0">?<span class="help-tip-text">面接時にヒアリングした「基本的にこの曜日・コマなら出勤できる／したい」を、講師登録時に設定した内容で一覧表示します。各コマに講師がバランスよく配置できているかを見るための参考プロフィールで、実際のマッチングや月次の出退勤には使われません（実際の月次スケジュールは「講師スケジュール管理」タブで提出します）。</span></span></h2>
+      <h2>講師基本スケジュール<span class="help-tip" tabindex="0">?<span class="help-tip-text">面接時にヒアリングした「基本的にこの曜日・コマなら出勤できる／したい」を、講師登録時に設定した内容で一覧表示します。各コマに講師がバランスよく配置できているかを見るための参考プロフィールで、実際のマッチングや月次の出退勤には使われません（実際の月次スケジュールは「シフト管理」タブで提出します）。</span></span></h2>
       <div class="filter-bar">
         <select id="subjectFilter">
           <option value="">教科で絞り込み（すべて表示）</option>
@@ -292,7 +311,7 @@
     </div>
 
     <div class="card" id="approvalStatusCard" style="display:none;">
-      <h2>授業の承認状況<span class="help-tip" tabindex="0">?<span class="help-tip-text">新しく確定した授業について、講師本人が講師専用ページで承認したかどうかの一覧です。ここでの操作は不要です（承認は講師側で行います）。</span></span></h2>
+      <h2>授業の確認状況<span class="help-tip" tabindex="0">?<span class="help-tip-text">教室長が担当を決めた授業について、講師本人が専用ページで確認したかどうかの一覧です。ここでの操作は不要です（確認は講師側で行います）。</span></span></h2>
       <div id="approvalStatusWrap"></div>
     </div>
 
@@ -448,6 +467,12 @@
     </div>
 
     <div class="card">
+      <h2>マッチングの優先順位<span class="help-tip" tabindex="0">?<span class="help-tip-text">候補講師の並び順（自動マッチングも同じ）を決めます。上にある項目ほど優先されます。OFFにした項目は並び順に使いません。</span></span></h2>
+      <div style="font-size:11.5px;color:var(--ink-soft);margin-bottom:12px;">講師が教科・定員・シフト提出などの基本条件を満たしたうえで、次の順に並べます。</div>
+      <div id="matchingPriorityList" class="matching-priority-list"></div>
+    </div>
+
+    <div class="card">
       <h2>季節講習の管理<span class="help-tip" tabindex="0">?<span class="help-tip-text">通常授業はアプリ利用開始時から常に開校期間です。ここで登録するのは「春期講習」「夏期講習」「冬期講習」のような、通常授業とは別に期間を区切って管理したい季節講習のみです。</span></span></h2>
 
       <div class="term-form">
@@ -522,6 +547,16 @@
     </div>
   </section>
 </div>
+
+<aside id="matchingPanel" class="matching-drawer" aria-hidden="true">
+  <div class="matching-drawer-header">
+    <div class="matching-drawer-header-main">
+      <h2 class="matching-drawer-title" id="matchingDrawerTitle">コマを組む</h2>
+    </div>
+    <button type="button" class="matching-drawer-close" id="matchingPanelCloseBtn" aria-label="閉じる">×</button>
+  </div>
+  <div id="matchingPanelBody" class="matching-drawer-body"></div>
+</aside>
 
 <script type="module" src="/src/admin/main.js"></script>
 </body>

@@ -7,6 +7,7 @@ import './settings.js';
 import './calendar.js';
 import './teacher-schedule-tab.js';
 import './matching.js';
+import './matching-panel.js';
 import './finance-ui.js';
 import './init.js';
 import './auth.js';

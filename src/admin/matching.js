@@ -3,17 +3,19 @@ import { HOLIDAYS_JP } from '../shared/holidays.js';
 import { pad2, daysInYearMonth, toDateStr, getTodayStr } from '../shared/date-utils.js';
 import { firebaseConfig, fbAuth, fbDb, STORAGE_KEY, getSecondaryAuth, S } from './state.js';
 import { cancelSubstitute, cancelTeacherAbsence, confirmSubstitute, findSubstituteCandidatesForStudent, findTeacherAbsence, getTeacherLessonsOnDate, recordTeacherAbsence, resolveSlotViaStudentAbsence } from './absences.js';
-import { refreshCalStudentFilterOptions, renderCalendar, renderCalendarDetail } from './calendar.js';
+import { refreshCalStudentFilterOptions, renderCalendar } from './calendar.js';
 import { renderCalendarWeek, switchCalMode, switchView } from './finance-ui.js';
-import { countAvailSlots, gradeLabel, isAvailable, subjectColor, teacherHonorific } from './schedule-core.js';
+import { gradeLabel, isAvailable, subjectColor, teacherHonorific } from './schedule-core.js';
 import { applyClosedDayStyling } from './settings.js';
 import { saveStudents, scheduleSave, scheduleSyncTeacherAssignments } from './students-persistence.js';
-import { buildCandidateInfo, cancelAssignment, compareCandidateInfo, confirmAssignment, countCourseConfirmed, countRoomSlot, countTeacherSlot, findAlternativeSlots, findEffectiveAssignment, removePreferredPair, replaceDesiredSlot } from './teacher-schedule-tab.js';
+import { buildCandidateInfo, cancelAssignment, confirmAssignment, countCourseConfirmed, countRoomSlot, countTeacherSlot, findAlternativeSlots, findEffectiveAssignment, removePreferredPair, replaceDesiredSlot } from './teacher-schedule-tab.js';
+import { compareCandidateInfo } from './matching-config.js';
+import { renderMatchCandidateList } from './match-candidate-ui.js';
 import { renderTeacherList } from './teachers.js';
 
 // ---- 一括自動仮組み ----
 // 未確定の希望枠をまとめて自動的に埋める。候補が少ない（融通が利かない）枠から優先的に処理する。
-// 講師の選定は「①教室長の優先ペア ②得意科目 ③優先希望日 ④穴埋め ⑤稼働集約 ⑥人件費最小化 ⑦残り定員」の順で決める。
+// 講師の選定は基本設定の「マッチングの優先順位」に従う（compareCandidateInfo）。
 function bulkAutoAssign(){
   const pending = [];
   S.students.forEach(s=>{
@@ -352,7 +354,7 @@ function renderMatching(){
           slotsHtml += `<div class="match-slot">
             <div class="ms-slot-label">${day}曜日 ${slot.label}（${slot.time}）</div>
             <div class="confirmed-box">
-              <span class="cb-label">確定済み${autoBadge}</span>
+              <span class="cb-label">確定${autoBadge}</span>
               <span class="cb-teacher">講師：${teacherHonorific(teacher)}</span>
               <span class="cb-cap">（定員 ${used}/${cap}）</span>
               <button class="unconfirm-btn" data-student="${s.id}" data-course="${course.id}" data-day="${day}" data-slot="${slotId}">確定を解除</button>
@@ -401,28 +403,17 @@ function renderMatching(){
             </div>`;
           }
         }else{
-          candidates.forEach(cand=>{
-            const blocked = cand.full || roomFull;
-            const prefBadges = [
-              cand.prefPair ? '<span class="pref-badge pref-pair">★教室長おすすめ</span>' : '',
-              cand.prefSubject ? '<span class="pref-badge pref-subject">得意科目</span>' : '',
-              cand.prefDay ? '<span class="pref-badge pref-day">◎優先希望日</span>' : '',
-              cand.fillBonus ? '<span class="pref-badge pref-fill">穴埋め</span>' : '',
-              cand.dayConsolidation ? '<span class="pref-badge pref-consolidate">稼働集約</span>' : '',
-            ].join('');
-            candHtml += `<div class="match-cand">
-              <span class="match-badge full">対応可</span>
-              <span>${cand.teacher.name}</span>
-              ${prefBadges}
-              <span class="cap-note ${cand.full?'full':''}">${cand.used}/${S.teacherCapacity}人</span>
-              <button class="confirm-btn" data-student="${s.id}" data-course="${course.id}" data-subject="${course.subject}" data-day="${day}" data-slot="${slotId}" data-teacher="${cand.teacher.id}" ${blocked?'disabled':''}>
-                ${cand.full ? '満席' : (roomFull ? '教室満席' : '確定')}
-              </button>
-            </div>`;
+          candHtml = renderMatchCandidateList(candidates, {
+            studentId: s.id,
+            courseId: course.id,
+            subject: course.subject,
+            day,
+            slot: slotId,
+            roomFull,
           });
-        }
-        if(roomFull){
-          candHtml += `<div class="match-none">教室全体の定員（${S.roomCapacity}人）に達しています</div>`;
+          if(!candHtml && !roomFull){
+            candHtml = `<div class="match-none">定員に達しているため、候補講師はありません</div>`;
+          }
         }
 
         slotsHtml += `<div class="match-slot">
@@ -497,7 +488,9 @@ function renderMatching(){
   if(document.getElementById('view-calendar') && document.getElementById('view-calendar').classList.contains('active')){
     if(S.calMode==='week') renderCalendarWeek();
     else renderCalendar();
-    if(S.calSelectedDate) renderCalendarDetail(S.calSelectedDate);
+    if(S.calSelectedDate && S.matchingPanelOpen){
+      document.dispatchEvent(new CustomEvent('calendar:refresh-day', { detail: { dateStr: S.calSelectedDate } }));
+    }
   }
 }
 
@@ -562,15 +555,19 @@ function renderPrefPairList(){
 function renderShortageDashboard(){
   const wrap = document.getElementById('shortageWrap');
   const summaryLine = document.getElementById('shortageSummaryLine');
+  const statusBar = document.getElementById('calStatusBar');
   if(!wrap) return;
   if(!S.dataReady || !S.studentDataReady){
     wrap.innerHTML = '<div class="loading">読み込み中…</div>';
     if(summaryLine) summaryLine.textContent = '読み込み中…';
+    statusBar?.classList.remove('is-ok', 'is-warn');
     return;
   }
   if(S.students.length===0){
     wrap.innerHTML = '<div class="empty-state">生徒が登録されるとここに未充足の教科が表示されます。</div>';
-    if(summaryLine){ summaryLine.textContent = 'まだ生徒が登録されていません'; summaryLine.classList.remove('warn'); }
+    if(summaryLine) summaryLine.textContent = 'まだ生徒が登録されていません';
+    statusBar?.classList.remove('is-warn');
+    statusBar?.classList.add('is-ok');
     return;
   }
 
@@ -588,18 +585,20 @@ function renderShortageDashboard(){
   const pendingAbsences = S.absences.filter(a=>a.status==='pending').length;
 
   if(shortages.length===0){
-    wrap.innerHTML = '<div class="shortage-ok">✓ すべての生徒・教科で、週の必要コマ数が確定済みです</div>';
+    wrap.innerHTML = '<div class="shortage-ok">✓ すべての生徒・教科で、週の必要コマ数が確定しています</div>';
     if(summaryLine){
-      summaryLine.textContent = pendingAbsences>0 ? `✓ 確定は充足／未振替 ${pendingAbsences}件` : '✓ すべて確定済みです';
-      summaryLine.classList.toggle('warn', pendingAbsences>0);
+      summaryLine.textContent = pendingAbsences>0 ? `✓ コマは充足／未振替 ${pendingAbsences}件` : '✓ すべて確定です';
     }
+    statusBar?.classList.toggle('is-warn', pendingAbsences>0);
+    statusBar?.classList.toggle('is-ok', pendingAbsences===0);
     return;
   }
   if(summaryLine){
     const absPart = pendingAbsences>0 ? ` ／ 未振替 ${pendingAbsences}件` : '';
     summaryLine.textContent = `${shortages.length}件の教科で確定が不足しています${absPart}`;
-    summaryLine.classList.add('warn');
   }
+  statusBar?.classList.remove('is-ok');
+  statusBar?.classList.add('is-warn');
 
   shortages.sort((a,b)=> b.gap - a.gap);
 
@@ -643,7 +642,7 @@ function jumpToCalendarForStudent(studentId, courseId){
   const course = student.courses.find(c=>c.id===courseId);
   if(!course){ alert('教科データが見つかりませんでした（削除された可能性があります）。'); return; }
   if(!course.desiredSlots || course.desiredSlots.length===0){
-    alert(`${student.name}さんの「${course.subject}」は、希望する曜日・コマがまだ登録されていません。「生徒登録・マッチング」タブの編集画面から設定してください。`);
+    alert(`${student.name}さんの「${course.subject}」は、希望する曜日・コマがまだ登録されていません。「生徒登録」タブの編集画面から設定してください。`);
     return;
   }
   const pending = course.desiredSlots.find(ds=>{
@@ -666,7 +665,7 @@ function jumpToCalendarForStudent(studentId, courseId){
   const sel = document.getElementById('calStudentFilter');
   if(sel) sel.value = studentId;
   renderCalendar();
-  renderCalendarDetail(dateStr);
+  document.dispatchEvent(new CustomEvent('calendar:show-day', { detail: { dateStr, studentId } }));
 }
 
 // 指定した生徒・指定した日付で、カレンダーの日付詳細パネルに直接ジャンプする
@@ -686,7 +685,7 @@ function jumpToCalendarForDate(studentId, dateStr){
   const sel = document.getElementById('calStudentFilter');
   if(sel) sel.value = studentId;
   renderCalendar();
-  renderCalendarDetail(dateStr);
+  document.dispatchEvent(new CustomEvent('calendar:show-day', { detail: { dateStr, studentId } }));
   window.scrollTo({top:0, behavior:'smooth'});
 }
 
@@ -824,23 +823,6 @@ function renderTeacherAbsencePanel(teacherId, dateStr){
   });
 }
 
-// 講師1人分の稼働情報（対応可能コマ数・確定済みコマ数・稼働率）を計算する
-function computeTeacherWorkload(t){
-  // 対応可能コマ数（曜日×コマの合計）
-  const totalAvail = countAvailSlots(t);
-  // 実際に生徒が確定して埋まっているコマ数（同じコマに複数人いても1コマとして数える）
-  const filledSet = new Set();
-  let totalStudents = 0;
-  S.assignments.forEach(a=>{
-    if(a.teacherId!==t.id) return;
-    filledSet.add(a.day+'-'+a.slot);
-    totalStudents++;
-  });
-  const filled = filledSet.size;
-  const rate = totalAvail>0 ? Math.round((filled/totalAvail)*100) : 0;
-  return {totalAvail, filled, rate, totalStudents};
-}
-
 // =====================================================================
 
-export { bulkAutoAssign, bulkCancelAuto, buildStudentLevelArea, getSelectedStudentLevel, genCourseId, refreshCourseSubjectOptions, buildCourseAvailGrid, renderFormCourses, resetStudentForm, fillStudentFormForEdit, handleStudentSave, renderStudentList, deleteStudent, renderMatching, refreshPrefStudentOptions, refreshPrefCourseAndTeacherOptions, renderPrefPairList, renderShortageDashboard, findNearestFutureDate, jumpToCalendarForStudent, jumpToCalendarForDate, renderTeacherAbsencePanel, computeTeacherWorkload };
+export { bulkAutoAssign, bulkCancelAuto, buildStudentLevelArea, getSelectedStudentLevel, genCourseId, refreshCourseSubjectOptions, buildCourseAvailGrid, renderFormCourses, resetStudentForm, fillStudentFormForEdit, handleStudentSave, renderStudentList, deleteStudent, renderMatching, refreshPrefStudentOptions, refreshPrefCourseAndTeacherOptions, renderPrefPairList, renderShortageDashboard, findNearestFutureDate, jumpToCalendarForStudent, jumpToCalendarForDate, renderTeacherAbsencePanel };

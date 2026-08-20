@@ -2,8 +2,8 @@ import { SUBJECT_MAP, DAYS, SLOTS, WEEKDAY_JP, WEEK_FULL, LEVELS_ORDER, SUBJECT_
 import { HOLIDAYS_JP } from '../shared/holidays.js';
 import { pad2, daysInYearMonth, toDateStr, getTodayStr } from '../shared/date-utils.js';
 import { firebaseConfig, fbAuth, fbDb, STORAGE_KEY, getSecondaryAuth, S } from './state.js';
-import { computeDayFinance, computeTeacherOpenings, costRatioColor, getEffectiveDayAssignments } from './absences.js';
-import { computeSyncedWeekAnchor, getDayStatus, renderCalendar } from './calendar.js';
+import { computeDayFinance, computeTeacherOpenings, costRatioColor, getEffectiveDayAssignments, getStudentDateRows } from './absences.js';
+import { calLinesToEntriesHtml, computeSyncedWeekAnchor, getDayStatus, getUnassignedRowsForDate, refreshCalToolbarSecondary, renderCalendar, studentRowToCalLine, updateCalPeriodLabel } from './calendar.js';
 import { renderMatching } from './matching.js';
 import { abbr, gradeLabel, subjectColor, teacherHonorific } from './schedule-core.js';
 import { scheduleSave } from './students-persistence.js';
@@ -151,11 +151,10 @@ function renderCalendarWeekGrid(axis){
     d.setDate(monday.getDate()+i);
     weekDates.push(toDateStr(d.getFullYear(), d.getMonth(), d.getDate()));
   }
-  // 週間予定を見ている間は、上段の見出しをこの週が属する月に追従させる（表示のみ。他タブの集計には影響させない）
-  const calTitleEl = document.getElementById('calTitle');
-  if(calTitleEl) calTitleEl.textContent = `${monday.getFullYear()}年${monday.getMonth()+1}月`;
-  const fmt = ds=>{ const d=new Date(ds+'T00:00:00'); return `${d.getMonth()+1}/${d.getDate()}`; };
-  document.getElementById('calWeekTitle').textContent = `${fmt(weekDates[0])} \u3005 ${fmt(weekDates[5])}`;
+  updateCalPeriodLabel();
+  refreshCalToolbarSecondary();
+
+  const filterStudent = S.calFilterStudentId ? S.students.find(s=>s.id===S.calFilterStudentId) : null;
 
   const table = document.createElement('table');
   table.className = 'sched';
@@ -165,7 +164,9 @@ function renderCalendarWeekGrid(axis){
     const d = new Date(ds+'T00:00:00');
     const label = `${d.getMonth()+1}/${d.getDate()}(${WEEKDAY_JP[d.getDay()]})`;
     const closed = status.type!=='open';
-    return `<th class="${closed?'closed-day-col':''}">${label}${closed?`<br><span style="font-size:9px;font-weight:400;">${status.label||status.holidayName||status.closureLabel||'\u4f11'}</span>`:''}</th>`;
+    const headCls = closed ? 'closed-day-col' : 'week-date-head';
+    const dateAttr = closed ? '' : ` data-date="${ds}"`;
+    return `<th class="${headCls}"${dateAttr}>${label}${closed?`<br><span style="font-size:9px;font-weight:400;">${status.label||status.holidayName||status.closureLabel||'\u4f11'}</span>`:''}</th>`;
   }).join('') + '</tr></thead>';
 
   let tbody = '<tbody>';
@@ -177,23 +178,32 @@ function renderCalendarWeekGrid(axis){
         tbody += `<td class="sched-cell closed-day-col"><div class="cell-closed-label">${status.label||status.holidayName||status.closureLabel||'\u4f11\u6821'}</div></td>`;
         return;
       }
+      if(filterStudent){
+        const cellInner = buildWeekStudentFilterCell(filterStudent, ds, slot);
+        tbody += `<td class="sched-cell week-date-cell" data-date="${ds}">${cellInner}</td>`;
+        return;
+      }
       if(axis==='openings'){
         const cellInner = buildOpeningsAxisCell(ds, slot);
         if(!cellInner){
-          tbody += `<td class="sched-cell"><div class="sched-empty">\u7a7a\u304d\u306a\u3057</div></td>`;
+          tbody += `<td class="sched-cell week-date-cell" data-date="${ds}"><div class="sched-empty">\u7a7a\u304d\u306a\u3057</div></td>`;
         }else{
-          tbody += `<td class="sched-cell">${cellInner}</td>`;
+          tbody += `<td class="sched-cell week-date-cell" data-date="${ds}">${cellInner}</td>`;
         }
         return;
       }
       const list = getEffectiveDayAssignments(ds).filter(a=>a.slot===slot.id);
-      if(list.length===0){
-        tbody += `<td class="sched-cell"><div class="sched-empty">\u78ba\u5b9a\u306a\u3057</div></td>`;
+      const unassigned = getUnassignedRowsForDate(ds).filter(r=>r.slot.id===slot.id);
+      if(list.length===0 && unassigned.length===0){
+        tbody += `<td class="sched-cell week-date-cell" data-date="${ds}"><div class="sched-empty">\u4e88\u5b9a\u306a\u3057</div></td>`;
         return;
       }
-      const cellInner = axis==='student' ? buildStudentAxisCell(list) : buildTeacherAxisCell(list);
-      tbody += `<td class="sched-cell">
-        <div class="sched-total">\u6559\u5ba4 ${list.length}/${S.roomCapacity}</div>
+      const totalCount = list.length + unassigned.length;
+      const cellInner = axis==='student'
+        ? buildStudentAxisCell(list) + buildWeekUnassignedStudentBoxes(unassigned)
+        : buildTeacherAxisCell(list) + buildWeekUnassignedTeacherBlock(unassigned);
+      tbody += `<td class="sched-cell week-date-cell" data-date="${ds}">
+        <div class="sched-total">\u6559\u5ba4 ${totalCount}/${S.roomCapacity}</div>
         ${cellInner}
       </td>`;
     });
@@ -207,6 +217,19 @@ function renderCalendarWeekGrid(axis){
   scrollDiv.className = 'sched-scroll';
   scrollDiv.appendChild(table);
   wrap.appendChild(scrollDiv);
+  bindWeekGridDateClicks(scrollDiv);
+  document.dispatchEvent(new CustomEvent('calendar:rendered'));
+}
+
+function bindWeekGridDateClicks(root){
+  root.querySelectorAll('.week-date-head[data-date], .week-date-cell[data-date]').forEach(el=>{
+    el.addEventListener('click', ()=>{
+      const dateStr = el.dataset.date;
+      if(!dateStr || getDayStatus(dateStr).type !== 'open') return;
+      S.calSelectedDate = dateStr;
+      document.dispatchEvent(new CustomEvent('calendar:show-day', { detail: { dateStr } }));
+    });
+  });
 }
 
 // \u8b1b\u5e2b\u8ef8\uff1a\u30de\u30b9\u76ee\u306e\u4e2d\u306b\u8b1b\u5e2b\u306e\u7bb1\u3092\u4f5c\u308a\u3001\u305d\u306e\u4e2d\u306b\u62c5\u5f53\u751f\u5f92\u3092\u4e26\u3079\u308b\uff08\u5f93\u6765\u901a\u308a\uff09
@@ -265,6 +288,49 @@ function buildStudentAxisCell(list){
   return boxesHtml;
 }
 
+function buildWeekUnassignedStudentBoxes(unassignedRows){
+  if(unassignedRows.length===0) return '';
+  return unassignedRows.map(row=>{
+    const { student, course } = row;
+    const c = subjectColor(student.level, course.subject);
+    return `<div class="sched-teacher-box week-unassigned-box">
+      <div class="sched-teacher-name">
+        <span class="sched-student-tag" style="background:${c.bg};color:${c.text};">${course.subject}</span>
+        ${student.name}<span class="grade-tag">${gradeLabel(student)}</span>
+        <span class="mp-slot-badge pending">未確定</span>
+      </div>
+      <div class="sched-student-row">\u8b1b\u5e2b\uff1a\u672a\u78ba\u5b9a</div>
+    </div>`;
+  }).join('');
+}
+
+function buildWeekUnassignedTeacherBlock(unassignedRows){
+  if(unassignedRows.length===0) return '';
+  let studentsHtml = '';
+  unassignedRows.forEach(row=>{
+    const c = subjectColor(row.student.level, row.course.subject);
+    studentsHtml += `<div class="sched-student-row">
+      <span class="sched-student-tag" style="background:${c.bg};color:${c.text};">${row.course.subject}</span>
+      <span>${row.student.name}<span class="grade-tag">${gradeLabel(row.student)}</span></span>
+      <span class="mp-slot-badge pending">未確定</span>
+    </div>`;
+  });
+  return `<div class="sched-teacher-box week-unassigned-box">
+    <div class="sched-teacher-name">\u672a\u78ba\u5b9a<span class="sched-cap">\uff08${unassignedRows.length}\u4ef6\uff09</span></div>
+    ${studentsHtml}
+  </div>`;
+}
+
+// \u751f\u5f92\u7d5e\u308a\u8fbc\u307f\u6642\uff1a\u6708\u9593\u30ab\u30ec\u30f3\u30c0\u30fc\u3068\u540c\u3058 cal-entry \u5f62\u5f0f\u3067\u8868\u793a\u3059\u308b
+function buildWeekStudentFilterCell(student, dateStr, slot){
+  const rows = getStudentDateRows(student, dateStr).filter(r=>r.slot.id===slot.id);
+  if(rows.length===0){
+    return '<div class="sched-empty">—</div>';
+  }
+  const lines = rows.map(r=> studentRowToCalLine(r, student));
+  return calLinesToEntriesHtml(lines);
+}
+
 // \u7a7a\u304d\u72b6\u6cc1\u8ef8\uff1a\u30de\u30b9\u76ee\u306e\u4e2d\u306b\u300c\u8b1b\u5e2b\u306e\u7bb1\u300d\u3092\u4f5c\u308a\u3001\u305d\u306e\u8b1b\u5e2b\u304c\u5bfe\u5fdc\u53ef\u80fd\u306a\u6559\u79d1\u30bf\u30b0\uff0b\u3042\u3068\u4f55\u4eba\u5165\u308c\u308b\u304b\u3092\u8868\u793a\u3059\u308b
 function buildOpeningsAxisCell(dateStr, slot){
   const {rows} = computeTeacherOpenings(dateStr, null);
@@ -294,7 +360,7 @@ function renderMatrix(){
     return;
   }
   if(S.teachers.length===0){
-    wrap.innerHTML = '<div class="empty-state">講師が登録されるとここに一覧表が表示されます。<br>まずは「講師登録・編集」タブから登録してください。</div>';
+    wrap.innerHTML = '<div class="empty-state">講師が登録されるとここに一覧表が表示されます。<br>まずは「講師登録」タブから登録してください。</div>';
     return;
   }
   const filterVal = document.getElementById('subjectFilter').value;
@@ -406,20 +472,25 @@ function switchView(name){
 // カレンダー内の表示モード切替（月間予定／週間予定／講師空き状況）
 function switchCalMode(mode){
   S.calMode = mode;
-  document.querySelectorAll('.cal-mode-btn').forEach(b=>b.classList.toggle('active', b.dataset.mode===mode));
   document.getElementById('calModeMonth').style.display = (mode==='month') ? '' : 'none';
   document.getElementById('calModeWeek').style.display = (mode==='week') ? '' : 'none';
   if(mode==='month') renderCalendar();
   if(mode==='week'){
-    // 週間予定に切り替えるたびに、月間側の見出し（S.calYear/S.calMonth）と表示週がズレていないか必ず同期する
     const monthStart = toDateStr(S.calYear, S.calMonth, 1);
     const monthEnd = toDateStr(S.calYear, S.calMonth+1, 0);
     if(!S.calWeekAnchor || S.calWeekAnchor < monthStart || S.calWeekAnchor > monthEnd){
       S.calWeekAnchor = computeSyncedWeekAnchor(S.calYear, S.calMonth);
     }
     renderCalendarWeek();
+  }else{
+    refreshCalToolbarSecondary();
+    updateCalPeriodLabel();
   }
 }
 
+function toggleCalMode(){
+  switchCalMode(S.calMode==='month' ? 'week' : 'month');
+}
 
-export { renderFinance, getWeekMonday, renderCalendarWeek, renderCalendarWeekGrid, buildTeacherAxisCell, buildStudentAxisCell, buildOpeningsAxisCell, renderMatrix, renderLegend, switchView, switchCalMode };
+
+export { renderFinance, getWeekMonday, renderCalendarWeek, renderCalendarWeekGrid, buildTeacherAxisCell, buildStudentAxisCell, buildOpeningsAxisCell, buildWeekStudentFilterCell, renderMatrix, renderLegend, switchView, switchCalMode, toggleCalMode };

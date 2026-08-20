@@ -131,6 +131,29 @@ function addRaiseRow(yearMonth, rate){
   renderRaiseScheduleList();
 }
 
+function isScheduleDateClosed(dateStr){
+  const wd = WEEKDAY_JP[new Date(dateStr + 'T00:00:00').getDay()];
+  if(S.regularClosedDays.includes(wd)) return true;
+  if(S.holidayAutoDetect && HOLIDAYS_JP.some(h=> h.date === dateStr)) return true;
+  return S.customClosures.some(c=> dateStr >= c.startDate && dateStr <= c.endDate);
+}
+
+function buildMonthDaysFromBaseAvailability(teacher, yearMonth){
+  const base = teacher.baseAvailability || [];
+  if(base.length === 0) return {};
+  const days = {};
+  const total = daysInYearMonth(yearMonth);
+  for(let d = 1; d <= total; d++){
+    const dateStr = `${yearMonth}-${pad2(d)}`;
+    if(isScheduleDateClosed(dateStr)) continue;
+    const wd = WEEKDAY_JP[new Date(dateStr + 'T00:00:00').getDay()];
+    const entries = base.filter(e=> e.day === wd);
+    if(entries.length === 0) continue;
+    days[dateStr] = entries.map(e=> ({ slot: e.slot, priority: e.priority }));
+  }
+  return days;
+}
+
 // 対象月内で、その曜日に該当する実日付のいずれかで対応可能なら、その曜日は対応可能とみなす（優先度は最も高いものを採用）
 // 月のスケジュールが未提出（レコードなし）の場合は全日×（対応不可）扱い
 function getWeekdayAvailabilityInMonth(teacherId, weekday, slot, yearMonth){
@@ -252,4 +275,4 @@ function summarizeTeacherSubjects(t){
 
 
 
-export { findTeacherSchedule, getOrCreateDraftSchedule, getDateSlotState, setDateSlotState, cycleTeacherState, buildBaseAvailArea, readBaseAvailArea, fillBaseAvailArea, renderRaiseScheduleList, addRaiseRow, getWeekdayAvailabilityInMonth, isAvailable, isPreferredDay, countAvailSlots, abbr, gradeLabel, teacherHonorific, subjectColor, categoryColor, summarizeTeacherSubjects };
+export { findTeacherSchedule, getOrCreateDraftSchedule, getDateSlotState, setDateSlotState, cycleTeacherState, buildBaseAvailArea, readBaseAvailArea, fillBaseAvailArea, renderRaiseScheduleList, addRaiseRow, isScheduleDateClosed, buildMonthDaysFromBaseAvailability, getWeekdayAvailabilityInMonth, isAvailable, isPreferredDay, countAvailSlots, abbr, gradeLabel, teacherHonorific, subjectColor, categoryColor, summarizeTeacherSubjects };

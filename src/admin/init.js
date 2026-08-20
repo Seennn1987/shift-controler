@@ -2,14 +2,107 @@ import { SUBJECT_MAP, DAYS, SLOTS, WEEKDAY_JP, WEEK_FULL } from '../shared/const
 import { HOLIDAYS_JP } from '../shared/holidays.js';
 import { pad2, daysInYearMonth, toDateStr, getTodayStr } from '../shared/date-utils.js';
 import { firebaseConfig, fbAuth, fbDb, STORAGE_KEY, getSecondaryAuth, S } from './state.js';
-import { renderCalendar, syncMonthChange } from './calendar.js';
-import { getWeekMonday, renderCalendarWeek, renderFinance, renderLegend, renderMatrix, switchCalMode, switchView } from './finance-ui.js';
-import { buildStudentLevelArea, bulkAutoAssign, bulkCancelAuto, genCourseId, handleStudentSave, jumpToCalendarForDate, refreshCourseSubjectOptions, refreshPrefCourseAndTeacherOptions, renderFormCourses, renderMatching, renderPrefPairList, renderStudentList, renderTeacherAbsencePanel, resetStudentForm } from './matching.js';
+import { renderCalendar, syncMonthChange, refreshCalToolbarSecondary } from './calendar.js';
+import { getWeekMonday, renderCalendarWeek, renderFinance, renderLegend, renderMatrix, switchCalMode, switchView, toggleCalMode } from './finance-ui.js';
+import { buildStudentLevelArea, genCourseId, handleStudentSave, jumpToCalendarForDate, refreshCourseSubjectOptions, refreshPrefCourseAndTeacherOptions, renderFormCourses, renderMatching, renderPrefPairList, renderStudentList, renderTeacherAbsencePanel, resetStudentForm } from './matching.js';
+import { initMatchingPanel } from './matching-panel.js';
 import { addRaiseRow, buildBaseAvailArea, getOrCreateDraftSchedule, gradeLabel } from './schedule-core.js';
-import { buildClosedDayArea, handleClosureSave, handleTermSave, renderClosedDaySettings, renderClosureList, renderTermList, resetClosureForm, resetTermForm } from './settings.js';
+import { buildClosedDayArea, handleClosureSave, handleTermSave, initMatchingPrioritySettings, renderClosedDaySettings, renderClosureList, renderMatchingPrioritySettings, renderTermList, resetClosureForm, resetTermForm } from './settings.js';
 import { loadStudents, saveAppState, saveTeacherScheduleDoc, scheduleSave, syncTeacherLoginUidEverywhere } from './students-persistence.js';
 import { addPreferredPair, openTeacherScheduleEditor, renderTeacherScheduleTab } from './teacher-schedule-tab.js';
 import { buildSubjectArea, buildSubjectFilterOptions, fillFormForEdit, handleSave, loadTeachers, renderTeacherList, resetForm, saveTeachers } from './teachers.js';
+
+function syncWeekAxisTabs(){
+  document.querySelectorAll('.week-axis-btn').forEach(b=>{
+    b.classList.toggle('active', b.dataset.axis === S.weekAxis);
+  });
+  const descEl = document.getElementById('calWeekDesc');
+  if(!descEl) return;
+  if(S.weekAxis === 'student'){
+    descEl.textContent = 'マスの中身を生徒ごとの箱にし、各箱に担当講師を表示します。未確定のコマもここに表示されます。';
+  }else if(S.weekAxis === 'openings'){
+    descEl.textContent = 'マスの中身を、対応可能（○・△）と申告している講師の箱にし、あと何人受け入れられるか・どの教科が対応可能かを表示します。';
+  }else{
+    descEl.textContent = 'マスの中身を講師ごとの箱にし、各箱に担当している生徒を表示します。未確定のコマは別枠で表示されます。';
+  }
+}
+
+function closeCalActionPanels(){
+  const studentDropdown = document.getElementById('studentAbsenceDropdown');
+  const teacherDropdown = document.getElementById('teacherAbsenceDropdown');
+  const studentPanel = document.getElementById('studentAbsenceQuickPanel');
+  const teacherPanel = document.getElementById('teacherAbsenceQuickPanel');
+  const studentBtn = document.getElementById('studentAbsenceActionBtn');
+  const teacherBtn = document.getElementById('teacherAbsenceActionBtn');
+  if(studentPanel) studentPanel.hidden = true;
+  if(teacherPanel) teacherPanel.hidden = true;
+  studentDropdown?.classList.remove('is-open');
+  teacherDropdown?.classList.remove('is-open');
+  studentBtn?.classList.remove('is-active');
+  teacherBtn?.classList.remove('is-active');
+  studentBtn?.setAttribute('aria-expanded', 'false');
+  teacherBtn?.setAttribute('aria-expanded', 'false');
+}
+
+function toggleAbsenceDropdown(kind){
+  const isStudent = kind === 'student';
+  const dropdown = document.getElementById(isStudent ? 'studentAbsenceDropdown' : 'teacherAbsenceDropdown');
+  const panel = document.getElementById(isStudent ? 'studentAbsenceQuickPanel' : 'teacherAbsenceQuickPanel');
+  const btn = document.getElementById(isStudent ? 'studentAbsenceActionBtn' : 'teacherAbsenceActionBtn');
+  const otherKind = isStudent ? 'teacher' : 'student';
+  const otherDropdown = document.getElementById(isStudent ? 'teacherAbsenceDropdown' : 'studentAbsenceDropdown');
+  const otherPanel = document.getElementById(isStudent ? 'teacherAbsenceQuickPanel' : 'studentAbsenceQuickPanel');
+  const otherBtn = document.getElementById(isStudent ? 'teacherAbsenceActionBtn' : 'studentAbsenceActionBtn');
+  if(!dropdown || !panel || !btn) return;
+
+  const willOpen = panel.hidden;
+  if(otherPanel) otherPanel.hidden = true;
+  otherDropdown?.classList.remove('is-open');
+  otherBtn?.classList.remove('is-active');
+  otherBtn?.setAttribute('aria-expanded', 'false');
+
+  if(willOpen){
+    if(isStudent) populateStudentAbsenceQuickPanel();
+    else populateTeacherAbsenceQuickPanel();
+    panel.hidden = false;
+    dropdown.classList.add('is-open');
+    btn.classList.add('is-active');
+    btn.setAttribute('aria-expanded', 'true');
+  }else{
+    panel.hidden = true;
+    dropdown.classList.remove('is-open');
+    btn.classList.remove('is-active');
+    btn.setAttribute('aria-expanded', 'false');
+  }
+}
+
+function populateStudentAbsenceQuickPanel(){
+  const sel = document.getElementById('absenceQuickStudent');
+  if(!sel) return;
+  sel.innerHTML = '<option value="">生徒を選択…</option>' +
+    S.students.map(s=>`<option value="${s.id}">${s.name}（${gradeLabel(s)}）</option>`).join('');
+  const dateInput = document.getElementById('absenceQuickDate');
+  if(dateInput && !dateInput.value){
+    const t = new Date();
+    dateInput.value = toDateStr(t.getFullYear(), t.getMonth(), t.getDate());
+  }
+  const msg = document.getElementById('absenceQuickMsg');
+  if(msg) msg.textContent = '';
+}
+
+function populateTeacherAbsenceQuickPanel(){
+  const sel = document.getElementById('teacherAbsenceQuickTeacher');
+  if(!sel) return;
+  sel.innerHTML = '<option value="">講師を選択…</option>' +
+    S.teachers.map(t=>`<option value="${t.id}">${t.name}</option>`).join('');
+  const dateInput = document.getElementById('teacherAbsenceQuickDate');
+  if(dateInput && !dateInput.value){
+    const t = new Date();
+    dateInput.value = toDateStr(t.getFullYear(), t.getMonth(), t.getDate());
+  }
+  const msg = document.getElementById('teacherAbsenceQuickMsg');
+  if(msg) msg.textContent = '';
+}
 
 // ---------- init ----------
 async function init(){
@@ -38,47 +131,63 @@ async function init(){
   document.getElementById('roomCapDisplay').textContent = String(S.roomCapacity);
   buildClosedDayArea();
   renderClosedDaySettings();
+  initMatchingPrioritySettings();
   renderCalendar();
   document.getElementById('tsTeacherListWrap').innerHTML = '<div class="loading">読み込み中…</div>';
 
   document.querySelectorAll('.tab-btn').forEach(b=>{
     b.addEventListener('click', ()=>switchView(b.dataset.view));
   });
-  document.querySelectorAll('.cal-mode-btn').forEach(b=>{
-    b.addEventListener('click', ()=>switchCalMode(b.dataset.mode));
+  document.getElementById('calModeToggleBtn').addEventListener('click', toggleCalMode);
+  document.getElementById('calPrevBtn').addEventListener('click', ()=>{
+    if(S.calMode==='week'){
+      const d = new Date(S.calWeekAnchor+'T00:00:00');
+      d.setDate(d.getDate()-7);
+      S.calWeekAnchor = toDateStr(d.getFullYear(), d.getMonth(), d.getDate());
+      renderCalendarWeek();
+      return;
+    }
+    S.calMonth--;
+    if(S.calMonth<0){ S.calMonth=11; S.calYear--; }
+    document.getElementById('calDetailCard').style.display = 'none';
+    S.calSelectedDate = null;
+    syncMonthChange();
   });
-  document.getElementById('calWeekPrevBtn').addEventListener('click', ()=>{
-    const d = new Date(S.calWeekAnchor+'T00:00:00');
-    d.setDate(d.getDate()-7);
-    S.calWeekAnchor = toDateStr(d.getFullYear(), d.getMonth(), d.getDate());
-    renderCalendarWeek();
+  document.getElementById('calNextBtn').addEventListener('click', ()=>{
+    if(S.calMode==='week'){
+      const d = new Date(S.calWeekAnchor+'T00:00:00');
+      d.setDate(d.getDate()+7);
+      S.calWeekAnchor = toDateStr(d.getFullYear(), d.getMonth(), d.getDate());
+      renderCalendarWeek();
+      return;
+    }
+    S.calMonth++;
+    if(S.calMonth>11){ S.calMonth=0; S.calYear++; }
+    document.getElementById('calDetailCard').style.display = 'none';
+    S.calSelectedDate = null;
+    syncMonthChange();
   });
-  document.getElementById('calWeekNextBtn').addEventListener('click', ()=>{
-    const d = new Date(S.calWeekAnchor+'T00:00:00');
-    d.setDate(d.getDate()+7);
-    S.calWeekAnchor = toDateStr(d.getFullYear(), d.getMonth(), d.getDate());
-    renderCalendarWeek();
-  });
-  document.getElementById('calWeekTodayBtn').addEventListener('click', ()=>{
-    S.calWeekAnchor = getWeekMonday(getTodayStr());
-    renderCalendarWeek();
+  document.getElementById('calTodayBtn').addEventListener('click', ()=>{
+    if(S.calMode==='week'){
+      S.calWeekAnchor = getWeekMonday(getTodayStr());
+      renderCalendarWeek();
+      return;
+    }
+    const t = new Date();
+    S.calYear = t.getFullYear();
+    S.calMonth = t.getMonth();
+    document.getElementById('calDetailCard').style.display = 'none';
+    S.calSelectedDate = null;
+    syncMonthChange();
   });
   document.querySelectorAll('.week-axis-btn').forEach(b=>{
     b.addEventListener('click', ()=>{
       S.weekAxis = b.dataset.axis;
-      document.querySelectorAll('.week-axis-btn').forEach(x=>x.classList.toggle('active', x===b));
-      let desc;
-      if(S.weekAxis==='student'){
-        desc = 'マスの中身を生徒ごとの箱にし、各箱に担当講師を表示します。「この生徒は誰に教わっているか」がすぐ分かります。';
-      }else if(S.weekAxis==='openings'){
-        desc = 'マスの中身を、対応可能（○・△）と申告している講師の箱にし、あと何人受け入れられるか・どの教科が対応可能かを表示します。「あと◯人」は、講師のコマ代を追加で払わずに売上を伸ばせる枠です。';
-      }else{
-        desc = 'マスの中身を講師ごとの箱にし、各箱に担当している生徒を表示します。「この講師は何人担当しているか」がすぐ分かります。';
-      }
-      document.getElementById('calWeekDesc').textContent = desc;
+      syncWeekAxisTabs();
       renderCalendarWeek();
     });
   });
+  syncWeekAxisTabs();
   document.getElementById('finPrevBtn').addEventListener('click', ()=>{
     S.finMonth--;
     if(S.finMonth<0){ S.finMonth=11; S.finYear--; }
@@ -276,33 +385,13 @@ async function init(){
     e.target.value = String(v);
     renderFinance();
   });
-  document.getElementById('calPrevBtn').addEventListener('click', ()=>{
-    S.calMonth--;
-    if(S.calMonth<0){ S.calMonth=11; S.calYear--; }
-    document.getElementById('calDetailCard').style.display = 'none';
-    S.calSelectedDate = null;
-    syncMonthChange();
-  });
-  document.getElementById('calNextBtn').addEventListener('click', ()=>{
-    S.calMonth++;
-    if(S.calMonth>11){ S.calMonth=0; S.calYear++; }
-    document.getElementById('calDetailCard').style.display = 'none';
-    S.calSelectedDate = null;
-    syncMonthChange();
-  });
-  document.getElementById('calTodayBtn').addEventListener('click', ()=>{
-    const t = new Date();
-    S.calYear = t.getFullYear();
-    S.calMonth = t.getMonth();
-    document.getElementById('calDetailCard').style.display = 'none';
-    S.calSelectedDate = null;
-    syncMonthChange();
-  });
   document.getElementById('calStudentFilter').addEventListener('change', (e)=>{
     S.calFilterStudentId = e.target.value;
     document.getElementById('calDetailCard').style.display = 'none';
     S.calSelectedDate = null;
-    renderCalendar();
+    refreshCalToolbarSecondary();
+    if(S.calMode==='week') renderCalendarWeek();
+    else renderCalendar();
   });
   document.getElementById('tsPrevBtn').addEventListener('click', ()=>{
     S.calMonth--;
@@ -362,22 +451,9 @@ async function init(){
     detail.style.display = isOpen ? 'none' : 'block';
     btn.textContent = isOpen ? '詳細 ▾' : '詳細 ▴';
   });
-  document.getElementById('absenceQuickToggle').addEventListener('click', ()=>{
-    const form = document.getElementById('absenceQuickForm');
-    const isOpen = form.style.display !== 'none';
-    if(!isOpen){
-      // 開くたびに生徒一覧・今日の日付を最新化する
-      const sel = document.getElementById('absenceQuickStudent');
-      sel.innerHTML = '<option value="">生徒を選択…</option>' +
-        S.students.map(s=>`<option value="${s.id}">${s.name}（${gradeLabel(s)}）</option>`).join('');
-      const dateInput = document.getElementById('absenceQuickDate');
-      if(!dateInput.value){
-        const t = new Date();
-        dateInput.value = toDateStr(t.getFullYear(), t.getMonth(), t.getDate());
-      }
-      document.getElementById('absenceQuickMsg').textContent = '';
-    }
-    form.style.display = isOpen ? 'none' : 'flex';
+  document.getElementById('studentAbsenceActionBtn').addEventListener('click', (e)=>{
+    e.stopPropagation();
+    toggleAbsenceDropdown('student');
   });
   document.getElementById('absenceQuickOpenBtn').addEventListener('click', ()=>{
     const msg = document.getElementById('absenceQuickMsg');
@@ -385,24 +461,12 @@ async function init(){
     const dateStr = document.getElementById('absenceQuickDate').value;
     if(!studentId){ msg.textContent = '生徒を選択してください。'; return; }
     if(!dateStr){ msg.textContent = '日付を選択してください。'; return; }
-    document.getElementById('absenceQuickForm').style.display = 'none';
+    closeCalActionPanels();
     jumpToCalendarForDate(studentId, dateStr);
   });
-  document.getElementById('teacherAbsenceQuickToggle').addEventListener('click', ()=>{
-    const form = document.getElementById('teacherAbsenceQuickForm');
-    const isOpen = form.style.display !== 'none';
-    if(!isOpen){
-      const sel = document.getElementById('teacherAbsenceQuickTeacher');
-      sel.innerHTML = '<option value="">講師を選択…</option>' +
-        S.teachers.map(t=>`<option value="${t.id}">${t.name}</option>`).join('');
-      const dateInput = document.getElementById('teacherAbsenceQuickDate');
-      if(!dateInput.value){
-        const t = new Date();
-        dateInput.value = toDateStr(t.getFullYear(), t.getMonth(), t.getDate());
-      }
-      document.getElementById('teacherAbsenceQuickMsg').textContent = '';
-    }
-    form.style.display = isOpen ? 'none' : 'flex';
+  document.getElementById('teacherAbsenceActionBtn').addEventListener('click', (e)=>{
+    e.stopPropagation();
+    toggleAbsenceDropdown('teacher');
   });
   document.getElementById('teacherAbsenceQuickOpenBtn').addEventListener('click', ()=>{
     const msg = document.getElementById('teacherAbsenceQuickMsg');
@@ -410,42 +474,8 @@ async function init(){
     const dateStr = document.getElementById('teacherAbsenceQuickDate').value;
     if(!teacherId){ msg.textContent = '講師を選択してください。'; return; }
     if(!dateStr){ msg.textContent = '日付を選択してください。'; return; }
-    document.getElementById('teacherAbsenceQuickForm').style.display = 'none';
+    closeCalActionPanels();
     renderTeacherAbsencePanel(teacherId, dateStr);
-  });
-  document.getElementById('bulkAutoBtn').addEventListener('click', ()=>{
-    const {filled, skipped, total} = bulkAutoAssign();
-    const resultEl = document.getElementById('bulkAutoResult');
-    if(total===0){
-      resultEl.innerHTML = '';
-    }else if(filled===0){
-      resultEl.innerHTML = `<div class="bulk-auto-result none">対応できる講師が見つからず、${skipped}件とも自動確定できませんでした。講師の追加登録や代替日程の提案をご検討ください。</div>`;
-    }else if(skipped===0){
-      resultEl.innerHTML = `<div class="bulk-auto-result success">✓ 未確定だった${filled}件をすべて自動確定しました。「自動」バッジの付いた枠は内容を確認してください。</div>`;
-    }else{
-      resultEl.innerHTML = `<div class="bulk-auto-result partial">${filled}件を自動確定しました。${skipped}件は対応できる講師が見つからず未確定のままです。</div>`;
-    }
-    renderMatching();
-  });
-  document.getElementById('bulkCancelAutoBtn').addEventListener('click', function(){
-    const btn = this;
-    const resultEl = document.getElementById('bulkAutoResult');
-    const autoCount = S.assignments.filter(a=>a.source==='auto').length;
-    if(autoCount===0){
-      resultEl.innerHTML = '<div class="bulk-auto-result none">現在、自動確定された枠はありません。</div>';
-      return;
-    }
-    if(!btn.dataset.confirming){
-      btn.dataset.confirming = '1';
-      btn.textContent = `本当に${autoCount}件を解除しますか？（もう一度押すと実行）`;
-      setTimeout(()=>{ btn.dataset.confirming=''; btn.textContent='✕ 自動確定分を一括解除'; }, 4000);
-      return;
-    }
-    btn.dataset.confirming = '';
-    btn.textContent = '✕ 自動確定分を一括解除';
-    const count = bulkCancelAuto();
-    resultEl.innerHTML = `<div class="bulk-auto-result partial">自動確定していた${count}件をすべて解除しました。</div>`;
-    renderMatching();
   });
   document.getElementById('prefStudentSelect').addEventListener('change', refreshPrefCourseAndTeacherOptions);
   document.getElementById('addPrefPairBtn').addEventListener('click', ()=>{
@@ -456,6 +486,10 @@ async function init(){
     addPreferredPair(studentId, courseId, teacherId);
     renderPrefPairList();
     renderMatching();
+  });
+  initMatchingPanel();
+  document.addEventListener('click', (e)=>{
+    if(!e.target.closest('.cal-action-dropdown')) closeCalActionPanels();
   });
 
   await loadTeachers();

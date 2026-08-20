@@ -1,16 +1,44 @@
   :root{
-    --ink:#1e1e1f;
-    --ink-soft:#68696d;
-    --green-900:#25272b;
-    --green-800:#34373d;
-    --green-700:#474b52;
-    --green-600:#5c6069;
-    --green-500:#7a7e87;
-    --green-100:#eef0f2;
-    --gold:#8a7248;
-    --gold-soft:#efe9dd;
-    --cream:#f7f7f6;
-    --card:#ffffff;
-    --border:#e0e0e0;
-    --danger:#b3462c;
+    /* MFクラウド系 — UI基盤 */
+    --ink:#333333;
+    --ink-soft:#787E8D;
+    --surface-page:#F7F7F7;
+    --surface-card:#FFFFFF;
+    --surface-muted:#EFF1F4;
+    --border:#D4D8DD;
+    --card:#FFFFFF;
+    --cream:var(--surface-page);
+
+    /* ブランド青 */
+    --brand-900:#32373F;
+    --brand-800:#424954;
+    --brand-600:#0054AC;
+    --brand-500:#3B7DE9;
+    --brand-400:#6594DA;
+    --brand-100:#EDF5FE;
+    --brand-50:#ECF2FD;
+
+    /* 状態色 */
+    --pending-bg:#ECF2FD;
+    --pending-border:#3B7DE9;
+    --pending-ink:#0054AC;
+    --success:#65AB51;
+    --success-bg:#EEF6EB;
+    --warning-bg:#FCF8E3;
+    --warning-ink:#8A6D3B;
+    --danger:#D0021B;
+    --danger-bg:#FFEEEB;
+    --holiday-bg:#FFEEEB;
+    --holiday-ink:#D0021B;
+
+    /* 旧名エイリアス（既存CSS互換） */
+    --green-900:var(--brand-900);
+    --green-800:var(--brand-800);
+    --green-700:var(--brand-500);
+    --green-600:var(--brand-600);
+    --green-500:var(--brand-400);
+    --green-100:var(--surface-muted);
+    --gold:var(--brand-500);
+    --gold-soft:var(--brand-50);
+    --bg-soft:var(--surface-muted);
   }

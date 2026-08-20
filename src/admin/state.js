@@ -50,9 +50,14 @@ export const S = {
   finMonth: undefined,
   finIncludeTransport: true,
   calWeekAnchor: null,
-  weekAxis: 'teacher',
+  weekAxis: 'student',
   calMode: 'month',
   appInitialized: false,
+  matchingPanelOpen: false,
+  matchingPanelStudentId: null,
+  matchingPanelSlot: null,
+  matchingPriority: null,
+  calendarDrawerView: 'day',
 };
 
 export function getSecondaryAuth(){

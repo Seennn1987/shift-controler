@@ -52,9 +52,18 @@ async function bootstrap(user){
     return;
   }
   if(!accSnap.exists){
+    let adminHint = '';
+    try{
+      const adminSnap = await fbDb.collection('classroomSettings').doc(user.uid).get();
+      if(adminSnap.exists){
+        adminHint = '教室長用のアカウントでログインしている可能性があります。教室長ページ（index.html）をお使いください。';
+        await fbAuth.signOut();
+      }
+    }catch(e){
+      // 判定に失敗しても、下の一般メッセージを表示する
+    }
     console.error('teacherAccounts lookup failed for uid:', user.uid);
-    showLogin(`このアカウント（ID: ${user.uid}）は講師として登録されていません。教室長にこのIDを伝えてご確認ください。`);
-    // ここでは自動サインアウトしない（原因切り分けのため。ログイン画面には戻さず、この状態を維持する）
+    showLogin(adminHint || `このアカウントは講師として登録されていません。教室長に「講師登録」画面でログイン再同期を依頼してください。（確認用ID: ${user.uid.slice(0, 8)}…）`);
     return;
   }
   const d = accSnap.data();

@@ -14,6 +14,6 @@ export function initPrimaryFirebase() {
   }
   const fbAuth = firebase.auth();
   const fbDb = firebase.firestore();
-  fbDb.settings({ experimentalAutoDetectLongPolling: true });
+  fbDb.settings({ experimentalAutoDetectLongPolling: true, merge: true });
   return { fbAuth, fbDb };
 }

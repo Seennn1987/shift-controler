@@ -3,7 +3,7 @@ import { HOLIDAYS_JP } from '../shared/holidays.js';
 import { pad2, daysInYearMonth, toDateStr, getTodayStr } from '../shared/date-utils.js';
 import { firebaseConfig, fbAuth, fbDb, STORAGE_KEY, getSecondaryAuth, S } from './state.js';
 import { renderMatrix, switchView } from './finance-ui.js';
-import { computeTeacherWorkload, renderMatching } from './matching.js';
+import { renderMatching } from './matching.js';
 import { fillBaseAvailArea, readBaseAvailArea, renderRaiseScheduleList, subjectColor } from './schedule-core.js';
 import { scheduleSave } from './students-persistence.js';
 
@@ -288,8 +288,6 @@ function renderTeacherList(){
   }
   wrap.innerHTML = '';
   S.teachers.forEach(t=>{
-    const wl = computeTeacherWorkload(t);
-    const level = wl.rate>=80 ? 'high' : (wl.rate>=40 ? 'mid' : 'low');
     const row = document.createElement('div');
     row.className = 'teacher-row';
     row.innerHTML = `
@@ -310,13 +308,6 @@ function renderTeacherList(){
           <div class="ba-mini-title">基本の対応可能曜日・コマ</div>
           ${buildBaseAvailMiniGrid(t)}
         </div>
-      </div>
-      <div class="wl-mini">
-        <div class="wl-mini-head">
-          <span>対応可能${wl.totalAvail}コマ中、${wl.filled}コマが確定済み</span>
-          <span class="wl-mini-rate ${level}">${wl.totalAvail>0 ? wl.rate+'%' : '—'}</span>
-        </div>
-        <div class="wl-bar-track"><div class="wl-bar-fill ${level}" style="width:${Math.min(wl.rate,100)}%;"></div></div>
       </div>`;
     wrap.appendChild(row);
   });

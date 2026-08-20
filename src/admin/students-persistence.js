@@ -4,7 +4,7 @@ import { pad2, daysInYearMonth, toDateStr, getTodayStr } from '../shared/date-ut
 import { firebaseConfig, fbAuth, fbDb, STORAGE_KEY, getSecondaryAuth, S } from './state.js';
 import { getDayStatus, renderCalendar } from './calendar.js';
 import { renderMatching } from './matching.js';
-import { gradeLabel } from './schedule-core.js';
+import { gradeLabel, buildMonthDaysFromBaseAvailability, getOrCreateDraftSchedule } from './schedule-core.js';
 import { openTeacherScheduleEditor, renderTeacherScheduleTab } from './teacher-schedule-tab.js';
 
 
@@ -43,7 +43,17 @@ function teacherSchedDocRef(teacherId){
 async function syncTeacherLoginUidEverywhere(teacherId, loginUid){
   const user = fbAuth.currentUser;
   if(!user) return;
+  const teacher = S.teachers.find(t=>t.id===teacherId);
   const payload = { adminUid: user.uid, teacherId, teacherLoginUid: loginUid };
+  try{
+    await fbDb.collection('teacherAccounts').doc(loginUid).set({
+      adminUid: user.uid,
+      teacherId,
+      teacherName: teacher ? teacher.name : '',
+    }, {merge:true});
+  }catch(e){
+    console.error('teacherAccountsの更新エラー:', e);
+  }
   try{
     const schedRef = teacherSchedDocRef(teacherId);
     if(schedRef) await schedRef.set(payload, {merge:true});
@@ -284,6 +294,7 @@ async function saveAppState(){
     teacherCapacity: S.teacherCapacity,
     finGradientMin: S.finGradientMin,
     finGradientMax: S.finGradientMax,
+    matchingPriority: S.matchingPriority,
     updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
   };
   try{
@@ -317,6 +328,7 @@ async function loadAppStateFromFirestore(){
     S.teacherCapacity = d.teacherCapacity || 2;
     S.finGradientMin = (d.finGradientMin!=null) ? d.finGradientMin : 25;
     S.finGradientMax = (d.finGradientMax!=null) ? d.finGradientMax : 60;
+    S.matchingPriority = d.matchingPriority || null;
   }else{
     // 初回ログイン：実運用として空のデータから始める（テスト用サンプルデータは使わない）
     S.teachers = [];
@@ -337,9 +349,64 @@ async function loadAppStateFromFirestore(){
   S.dataReady = true;
   S.studentDataReady = true;
   S.firestoreReady = true;
+
+  // 一度だけ：古い授業マッチデータをすべて削除（2026-08-14）
+  const MATCHING_RESET_KEY = 'pitakoma_clear_all_matching_v1';
+  let matchingWasCleared = false;
+  if(typeof localStorage !== 'undefined' && localStorage.getItem(MATCHING_RESET_KEY) !== 'done'){
+    S.assignments = [];
+    S.pendingAssignments = [];
+    localStorage.setItem(MATCHING_RESET_KEY, 'done');
+    matchingWasCleared = true;
+    await saveAppState();
+  }
+
   await syncClosureSettings(); // 講師側にも休校日設定を同期しておく
   await syncTeacherAssignments(); // 講師のマイカレンダー用データも、ログインのたびに必ず作り直す（過去の同期失敗を自己修復するため）
+  if(matchingWasCleared){
+    console.info('[ピタコマ] 授業マッチデータをすべて削除しました。');
+  }
+
+  // 一度だけ：各講師の基本スケジュールから2026年8月の提出済みスケジュールを登録
+  const AUG_SCHEDULE_SEED_KEY = 'pitakoma_seed_aug2026_from_base_v1';
+  if(typeof localStorage !== 'undefined' && localStorage.getItem(AUG_SCHEDULE_SEED_KEY) !== 'done'){
+    const seedResult = await seedTeacherMonthSchedulesFromBase('2026-08');
+    localStorage.setItem(AUG_SCHEDULE_SEED_KEY, 'done');
+    console.info('[ピタコマ] 8月の講師スケジュールを基本スケジュールから登録しました。', seedResult);
+  }
 }
 
 
-export { loadStudents, saveStudents, getStateDocRef, teacherSchedDocRef, syncTeacherLoginUidEverywhere, saveTeacherScheduleDoc, loadAllTeacherSchedules, startTeacherScheduleListener, promotePendingAssignment, startApprovalPromotionListener, scheduleSyncClosureSettings, syncClosureSettings, scheduleSyncTeacherAssignments, syncTeacherAssignments, scheduleSave, saveAppState, loadAppStateFromFirestore };
+async function seedTeacherMonthSchedulesFromBase(yearMonth){
+  const result = { yearMonth, saved: [], skipped: [], noBase: [] };
+  for(const teacher of S.teachers){
+    const base = teacher.baseAvailability || [];
+    if(base.length === 0){
+      result.noBase.push(teacher.name || teacher.id);
+      continue;
+    }
+    const schedule = getOrCreateDraftSchedule(teacher.id, yearMonth);
+    schedule.days = buildMonthDaysFromBaseAvailability(teacher, yearMonth);
+    if(Object.keys(schedule.days).length === 0){
+      result.skipped.push(teacher.name || teacher.id);
+      continue;
+    }
+    schedule.status = 'submitted';
+    schedule.submittedBy = 'admin';
+    await saveTeacherScheduleDoc(schedule);
+    result.saved.push(teacher.name || teacher.id);
+  }
+  return result;
+}
+
+
+async function clearAllMatchingData(){
+  S.assignments = [];
+  S.pendingAssignments = [];
+  if(!S.firestoreReady) return;
+  await saveAppState();
+  await syncTeacherAssignments();
+}
+
+
+export { loadStudents, saveStudents, getStateDocRef, teacherSchedDocRef, syncTeacherLoginUidEverywhere, saveTeacherScheduleDoc, loadAllTeacherSchedules, startTeacherScheduleListener, promotePendingAssignment, startApprovalPromotionListener, scheduleSyncClosureSettings, syncClosureSettings, scheduleSyncTeacherAssignments, syncTeacherAssignments, scheduleSave, saveAppState, loadAppStateFromFirestore, clearAllMatchingData, seedTeacherMonthSchedulesFromBase };

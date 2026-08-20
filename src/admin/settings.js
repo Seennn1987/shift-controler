@@ -6,6 +6,7 @@ import { renderCalendar } from './calendar.js';
 import { renderMatrix } from './finance-ui.js';
 import { renderMatching } from './matching.js';
 import { scheduleSave, scheduleSyncClosureSettings } from './students-persistence.js';
+import { MATCHING_FACTOR_META, normalizeMatchingPriority } from './matching-config.js';
 
 // ---- 優先ペアリング（教室長が指定：生徒の教科(コース)単位で講師を優先） ----
 
@@ -257,6 +258,75 @@ function renderClosureList(){
   });
 }
 
+function renderMatchingPrioritySettings(){
+  const wrap = document.getElementById('matchingPriorityList');
+  if(!wrap) return;
+  S.matchingPriority = normalizeMatchingPriority(S.matchingPriority);
+  wrap.innerHTML = S.matchingPriority.map((item, idx)=>{
+    const meta = MATCHING_FACTOR_META[item.id];
+    const label = meta ? meta.label : item.id;
+    return `<div class="matching-priority-row" data-id="${item.id}">
+      <span class="matching-priority-num">${idx + 1}</span>
+      <label class="matching-priority-toggle">
+        <input type="checkbox" class="matching-priority-enabled" data-id="${item.id}" ${item.enabled ? 'checked' : ''}>
+        <span class="matching-priority-label">${label}</span>
+      </label>
+      <div class="matching-priority-actions">
+        <button type="button" class="ghost matching-priority-up" data-id="${item.id}" ${idx === 0 ? 'disabled' : ''}>↑</button>
+        <button type="button" class="ghost matching-priority-down" data-id="${item.id}" ${idx === S.matchingPriority.length - 1 ? 'disabled' : ''}>↓</button>
+      </div>
+    </div>`;
+  }).join('');
+
+  wrap.querySelectorAll('.matching-priority-enabled').forEach(input=>{
+    input.addEventListener('change', ()=>{
+      const row = S.matchingPriority.find(r=> r.id === input.dataset.id);
+      if(!row) return;
+      row.enabled = input.checked;
+      scheduleSave();
+      renderMatching();
+      if(S.matchingPanelOpen && S.matchingPanelStudentId){
+        document.dispatchEvent(new CustomEvent('matching:refresh-panel'));
+      }
+    });
+  });
+  wrap.querySelectorAll('.matching-priority-up').forEach(btn=>{
+    btn.addEventListener('click', ()=>{
+      const idx = S.matchingPriority.findIndex(r=> r.id === btn.dataset.id);
+      if(idx <= 0) return;
+      const tmp = S.matchingPriority[idx - 1];
+      S.matchingPriority[idx - 1] = S.matchingPriority[idx];
+      S.matchingPriority[idx] = tmp;
+      scheduleSave();
+      renderMatchingPrioritySettings();
+      renderMatching();
+      if(S.matchingPanelOpen && S.matchingPanelStudentId){
+        document.dispatchEvent(new CustomEvent('matching:refresh-panel'));
+      }
+    });
+  });
+  wrap.querySelectorAll('.matching-priority-down').forEach(btn=>{
+    btn.addEventListener('click', ()=>{
+      const idx = S.matchingPriority.findIndex(r=> r.id === btn.dataset.id);
+      if(idx < 0 || idx >= S.matchingPriority.length - 1) return;
+      const tmp = S.matchingPriority[idx + 1];
+      S.matchingPriority[idx + 1] = S.matchingPriority[idx];
+      S.matchingPriority[idx] = tmp;
+      scheduleSave();
+      renderMatchingPrioritySettings();
+      renderMatching();
+      if(S.matchingPanelOpen && S.matchingPanelStudentId){
+        document.dispatchEvent(new CustomEvent('matching:refresh-panel'));
+      }
+    });
+  });
+}
+
+function initMatchingPrioritySettings(){
+  if(!S.matchingPriority) S.matchingPriority = normalizeMatchingPriority(null);
+  renderMatchingPrioritySettings();
+}
+
 // =====================================================================
 
-export { addOrUpdateTerm, deleteTerm, resetTermForm, fillTermFormForEdit, handleTermSave, renderTermList, computeHolidaysInTerms, renderClosedDaySettings, applyClosedDayStyling, buildClosedDayArea, addOrUpdateClosure, deleteClosure, resetClosureForm, fillClosureFormForEdit, handleClosureSave, renderClosureList };
+export { addOrUpdateTerm, deleteTerm, resetTermForm, fillTermFormForEdit, handleTermSave, renderTermList, computeHolidaysInTerms, renderClosedDaySettings, applyClosedDayStyling, buildClosedDayArea, addOrUpdateClosure, deleteClosure, resetClosureForm, fillClosureFormForEdit, handleClosureSave, renderClosureList, renderMatchingPrioritySettings, initMatchingPrioritySettings };

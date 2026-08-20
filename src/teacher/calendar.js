@@ -50,7 +50,7 @@ function renderMyCalendar(){
               <span class="mycal-slot-tag">${slotLabel?slotLabel.label:e.slot+'講'}</span>
               <b>${e.studentName}</b>（${e.studentGrade||''}）　${e.subject}
               ${e.oneTimeDate ? '<span class="mycal-pending-tag" style="color:var(--ink-soft);">単発の代講</span>' : ''}
-              ${isPending ? '<span class="mycal-pending-tag">未承認</span>' : ''}
+              ${isPending ? '<span class="mycal-pending-tag">確認待ち</span>' : ''}
             </div>
             ${isPending ? `<button type="button" class="mycal-approve-btn" data-id="${ticket.id}">承認する</button>` : ''}
           </div>`;
