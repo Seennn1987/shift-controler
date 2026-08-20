@@ -21,10 +21,11 @@ function syncWeekAxisTabs(){
   if(S.weekAxis === 'student'){
     descEl.textContent = 'マスの中身を生徒ごとの箱にし、各箱に担当講師を表示します。未確定のコマもここに表示されます。';
   }else if(S.weekAxis === 'openings'){
-    descEl.textContent = 'マスの中身を、対応可能（○・△）と申告している講師の箱にし、あと何人受け入れられるか・どの教科が対応可能かを表示します。';
+    descEl.textContent = '各マスの上段に教科別の空き人数を表示します。講師名の下に教科タグを出したい場合は、右のチェックをオンにしてください。';
   }else{
     descEl.textContent = 'マスの中身を講師ごとの箱にし、各箱に担当している生徒を表示します。未確定のコマは別枠で表示されます。';
   }
+  refreshCalToolbarSecondary();
 }
 
 function closeCalActionPanels(){
@@ -186,6 +187,10 @@ async function init(){
       syncWeekAxisTabs();
       renderCalendarWeek();
     });
+  });
+  document.getElementById('calOpeningsShowSubjectsToggle').addEventListener('change', (e)=>{
+    S.calOpeningsShowSubjects = e.target.checked;
+    if(S.calMode === 'week' && S.weekAxis === 'openings') renderCalendarWeek();
   });
   syncWeekAxisTabs();
   document.getElementById('finPrevBtn').addEventListener('click', ()=>{

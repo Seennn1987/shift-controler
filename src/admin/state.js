@@ -51,6 +51,7 @@ export const S = {
   finIncludeTransport: true,
   calWeekAnchor: null,
   weekAxis: 'student',
+  calOpeningsShowSubjects: false,
   calMode: 'month',
   appInitialized: false,
   matchingPanelOpen: false,

@@ -761,6 +761,14 @@
   .cal-week-header .cal-title{font-size:14.5px;}
 
   /* 講師空き状況（実日付ベース） */
+  .opening-cell-inner{display:flex;flex-direction:column;gap:6px;min-width:0;}
+  .opening-cell-summary{margin-bottom:0;padding-bottom:6px;}
+  .cell-total-openings{color:var(--ink);}
+  .opening-cell-teachers{display:flex;flex-direction:column;gap:4px;}
+  .opening-subject-tags{display:flex;flex-wrap:wrap;gap:3px;margin-top:4px;}
+  .cal-openings-subject-toggle{
+    margin-left:auto;font-size:12px;font-weight:600;color:var(--ink-soft);white-space:nowrap;
+  }
   .opening-box.partial{border:1.5px solid var(--ink);}
   .opening-box.empty{opacity:.7;}
   .opening-mark{

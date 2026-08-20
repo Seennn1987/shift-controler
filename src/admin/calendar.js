@@ -346,6 +346,11 @@ function refreshCalToolbarSecondary(){
   const axisBar = document.getElementById('calWeekAxisBar');
   const showAxis = S.calMode==='week' && !S.calFilterStudentId;
   if(axisBar) axisBar.style.display = showAxis ? 'flex' : 'none';
+  const toggleWrap = document.getElementById('calOpeningsSubjectToggleWrap');
+  const toggle = document.getElementById('calOpeningsShowSubjectsToggle');
+  const showSubjectToggle = showAxis && S.weekAxis === 'openings';
+  if(toggleWrap) toggleWrap.hidden = !showSubjectToggle;
+  if(toggle) toggle.checked = !!S.calOpeningsShowSubjects;
 }
 
 // =====================================================================

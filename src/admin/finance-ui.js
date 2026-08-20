@@ -331,11 +331,37 @@ function buildWeekStudentFilterCell(student, dateStr, slot){
   return calLinesToEntriesHtml(lines);
 }
 
-// \u7a7a\u304d\u72b6\u6cc1\u8ef8\uff1a\u30de\u30b9\u76ee\u306e\u4e2d\u306b\u300c\u8b1b\u5e2b\u306e\u7bb1\u300d\u3092\u4f5c\u308a\u3001\u305d\u306e\u8b1b\u5e2b\u304c\u5bfe\u5fdc\u53ef\u80fd\u306a\u6559\u79d1\u30bf\u30b0\uff0b\u3042\u3068\u4f55\u4eba\u5165\u308c\u308b\u304b\u3092\u8868\u793a\u3059\u308b
+// 学年×教科の人数サマリーグリッド（講師基本スケジュール・週間空き状況で共用）
+function buildSubjectSummaryGrid(teachers, opts = {}){
+  const { filterLevel = null, filterSubject = null } = opts;
+  const subjectColCount = (filterLevel && filterSubject) ? 1 : 5;
+  let gridCells = '';
+  LEVELS_ORDER.forEach(lv=>{
+    if(filterLevel && filterLevel !== lv) return;
+    gridCells += `<span class="cell-summary-level">${lv}</span>`;
+    SUBJECT_MAP[lv].forEach(sub=>{
+      if(filterSubject && filterSubject !== sub) return;
+      const n = teachers.filter(t=>t.subjects.some(s=>s.level===lv && s.subject===sub)).length;
+      const c = subjectColor(lv, sub);
+      if(n===0){
+        gridCells += `<span class="sum-tag sum-tag-empty" style="border-color:${c.border};color:${c.border};">${SUBJECT_ABBR[sub]}0</span>`;
+      }else{
+        gridCells += `<span class="sum-tag" style="background:${c.bg};color:${c.text};border-color:${c.border};">${SUBJECT_ABBR[sub]}${n}</span>`;
+      }
+    });
+  });
+  if(!gridCells) return '';
+  return `<div class="cell-summary-grid" style="--sum-cols:${subjectColCount}">${gridCells}</div>`;
+}
+
+// 空き状況軸：マス目の中に「講師の箱」を作り、その講師が対応可能な教科タグ＋あと何人入れるかを表示する
 function buildOpeningsAxisCell(dateStr, slot){
   const {rows} = computeTeacherOpenings(dateStr, null);
   const slotRows = rows.filter(r=>r.slot.id===slot.id && r.kind!=='full');
   if(slotRows.length===0) return null;
+  const availTeachers = slotRows.map(r=>r.teacher);
+  const summaryGrid = buildSubjectSummaryGrid(availTeachers);
+  const showSubjects = S.calOpeningsShowSubjects;
   let boxesHtml = '';
   slotRows.forEach(r=>{
     const mark = r.state==='preferred' ? '\u25cb' : '\u25b3';
@@ -344,12 +370,21 @@ function buildOpeningsAxisCell(dateStr, slot){
       const c = subjectColor(s.level, s.subject);
       return `<span class="sched-student-tag" style="background:${c.bg};color:${c.text};">${abbr(s.level, s.subject)}</span>`;
     }).join('');
+    const tagsRow = showSubjects
+      ? `<div class="sched-student-row opening-subject-tags">${subjectTags}</div>`
+      : '';
     boxesHtml += `<div class="sched-teacher-box opening-box ${r.kind}">
       <div class="sched-teacher-name">${teacherHonorific(r.teacher)}<span class="opening-mark ${r.kind}">${mark} ${label}</span></div>
-      <div class="sched-student-row" style="flex-wrap:wrap;gap:3px;">${subjectTags}</div>
+      ${tagsRow}
     </div>`;
   });
-  return boxesHtml;
+  return `<div class="opening-cell-inner">
+    <div class="cell-summary opening-cell-summary">
+      <div class="cell-total cell-total-openings">空き：${slotRows.length}人</div>
+      ${summaryGrid}
+    </div>
+    <div class="opening-cell-teachers">${boxesHtml}</div>
+  </div>`;
 }
 
 // ---------- matrix ----------
@@ -404,27 +439,12 @@ function renderMatrix(){
       });
 
       // 学年別・全5教科の対応可能人数（0人の教科は点線枠で「人がいない」ことを強調）
-      const subjectColCount = filterVal ? 1 : 5;
-      let gridCells = '';
-      LEVELS_ORDER.forEach(lv=>{
-        if(filterVal && filterLevel!==lv) return;
-        gridCells += `<span class="cell-summary-level">${lv}</span>`;
-        SUBJECT_MAP[lv].forEach(sub=>{
-          if(filterVal && filterSubject!==sub) return;
-          const n = avail.filter(t=>t.subjects.some(s=>s.level===lv && s.subject===sub)).length;
-          const c = subjectColor(lv, sub);
-          if(n===0){
-            gridCells += `<span class="sum-tag sum-tag-empty" style="border-color:${c.border};color:${c.border};">${SUBJECT_ABBR[sub]}0</span>`;
-          }else{
-            gridCells += `<span class="sum-tag" style="background:${c.bg};color:${c.text};border-color:${c.border};">${SUBJECT_ABBR[sub]}${n}</span>`;
-          }
-        });
-      });
+      const summaryGrid = buildSubjectSummaryGrid(avail, { filterLevel, filterSubject });
 
       tbody += `<td class="cell">
         <div class="cell-summary">
           <div class="cell-total">コマ合計：${avail.length}人</div>
-          ${gridCells ? `<div class="cell-summary-grid" style="--sum-cols:${subjectColCount}">${gridCells}</div>` : ''}
+          ${summaryGrid}
         </div>
         <div class="cell-teachers">${teacherLines}</div>
       </td>`;
