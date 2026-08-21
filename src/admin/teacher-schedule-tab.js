@@ -278,31 +278,35 @@ function teacherWorksOtherSlotOnWeekday(teacherId, weekday, excludeSlot, yearMon
   );
 }
 
-function teacherCoversAllCourseSlots(teacher, studentId, courseId, level, subject, yearMonth){
+function countTeacherCourseSlotCoverage(teacher, studentId, courseId, level, subject, yearMonth){
   const student = S.students.find(s=> s.id === studentId);
-  if(!student) return false;
+  if(!student) return { covered: 0, total: 0 };
   const course = student.courses.find(c=> c.id === courseId);
-  if(!course || course.desiredSlots.length === 0) return false;
+  if(!course || course.desiredSlots.length === 0) return { covered: 0, total: 0 };
   const ym = getActiveYearMonth(yearMonth);
   const slots = course.desiredSlots.filter(ds=> !S.regularClosedDays.includes(ds.day));
-  if(slots.length === 0) return false;
-  return slots.every(ds=>{
-    if(!teacher.subjects.some(ts=> ts.level === level && ts.subject === subject)) return false;
-    if(!getWeekdayAvailabilityInMonth(teacher.id, ds.day, ds.slot, ym)) return false;
-    if(countTeacherSlot(teacher.id, ds.day, ds.slot, studentId, ym) >= S.teacherCapacity) return false;
-    return true;
+  if(slots.length === 0) return { covered: 0, total: 0 };
+  let covered = 0;
+  slots.forEach(ds=>{
+    if(!teacher.subjects.some(ts=> ts.level === level && ts.subject === subject)) return;
+    if(!getWeekdayAvailabilityInMonth(teacher.id, ds.day, ds.slot, ym)) return;
+    if(countTeacherSlot(teacher.id, ds.day, ds.slot, studentId, ym) >= S.teacherCapacity) return;
+    covered++;
   });
+  return { covered, total: slots.length };
 }
 
 function buildCandidateInfo(studentId, courseId, level, subject, day, slot, teacher){
   const ym = getActiveYearMonth();
   const used = countTeacherSlot(teacher.id, day, slot, studentId, ym);
+  const coverage = countTeacherCourseSlotCoverage(teacher, studentId, courseId, level, subject, ym);
   return {
     teacher, used,
     remaining: S.teacherCapacity - used,
     full: used >= S.teacherCapacity,
     prefPair: isPreferredPair(studentId, courseId, teacher.id),
-    monthFullCoverage: teacherCoversAllCourseSlots(teacher, studentId, courseId, level, subject, ym),
+    courseSlotCoverage: coverage.covered,
+    courseSlotCoverageTotal: coverage.total,
     prefSubject: isPreferredSubjectForTeacher(teacher, level, subject),
     prefDay: isPreferredDay(teacher, day, slot),
     fillBonus: used > 0,
@@ -482,4 +486,4 @@ async function replaceDesiredSlot(studentId, courseId, oldDay, oldSlot, newDay, 
 }
 
 
-export { loadPendingChangeRequests, loadAssignmentApprovals, renderApprovalStatus, renderChangeRequests, renderTeacherScheduleTab, openTeacherScheduleEditor, renderTeacherScheduleGrid, isPreferredPair, addPreferredPair, removePreferredPair, isPreferredSubjectForTeacher, teacherWorksOtherSlotOnWeekday, teacherCoversAllCourseSlots, buildCandidateInfo, findAssignment, getActiveYearMonth, teacherHasSubmittedMonth, isAssignmentEffectiveInMonth, findEffectiveAssignment, countCourseConfirmed, countTeacherSlot, countRoomSlot, issueAssignmentApproval, confirmAssignment, cancelAssignment, findAlternativeSlots, replaceDesiredSlot };
+export { loadPendingChangeRequests, loadAssignmentApprovals, renderApprovalStatus, renderChangeRequests, renderTeacherScheduleTab, openTeacherScheduleEditor, renderTeacherScheduleGrid, isPreferredPair, addPreferredPair, removePreferredPair, isPreferredSubjectForTeacher, teacherWorksOtherSlotOnWeekday, countTeacherCourseSlotCoverage, buildCandidateInfo, findAssignment, getActiveYearMonth, teacherHasSubmittedMonth, isAssignmentEffectiveInMonth, findEffectiveAssignment, countCourseConfirmed, countTeacherSlot, countRoomSlot, issueAssignmentApproval, confirmAssignment, cancelAssignment, findAlternativeSlots, replaceDesiredSlot };
