@@ -147,12 +147,7 @@ function renderStudentMatchingAction(){
     <button type="button" class="primary" id="studentGoMatchingBtn">担当講師を決める →</button>
     <p class="field-hint tight">カレンダー画面の右パネルで、候補講師から担当を決められます。</p>`;
   el.querySelector('#studentGoMatchingBtn')?.addEventListener('click', ()=>{
-    S.matchingReturnToStudentId = S.editingStudentId;
-    switchView('calendar');
-    switchCalMode('month');
-    document.dispatchEvent(new CustomEvent('matching:go-student-month', {
-      detail: { studentId: S.editingStudentId },
-    }));
+    if(S.editingStudentId) openStudentMatching(S.editingStudentId);
   });
 }
 
@@ -179,6 +174,7 @@ function resetStudentForm(){
   document.getElementById('studentFormMsg').textContent = '';
   updateStudentFormUi();
   renderStudentMatchingAction();
+  renderStudentList();
 }
 
 function fillStudentFormForEdit(s){
@@ -191,6 +187,7 @@ function fillStudentFormForEdit(s){
   renderFormCourses();
   document.getElementById('studentFormMsg').textContent = '';
   updateStudentFormUi();
+  renderStudentList();
   switchView('student');
   window.scrollTo({top:0, behavior:'smooth'});
 }
@@ -228,6 +225,36 @@ async function handleStudentSave(){
   renderMatching();
 }
 
+function getStudentListStatus(student){
+  const ym = S.referenceYearMonth;
+  let totalSlots = 0;
+  let pendingSlots = 0;
+  (student.courses || []).forEach(course=>{
+    (course.desiredSlots || []).forEach(ds=>{
+      totalSlots++;
+      if(!findEffectiveAssignment(student.id, course.id, ds.day, ds.slot, ym)){
+        pendingSlots++;
+      }
+    });
+  });
+  if(totalSlots === 0){
+    return { kind:'no-slots', label:'希望未設定', priority:0, pendingSlots:0, totalSlots:0 };
+  }
+  if(pendingSlots > 0){
+    return { kind:'pending', label:`担当未決 ${pendingSlots}`, priority:1, pendingSlots, totalSlots };
+  }
+  return { kind:'done', label:'確定済み', priority:2, pendingSlots:0, totalSlots };
+}
+
+function openStudentMatching(studentId){
+  S.matchingReturnToStudentId = studentId;
+  switchView('calendar');
+  switchCalMode('month');
+  document.dispatchEvent(new CustomEvent('matching:go-student-month', {
+    detail: { studentId },
+  }));
+}
+
 function renderStudentList(){
   scheduleSave();
   const wrap = document.getElementById('studentList');
@@ -244,28 +271,52 @@ function renderStudentList(){
     wrap.innerHTML = '<div class="empty-note">検索に一致する生徒がいません。</div>';
     return;
   }
-  wrap.innerHTML = '';
-  visible.forEach(s=>{
-    const tags = s.courses.map(course=>{
+
+  const rows = visible
+    .map(student=>({ student, status: getStudentListStatus(student) }))
+    .sort((a, b)=>{
+      if(a.status.priority !== b.status.priority) return a.status.priority - b.status.priority;
+      return sorted.indexOf(a.student) - sorted.indexOf(b.student);
+    });
+
+  wrap.innerHTML = rows.map(({ student:s, status })=>{
+    const isEditing = S.editingStudentId === s.id;
+    const tags = (s.courses || []).map(course=>{
       const c = subjectColor(s.level, course.subject);
-      return `<span class="mini-tag" style="background:${c.bg};color:${c.text};border:1px solid ${c.border};">${course.subject} 週${course.weeklyCount}</span>`;
+      return `<span class="student-row-tag" style="background:${c.bg};color:${c.text};border:1px solid ${c.border};">${course.subject} 週${course.weeklyCount}</span>`;
     }).join('');
-    const row = document.createElement('div');
-    row.className = 'teacher-row';
-    row.innerHTML = `
-      <div class="name">${s.name}<span class="student-level-badge">${gradeLabel(s)}</span></div>
-      <div class="tags">${tags}</div>
-      <div class="row-actions">
-        <button class="edit-btn" data-id="${s.id}">編集</button>
-        <button class="del-btn" data-id="${s.id}">削除</button>
-      </div>`;
-    wrap.appendChild(row);
-  });
+    const tagsHtml = tags
+      ? `<div class="student-row-tags">${tags}</div>`
+      : '<div class="student-row-tags is-empty"><span class="student-row-no-tags">希望コマ未設定</span></div>';
+    const matchBtn = status.pendingSlots > 0
+      ? `<button type="button" class="match-btn" data-id="${s.id}">担当を決める</button>`
+      : '';
+    return `<div class="student-row${isEditing ? ' is-editing' : ''}${status.priority < 2 ? ' needs-action' : ''}">
+      <span class="student-row-status is-${status.kind}">${status.label}</span>
+      <div class="student-row-main">
+        <div class="student-row-head">
+          <span class="student-row-name">${s.name}</span>
+          <span class="student-level-badge">${gradeLabel(s)}</span>
+          ${isEditing ? '<span class="student-row-editing-badge">編集中</span>' : ''}
+        </div>
+        ${tagsHtml}
+      </div>
+      <div class="row-actions student-row-actions">
+        <button type="button" class="edit-btn" data-id="${s.id}">編集</button>
+        ${matchBtn}
+        <button type="button" class="del-btn" data-id="${s.id}">削除</button>
+      </div>
+    </div>`;
+  }).join('');
+
   wrap.querySelectorAll('.edit-btn').forEach(b=>{
     b.addEventListener('click', ()=>{
       const s = S.students.find(x=>x.id===b.dataset.id);
       if(s) fillStudentFormForEdit(s);
     });
+  });
+  wrap.querySelectorAll('.match-btn').forEach(b=>{
+    b.addEventListener('click', ()=> openStudentMatching(b.dataset.id));
   });
   wrap.querySelectorAll('.del-btn').forEach(b=>{
     b.addEventListener('click', ()=>{
