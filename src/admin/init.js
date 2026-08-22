@@ -14,6 +14,7 @@ import { buildClosedDayArea, handleClosureSave, handleTermSave, initMatchingPrio
 import { loadStudents, saveAppState, saveTeacherScheduleDoc, scheduleSave, syncTeacherLoginUidEverywhere } from './students-persistence.js';
 import { addPreferredPair, openTeacherScheduleEditor, renderTeacherScheduleTab } from './teacher-schedule-tab.js';
 import { buildSubjectArea, buildSubjectFilterOptions, fillFormForEdit, handleSave, loadTeachers, renderTeacherList, resetForm, saveTeachers } from './teachers.js';
+import { initOnboarding } from './onboarding.js';
 
 function syncWeekAxisTabs(){
   document.querySelectorAll('.week-axis-btn').forEach(b=>{
@@ -513,6 +514,7 @@ async function init(){
   renderClosureList();
   renderCalendar();
   renderFinance();
+  initOnboarding();
 }
 
 

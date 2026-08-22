@@ -274,3 +274,10 @@ const HARDCODED_ASSIGNMENTS = [
   {id:'asg-49', studentId:'stu-23', courseId:'stu-23-c2', subject:'社会', day:'水', slot:5, teacherId:'demo-2', source:'manual'},
   {id:'asg-50', studentId:'stu-29', courseId:'stu-29-c1', subject:'英語', day:'火', slot:6, teacherId:'demo-3', source:'manual'},
 ];
+
+export {
+  HARDCODED_TEACHERS,
+  HARDCODED_TEACHER_SCHEDULES,
+  HARDCODED_STUDENTS,
+  HARDCODED_ASSIGNMENTS,
+};

@@ -4,6 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>ピタコマ｜個別指導塾のコマ管理</title>
+<link rel="icon" href="data:,">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Zen+Kaku+Gothic+New:wght@400;500;700;900&family=Zen+Old+Mincho:wght@600&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="/src/shared/styles/variables.css">
@@ -37,7 +38,7 @@
   <div class="inner">
     <div class="brand">
       <h1>ピタコマ</h1>
-      <div class="sub">曜日・時間割・担当教科の一覧化ツール</div>
+      <div class="sub">個別指導塾のコマ組み・シフト管理</div>
     </div>
     <div class="header-account">
       <span id="loginUserEmail" class="header-email"></span>
@@ -447,18 +448,18 @@
 
       <label class="field-label" for="teacherCapacityInput">1コマあたり、講師1人が同時に受け持てる生徒数</label>
       <input type="text" inputmode="numeric" id="teacherCapacityInput" style="max-width:100px;">
-      <div style="font-size:11.5px;color:var(--ink-soft);margin-top:6px;">個別指導は通常1人の講師が同じコマで複数人を担当します（WAMは1講師あたり生徒2人が標準）。講師によらず教室共通のルールとして扱います。</div>
+      <div class="field-hint">個別指導は通常1人の講師が同じコマで複数人を担当します（WAMは1講師あたり生徒2人が標準）。講師によらず教室共通のルールとして扱います。</div>
 
       <div style="height:22px"></div>
 
       <label class="field-label" for="settingsRoomCapacityInput">教室全体のブース数上限</label>
       <input type="text" inputmode="numeric" id="settingsRoomCapacityInput" style="max-width:100px;">
-      <div style="font-size:11.5px;color:var(--ink-soft);margin-top:6px;">同じコマに教室全体で同時に何人まで入れるか（ブース数・座席数）の上限です。</div>
+      <div class="field-hint">同じコマに教室全体で同時に何人まで入れるか（ブース数・座席数）の上限です。</div>
 
       <div style="height:22px"></div>
 
       <label class="field-label">学年別 授業料単価（1コマあたり）</label>
-      <div style="font-size:11.5px;color:var(--ink-soft);margin-top:2px;margin-bottom:10px;">生徒ごとではなく、学年区分で共通の単価として設定します。「収支」タブの売上計算に使われます。</div>
+      <div class="field-hint tight">生徒ごとではなく、学年区分で共通の単価として設定します。「収支」タブの売上計算に使われます。</div>
       <div class="tuition-input-row">
         <div class="pay-input-item">
           <label for="tuitionSmallInput">小学（円/コマ）</label>
@@ -477,7 +478,7 @@
       <div style="height:22px"></div>
 
       <label class="field-label">「分析」タブの色分け基準（コスト率）</label>
-      <div style="font-size:11.5px;color:var(--ink-soft);margin-top:2px;margin-bottom:10px;">下限以下は白、上限以上は最も濃い赤になります。何%が適正かは教室によって異なるため、実態に合わせて調整してください。</div>
+      <div class="field-hint tight">下限以下は白、上限以上は最も濃い赤になります。何%が適正かは教室によって異なるため、実態に合わせて調整してください。</div>
       <div class="tuition-input-row">
         <div class="pay-input-item">
           <label for="finGradientMinInput">下限（%・これ以下は白）</label>
@@ -491,8 +492,8 @@
     </div>
 
     <div class="card">
-      <h2>マッチングの優先順位<span class="help-tip" tabindex="0">?<span class="help-tip-text">候補講師の並び順（自動マッチングも同じ）を決めます。上にある項目ほど優先されます。OFFにした項目は並び順に使いません。</span></span></h2>
-      <div style="font-size:11.5px;color:var(--ink-soft);margin-bottom:12px;">講師が教科・定員・シフト提出などの基本条件を満たしたうえで、次の順に並べます。</div>
+      <h2>候補講師の並び順<span class="help-tip" tabindex="0">?<span class="help-tip-text">候補講師の並び順（自動マッチングも同じ）を決めます。上にある項目ほど優先されます。チェックを外した項目は並び順に使いません。</span></span></h2>
+      <p class="matching-priority-intro">講師が教科・定員・シフト提出などの基本条件を満たしたうえで、次の順に並べます。<span class="matching-priority-intro-sep" aria-hidden="true">｜</span><strong>チェック</strong>で ON/OFF、<strong>上へ・下へ</strong>で順番変更（上ほど優先）</p>
       <div id="matchingPriorityList" class="matching-priority-list"></div>
     </div>
 
@@ -581,6 +582,21 @@
   </div>
   <div id="matchingPanelBody" class="matching-drawer-body"></div>
 </aside>
+
+  <div id="onboardingOverlay" class="onboarding-overlay" hidden aria-hidden="true" role="dialog" aria-labelledby="onboardingTitle">
+    <div class="onboarding-card">
+      <div class="onboarding-step" id="onboardingStepLabel">1 / 3</div>
+      <h2 class="onboarding-title" id="onboardingTitle">はじめに</h2>
+      <p class="onboarding-body" id="onboardingBody"></p>
+      <div class="onboarding-actions">
+        <button type="button" class="btn-text" id="onboardingSkipBtn">スキップ</button>
+        <div class="onboarding-actions-main">
+          <button type="button" class="btn-secondary" id="onboardingNextBtn">次へ</button>
+          <button type="button" class="btn-primary" id="onboardingStartBtn" hidden>始める</button>
+        </div>
+      </div>
+    </div>
+  </div>
 
 <script type="module" src="/src/admin/main.js"></script>
 </body>

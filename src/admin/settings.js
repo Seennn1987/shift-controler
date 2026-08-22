@@ -258,22 +258,33 @@ function renderClosureList(){
   });
 }
 
+const MATCHING_PRIORITY_MOVE_UP_SVG = '<svg class="matching-priority-move-icon" width="14" height="14" viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M7.41 15.41 12 10.83l4.59 4.58L18 14l-6-6-6 6z"/></svg>';
+const MATCHING_PRIORITY_MOVE_DOWN_SVG = '<svg class="matching-priority-move-icon" width="14" height="14" viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M7.41 8.59 12 13.17l4.59-4.58L18 10l-6 6-6-6z"/></svg>';
+
 function renderMatchingPrioritySettings(){
   const wrap = document.getElementById('matchingPriorityList');
   if(!wrap) return;
   S.matchingPriority = normalizeMatchingPriority(S.matchingPriority);
   wrap.innerHTML = S.matchingPriority.map((item, idx)=>{
     const meta = MATCHING_FACTOR_META[item.id];
-    const label = meta ? meta.label : item.id;
-    return `<div class="matching-priority-row" data-id="${item.id}">
-      <span class="matching-priority-num">${idx + 1}</span>
-      <label class="matching-priority-toggle">
-        <input type="checkbox" class="matching-priority-enabled" data-id="${item.id}" ${item.enabled ? 'checked' : ''}>
-        <span class="matching-priority-label">${label}</span>
+    const title = meta?.title || meta?.label || item.id;
+    const description = meta?.description || '';
+    const rowClass = item.enabled ? '' : ' is-disabled';
+    const num = item.enabled ? String(idx + 1) : '—';
+    const upDisabled = idx === 0 || !item.enabled;
+    const downDisabled = idx === S.matchingPriority.length - 1 || !item.enabled;
+    return `<div class="matching-priority-row${rowClass}" data-id="${item.id}">
+      <span class="matching-priority-num" aria-hidden="true">${num}</span>
+      <label class="matching-priority-main">
+        <input type="checkbox" class="matching-priority-enabled" data-id="${item.id}" ${item.enabled ? 'checked' : ''} aria-label="この条件を使う">
+        <span class="matching-priority-text">
+          <span class="matching-priority-title">${title}</span>
+          ${description ? `<span class="matching-priority-desc">${description}</span>` : ''}
+        </span>
       </label>
       <div class="matching-priority-actions">
-        <button type="button" class="ghost matching-priority-up" data-id="${item.id}" ${idx === 0 ? 'disabled' : ''}>↑</button>
-        <button type="button" class="ghost matching-priority-down" data-id="${item.id}" ${idx === S.matchingPriority.length - 1 ? 'disabled' : ''}>↓</button>
+        <button type="button" class="matching-priority-move matching-priority-up" data-id="${item.id}" ${upDisabled ? 'disabled' : ''} aria-label="上へ">${MATCHING_PRIORITY_MOVE_UP_SVG}<span class="matching-priority-move-text">上へ</span></button>
+        <button type="button" class="matching-priority-move matching-priority-down" data-id="${item.id}" ${downDisabled ? 'disabled' : ''} aria-label="下へ">${MATCHING_PRIORITY_MOVE_DOWN_SVG}<span class="matching-priority-move-text">下へ</span></button>
       </div>
     </div>`;
   }).join('');
@@ -284,6 +295,7 @@ function renderMatchingPrioritySettings(){
       if(!row) return;
       row.enabled = input.checked;
       scheduleSave();
+      renderMatchingPrioritySettings();
       renderMatching();
       if(S.matchingPanelOpen && S.matchingPanelStudentId){
         document.dispatchEvent(new CustomEvent('matching:refresh-panel'));

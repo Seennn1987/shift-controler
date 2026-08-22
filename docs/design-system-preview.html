@@ -1,0 +1,116 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ピタコマ デザインシステム プレビュー</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Zen+Kaku+Gothic+New:wght@400;500;700;900&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="../src/shared/styles/variables.css">
+  <link rel="stylesheet" href="design-system-preview.css">
+</head>
+<body>
+  <header class="ds-header">
+    <div class="ds-header-inner">
+      <h1>ピタコマ デザインシステム</h1>
+      <p>UIUXガイドライン v1.0 の見本 — 色・文字・余白・角丸・コンポーネント</p>
+      <nav class="ds-nav">
+        <a href="UIUXガイドライン_v1.0.md">ガイドライン（Markdown）</a>
+        <a href="color-palette-preview.html">配色プレビュー</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="ds-main">
+    <section class="ds-section" id="typography">
+      <h2>文字サイズ</h2>
+      <p class="ds-lead">基準は <strong>14px</strong>。11px が下限。8〜10px は使いません。</p>
+      <div id="typeScale" class="type-scale"></div>
+    </section>
+
+    <section class="ds-section" id="colors">
+      <h2>色（UI基盤）</h2>
+      <p class="ds-lead">3層：UI基盤 / 教科色 / 状態色。詳細は<a href="color-palette-preview.html">配色プレビュー</a>。</p>
+      <div id="colorSwatches" class="swatch-grid"></div>
+    </section>
+
+    <section class="ds-section" id="spacing">
+      <h2>余白</h2>
+      <div id="spacingScale" class="spacing-scale"></div>
+    </section>
+
+    <section class="ds-section" id="radius">
+      <h2>角丸</h2>
+      <div id="radiusScale" class="radius-scale"></div>
+    </section>
+
+    <section class="ds-section" id="components">
+      <h2>コンポーネント</h2>
+      <div class="component-grid">
+        <div class="component-card">
+          <h3>ボタン</h3>
+          <div class="component-row">
+            <button type="button" class="ds-btn-primary">保存する</button>
+            <button type="button" class="ds-btn-ghost">キャンセル</button>
+            <button type="button" class="ds-btn-danger">削除</button>
+          </div>
+        </div>
+        <div class="component-card">
+          <h3>入力欄</h3>
+          <label class="ds-label" for="dsSampleInput">生徒名</label>
+          <input type="text" id="dsSampleInput" class="ds-input" placeholder="例：山田 太郎">
+        </div>
+        <div class="component-card">
+          <h3>タブ</h3>
+          <div class="ds-tabs">
+            <button type="button" class="ds-tab active">マッチング</button>
+            <button type="button" class="ds-tab">講師</button>
+            <button type="button" class="ds-tab">設定</button>
+          </div>
+        </div>
+        <div class="component-card">
+          <h3>バッジ</h3>
+          <div class="component-row">
+            <span class="ds-badge ds-badge-pending">承認待ち</span>
+            <span class="ds-badge ds-badge-success">確定</span>
+            <span class="ds-badge ds-badge-muted">指定講師</span>
+            <span class="ds-badge ds-badge-danger">欠席</span>
+          </div>
+        </div>
+        <div class="component-card ds-card-demo">
+          <h3>カード</h3>
+          <h4>候補講師の並び順<span class="ds-help">?</span></h4>
+          <p class="ds-card-desc">講師が基本条件を満たしたうえで、次の順に並べます。</p>
+          <div class="ds-priority-list">
+            <div class="ds-priority-row">
+              <span class="ds-priority-num">1</span>
+              <label class="ds-priority-label">
+                <input type="checkbox" checked>
+                <span>
+                  <strong>優先ペアで指定した講師</strong>
+                  <small>生徒の教科ごとに「この講師を優先」と登録した組み合わせを最優先にします。</small>
+                </span>
+              </label>
+              <span class="ds-priority-actions">
+                <button type="button" class="ds-priority-move"><svg width="14" height="14" viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M7.41 15.41 12 10.83l4.59 4.58L18 14l-6-6-6 6z"/></svg>上へ</button>
+                <button type="button" class="ds-priority-move"><svg width="14" height="14" viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M7.41 8.59 12 13.17l4.59-4.58L18 10l-6 6-6-6z"/></svg>下へ</button>
+              </span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="ds-section ds-rules">
+      <h2>ルール早見表</h2>
+      <table class="ds-table">
+        <thead><tr><th>項目</th><th>ルール</th><th>トークン</th></tr></thead>
+        <tbody id="rulesTable"></tbody>
+      </table>
+    </section>
+  </main>
+
+  <div id="toast" class="toast" hidden></div>
+  <script src="design-system-preview.js"></script>
+</body>
+</html>

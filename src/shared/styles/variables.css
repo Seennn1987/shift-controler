@@ -1,5 +1,11 @@
   :root{
-    /* MFクラウド系 — UI基盤 */
+    /* ============================================================
+       ピタコマ デザインシステム — Foundation（基礎トークン）
+       ガイドライン: docs/UIUXガイドライン_v1.0.md
+       プレビュー: docs/design-system-preview.html
+       ============================================================ */
+
+    /* --- A. 色：UI基盤（MFクラウド系） --- */
     --ink:#333333;
     --ink-soft:#787E8D;
     --surface-page:#F7F7F7;
@@ -9,7 +15,7 @@
     --card:#FFFFFF;
     --cream:var(--surface-page);
 
-    /* ブランド青 */
+    /* --- A. 色：ブランド青 --- */
     --brand-900:#32373F;
     --brand-800:#424954;
     --brand-600:#0054AC;
@@ -18,7 +24,7 @@
     --brand-100:#EDF5FE;
     --brand-50:#ECF2FD;
 
-    /* 状態色 */
+    /* --- A. 色：状態 --- */
     --pending-bg:#ECF2FD;
     --pending-border:#3B7DE9;
     --pending-ink:#0054AC;
@@ -31,7 +37,78 @@
     --holiday-bg:#FFEEEB;
     --holiday-ink:#D0021B;
 
-    /* 旧名エイリアス（既存CSS互換） */
+    /* --- A. 色：セマンティック（直書き禁止用） --- */
+    --text-on-brand:#FFFFFF;
+    --brand-500-hover:#4588EB;
+    --ink-muted:#9AA3AD;
+    --ink-faint:#AAAAAA;
+    --ink-disabled:#CCCCCC;
+    --surface-empty:#DDDDDD;
+    --surface-closed:#F1F1F1;
+    --surface-closed-alt:#E6E6E6;
+    --surface-closed-stripe:#EEEEEE;
+    --surface-closed-stripe-alt:#E4E4E4;
+    --surface-inactive:#8A8A8A;
+    --surface-inactive-soft:#6B6B6B;
+    --surface-subtle:#F2F2F2;
+    --surface-row-closed:#F4F4F4;
+    --heat-lv1:#DCDCDC;
+    --heat-lv2:#9A9A9A;
+    --heat-ink:#4A4A4A;
+    --accent-waiting:#FFB74D;
+    --accent-success-soft:#E8F5E9;
+    --accent-success-border:#A5D6A7;
+    --accent-warn-bar:#E08A6B;
+
+    /* --- B. 文字 --- */
+    --font-family:'Zen Kaku Gothic New', sans-serif;
+    --font-weight-normal:400;
+    --font-weight-medium:500;
+    --font-weight-bold:700;
+    --font-weight-black:900;
+
+    /* 6段階スケール（0.5px刻みは使わない） */
+    --text-xs:11px;    /* バッジ・極短ラベル（下限） */
+    --text-sm:12px;    /* 補助メタ情報・表の見出し（小） */
+    --text-md:13px;    /* 説明文・フォームラベル */
+    --text-base:14px;  /* 本文・入力欄・ボタン（基準） */
+    --text-lg:15px;    /* カード見出し */
+    --text-xl:16px;    /* セクション見出し・カレンダー月 */
+    --text-2xl:18px;   /* KPI数値・ログインタイトル（小） */
+    --text-3xl:19px;   /* ページタイトル */
+
+    --leading-tight:1.35;
+    --leading-normal:1.5;
+    --leading-relaxed:1.55;
+
+    /* --- C. 余白 --- */
+    --space-1:4px;
+    --space-2:6px;
+    --space-3:8px;
+    --space-4:10px;
+    --space-5:12px;
+    --space-6:16px;
+    --space-7:20px;
+    --space-8:24px;
+
+    /* --- D. 角丸 --- */
+    --radius-sm:6px;     /* バッジ・小ボタン・ツールチップ */
+    --radius-md:8px;     /* 入力欄・副ボタン・行 */
+    --radius-lg:10px;    /* 主ボタン */
+    --radius-xl:12px;    /* パネル内ブロック */
+    --radius-card:14px;  /* カード */
+    --radius-pill:999px; /* ピル型バッジ・チップ */
+
+    /* --- E. コンポーネント寸法 --- */
+    --input-height:40px;
+    --btn-height:40px;
+    --btn-height-sm:32px;
+    --btn-min-width:120px;
+    --card-padding:22px 24px;
+    --focus-ring:2px solid var(--brand-500);
+    --matching-priority-width:54rem; /* 最長の説明文1行＋ボタン列 */
+
+    /* --- 旧名エイリアス（既存CSS互換） --- */
     --green-900:var(--brand-900);
     --green-800:var(--brand-800);
     --green-700:var(--brand-500);

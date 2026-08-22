@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ピタコマ 配色プレビュー</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Zen+Kaku+Gothic+New:wght@400;500;700;900&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="color-palette-preview.css">
+</head>
+<body>
+  <header class="preview-header">
+    <div class="preview-header-inner">
+      <h1>ピタコマ 配色プレビュー</h1>
+      <p>案B「MFクラウド系ブルー」— マネーフォワード クラウド（MFUI）を参考にした配色。色見本クリックでHEXコピー</p>
+    </div>
+  </header>
+
+  <main class="preview-main">
+    <section class="intro-block">
+      <h2>3層の考え方</h2>
+      <p class="intro-lead">色の役割を分けると、教科タグとボタン・未確定表示が混ざりません。</p>
+      <div id="layerDiagram" class="layer-diagram"></div>
+    </section>
+
+    <section class="compare-block">
+      <h2>カレンダー：現状と提案</h2>
+      <p class="section-desc">左が今の「黄×チャコール」、右が提案の「白＋インディゴ」です。</p>
+      <div id="calendarCompare" class="calendar-compare"></div>
+    </section>
+
+    <section class="mock-block">
+      <h2>管理画面イメージ（提案配色）</h2>
+      <p class="section-desc">ヘッダー・タブ・ボタンはUI基盤色、タグだけ教科色を使います。</p>
+      <div id="uiMock" class="ui-mock"></div>
+    </section>
+
+    <section class="swatch-block">
+      <h2>A. UI基盤（MFクラウド系）</h2>
+      <div id="uiSwatches" class="swatch-grid"></div>
+    </section>
+
+    <section class="swatch-block">
+      <h2>B. 教科色（小・中・高の濃淡）</h2>
+      <p class="section-desc">色相は固定、学年で明るさだけ変えます（Googleカレンダー系の慣習に近い）。</p>
+      <div id="subjectSwatches" class="subject-grid"></div>
+    </section>
+
+    <section class="swatch-block">
+      <h2>C. 状態色（教科と被らないゾーン）</h2>
+      <div id="statusSwatches" class="status-grid"></div>
+    </section>
+
+    <section class="swatch-block">
+      <h2>現状の色（参考・置き換え前）</h2>
+      <div id="legacySwatches" class="swatch-grid legacy"></div>
+    </section>
+  </main>
+
+  <div id="toast" class="toast" hidden></div>
+  <script src="color-palette-preview.js"></script>
+</body>
+</html>

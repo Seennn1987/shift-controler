@@ -1,0 +1,33 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>UIUX 操作テスト T1–T6 自動検証</title>
+<style>
+  body{font-family:'Zen Kaku Gothic New',sans-serif;margin:24px;line-height:1.6;color:#333}
+  h1{font-size:1.25rem}
+  .meta{color:#787E8D;font-size:13px;margin-bottom:16px}
+  .pass{color:#2e7d32;font-weight:700}
+  .fail{color:#c62828;font-weight:700}
+  .warn{color:#8A6D3B}
+  table{border-collapse:collapse;width:100%;max-width:960px;margin-top:12px}
+  th,td{border:1px solid #D4D8DD;padding:8px 10px;text-align:left;font-size:13px}
+  th{background:#EFF1F4}
+  #summary{margin:16px 0;padding:12px;border-radius:8px;background:#EDF5FE}
+</style>
+</head>
+<body>
+<h1>UIUX 操作テスト T1–T6 自動検証</h1>
+<p class="meta">Phase 3 — シードデータ＋本番モジュールによる自動実行（ログイン不要）</p>
+<div id="summary">実行中…</div>
+<table>
+  <thead><tr><th>ID</th><th>シナリオ</th><th>結果</th><th>詳細</th></tr></thead>
+  <tbody id="results"></tbody>
+</table>
+<script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore-compat.js"></script>
+<script type="module" src="./verify_uiux_scenarios.js"></script>
+</body>
+</html>

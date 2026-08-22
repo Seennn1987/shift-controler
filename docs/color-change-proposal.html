@@ -1,0 +1,68 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ピタコマ 配色 — これから変えること</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Zen+Kaku+Gothic+New:wght@400;500;700;900&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="color-change-proposal.css">
+</head>
+<body>
+  <header class="proposal-header">
+    <div class="proposal-header-inner">
+      <p class="proposal-kicker">S2 配色 — 残り作業の提案</p>
+      <h1>今の画面から、あと何を変えるか</h1>
+      <p class="proposal-lead">
+        ヘッダー・タブ・カレンダー・未確定タグなど<strong>主要部分はすでに反映済み</strong>です。
+        このページは<strong>まだ残っている黄色・直書きの色</strong>だけを、今→変更後で示します。
+      </p>
+      <nav class="proposal-nav">
+        <a href="color-palette-preview.html">配色プレビュー（色見本）</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="proposal-main">
+    <section class="summary-block">
+      <h2>いまの状態（前提）</h2>
+      <div id="currentState" class="state-box"></div>
+    </section>
+
+    <section class="compare-block">
+      <h2>これから変える箇所（<span id="changeCount">0</span>か所）</h2>
+      <p class="section-desc">左＝<strong>今の画面</strong>、右＝<strong>変更後</strong>。クリックで詳細を開けます。</p>
+      <div id="remainingChanges" class="change-cards"></div>
+    </section>
+
+    <section class="compare-block">
+      <h2>変えないもの（そのまま）</h2>
+      <p class="section-desc">提案どおり維持する色。ここは触りません。</p>
+      <div id="keepAsIs" class="keep-grid"></div>
+    </section>
+
+    <section class="compare-block">
+      <h2>変更一覧（表）</h2>
+      <div class="table-wrap">
+        <table id="changeTable" class="change-table">
+          <thead>
+            <tr>
+              <th>画面の場所</th>
+              <th>今</th>
+              <th>変更後</th>
+              <th>理由</th>
+            </tr>
+          </thead>
+          <tbody></tbody>
+        </table>
+      </div>
+    </section>
+
+    <section class="action-block">
+      <h2>承認後にやること</h2>
+      <div id="actionBox" class="action-box"></div>
+    </section>
+  </main>
+</body>
+<script src="color-change-proposal.js"></script>
+</html>
