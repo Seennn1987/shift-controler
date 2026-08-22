@@ -117,30 +117,41 @@ async function loadAllTeacherSchedules(){
   }
 }
 
-// 講師スケジュールのリアルタイム監視（講師本人が講師専用ページから提出・変更した内容も、リロードなしで反映する）
+// 講師スケジュールの定期取得（講師本人が講師専用ページから提出・変更した内容も反映する）
+// ※公開ページでは onSnapshot が permission denied になり、ログイン状態不安定の一因になるため .get() ポーリングを使う（講師画面と同様）
+function applyTeacherSchedulesQuerySnap(snap){
+  const result = [];
+  snap.forEach(doc=>{
+    const d = doc.data();
+    Object.keys(d.months||{}).forEach(ym=>{
+      const m = d.months[ym];
+      result.push({id:m.id, teacherId:d.teacherId, yearMonth:ym, status:m.status, days:m.days||{}, submittedBy: m.submittedBy || null});
+    });
+  });
+  S.teacherSchedules = result;
+  if(document.getElementById('view-teacherSchedule') && document.getElementById('view-teacherSchedule').classList.contains('active')){
+    renderTeacherScheduleTab();
+    if(S.tsSelectedTeacherId) openTeacherScheduleEditor(S.tsSelectedTeacherId);
+  }
+}
+
+async function pollTeacherSchedules(){
+  const user = fbAuth.currentUser;
+  if(!user) return;
+  try{
+    const snap = await fbDb.collection('teacherSchedules').where('adminUid','==',user.uid).get();
+    applyTeacherSchedulesQuerySnap(snap);
+  }catch(err){
+    console.error('講師スケジュール読み込みエラー:', err);
+  }
+}
+
 function startTeacherScheduleListener(){
   const user = fbAuth.currentUser;
   if(!user) return;
-  if(S.teacherScheduleUnsub) S.teacherScheduleUnsub();
-  S.teacherScheduleUnsub = fbDb.collection('teacherSchedules').where('adminUid','==',user.uid)
-    .onSnapshot(snap=>{
-      const result = [];
-      snap.forEach(doc=>{
-        const d = doc.data();
-        Object.keys(d.months||{}).forEach(ym=>{
-          const m = d.months[ym];
-          result.push({id:m.id, teacherId:d.teacherId, yearMonth:ym, status:m.status, days:m.days||{}, submittedBy: m.submittedBy || null});
-        });
-      });
-      S.teacherSchedules = result;
-      // 現在「講師スケジュール管理」タブを開いている場合は、その場で表示も更新する
-      if(document.getElementById('view-teacherSchedule') && document.getElementById('view-teacherSchedule').classList.contains('active')){
-        renderTeacherScheduleTab();
-        if(S.tsSelectedTeacherId) openTeacherScheduleEditor(S.tsSelectedTeacherId);
-      }
-    }, err=>{
-      console.error('講師スケジュール監視エラー:', err);
-    });
+  if(S.teacherSchedulePollTimer) clearInterval(S.teacherSchedulePollTimer);
+  pollTeacherSchedules();
+  S.teacherSchedulePollTimer = setInterval(pollTeacherSchedules, 10000);
 }
 
 // ---- 講師の承認をもって「承認待ち」から「確定」に昇格させる ----
@@ -164,21 +175,28 @@ async function promotePendingAssignment(ticket, ticketId){
   renderCalendar();
 }
 
+async function pollApprovalPromotions(){
+  const user = fbAuth.currentUser;
+  if(!user) return;
+  try{
+    const snap = await fbDb.collection('assignmentApprovals')
+      .where('adminUid','==',user.uid).where('status','==','approved').get();
+    snap.forEach(doc=>{
+      const a = doc.data();
+      if(a.promoted || a.oneTimeDate) return;
+      promotePendingAssignment(a, doc.id);
+    });
+  }catch(err){
+    console.error('承認昇格の読み込みエラー:', err);
+  }
+}
+
 function startApprovalPromotionListener(){
   const user = fbAuth.currentUser;
   if(!user) return;
-  if(S.approvalPromotionUnsub) S.approvalPromotionUnsub();
-  S.approvalPromotionUnsub = fbDb.collection('assignmentApprovals')
-    .where('adminUid','==',user.uid).where('status','==','approved')
-    .onSnapshot(snap=>{
-      snap.forEach(doc=>{
-        const a = doc.data();
-        if(a.promoted || a.oneTimeDate) return; // 昇格済み、または単発の代講（対象外）はスキップ
-        promotePendingAssignment(a, doc.id);
-      });
-    }, err=>{
-      console.error('承認昇格の監視エラー:', err);
-    });
+  if(S.approvalPromotionPollTimer) clearInterval(S.approvalPromotionPollTimer);
+  pollApprovalPromotions();
+  S.approvalPromotionPollTimer = setInterval(pollApprovalPromotions, 10000);
 }
 
 // ---- 休校日設定（定休日・祝日判定・個別休校日）を講師にも同期する ----
