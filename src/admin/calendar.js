@@ -146,7 +146,7 @@ function heatBoxTitle(h){
   return parts.join(' · ');
 }
 
-/** 教室全体表示：4講〜7講を常に4行。ラベル直後に人数（横の空白を作らない） */
+/** 教室全体表示：4講〜7講を常に4行。v4 flex左詰め（4講 2人 未決） */
 function heatBoxHtml(h){
   const isEmpty = h.count === 0;
   const hasPending = h.pendingCount > 0;
@@ -157,7 +157,7 @@ function heatBoxHtml(h){
     ? `<span class="cal-heat-pending-badge">未決${h.pendingCount}</span>`
     : '';
   const cls = ['cal-heat-box', isEmpty ? 'is-empty' : ''].filter(Boolean).join(' ');
-  return `<div class="${cls}" title="${heatBoxTitle(h)}"><span class="cal-heat-label">${h.slotLabel}</span><span class="cal-heat-meta">${countHtml}${badge}</span></div>`;
+  return `<div class="${cls}" title="${heatBoxTitle(h)}"><span class="cal-heat-label">${h.slotLabel}</span>${countHtml}${badge}</div>`;
 }
 
 // 教室全体表示用：その実日付における4コマ(4講〜7講)それぞれの混雑度（確定＋未マッチの希望コマを反映）

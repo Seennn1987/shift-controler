@@ -724,8 +724,157 @@ function renderWeekLegendCompare() {
   `;
 }
 
+/* ===== v4 修正方針（v3b 評価後） ===== */
+const V4_SUMMARY = 'v3b で「4講→2人→未決」の順序は直った。残るのは<strong>マス右の空白・二重枠・凡例の長さ・週行の高さ揃え</strong>。v4 はここを狙う。';
+
+const V4_PLAN = [
+  { prio: 'A', title: '行の外枠をやめる', now: '4行リストに独自の枠 → マス罫線と二重', fix: '行間の区切り線だけ。リスト外枠なし（TimeTree方針どおり）' },
+  { prio: 'A', title: '左詰め flex 1行', now: 'grid 2列で塊は左寄せ → 右半分が空白に見える', fix: '<code>4講 2人 未決1</code> を gap 4px で横並び（wrap可）。右端まで引き伸ばさない' },
+  { prio: 'A', title: '未決バッジの余白', now: 'gap 3px で「人」とバッジが触れる', fix: '人数と未決の間 <code>gap: 5px</code>、バッジ padding 少し広げる' },
+  { prio: 'B', title: '凡例を2行', now: '7項目が1行 → 小さくて読めない', fix: '1行目＝コマの見方、2行目＝休校・未決の点' },
+  { prio: 'B', title: 'min-height を下げる', now: 'open マス min-height 78px → 週内でさらに伸びる', fix: '72px 目安。週行の高さ揃え自体はカレンダー仕様で完全解消不可' },
+  { prio: 'C', title: '選択日の見せ方', now: 'outline 2px で 3日と 4日 の差が大きい', fix: '背景色のみ（outline 細く or なし）' },
+  { prio: 'C', title: '予定なしの日', now: 'マス全体 opacity 0.55', fix: '「—」の行だけ薄く。日付数字は通常の濃さ' },
+  { prio: 'C', title: 'ツールチップ', now: '定員12人が title に残る', fix: '定員は tooltip のみ維持（画面には出さない方針はそのまま）' },
+];
+
+function renderV4SlotRow(slot) {
+  const count = slot.confirmed + slot.pending;
+  const isEmpty = count === 0;
+  const countHtml = isEmpty
+    ? '<span class="v4-count is-dash">—</span>'
+    : `<span class="v4-count">${count}人</span>`;
+  const badge = slot.pending > 0 ? `<span class="v4-badge">未決${slot.pending}</span>` : '';
+  const rowCls = ['v4-slot-row', isEmpty ? 'is-empty' : ''].filter(Boolean).join(' ');
+  return `<div class="${rowCls}"><span class="v4-label">${slot.label}</span>${countHtml}${badge}</div>`;
+}
+
+function renderV4SlotStack(slots, { boxed = false } = {}) {
+  const cls = ['v4-slot-stack', boxed ? 'is-boxed' : ''].filter(Boolean).join(' ');
+  return `<div class="${cls}">${slots.map(renderV4SlotRow).join('')}</div>`;
+}
+
+function renderV4Cell(dayData, opts = {}) {
+  const { selected = false } = opts;
+  const dot = dayData.hasPending ? '<span class="pending-dot"></span>' : '';
+  const cellCls = ['v4-cell', selected ? 'is-selected' : ''].filter(Boolean).join(' ');
+  return `<div class="${cellCls}"><div class="mini-cal-daynum">${dayData.day}${dot}</div>${renderV4SlotStack(dayData.slots)}</div>`;
+}
+
+function renderV4PlanSection() {
+  document.getElementById('v4Summary').innerHTML = V4_SUMMARY;
+  document.getElementById('v4PlanList').innerHTML = V4_PLAN.map(item => `
+    <div class="v4-plan-item">
+      <span class="prio">${item.prio}</span>
+      <div><strong>${item.title}</strong>いま：${item.now}<br>v4：${item.fix}</div>
+    </div>
+  `).join('');
+
+  const sample = FEEDBACK_DAYS[0];
+  const slotPending = { label: '5講', confirmed: 1, pending: 1 };
+
+  document.getElementById('v4RowCompare').innerHTML = `
+    <div class="compare-panel">
+      <div class="compare-panel-head v3b-now">v3b 公開中 — リストに外枠・右が空く</div>
+      <div class="compare-panel-body">
+        <div style="max-width:130px;margin:0 auto;">${renderV3bCell(sample)}</div>
+        <div class="problem-callout bad">枠が二重。情報は左の塊だけ → <strong>右半分がスカスカ</strong>に見える</div>
+      </div>
+    </div>
+    <div class="compare-panel">
+      <div class="compare-panel-head v4">v4 案 — 外枠なし・flex 左詰め</div>
+      <div class="compare-panel-body">
+        <div class="v4-cell" style="max-width:130px;margin:0 auto;"><div class="mini-cal-daynum">${sample.day}<span class="pending-dot"></span></div>${renderV4SlotStack(sample.slots)}</div>
+        <div class="problem-callout good">マス罫線だけ。各行 <code>4講 2人 未決1</code> が続いて読める</div>
+      </div>
+    </div>
+  `;
+
+  document.getElementById('v4BadgeCompare').innerHTML = `
+    <div class="compare-panel">
+      <div class="compare-panel-head v3b-now">v3b — gap 3px</div>
+      <div class="compare-panel-body">
+        <div style="max-width:130px;margin:0 auto;">${renderV3bSlotStack([slotPending])}</div>
+        <div class="problem-callout bad">狭いマスで <strong>2人</strong> と <strong>未決1</strong> が触れやすい</div>
+      </div>
+    </div>
+    <div class="compare-panel">
+      <div class="compare-panel-head v4">v4 — gap 5px ＋ padding</div>
+      <div class="compare-panel-body">
+        <div style="max-width:130px;margin:0 auto;">${renderV4SlotStack([slotPending])}</div>
+        <div class="problem-callout good">人数と未決の間を少し空け、バッジを読みやすく</div>
+      </div>
+    </div>
+  `;
+
+  document.getElementById('v4LegendCompare').innerHTML = `
+    <div class="compare-panel">
+      <div class="compare-panel-head v3b-now">v3b 凡例 — 1行7項目</div>
+      <div class="compare-panel-body legend-block">
+        <div class="legend-row-wrap" style="font-size:10px;">
+          <span>4講2人 … 7講— … 未決1 … 青点 … 定休 … 祝日 … 個別休校</span>
+        </div>
+        <div class="problem-callout bad">横に長く、文字とサンプルが小さい</div>
+      </div>
+    </div>
+    <div class="compare-panel">
+      <div class="compare-panel-head v4">v4 凡例 — 2行</div>
+      <div class="compare-panel-body">
+        <div class="v4-legend">
+          <div class="v4-legend-row">
+            <span class="legend-chip">${renderV4SlotStack([{ label: '4講', confirmed: 2, pending: 0 }])} 各コマ</span>
+            <span class="legend-chip">${renderV4SlotStack([{ label: '7講', confirmed: 0, pending: 0 }])} 予定なし</span>
+            <span class="legend-chip">${renderV4SlotStack([{ label: '5講', confirmed: 2, pending: 1 }])} 講師未決</span>
+          </div>
+          <div class="v4-legend-row">
+            <span class="legend-chip"><span class="pending-dot"></span> その日に未決あり</span>
+            <span class="legend-chip"><span class="cal-dot closed" style="width:9px;height:9px;border-radius:50%;background:#AAA;display:inline-block;"></span> 定休日</span>
+            <span class="legend-chip"><span style="width:9px;height:9px;border-radius:50%;background:#C44;display:inline-block;"></span> 祝日休校</span>
+            <span class="legend-chip"><span style="width:9px;height:9px;border-radius:50%;background:#888;display:inline-block;"></span> 個別休校</span>
+          </div>
+        </div>
+        <div class="problem-callout good">見る順番どおり2段。サンプルは実際の4行と同じ型</div>
+      </div>
+    </div>
+  `;
+
+  document.getElementById('v4HeightNote').innerHTML = `
+    <strong>週行の高さが揃うのはカレンダーの仕組み</strong>
+    <ul>
+      <li>同じ週の7マスは、<strong>いちばん高いマス</strong>に合わせて伸びる（CSS Grid の仕様）</li>
+      <li>v4 でできること：<code>min-height</code> を 72px 程度まで下げ、中身を 17px×4行 に詰める</li>
+      <li>v4 で<strong>できない</strong>こと：4日だけマスを低くする（隣の日と高さを別々にはできない）</li>
+    </ul>
+    <p style="margin:10px 0 0;">${renderCalStripMock(FEEDBACK_DAYS, (d) => renderV4Cell(d, { selected: d.day === 3 }))}</p>
+    <p style="margin:8px 0 0;font-size:10px;color:#666;">↑ v4 案・3日だけ選択色。4日は予定なしだが高さは5日に合わせて伸びる（仕様）</p>
+  `;
+
+  document.getElementById('v4MiscNote').innerHTML = `
+    <div class="v4-misc-card">
+      <strong>選択した日</strong>
+      v3b：outline 2px + 薄青背景 → 隣の日との差が大きい<br>
+      v4：薄青背景のみ（枠線はマス共通の罫線）
+    </div>
+    <div class="v4-misc-card">
+      <strong>予定なしの日（4日）</strong>
+      v3b：マス全体が薄くなる<br>
+      v4：「—」の行だけ薄く。日付「4」は通常表示
+    </div>
+    <div class="v4-misc-card">
+      <strong>今日（23日）と未決の青</strong>
+      v3b：青丸（今日）＋ 青点（未決）の2種類<br>
+      v4：ルールは維持。凡例2行目で説明を分ける
+    </div>
+    <div class="v4-misc-card">
+      <strong>定員の表示</strong>
+      画面には出さない。マウスを乗せたときだけ「定員12人」（現状維持）
+    </div>
+  `;
+}
+
 document.getElementById('principleList').innerHTML = PRINCIPLES.map(p => `<li>${p}</li>`).join('');
 document.getElementById('weekPrincipleList').innerHTML = WEEK_PRINCIPLES.map(p => `<li>${p}</li>`).join('');
+renderV4PlanSection();
 renderFeedbackSummary();
 renderFeedbackIssueList();
 renderFeedbackWeekCompare();
