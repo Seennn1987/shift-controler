@@ -140,14 +140,34 @@ function getUnassignedRowsForDate(dateStr){
   return rows;
 }
 
-function heatBoxLabel(h){
-  if(h.confirmedCount > 0 && h.pendingCount > 0){
-    return `${h.slotLabel}:${h.confirmedCount}確定+${h.pendingCount}未`;
-  }
-  if(h.pendingCount > 0){
-    return `${h.slotLabel}:未${h.pendingCount}`;
-  }
-  return `${h.slotLabel}:${h.confirmedCount}コマ`;
+function heatOccupancyLevel(ratio){
+  if(ratio === 0) return 0;
+  if(ratio < 0.4) return 1;
+  if(ratio < 0.8) return 2;
+  return 3;
+}
+
+function heatBoxTitle(h){
+  const parts = [`${h.slotLabel} · 生徒${h.count}人`, `定員${S.roomCapacity}人`];
+  if(h.pendingCount > 0) parts.push(`講師未決${h.pendingCount}人`);
+  return parts.join(' · ');
+}
+
+/** 教室全体表示：コマ帯（人数＋未決バッジ。略語「確定+未」は使わない） */
+function heatBoxHtml(h){
+  const pendingOnly = h.pendingCount > 0 && h.confirmedCount === 0;
+  const hasPending = h.pendingCount > 0;
+  const level = heatOccupancyLevel(h.ratio);
+  const mainText = pendingOnly ? h.slotLabel : `${h.slotLabel} ${h.count}人`;
+  const badge = hasPending
+    ? `<span class="cal-heat-pending-badge">未決${h.pendingCount}</span>`
+    : '';
+  const cls = [
+    'cal-heat-box',
+    pendingOnly ? 'is-pending-only' : `lv${level}`,
+    hasPending && !pendingOnly ? 'has-pending-badge' : '',
+  ].filter(Boolean).join(' ');
+  return `<div class="${cls}" title="${heatBoxTitle(h)}"><span class="cal-heat-main">${mainText}</span>${badge}</div>`;
 }
 
 // 教室全体表示用：その実日付における4コマ(4講〜7講)それぞれの混雑度（確定＋未マッチの希望コマを反映）
@@ -257,10 +277,7 @@ function renderCalendar(){
         }else{
           const heatBoxes = heat.map(h=>{
             if(h.count === 0) return '';
-            const level = h.ratio===0 ? 0 : (h.ratio<0.4 ? 1 : (h.ratio<0.8 ? 2 : 3));
-            const pendingOnly = h.pendingCount > 0 && h.confirmedCount === 0;
-            const label = heatBoxLabel(h);
-            return `<div class="cal-heat-box lv${level}${pendingOnly?' pending-heat':''}" title="${label} ${h.count}/${S.roomCapacity}人">${label}</div>`;
+            return heatBoxHtml(h);
           }).filter(Boolean).join('');
           if(!heatBoxes){
             classes.push('no-activity');

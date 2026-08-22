@@ -941,23 +941,32 @@
   .cal-cell.selected .cal-entry.absent{background:var(--surface-muted);color:var(--ink-soft);}
   .cal-cell.selected .cal-entry-more{color:var(--ink-soft);}
 
-  /* 教室全体表示：コマ別の混雑度ヒートマップ（個別列挙の代わり、グレースケールの濃淡で表現） */
+  /* 教室全体表示：コマ別の人数帯（定員の埋まり方＋未決バッジ） */
   .cal-heat-stack{display:flex;flex-direction:column;gap:3px;margin-top:4px;padding:0;flex:1;}
   .cal-heat-box{
-    font-size:var(--text-sm);font-weight:700;line-height:1.9;padding:2px 7px;border-radius:var(--radius-sm);
-    background:var(--surface-subtle);color:var(--heat-lv2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+    display:flex;align-items:center;justify-content:space-between;gap:4px;
+    font-size:var(--text-sm);font-weight:700;line-height:1.5;padding:2px 7px;border-radius:var(--radius-sm);
+    background:var(--surface-subtle);color:var(--ink);min-width:0;
   }
-  .cal-heat-box.lv1{background:var(--heat-lv1);color:var(--heat-ink);}
-  .cal-heat-box.lv2{background:var(--heat-lv2);color:var(--text-on-brand);}
-  .cal-heat-box.lv3{background:var(--brand-800);color:var(--text-on-brand);}
-  .cal-heat-box.pending-heat{
-    background:var(--pending-bg);color:var(--pending-ink);border:1px dashed var(--pending-border);font-weight:700;
+  .cal-heat-main{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0;}
+  .cal-heat-box.lv1{background:var(--surface-subtle);color:var(--ink);}
+  .cal-heat-box.lv2{background:var(--warning-bg);color:var(--warning-ink);}
+  .cal-heat-box.lv3{background:var(--accent-warn-bar);color:var(--text-on-brand);}
+  .cal-heat-box.is-pending-only{
+    background:var(--pending-bg);color:var(--pending-ink);border:1px dashed var(--pending-border);
+  }
+  .cal-heat-pending-badge{
+    flex-shrink:0;font-size:var(--text-xs);font-weight:var(--font-weight-bold);line-height:1.35;
+    padding:0 5px;border-radius:var(--radius-sm);
+    background:var(--pending-bg);color:var(--pending-ink);border:1px dashed var(--pending-border);
   }
   .cal-heat-empty{font-size:var(--text-sm);color:var(--ink-disabled);text-align:center;margin-top:12px;}
-  .cal-cell.selected .cal-heat-box{background:rgba(59,125,233,.12);color:var(--ink-soft);}
-  .cal-cell.selected .cal-heat-box.lv1{background:rgba(59,125,233,.2);color:var(--ink);}
-  .cal-cell.selected .cal-heat-box.lv2{background:rgba(59,125,233,.35);color:var(--ink);}
-  .cal-cell.selected .cal-heat-box.lv3{background:var(--brand-500);color:var(--text-on-brand);}
+  .cal-cell.selected .cal-heat-box.lv1{background:var(--brand-50);color:var(--ink);}
+  .cal-cell.selected .cal-heat-box.lv2{background:var(--warning-bg);color:var(--warning-ink);}
+  .cal-cell.selected .cal-heat-box.lv3{background:var(--accent-warn-bar);color:var(--text-on-brand);}
+  .cal-cell.selected .cal-heat-box.is-pending-only{background:var(--pending-bg);color:var(--pending-ink);border-color:var(--pending-border);}
+  .cal-legend-swatch{width:14px;height:12px;display:inline-block;padding:0;min-height:0;}
+  .cal-legend-badge-swatch{font-size:9px;padding:0 4px;line-height:1.2;}
 
   .cal-filter-bar{
     display:flex;align-items:center;gap:10px;margin:0 16px 10px;flex-wrap:wrap;
