@@ -1,9 +1,9 @@
 import { defineConfig } from 'vite';
 import { resolve } from 'path';
 
-export default defineConfig(({ command }) => ({
-  // GitHub Pages 公開時は /shift-controler/ 。ローカル開発時は /
-  base: command === 'serve' ? '/' : '/shift-controler/',
+export default defineConfig(() => ({
+  // Firebase Hosting（ドメイン直下）向け。ローカル開発も同じ /
+  base: '/',
   build: {
     rollupOptions: {
       input: {

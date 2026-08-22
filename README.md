@@ -28,12 +28,14 @@ npm install
 
 ---
 
-## ② 関係者と共有しているWebページ
+## ② 関係者と共有しているWebページ（Firebase Hosting）
 
-**main ブランチに変更を送ると、自動で公開用ファイルが作られ、GitHub Pages に反映されます**（数分かかることがあります）。
+**main ブランチに変更を送ると、自動で公開用ファイルが作られ、Firebase Hosting に反映されます**（数分かかることがあります）。
 
-- 教室長用 → https://seennn1987.github.io/shift-controler/
-- 講師用   → https://seennn1987.github.io/shift-controler/teacher.html
+- 教室長用 → https://shift-controller-4ecaf.web.app/
+- 講師用   → https://shift-controller-4ecaf.web.app/teacher.html
+
+（同じ内容は https://shift-controller-4ecaf.firebaseapp.com/ からも開けます）
 
 ```bash
 cd "/Users/shoui/ピタコマ"
@@ -44,10 +46,34 @@ git push
 
 画面が古いままのときは、ブラウザの再読み込み（Mac なら `Cmd + Shift + R`）を試してください。
 
-### 初回だけ（GitHub の設定）
+### 初回だけ（GitHub から自動公開する設定）
 
-リポジトリの **Settings → Pages → Build and deployment → Source** を **GitHub Actions** にしてください。  
-（すでに設定済みなら不要です）
+GitHub のリポジトリで **Settings → Secrets and variables → Actions** を開き、次の秘密情報を1つ追加してください。
+
+| 名前 | 内容 |
+|---|---|
+| `FIREBASE_SERVICE_ACCOUNT` | Firebase のサービスアカウント JSON（下記手順で取得） |
+
+**サービスアカウント JSON の取り方**
+
+1. [Firebase Console](https://console.firebase.google.com/) → プロジェクト `shift-controller-4ecaf`
+2. 歯車 → **プロジェクトの設定** → **サービス アカウント**
+3. **新しい秘密鍵の生成** → ダウンロードした JSON ファイルの**中身をすべて**コピー
+4. GitHub の `FIREBASE_SERVICE_ACCOUNT` に貼り付けて保存
+
+### パソコンから直接公開する場合
+
+```bash
+npm install
+npx firebase login
+npm run deploy
+```
+
+---
+
+## 旧URL（GitHub Pages）について
+
+以前の https://seennn1987.github.io/shift-controler/ は更新を止めました。**今後は上記 Firebase Hosting の URL を使ってください**（ログインが安定します）。
 
 ---
 

@@ -37,7 +37,7 @@
 ## 2. 現在の技術構成
 
 - **フロントエンド**：素のHTML／CSS／JavaScript（フレームワークなし、ビルドツールなし）
-- **ホスティング**：GitHub Pages（`https://seennn1987.github.io/shift-controler/`）
+- **ホスティング**：Firebase Hosting（`https://shift-controller-4ecaf.web.app/`）
 - **バックエンド**：Firebase（Authentication + Firestore）。専用のサーバーサイドAPIは無く、フロントエンドから直接Firestoreを読み書きしている
 - **リポジトリ**：`Seennn1987/shift-controler`（GitHub、mainブランチ）
 
