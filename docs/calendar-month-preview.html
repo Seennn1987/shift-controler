@@ -12,11 +12,34 @@
   <header class="preview-header">
     <div class="preview-header-inner">
       <h1>カレンダー UI プレビュー</h1>
-      <p>月間・週間の教室全体表示 — 現状（公開中）と v2 修正案。未決の見せ方と行の型を月間・週間で揃えます。</p>
+      <p>月間・週間の教室全体表示 — 現状・v2・<strong>v3 修正案</strong>。公開後のフィードバック（4日の枠・文字重なり・凡例）への対応を先頭にまとめています。</p>
     </div>
   </header>
 
   <main class="preview-main">
+    <section class="feedback-block" id="feedbackFixSection">
+      <h2>v2 公開後のフィードバック → v3 修正案</h2>
+      <p class="section-desc">公開後フィードバック6点の<strong>原因</strong>と<strong>v3 採用案</strong>。右側が本番反映前の確認用です。</p>
+      <div id="feedbackSummary" class="feedback-summary"></div>
+      <div id="feedbackIssueList" class="issue-list"></div>
+      <h3 class="sub-heading">① 月間マス全体（3日・4日・5日を並べて比較）</h3>
+      <p class="section-desc">4日だけ青枠がないのは「未決がない日」だから。v3 では<strong>日付マスに青枠を付けない</strong>（未決は行バッジと日付横の点だけ）。</p>
+      <div id="feedbackWeekCompare" class="column-compare"></div>
+      <h3 class="sub-heading">② 横の空白（4講 と 2人 の間が10文字分以上空く）</h3>
+      <p class="section-desc">本番は <code>4講</code> を左端、<code>2人</code> を <code>right:28px</code> に固定 → 間が最大まで広がる。v3b は <code>4講</code> の直後（gap 4px）に <code>2人 未決1</code>。</p>
+      <div id="feedbackHorizontalGap" class="column-compare"></div>
+      <h3 class="sub-heading">②-b 重なり（未決バッジ）</h3>
+      <div id="feedbackRowCompare" class="column-compare"></div>
+      <h3 class="sub-heading">③ 凡例</h3>
+      <div id="feedbackLegendCompare" class="column-compare"></div>
+      <h3 class="sub-heading">④ 余白（情報が散らばって読みづらい）</h3>
+      <p class="section-desc">v3案は<strong>行だけ</strong>詰めた。スクショの大きな白は、min-height・見えない空列・説明ボックスが原因。<strong>v3b</strong>でマス高さ＝中身だけに。</p>
+      <div id="feedbackSpacingCompare" class="column-compare"></div>
+      <h3 class="sub-heading">⑤ 角丸（あるべきか）</h3>
+      <p class="section-desc">月間マスはもともと<strong>罫線グリッド</strong>（TimeTree方針）。中に丸角の小箱を4つ並べると二重枠でごちゃつく → <strong>行は角なし</strong>、未決バッジだけ丸角。</p>
+      <div id="feedbackRadiusCompare" class="column-compare"></div>
+    </section>
+
     <section class="intro-block">
       <h2>v2 の考え方（ゼロベース）</h2>
       <ul class="principle-list" id="principleList"></ul>

@@ -69,7 +69,358 @@ function occupancyLevel(count) {
   return 3;
 }
 
-/** 現状（公開中）の行HTML */
+const FEEDBACK_DAYS = [
+  {
+    day: 3,
+    hasPending: true,
+    slots: [
+      { label: '4講', confirmed: 2, pending: 0 },
+      { label: '5講', confirmed: 1, pending: 1 },
+      { label: '6講', confirmed: 2, pending: 0 },
+      { label: '7講', confirmed: 0, pending: 0 },
+    ],
+  },
+  {
+    day: 4,
+    hasPending: false,
+    slots: [
+      { label: '4講', confirmed: 0, pending: 0 },
+      { label: '5講', confirmed: 0, pending: 0 },
+      { label: '6講', confirmed: 0, pending: 0 },
+      { label: '7講', confirmed: 0, pending: 0 },
+    ],
+  },
+  {
+    day: 5,
+    hasPending: true,
+    slots: [
+      { label: '4講', confirmed: 1, pending: 1 },
+      { label: '5講', confirmed: 1, pending: 0 },
+      { label: '6講', confirmed: 0, pending: 0 },
+      { label: '7講', confirmed: 0, pending: 0 },
+    ],
+  },
+];
+
+const V3_SUMMARY = 'v3b 採用案：マス min-height やめる／4行リストは内容の高さだけ／2列（4講｜人数+未決）で見えない空列なし／行高18px・padding 0';
+
+const FEEDBACK_ISSUES = [
+  {
+    title: '全体的に見た目が整っていない',
+    bad: '行が白箱の上に白箱で重なり、マスごとに青枠の有無がバラバラ。丸角の小箱が4つ並び、枠の中に枠でごちゃつく。',
+    good: '行は<strong>1つのリスト</strong>にまとめ、色は未決バッジと日付の点だけ。選んだ日だけマス背景を薄青に。',
+  },
+  {
+    title: '4日だけ青線で囲まれていない',
+    bad: '本番CSSの <code>.cal-cell.has-pending</code> が「未決がある日だけ」マス全体に青い inset 枠を付けている。4日は予定ゼロで未決なし → 枠なし。',
+    good: 'v3 ではこの青枠を<strong>やめる</strong>。未決の目印は「行の未決N」と「日付横の青点」だけ。クリックした日は従来どおり薄青背景。',
+  },
+  {
+    title: '4講 と 2人 の間が10文字分以上空く（横）',
+    bad: '本番CSSで <code>4講</code> を左固定、<code>2人</code> を <code>right:28px</code> に固定。間の幅いっぱいが空白になる（ユーザーが指摘した見づらさの本体）。',
+    good: 'v3b：<code>grid-template-columns: 1.75em auto</code> ＋ gap 4px。<strong>4講の直後に 2人</strong>、未決バッジは 2人 の隣（gap 3px）。右端まで引き伸ばさない。',
+  },
+  {
+    title: '「1人」と「未決1」が重なる',
+    bad: '人数とバッジを absolute で右側に固定。マス幅が狭いと 28px 地点の「1人」と 24px 幅のバッジが物理的に重なる。',
+    good: '人数と未決を <code>.cal-heat-meta</code> 内で flex 横並び（gap 3px）。重ならない。',
+  },
+  {
+    title: '凡例が読めない',
+    bad: '凡例サンプルに本番と同じ absolute 配置をそのまま使い、幅 52px の箱に「4講」「2人」「未決1」を押し込んでいる。',
+    good: '凡例専用の v3-legend-row（グリッド・幅 78px 以上）を使う。セル内の行デザインと同型だが、説明用に最低幅を保証。',
+  },
+  {
+    title: '余白が多すぎて読みづらい',
+    bad: 'マス min-height <code>150px</code>、行間 gap、行 padding 右34px、<code>flex:1</code> で行ブロックが伸びる → 4行の下に大きな空白。v3案もモック min-height 96px・見えない「未決0」列で<strong>まだ空く</strong>。',
+    good: 'v3b：<strong>min-height をやめる</strong>（高さ＝日付＋4行だけ）。2列（4講｜人数+未決を横並び）でスペーサ列廃止。行高 <code>18px</code>、マス padding <code>2px</code>。',
+  },
+  {
+    title: '角丸であるべきか',
+    bad: '各行に border-radius 6px の白箱。カレンダー全体は角のない罫線グリッドなのに、中だけ丸角ボックス → デザイン方針（TimeTree準拠）と矛盾。',
+    good: '月間マスの行は<strong>角丸なし（0px）</strong>。未決バッジだけ小さく丸角。週間カード（別画面・余裕あり）は従来どおり radius-md 可。',
+  },
+];
+
+/** v2 公開版：absolute 配置（本番と同じ・重なりやすい） */
+function renderV2ShippedSlotRow(slot) {
+  const count = slot.confirmed + slot.pending;
+  const hasPending = slot.pending > 0;
+  const isEmpty = count === 0;
+  const countHtml = isEmpty
+    ? '<span class="v2-slot-count is-dash">—</span>'
+    : `<span class="v2-slot-count">${count}人</span>`;
+  const badge = hasPending
+    ? `<span class="v2-pending-badge">未決${slot.pending}</span>`
+    : '';
+  const rowCls = ['v2-shipped-slot-row', isEmpty ? 'is-empty' : ''].filter(Boolean).join(' ');
+  return `<div class="${rowCls}"><span class="v2-slot-label">${slot.label}</span>${countHtml}<span class="v2-slot-badge-anchor">${badge}</span></div>`;
+}
+
+/** v3 案：3列グリッド（重ならない）— stackMode: flat | rounded */
+function renderV3SlotRow(slot, stackMode = 'flat') {
+  const count = slot.confirmed + slot.pending;
+  const hasPending = slot.pending > 0;
+  const isEmpty = count === 0;
+  const countHtml = isEmpty
+    ? '<span class="v3-slot-count is-dash">—</span>'
+    : `<span class="v3-slot-count">${count}人</span>`;
+  const badge = hasPending
+    ? `<span class="v3-slot-badge">未決${slot.pending}</span>`
+    : '<span class="v3-slot-badge is-spacer" aria-hidden="true">未決0</span>';
+  const rowCls = ['v3-slot-row', 'recommended', isEmpty ? 'is-empty' : ''].filter(Boolean).join(' ');
+  return `<div class="${rowCls}"><span class="v3-slot-label">${slot.label}</span>${countHtml}${badge}</div>`;
+}
+
+function renderV3SlotStack(slots, stackMode = 'flat') {
+  const rows = slots.map(s => renderV3SlotRow(s, stackMode)).join('');
+  const stackCls = ['v3-slot-stack', stackMode === 'rounded' ? 'is-rounded' : 'is-flat'].join(' ');
+  return `<div class="${stackCls}">${rows}</div>`;
+}
+
+/** v3b：2列・スペーサなし・行高18px（本当に詰める） */
+function renderV3bSlotRow(slot) {
+  const count = slot.confirmed + slot.pending;
+  const isEmpty = count === 0;
+  const countHtml = isEmpty
+    ? '<span class="v3b-count is-dash">—</span>'
+    : `<span class="v3b-count">${count}人</span>`;
+  const badge = slot.pending > 0 ? `<span class="v3b-badge">未決${slot.pending}</span>` : '';
+  const rowCls = ['v3b-slot-row', isEmpty ? 'is-empty' : ''].filter(Boolean).join(' ');
+  return `<div class="${rowCls}"><span class="v3b-label">${slot.label}</span><span class="v3b-meta">${countHtml}${badge}</span></div>`;
+}
+
+function renderV3bSlotStack(slots) {
+  return `<div class="v3b-slot-stack">${slots.map(renderV3bSlotRow).join('')}</div>`;
+}
+
+function renderV3bCell(dayData) {
+  const dot = dayData.hasPending ? '<span class="pending-dot"></span>' : '';
+  return `<div class="v3b-cell"><div class="mini-cal-daynum">${dayData.day}${dot}</div>${renderV3bSlotStack(dayData.slots)}</div>`;
+}
+
+function renderCalStripMock(days, renderCell) {
+  const cells = days.map(d => renderCell(d)).join('');
+  return `<div class="cal-strip-mock" aria-label="1週間分のマス幅">${cells}</div>`;
+}
+
+function renderV3Cell(dayData, opts = {}) {
+  const { compact = true, stackMode = 'flat' } = opts;
+  const stack = renderV3SlotStack(dayData.slots, stackMode);
+  const dot = dayData.hasPending ? '<span class="pending-dot"></span>' : '';
+  const cellCls = ['feedback-week-cell', 'is-honest-v3', compact ? 'is-compact' : ''].filter(Boolean).join(' ');
+  return `<div class="${cellCls}"><div class="mini-cal-daynum">${dayData.day}${dot}</div>${stack}</div>`;
+}
+
+function renderFeedbackSummary() {
+  document.getElementById('feedbackSummary').innerHTML = `<strong>v3b 採用案</strong> — ${V3_SUMMARY}（v3案は行だけ詰まり、<strong>マス下の空白は残る</strong>）`;
+}
+
+function renderV2ShippedCell(dayData) {
+  const rows = dayData.slots.map(renderV2ShippedSlotRow).join('');
+  const dot = dayData.hasPending ? '<span class="pending-dot"></span>' : '';
+  const cls = ['feedback-week-cell', 'v2-shipped-cell', dayData.hasPending ? 'has-pending-border' : ''].filter(Boolean).join(' ');
+  return `<div class="${cls}"><div class="mini-cal-daynum">${dayData.day}${dot}</div><div class="slot-stack">${rows}</div></div>`;
+}
+
+function renderFeedbackIssueList() {
+  document.getElementById('feedbackIssueList').innerHTML = FEEDBACK_ISSUES.map(issue => `
+    <div class="issue-card">
+      <div class="issue-card-head bad">${issue.title}</div>
+      <div class="issue-side"><strong>いま起きていること</strong>${issue.bad}</div>
+      <div class="issue-side"><strong>v3 で直す</strong>${issue.good}</div>
+    </div>
+  `).join('');
+}
+
+function renderFeedbackWeekCompare() {
+  const shipped = FEEDBACK_DAYS.map(renderV2ShippedCell).join('');
+  const v3b = FEEDBACK_DAYS.map(renderV3bCell).join('');
+  document.getElementById('feedbackWeekCompare').innerHTML = `
+    <div class="compare-panel">
+      <div class="compare-panel-head shipped">v2 公開中 — 未決がある日だけマスが青枠</div>
+      <div class="compare-panel-body">
+        <div class="feedback-week-grid">${shipped}</div>
+        <div class="problem-callout bad">
+          3日・5日は青枠、<strong>4日（予定なし）だけ枠なし</strong> → カレンダー全体のリズムが崩れる
+        </div>
+      </div>
+    </div>
+    <div class="compare-panel">
+      <div class="compare-panel-head v3">v3b 採用案 — 高さ＝中身だけ</div>
+      <div class="compare-panel-body">
+        <div class="feedback-week-grid">${v3b}</div>
+        <div class="problem-callout good">
+          3日も4日も5日も<strong>同じ見た目</strong>。下に空白を作らない（min-height なし）
+        </div>
+      </div>
+    </div>
+  `;
+}
+
+function renderFeedbackSpacingCompare() {
+  const sample = FEEDBACK_DAYS[0];
+  const stripDays = FEEDBACK_DAYS;
+  document.getElementById('feedbackSpacingCompare').innerHTML = `
+    <div class="compare-panel compare-panel-wide">
+      <div class="compare-panel-head shipped">v3 案 — 行は詰まったが、<strong>まだ空きが残る</strong></div>
+      <div class="compare-panel-body spacing-compare-body">
+        <div class="spacing-visual">
+          ${renderV3Cell(sample, { compact: true, stackMode: 'flat' })}
+          <p class="spacing-caption bad-caption">↑ モック min-height 96px ＋ 見えない「未決0」列 ＋ 下の説明箱 → <strong>埋まっていない</strong></p>
+        </div>
+        <div class="spacing-diagram">
+          <strong>v3 で残っていた空き</strong>
+          <ul>
+            <li>本番 <code>.cal-cell { min-height: 150px }</code> は v3 説明だけでは未着手</li>
+            <li>3列目に <code>visibility:hidden</code> のスペーサ → 未決なし行も右に空列</li>
+            <li>プレビュー見本自体が min-height 固定で、スクショの大きな白が出る</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+    <div class="compare-panel compare-panel-wide">
+      <div class="compare-panel-head v3">v3b — 実際の1週間マス幅で確認</div>
+      <div class="compare-panel-body spacing-compare-body">
+        ${renderCalStripMock(stripDays, renderV3bCell)}
+        <p class="spacing-caption good-caption">↑ 7列グリッド・高さは日付＋4行のみ。下に空白なし</p>
+        <div class="spacing-diagram">
+          <strong>v3b の数値</strong>
+          <ul>
+            <li>マス <code>min-height: 0</code>、padding <code>2px</code></li>
+            <li>2列：<code>4講</code> ｜ 右端に <code>2人</code>＋<code>未決1</code>（gap 3px）</li>
+            <li>行高 <code>18px</code>、行 padding <code>0 3px</code>、行間 gap <code>0</code></li>
+            <li><code>.cal-heat-stack { flex: 1 }</code> をやめ、伸びないようにする</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+  `;
+}
+
+function renderFeedbackRadiusCompare() {
+  const sample = FEEDBACK_DAYS[0];
+  document.getElementById('feedbackRadiusCompare').innerHTML = `
+    <div class="compare-panel">
+      <div class="compare-panel-head shipped">丸角ボックス ×4（v2系）</div>
+      <div class="compare-panel-body">
+        <div class="feedback-week-cell is-compact" style="max-width:120px;margin:0 auto;">
+          <div class="mini-cal-daynum">${sample.day}</div>
+          ${renderV3SlotStack(sample.slots, 'rounded')}
+        </div>
+        <div class="radius-note">
+          各行が独立した丸角箱 → マスの直角グリッドと<strong>二重の形</strong>になり、すっきりしない。
+        </div>
+      </div>
+    </div>
+    <div class="compare-panel">
+      <div class="compare-panel-head v3">v3b 採用 — 角なしリスト</div>
+      <div class="compare-panel-body">
+        <div class="v3b-cell" style="max-width:120px;margin:0 auto;">
+          <div class="mini-cal-daynum">${sample.day}</div>
+          ${renderV3bSlotStack(sample.slots)}
+        </div>
+        <div class="radius-note">
+          <strong>おすすめ：月間は行 radius 0。</strong>未決バッジだけ <code>4px</code> 丸角。週間の生徒カード（別UI・幅に余裕）は <code>radius-md 8px</code> のままでOK。
+        </div>
+      </div>
+    </div>
+  `;
+}
+
+function renderFeedbackHorizontalGap() {
+  const slot = { label: '5講', confirmed: 1, pending: 1 };
+  document.getElementById('feedbackHorizontalGap').innerHTML = `
+    <div class="compare-panel">
+      <div class="compare-panel-head shipped">本番 — 左端と右端に固定</div>
+      <div class="compare-panel-body">
+        <div class="gap-demo-row is-bad">4講<span class="gap-fill">············</span>1人<span class="gap-fill">·</span>未決1</div>
+        ${renderV2ShippedSlotRow(slot)}
+        <div class="problem-callout bad">「4講」と「1人」の間が<strong>横に最大まで</strong>空く。これが見づらい原因</div>
+      </div>
+    </div>
+    <div class="compare-panel">
+      <div class="compare-panel-head v3">v3b — 4講の直後に人数</div>
+      <div class="compare-panel-body">
+        <div class="gap-demo-row is-good">4講 2人 未決1</div>
+        ${renderV3bSlotStack([slot])}
+        <div class="problem-callout good">gap 4px ＋ 2人 の隣に未決。右側の空白は<strong>情報の後ろ</strong>だけ</div>
+      </div>
+    </div>
+  `;
+}
+
+function renderFeedbackRowCompare() {
+  const overlapSlot = { label: '5講', confirmed: 1, pending: 1 };
+  document.getElementById('feedbackRowCompare').innerHTML = `
+    <div class="compare-panel">
+      <div class="compare-panel-head shipped">v2 公開中 — absolute で重なる</div>
+      <div class="compare-panel-body">
+        <div class="row-zoom">${renderV2ShippedSlotRow(overlapSlot)}</div>
+        <div class="problem-callout bad">「1人」の右端と「未決1」バッジが同じ座標帯に入る</div>
+      </div>
+    </div>
+    <div class="compare-panel">
+      <div class="compare-panel-head v3">v3b — 2列（人数+未決を右端に横並び）</div>
+      <div class="compare-panel-body">
+        <div class="row-zoom">${renderV3bSlotStack([overlapSlot])}</div>
+        <div class="problem-callout good">見えない空列なし。人数と未決は gap 3px で並べる</div>
+      </div>
+    </div>
+  `;
+}
+
+function renderFeedbackLegendCompare() {
+  document.getElementById('feedbackLegendCompare').innerHTML = `
+    <div class="compare-panel">
+      <div class="compare-panel-head shipped">v2 公開中の凡例（読めない）</div>
+      <div class="compare-panel-body legend-block">
+        <div class="legend-row-wrap">
+          <span class="legend-chip">
+            <span class="v2-shipped-legend-swatch">
+              <span class="v2-slot-label">4講</span>
+              <span class="v2-slot-count">2人</span>
+              <span class="v2-slot-badge-anchor"><span class="v2-pending-badge">未決1</span></span>
+            </span>
+            各コマの生徒数
+          </span>
+          <span class="legend-chip">
+            <span class="v2-shipped-legend-swatch is-empty" style="opacity:.55;">
+              <span class="v2-slot-label">7講</span>
+              <span class="v2-slot-count is-dash">—</span>
+              <span class="v2-slot-badge-anchor"></span>
+            </span>
+            予定なし
+          </span>
+          <span class="legend-chip"><span class="v2-pending-badge">未決</span>講師未決</span>
+        </div>
+        <div class="problem-callout bad">52px の箱に absolute で3要素 → 凡例だけ文字が潰れる</div>
+      </div>
+    </div>
+    <div class="compare-panel">
+      <div class="compare-panel-head v3">v3 案の凡例</div>
+      <div class="compare-panel-body legend-block">
+        <div class="legend-row-wrap">
+          <span class="legend-chip">
+            <span class="v3-legend-row"><span class="v3-slot-label">4講</span><span class="v3-slot-count">2人</span><span></span></span>
+            各コマの生徒数
+          </span>
+          <span class="legend-chip">
+            <span class="v3-legend-row" style="opacity:.55;"><span class="v3-slot-label">7講</span><span class="v3-slot-count is-dash">—</span><span></span></span>
+            予定なし
+          </span>
+          <span class="legend-chip">
+            <span class="v3-legend-row"><span class="v3-slot-label">5講</span><span class="v3-slot-count">2人</span><span class="v3-slot-badge">未決1</span></span>
+            講師未決
+          </span>
+          <span class="legend-chip"><span class="pending-dot"></span>その日に未決あり</span>
+        </div>
+        <div class="problem-callout good">凡例専用グリッドで幅を確保。セル内行と同じ型だが最低 78px</div>
+      </div>
+    </div>
+  `;
+}
+
 function renderCurrentSlotRow(slot) {
   const count = slot.confirmed + slot.pending;
   if (count === 0) return '';
@@ -375,6 +726,14 @@ function renderWeekLegendCompare() {
 
 document.getElementById('principleList').innerHTML = PRINCIPLES.map(p => `<li>${p}</li>`).join('');
 document.getElementById('weekPrincipleList').innerHTML = WEEK_PRINCIPLES.map(p => `<li>${p}</li>`).join('');
+renderFeedbackSummary();
+renderFeedbackIssueList();
+renderFeedbackWeekCompare();
+renderFeedbackHorizontalGap();
+renderFeedbackRowCompare();
+renderFeedbackLegendCompare();
+renderFeedbackSpacingCompare();
+renderFeedbackRadiusCompare();
 renderColumnCompare();
 renderCellZoomCompare();
 renderLegendCompare();
