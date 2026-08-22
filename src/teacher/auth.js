@@ -9,6 +9,7 @@ import { loadResponseDrafts } from './response-draft.js';
 import {
   loadNewAssignments,
   loadPendingCancellationRequests,
+  reloadDraftsFromStorage,
   startMyAssignmentsListener,
   initResponseDraftHandlers,
 } from './approvals.js';
@@ -97,7 +98,6 @@ async function bootstrap(user){
   const t = new Date();
   if(S.curYear===undefined){ S.curYear = t.getFullYear(); S.curMonth = t.getMonth(); }
   if(S.myCalYear===undefined){ S.myCalYear = t.getFullYear(); S.myCalMonth = t.getMonth(); }
-  S.responseDrafts = loadResponseDrafts(user.uid);
   initResponseDraftHandlers();
   startScheduleListener();
   startMyAssignmentsListener();
@@ -105,6 +105,7 @@ async function bootstrap(user){
   await loadMyPendingRequests();
   S.newAssignments = await loadNewAssignments();
   S.pendingCancellationRequests = await loadPendingCancellationRequests();
+  reloadDraftsFromStorage();
   renderMyCalendar();
   render();
 }

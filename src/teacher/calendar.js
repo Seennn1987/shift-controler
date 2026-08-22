@@ -13,13 +13,9 @@ import {
   draftKeyForCancel,
   countUnrepliedPendingTickets,
   summarizeDrafts,
+  pruneStaleResponseDrafts,
+  resolveApprovalState,
 } from './approvals.js';
-
-function resolveApprovalState(entry){
-  if(entry.approvalStatus === 'pending') return 'pending';
-  if(entry.approvalStatus === 'confirmed') return 'confirmed';
-  return findPendingTicket(entry.day, entry.slot, entry.subject, entry.studentName, entry.oneTimeDate) ? 'pending' : 'confirmed';
-}
 
 function buildActionsHtml(entry, ticket, approvalState){
   const draft = getDraftForEntry(entry, ticket);
@@ -82,6 +78,7 @@ function rowClass(entry, approvalState, ticket){
 }
 
 function updateBanner(){
+  pruneStaleResponseDrafts();
   const bannerCard = document.getElementById('pendingBannerCard');
   const requestLine = document.getElementById('pendingBannerRequest');
   const draftLine = document.getElementById('pendingBannerDraft');

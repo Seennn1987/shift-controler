@@ -1,6 +1,8 @@
-import { SLOTS } from '../shared/constants.js';
+import { SLOTS, WEEKDAY_JP } from '../shared/constants.js';
+import { pad2, daysInYearMonth } from '../shared/date-utils.js';
 import { fbAuth, fbDb, S } from './state.js';
 import { debugLog } from './debug.js';
+import { getDayStatus } from './day-status.js';
 import { renderMyCalendar } from './calendar.js';
 import {
   draftKeyForTicket,
@@ -51,10 +53,88 @@ async function loadPendingCancellationRequests(){
 
 function findPendingTicket(day, slot, subject, studentName, oneTimeDate){
   const slotNum = Number(slot);
-  return S.newAssignments.find(a=>
-    a.day===day && Number(a.slot)===slotNum && a.subject===subject && a.studentName===studentName &&
-    (oneTimeDate ? a.oneTimeDate===oneTimeDate : !a.oneTimeDate)
-  );
+  return S.newAssignments.find(a=>{
+    if(a.day!==day || Number(a.slot)!==slotNum || a.subject!==subject || a.studentName!==studentName) return false;
+    if(a.oneTimeDate && oneTimeDate) return a.oneTimeDate === oneTimeDate;
+    if(a.oneTimeDate && !oneTimeDate) return false;
+    if(!a.oneTimeDate && oneTimeDate) return true;
+    return true;
+  });
+}
+
+function resolveApprovalState(entry){
+  if(entry.approvalStatus === 'pending') return 'pending';
+  if(entry.approvalStatus === 'confirmed') return 'confirmed';
+  return findPendingTicket(entry.day, entry.slot, entry.subject, entry.studentName, entry.oneTimeDate)
+    ? 'pending'
+    : 'confirmed';
+}
+
+function collectActionablePendingApprovals(){
+  const seenTicketIds = new Set();
+  const items = [];
+  const addEntry = (entry)=>{
+    if(resolveApprovalState(entry) !== 'pending') return;
+    const ticket = findPendingTicket(entry.day, entry.slot, entry.subject, entry.studentName, entry.oneTimeDate);
+    if(!ticket) return;
+    const draftKey = draftKeyForTicket(ticket.id);
+    if(S.responseDrafts[draftKey]) return;
+    if(seenTicketIds.has(ticket.id)) return;
+    seenTicketIds.add(ticket.id);
+    items.push({ entry, ticket });
+  };
+
+  if(S.myCalYear == null || S.myCalMonth == null){
+    S.myAssignmentEntries.forEach(addEntry);
+    return items;
+  }
+
+  const total = daysInYearMonth(`${S.myCalYear}-${pad2(S.myCalMonth + 1)}`);
+  for(let d = 1; d <= total; d++){
+    const dateStr = `${S.myCalYear}-${pad2(S.myCalMonth + 1)}-${pad2(d)}`;
+    const wd = WEEKDAY_JP[new Date(`${dateStr}T00:00:00`).getDay()];
+    if(getDayStatus(dateStr).type !== 'open') continue;
+    S.myAssignmentEntries
+      .filter(e=> (e.oneTimeDate ? e.oneTimeDate === dateStr : e.day === wd))
+      .forEach(addEntry);
+  }
+  return items;
+}
+
+function pruneStaleResponseDrafts(){
+  const next = {};
+  let changed = false;
+  Object.entries(S.responseDrafts).forEach(([key, d])=>{
+    if(d.action === 'approve' || d.action === 'reject'){
+      const ticket = d.ticketId ? S.newAssignments.find(t=> t.id === d.ticketId) : null;
+      if(!ticket){
+        changed = true;
+        return;
+      }
+      next[key] = d;
+      return;
+    }
+    if(d.action === 'cancel'){
+      const entry = S.myAssignmentEntries.find(e=>
+        e.day === d.day &&
+        Number(e.slot) === Number(d.slot) &&
+        e.subject === d.subject &&
+        e.studentName === d.studentName &&
+        (d.oneTimeDate ? e.oneTimeDate === d.oneTimeDate : !e.oneTimeDate)
+      );
+      if(!entry || entry.approvalStatus === 'pending' || findPendingCancellation(entry)){
+        changed = true;
+        return;
+      }
+      next[key] = d;
+      return;
+    }
+    changed = true;
+  });
+  if(changed || Object.keys(next).length !== Object.keys(S.responseDrafts).length){
+    S.responseDrafts = next;
+    persistDrafts();
+  }
 }
 
 function findPendingCancellation(entry){
@@ -70,6 +150,7 @@ function findPendingCancellation(entry){
 function reloadDraftsFromStorage(){
   const uid = fbAuth.currentUser ? fbAuth.currentUser.uid : null;
   S.responseDrafts = loadResponseDrafts(uid);
+  pruneStaleResponseDrafts();
 }
 
 function persistDrafts(){
@@ -129,31 +210,23 @@ function clearDraftByKey(key){
 }
 
 function countUnrepliedPendingTickets(){
-  const seen = new Set();
-  let count = 0;
-  S.newAssignments.forEach(t=>{
-    if(seen.has(t.id)) return;
-    if(S.responseDrafts[draftKeyForTicket(t.id)]) return;
-    seen.add(t.id);
-    count++;
-  });
-  return count;
+  return collectActionablePendingApprovals().length;
 }
 
 function draftAllPendingApprovals(){
-  S.newAssignments.forEach(t=>{
-    const key = draftKeyForTicket(t.id);
+  collectActionablePendingApprovals().forEach(({ ticket, entry })=>{
+    const key = draftKeyForTicket(ticket.id);
     if(S.responseDrafts[key]) return;
     S.responseDrafts[key] = {
       action: 'approve',
-      ticketId: t.id,
-      day: t.day,
-      slot: t.slot,
-      subject: t.subject,
-      studentName: t.studentName,
-      studentGrade: t.studentGrade || '',
-      oneTimeDate: t.oneTimeDate || null,
-      label: `${t.day}曜 ${SLOTS.find(s=>s.id===t.slot)?.label||t.slot+'講'} ${t.studentName} ${t.subject}`,
+      ticketId: ticket.id,
+      day: entry.day,
+      slot: entry.slot,
+      subject: entry.subject,
+      studentName: entry.studentName,
+      studentGrade: entry.studentGrade || ticket.studentGrade || '',
+      oneTimeDate: entry.oneTimeDate || null,
+      label: `${entry.day}曜 ${SLOTS.find(s=>s.id===entry.slot)?.label||entry.slot+'講'} ${entry.studentName} ${entry.subject}`,
     };
   });
   persistDrafts();
@@ -234,6 +307,7 @@ function startMyAssignmentsListener(){
       S.myAssignmentEntries = snap.exists ? (snap.data().entries || []) : [];
       S.newAssignments = await loadNewAssignments();
       S.pendingCancellationRequests = await loadPendingCancellationRequests();
+      pruneStaleResponseDrafts();
       renderMyCalendar();
     }catch(err){
       console.error('担当授業の読み込みエラー:', err);
@@ -246,6 +320,7 @@ function startMyAssignmentsListener(){
 async function refreshPendingAndRender(){
   S.newAssignments = await loadNewAssignments();
   S.pendingCancellationRequests = await loadPendingCancellationRequests();
+  pruneStaleResponseDrafts();
   renderMyCalendar();
 }
 
@@ -276,6 +351,9 @@ export {
   countUnrepliedPendingTickets,
   summarizeDrafts,
   reloadDraftsFromStorage,
+  pruneStaleResponseDrafts,
+  resolveApprovalState,
+  collectActionablePendingApprovals,
   refreshPendingAndRender,
   startMyAssignmentsListener,
   initResponseDraftHandlers,
