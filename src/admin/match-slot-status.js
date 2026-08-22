@@ -1,10 +1,12 @@
 import { SLOTS } from '../shared/constants.js';
 import { S } from './state.js';
 import { shortName } from './calendar.js';
-import { isAvailable } from './schedule-core.js';
+import { isAvailable, isTeacherAvailableOnDate } from './schedule-core.js';
 import {
   countRoomSlot,
+  countRoomSlotOnDate,
   countTeacherSlot,
+  countTeacherSlotOnDate,
   findEffectiveAssignment,
   getActiveYearMonth,
   teacherHasSubmittedMonth,
@@ -47,8 +49,8 @@ export function subjectPickerBadgeLabel(analysis){
   return '担当不可';
 }
 
-/** 未確定コマの状態 */
-export function analyzePendingMatchSlot(student, course, day, slotId, yearMonth){
+/** 未確定コマの状態（dateStr があるときはその日のシフトで判定） */
+export function analyzePendingMatchSlot(student, course, day, slotId, yearMonth, dateStr){
   const ym = getActiveYearMonth(yearMonth);
   const studentId = student.id;
 
@@ -67,7 +69,9 @@ export function analyzePendingMatchSlot(student, course, day, slotId, yearMonth)
     };
   }
 
-  const roomUsed = countRoomSlot(day, slotId, studentId, ym);
+  const roomUsed = dateStr
+    ? countRoomSlotOnDate(dateStr, slotId, studentId)
+    : countRoomSlot(day, slotId, studentId, ym);
   if(roomUsed >= S.roomCapacity){
     return {
       status:'room-full',
@@ -78,12 +82,21 @@ export function analyzePendingMatchSlot(student, course, day, slotId, yearMonth)
     };
   }
 
+  const teacherHasSlot = (teacher)=>{
+    if(dateStr) return isTeacherAvailableOnDate(teacher.id, dateStr, slotId);
+    return isAvailable(teacher, day, slotId);
+  };
+  const teacherUsedCount = (teacherId, excludeId)=>{
+    if(dateStr) return countTeacherSlotOnDate(teacherId, dateStr, slotId, excludeId);
+    return countTeacherSlot(teacherId, day, slotId, excludeId, ym);
+  };
+
   const available = capable.filter(t=>{
-    if(!isAvailable(t, day, slotId)) return false;
-    return countTeacherSlot(t.id, day, slotId, studentId, ym) < S.teacherCapacity;
+    if(!teacherHasSlot(t)) return false;
+    return teacherUsedCount(t.id, studentId) < S.teacherCapacity;
   });
 
-  const priorityTeachers = available.filter(t=> countTeacherSlot(t.id, day, slotId, null, ym) === 1);
+  const priorityTeachers = available.filter(t=> teacherUsedCount(t.id, null) === 1);
   const slotLabel = SLOTS.find(s=> s.id === slotId)?.label || '';
 
   if(available.length > 0){
@@ -104,17 +117,21 @@ export function analyzePendingMatchSlot(student, course, day, slotId, yearMonth)
 
   const notSubmitted = capable.filter(t=> !teacherHasSubmittedMonth(t.id, ym));
   const submittedNoSlot = capable.filter(t=>
-    teacherHasSubmittedMonth(t.id, ym) && !isAvailable(t, day, slotId)
+    teacherHasSubmittedMonth(t.id, ym) && !teacherHasSlot(t)
   );
   const atCapacity = capable.filter(t=>
     teacherHasSubmittedMonth(t.id, ym) &&
-    isAvailable(t, day, slotId) &&
-    countTeacherSlot(t.id, day, slotId, studentId, ym) >= S.teacherCapacity
+    teacherHasSlot(t) &&
+    teacherUsedCount(t.id, studentId) >= S.teacherCapacity
   );
 
   const detailLines = [];
   notSubmitted.forEach(t=> detailLines.push(`${t.name}：${Number(ym.slice(5))}月のシフト未提出`));
-  submittedNoSlot.forEach(t=> detailLines.push(`${t.name}：${day}曜${slotLabel}はシフト未登録`));
+  if(dateStr){
+    submittedNoSlot.forEach(t=> detailLines.push(`${t.name}：${dateStr}はシフト未登録`));
+  }else{
+    submittedNoSlot.forEach(t=> detailLines.push(`${t.name}：${day}曜${slotLabel}はシフト未登録`));
+  }
   atCapacity.forEach(t=> detailLines.push(`${t.name}：講師定員に達しています`));
 
   return {

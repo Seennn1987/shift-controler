@@ -13,18 +13,15 @@ import {
 import { resolveFilterStudent, resolveFilterTeacher } from './cal-filter.js';
 import { getDayStatus, getUnassignedRowsForDate } from './calendar.js';
 import { jumpToCalendarForDate, renderMatching } from './matching.js';
-import { gradeLabel, isAvailable, subjectColor, teacherHonorific } from './schedule-core.js';
+import { gradeLabel, subjectColor, teacherHonorific } from './schedule-core.js';
 import {
-  buildCandidateInfo,
   cancelAssignment,
-  countRoomSlot,
-  countTeacherSlot,
+  countRoomSlotOnDate,
+  countTeacherSlotOnDate,
   findAlternativeSlots,
-  findEffectiveAssignment,
   replaceDesiredSlot,
 } from './teacher-schedule-tab.js';
-import { compareCandidateInfo } from './matching-config.js';
-import { renderMatchCandidateList } from './match-candidate-ui.js';
+import { buildMatchCandidatesHtml } from './match-candidates-html.js';
 import { analyzePendingMatchSlot } from './match-slot-status.js';
 
 export function getDayDetailTitle(dateStr){
@@ -41,36 +38,13 @@ export function getDayDetailTitle(dateStr){
   return { title: label, subtitle: '教室全体' };
 }
 
-function buildUnassignedSlotHtml(row, dateStr, weekday, detailYearMonth){
+function buildUnassignedSlotHtml(row, dateStr, weekday){
   const { student, course, slot } = row;
   const c = subjectColor(student.level, course.subject);
-  const candidates = S.teachers
-    .filter(t=> isAvailable(t, weekday, slot.id))
-    .filter(t=> t.subjects.some(ts=> ts.level === student.level && ts.subject === course.subject))
-    .map(t=> buildCandidateInfo(student.id, course.id, student.level, course.subject, weekday, slot.id, t))
-    .sort(compareCandidateInfo);
-
-  const roomUsed = countRoomSlot(weekday, slot.id, null, detailYearMonth);
-  const roomFull = roomUsed >= S.roomCapacity;
-
-  let candHtml = '';
-  if(candidates.length === 0){
-    candHtml = `<div class="match-none">対応できる講師がいません</div>`;
-  }else{
-    candHtml = renderMatchCandidateList(candidates, {
-      studentId: student.id,
-      courseId: course.id,
-      subject: course.subject,
-      day: weekday,
-      slot: slot.id,
-      dateStr,
-      btnClass: 'confirm-btn mp-confirm-btn',
-      roomFull,
-    });
-    if(!candHtml && !roomFull){
-      candHtml = `<div class="match-none">定員に達しているため、候補講師はありません</div>`;
-    }
-  }
+  const candHtml = buildMatchCandidatesHtml(
+    student, course.id, course.subject, weekday, slot.id, dateStr,
+    { btnClass: 'confirm-btn mp-confirm-btn', showConfirm: true },
+  ) || `<div class="match-none">対応できる講師がいません</div>`;
 
   return `<div class="day-detail-unassigned">
     <div class="day-detail-unassigned-head">
@@ -165,7 +139,7 @@ export function renderDayDetailPanel(container, dateStr){
 
       if(r.existing){
         const teacher = S.teachers.find(t=> t.id === r.existing.teacherId);
-        const used = teacher ? countTeacherSlot(teacher.id, weekday, r.slot.id, null, detailYearMonth) : 0;
+        const used = teacher ? countTeacherSlotOnDate(teacher.id, dateStr, r.slot.id, null) : 0;
         const autoBadge = r.existing.source === 'auto' ? '<span class="auto-badge">自動</span>' : '';
         if(r.isPending){
           html += `<div class="match-slot">
@@ -200,18 +174,14 @@ export function renderDayDetailPanel(container, dateStr){
           return;
         }
 
-        const candidates = S.teachers
-          .filter(t=> isAvailable(t, weekday, r.slot.id))
-          .filter(t=> t.subjects.some(ts=> ts.level === filterStudent.level && ts.subject === r.course.subject))
-          .map(t=> buildCandidateInfo(filterStudent.id, r.course.id, filterStudent.level, r.course.subject, weekday, r.slot.id, t))
-          .sort(compareCandidateInfo);
+        const roomUsed = countRoomSlotOnDate(dateStr, r.slot.id, null);
+        const slotAnalysis = analyzePendingMatchSlot(filterStudent, r.course, weekday, r.slot.id, detailYearMonth, dateStr);
 
-        const roomUsed = countRoomSlot(weekday, r.slot.id, null, detailYearMonth);
-        const roomFull = roomUsed >= S.roomCapacity;
-        const slotAnalysis = analyzePendingMatchSlot(filterStudent, r.course, weekday, r.slot.id, detailYearMonth);
-
-        let candHtml = '';
-        if(candidates.length === 0){
+        let candHtml = buildMatchCandidatesHtml(
+          filterStudent, r.course.id, r.course.subject, weekday, r.slot.id, dateStr,
+          { btnClass: 'confirm-btn mp-confirm-btn', showConfirm: true },
+        );
+        if(!candHtml){
           const alternatives = findAlternativeSlots(filterStudent.level, r.course.subject, r.course.desiredSlots);
           candHtml = `<div class="match-none">${slotAnalysis.label}：${slotAnalysis.detailLines?.[0] || `対応できる講師がいません（${weekday}曜${r.slot.label}は希望通りには組めません）`}</div>`;
           if(alternatives.length === 0){
@@ -230,20 +200,6 @@ export function renderDayDetailPanel(container, dateStr){
                 </button>`;
               }).join('')}
             </div>`;
-          }
-        }else{
-          candHtml = renderMatchCandidateList(candidates, {
-            studentId: filterStudent.id,
-            courseId: r.course.id,
-            subject: r.course.subject,
-            day: weekday,
-            slot: r.slot.id,
-            dateStr,
-            btnClass: 'confirm-btn mp-confirm-btn',
-            roomFull,
-          });
-          if(!candHtml && !roomFull){
-            candHtml = `<div class="match-none">定員に達しているため、候補講師はありません</div>`;
           }
         }
 
@@ -270,7 +226,7 @@ export function renderDayDetailPanel(container, dateStr){
     SLOTS.forEach(slot=>{
       const slotList = list.filter(a=> a.slot === slot.id);
       if(slotList.length === 0) return;
-      const used = countTeacherSlot(filterTeacher.id, weekday, slot.id, null, detailYearMonth);
+      const used = countTeacherSlotOnDate(filterTeacher.id, dateStr, slot.id, null);
       html += `<div class="match-slot"><div class="ms-slot-label">${slot.label}（${slot.time}）<span style="font-weight:400;color:var(--ink-soft);"> ／ 定員 ${used}/${S.teacherCapacity}</span></div>`;
       slotList.forEach(a=>{
         const student = S.students.find(s=> s.id === a.studentId);
@@ -311,7 +267,7 @@ export function renderDayDetailPanel(container, dateStr){
     const slotUnassigned = unassigned.filter(r=> r.slot.id === slot.id);
     if(slotList.length === 0 && slotUnassigned.length === 0) return;
 
-    const roomUsed = countRoomSlot(weekday, slot.id, null, detailYearMonth);
+    const roomUsed = countRoomSlotOnDate(dateStr, slot.id, null);
     html += `<div class="match-slot"><div class="ms-slot-label">${slot.label}（${slot.time}）<span style="font-weight:400;color:var(--ink-soft);"> ／ 教室 ${roomUsed}/${S.roomCapacity}</span></div>`;
 
     if(slotList.length > 0){
@@ -347,7 +303,7 @@ export function renderDayDetailPanel(container, dateStr){
     }
 
     slotUnassigned.forEach(row=>{
-      html += buildUnassignedSlotHtml(row, dateStr, weekday, detailYearMonth);
+      html += buildUnassignedSlotHtml(row, dateStr, weekday);
     });
 
     html += `</div>`;

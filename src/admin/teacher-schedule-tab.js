@@ -381,7 +381,9 @@ function buildCandidateInfo(studentId, courseId, level, subject, day, slot, teac
     courseSlotCoverage: coverage.covered,
     courseSlotCoverageTotal: coverage.total,
     prefSubject: isPreferredSubjectForTeacher(teacher, level, subject),
-    prefDay: isPreferredDay(teacher, day, slot),
+    prefDay: dateStr
+      ? getDateSlotState(teacher.id, dateStr, slot) === 'preferred'
+      : isPreferredDay(teacher, day, slot),
     fillBonus: used > 0,
     dayConsolidation: teacherWorksOtherSlotOnWeekday(teacher.id, day, slot, ym),
   };

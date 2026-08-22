@@ -3,7 +3,7 @@ import { HOLIDAYS_JP } from '../shared/holidays.js';
 import { pad2, daysInYearMonth, toDateStr, getTodayStr } from '../shared/date-utils.js';
 import { firebaseConfig, fbAuth, fbDb, STORAGE_KEY, getSecondaryAuth, S } from './state.js';
 import { getDayStatus } from './calendar.js';
-import { getDateSlotState, isAvailable, isTeacherAvailableOnDate } from './schedule-core.js';
+import { getDateSlotState, isTeacherAvailableOnDate } from './schedule-core.js';
 import { assignmentAppliesOnDate, findEffectiveAssignment, isAssignmentEffectiveInMonth, isPreferredSubjectForTeacher, issueAssignmentApproval } from './teacher-schedule-tab.js';
 
 // ---- 欠席・振替（特定の実日付にのみ影響。曜日パターン自体は変えない） ----
@@ -99,7 +99,7 @@ function findSubstituteCandidatesForStudent(dateStr, slot, absentTeacherId, stud
     if(usedInSlot>=1) return 1; // ①既にその枠に生徒がいる（まだ定員に空きがあることはqualifiedの時点で保証済み）
     const worksElsewhereToday = dayList.some(a=>a.teacherId===t.id && a.slot!==slot);
     if(worksElsewhereToday) return 2; // ②当日は出勤予定あり、この枠は空き
-    if(isAvailable(t, weekday, slot)) return 3; // ③当日の出勤予定はないが○/△申告あり
+    if(isTeacherAvailableOnDate(t.id, dateStr, slot)) return 3; // ③当日の出勤予定はないが○/△申告あり
     return 4; // ④それ以外
   }
 

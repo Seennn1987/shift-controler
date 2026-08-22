@@ -110,7 +110,7 @@ function countUnassignedDesiredForSlot(dateStr, slotId){
       course.desiredSlots.forEach(ds=>{
         if(ds.day !== weekday || ds.slot !== slotId) return;
         if(findAbsenceFor(student.id, course.id, dateStr, ds.day, ds.slot)) return;
-        if(findEffectiveAssignment(student.id, course.id, ds.day, ds.slot, yearMonth)) return;
+        if(findEffectiveAssignment(student.id, course.id, ds.day, ds.slot, yearMonth, dateStr)) return;
         count++;
       });
     });
@@ -129,7 +129,7 @@ function getUnassignedRowsForDate(dateStr){
       course.desiredSlots.forEach(ds=>{
         if(ds.day !== weekday) return;
         if(findAbsenceFor(student.id, course.id, dateStr, ds.day, ds.slot)) return;
-        if(findEffectiveAssignment(student.id, course.id, ds.day, ds.slot, yearMonth)) return;
+        if(findEffectiveAssignment(student.id, course.id, ds.day, ds.slot, yearMonth, dateStr)) return;
         const slot = SLOTS.find(sl=> sl.id === ds.slot);
         if(!slot) return;
         rows.push({ student, course, slot, weekday });
