@@ -66,8 +66,13 @@ function handleLogin(){
   if(!email || !password){ msg.textContent = 'メールアドレスとパスワードを入力してください。'; return; }
   msg.textContent = '';
   document.getElementById('loginLoading').style.display = 'block';
+  authDebugLog('ログインボタン押下', { email });
   fbAuth.signInWithEmailAndPassword(email, password)
+    .then(cred=>{
+      authDebugLog('signInWithEmailAndPassword 成功', { uid: cred.user.uid.slice(0, 8) + '…' });
+    })
     .catch(err=>{
+      authDebugLog('signInWithEmailAndPassword ★失敗★', { code: err.code, message: err.message });
       document.getElementById('loginLoading').style.display = 'none';
       let text = 'ログインに失敗しました。';
       if(err.code==='auth/invalid-email') text = 'メールアドレスの形式が正しくありません。';

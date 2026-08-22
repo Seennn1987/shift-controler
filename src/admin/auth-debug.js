@@ -1,19 +1,28 @@
-/** 教室長画面：ログアウト原因調査用（原因特定後に削除予定） */
+/** 教室長画面：ログアウト原因調査用（原因特定後に削除予定）— コンソール出力のみ */
 
 const LOG_KEY = 'pitakoma_auth_debug_log';
-const MAX_LOG_LINES = 80;
+const MAX_LOG_LINES = 200;
 const sessionStartMs = Date.now();
-let panelEl = null;
-let logListEl = null;
+let signOutCalledRecently = false;
+let lastUserSeenAt = null;
+let lastUserUid = null;
 
 function formatElapsed(){
   const sec = Math.round((Date.now() - sessionStartMs) / 1000);
   return `${sec}s`;
 }
 
+function getPersistedLogs(){
+  try{
+    return JSON.parse(sessionStorage.getItem(LOG_KEY) || '[]');
+  }catch(_e){
+    return [];
+  }
+}
+
 function persistLog(line){
   try{
-    const prev = JSON.parse(sessionStorage.getItem(LOG_KEY) || '[]');
+    const prev = getPersistedLogs();
     prev.push(line);
     while(prev.length > MAX_LOG_LINES) prev.shift();
     sessionStorage.setItem(LOG_KEY, JSON.stringify(prev));
@@ -27,48 +36,25 @@ function authDebugLog(event, detail){
   const line = `[${ts} +${elapsed}] ${event}${detailText ? ' | ' + detailText : ''}`;
   console.log('[ピタコマ Auth]', line);
   persistLog(line);
-  if(logListEl){
-    const row = document.createElement('div');
-    row.className = 'auth-debug-line';
-    row.textContent = line;
-    logListEl.appendChild(row);
-    while(logListEl.childElementCount > 12) logListEl.removeChild(logListEl.firstChild);
-    logListEl.scrollTop = logListEl.scrollHeight;
-  }
 }
 
-function ensurePanel(){
-  if(panelEl) return;
-  panelEl = document.createElement('div');
-  panelEl.id = 'authDebugPanel';
-  panelEl.innerHTML = `
-    <div class="auth-debug-head">
-      <strong>ログイン診断</strong>
-      <span class="auth-debug-note">原因調査中・関係者以外は無視してください</span>
-      <button type="button" id="authDebugCopyBtn">ログをコピー</button>
-    </div>
-    <div id="authDebugLogList"></div>
-  `;
-  document.body.appendChild(panelEl);
-  logListEl = document.getElementById('authDebugLogList');
-  document.getElementById('authDebugCopyBtn').addEventListener('click', ()=>{
-    const lines = JSON.parse(sessionStorage.getItem(LOG_KEY) || '[]');
-    const text = lines.join('\n');
-    navigator.clipboard.writeText(text).then(()=>{
-      authDebugLog('ログをクリップボードにコピーしました');
-    }).catch(()=>{
-      authDebugLog('コピー失敗（コンソールを確認してください）');
-    });
-  });
+/** 再読み込み後、コンソールに全履歴を出力する（画面UIなし） */
+function dumpPersistedLogsToConsole(){
+  const logs = getPersistedLogs();
+  console.group(`[ピタコマ Auth] 保存済みログ全件（${logs.length}件）`);
+  logs.forEach(line=>console.log(line));
+  console.groupEnd();
+  console.info('[ピタコマ Auth] コピー用: copy(JSON.parse(sessionStorage.getItem("pitakoma_auth_debug_log")).join("\\n"))');
 }
 
-function restorePreviousSessionLogs(){
-  try{
-    const prev = JSON.parse(sessionStorage.getItem(LOG_KEY) || '[]');
-    if(prev.length === 0) return;
-    authDebugLog('前回ページのログを引き継ぎ', `${prev.length}件`);
-    prev.slice(-5).forEach(line=>console.log('[ピタコマ Auth 履歴]', line));
-  }catch(_e){ /* ignore */ }
+function printReloadHistory(reloadReason){
+  const logs = getPersistedLogs();
+  if(logs.length === 0 && !reloadReason) return;
+  console.group('[ピタコマ Auth] 前回セッションの履歴（再読み込み後も参照できます）');
+  if(reloadReason) console.warn('再読み込み理由:', reloadReason);
+  logs.forEach(line=>console.log('[履歴]', line));
+  console.groupEnd();
+  console.info('[ピタコマ Auth] 履歴再表示: __pitakomaAuthDebugDump()');
 }
 
 function patchSignOut(fbAuth, label){
@@ -76,6 +62,8 @@ function patchSignOut(fbAuth, label){
   fbAuth.__pitakomaSignOutPatched = true;
   const original = fbAuth.signOut.bind(fbAuth);
   fbAuth.signOut = function patchedSignOut(){
+    signOutCalledRecently = true;
+    setTimeout(()=>{ signOutCalledRecently = false; }, 3000);
     const stack = (new Error('signOut trace')).stack || '';
     const shortStack = stack.split('\n').slice(1, 5).join(' / ');
     authDebugLog(`${label} signOut() 呼び出し`, shortStack);
@@ -103,35 +91,76 @@ function wrapSecondaryAuthForDebug(){
   }
 }
 
+function noteUserPresence(user){
+  if(user){
+    lastUserSeenAt = Date.now();
+    lastUserUid = user.uid;
+    return;
+  }
+  if(!lastUserSeenAt) return;
+  const heldSec = Math.round((Date.now() - lastUserSeenAt) / 1000);
+  if(signOutCalledRecently){
+    authDebugLog('★ログアウト検知★', { 原因: 'signOut() が呼ばれた', ログイン維持秒: heldSec, uid: lastUserUid?.slice(0, 8) + '…' });
+  }else{
+    authDebugLog('★ログアウト検知★', {
+      原因: 'Firebase側でログイン状態が消えた（signOut未呼び出し）',
+      ログイン維持秒: heldSec,
+      uid: lastUserUid?.slice(0, 8) + '…',
+      ヒント: '別タブの講師ページ・APIキー制限・ブラウザのCookie制限を疑う',
+    });
+  }
+  lastUserSeenAt = null;
+  lastUserUid = null;
+}
+
 function installAuthDebug({ fbAuth, S, getSecondaryAuth }){
   getSecondaryAuthRef = getSecondaryAuth;
-  ensurePanel();
-  restorePreviousSessionLogs();
+
+  window.__pitakomaAuthDebugDump = dumpPersistedLogsToConsole;
+  window.__pitakomaAuthDebugClear = ()=>{
+    sessionStorage.removeItem(LOG_KEY);
+    sessionStorage.removeItem('pitakoma_auth_reload_reason');
+    console.info('[ピタコマ Auth] ログを消去しました');
+  };
+
+  const reloadReason = sessionStorage.getItem('pitakoma_auth_reload_reason');
+  if(reloadReason){
+    printReloadHistory(reloadReason);
+    sessionStorage.removeItem('pitakoma_auth_reload_reason');
+  }
 
   authDebugLog('診断開始', {
     href: location.href,
     hostname: location.hostname,
     appInitialized: S.appInitialized,
+    引き継ぎ件数: getPersistedLogs().length,
   });
-
-  const reloadReason = sessionStorage.getItem('pitakoma_auth_reload_reason');
-  if(reloadReason){
-    authDebugLog('再読み込み直後', reloadReason);
-    sessionStorage.removeItem('pitakoma_auth_reload_reason');
-  }
+  console.info('[ピタコマ Auth] 再読み込み後に履歴を見る: __pitakomaAuthDebugDump()');
 
   patchSignOut(fbAuth, '教室長');
 
+  fbAuth.setPersistence(firebase.auth.Auth.Persistence.LOCAL)
+    .then(()=>authDebugLog('ログイン状態の保存方式 LOCAL 設定 OK'))
+    .catch(err=>authDebugLog('ログイン状態の保存方式 設定失敗', { code: err.code, message: err.message }));
+
   fbAuth.onAuthStateChanged(user=>{
+    noteUserPresence(user);
     authDebugLog('onAuthStateChanged', user
       ? { uid: user.uid.slice(0, 8) + '…', email: user.email || '(なし)' }
       : { user: null, appInitialized: S.appInitialized });
   });
 
-  fbAuth.onIdTokenChanged(user=>{
+  fbAuth.onIdTokenChanged(async user=>{
     authDebugLog('onIdTokenChanged（トークン更新など）', user
       ? { uid: user.uid.slice(0, 8) + '…' }
       : { user: null });
+    if(!user) return;
+    try{
+      await user.getIdToken(false);
+      authDebugLog('getIdToken 成功（onIdTokenChanged直後）');
+    }catch(err){
+      authDebugLog('getIdToken ★失敗★（onIdTokenChanged直後）', { code: err.code, message: err.message });
+    }
   });
 
   document.addEventListener('visibilitychange', ()=>{
@@ -164,6 +193,17 @@ function installAuthDebug({ fbAuth, S, getSecondaryAuth }){
       appInitialized: S.appInitialized,
     });
   }, 10000);
+
+  setInterval(async ()=>{
+    const user = fbAuth.currentUser;
+    if(!user) return;
+    try{
+      await user.getIdToken(true);
+      authDebugLog('getIdToken(forceRefresh) 成功');
+    }catch(err){
+      authDebugLog('getIdToken(forceRefresh) ★失敗★', { code: err.code, message: err.message });
+    }
+  }, 20000);
 }
 
 function markAuthReload(reason){
