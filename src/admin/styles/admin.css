@@ -714,17 +714,18 @@
     padding-right:2px;-webkit-overflow-scrolling:touch;
   }
   .approval-item{
+    display:flex;align-items:center;gap:10px;
     background:var(--surface-card);border:1px solid var(--border);border-radius:var(--radius-lg);
     padding:9px 10px;margin-bottom:6px;box-shadow:0 1px 3px rgba(51,51,51,.06);
   }
   .approval-item-rejected{border-color:rgba(179,70,44,.28);background:#FFFBFA;}
   .approval-col-done .approval-item{box-shadow:none;opacity:.92;}
-  .approval-item-teacher{font-size:var(--text-base);font-weight:900;margin-bottom:3px;}
-  .approval-item-meta{
-    font-size:var(--text-xs);color:var(--ink-soft);line-height:1.45;
-    padding-right:88px;position:relative;
+  .approval-item-main{
+    flex:1;min-width:0;font-size:var(--text-sm);line-height:1.45;
   }
-  .approval-item-meta .approval-badge{position:absolute;right:0;top:0;}
+  .approval-item-teacher{font-weight:900;color:var(--ink);margin-right:6px;}
+  .approval-item-detail{color:var(--ink-soft);}
+  .approval-item .approval-badge{flex-shrink:0;}
   .approval-col-empty{
     font-size:var(--text-sm);color:var(--ink-faint);text-align:center;padding:20px 8px;
   }

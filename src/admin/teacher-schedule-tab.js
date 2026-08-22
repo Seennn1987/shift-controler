@@ -106,8 +106,11 @@ function approvalBadgeHtml(status){
 function renderApprovalDashboardItem(a, teacherName, status){
   const rowCls = status==='rejected' ? ' approval-item-rejected' : '';
   return `<div class="approval-item${rowCls}">
-    <div class="approval-item-teacher">${teacherName}</div>
-    <div class="approval-item-meta">${approvalScheduleLine(a)}${approvalBadgeHtml(status)}</div>
+    <div class="approval-item-main">
+      <span class="approval-item-teacher">${teacherName}</span>
+      <span class="approval-item-detail">${approvalScheduleLine(a)}</span>
+    </div>
+    ${approvalBadgeHtml(status)}
   </div>`;
 }
 
