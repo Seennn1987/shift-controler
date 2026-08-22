@@ -1,0 +1,56 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ピタコマ 不足一覧 UI プレビュー</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Zen+Kaku+Gothic+New:wght@400;500;700;900&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="shortage-dashboard-preview.css">
+</head>
+<body>
+  <header class="preview-header">
+    <div class="preview-header-inner">
+      <h1>不足一覧 UI プレビュー</h1>
+      <p>カレンダー上部の「確定が足りない教科」一覧 — <strong>公開中</strong>の評価と <strong>改善案A〜C</strong>を比較します。</p>
+    </div>
+  </header>
+
+  <main class="preview-main">
+    <section class="intro-block">
+      <h2>自己評価の要点</h2>
+      <div id="evalSummary" class="eval-summary"></div>
+      <div id="evalRecommend" class="recommend-box"></div>
+    </section>
+
+    <section class="compare-block">
+      <h2>一覧全体 — 公開中 vs 案A（おすすめ）</h2>
+      <p class="section-desc">同じ11件のデータ。左は<strong>いまの画面</strong>、右は<strong>生徒ごと1ブロック＋説明1回＋浮きカード</strong>。</p>
+      <div id="fullListCompare" class="column-compare"></div>
+    </section>
+
+    <section class="compare-block">
+      <h2>1生徒分を拡大 — 3案</h2>
+      <p class="section-desc">「テスト はなこ」（国語あと3・算数あと2）で、行の組み方とボタンの距離を比較。</p>
+      <div id="studentZoomCompare" class="triple-compare"></div>
+    </section>
+
+    <section class="compare-block">
+      <h2>状態の見せ方 — 文字の短さと赤の使い方</h2>
+      <div id="statusTextCompare" class="column-compare"></div>
+    </section>
+
+    <section class="compare-block">
+      <h2>各案の長所・短所</h2>
+      <div id="prosConsGrid" class="pros-cons-grid"></div>
+    </section>
+
+    <section class="intro-block">
+      <h2>案A で守るルール</h2>
+      <ul class="principle-list" id="principleList"></ul>
+    </section>
+  </main>
+
+  <script src="shortage-dashboard-preview.js"></script>
+</body>
+</html>

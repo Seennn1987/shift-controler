@@ -392,6 +392,22 @@ function renderMatching(){
 }
 
 // 未充足コマ一覧（週の必要コマ数に対して確定が足りていない教科だけを抽出）
+function groupShortagesByStudent(shortages){
+  const order = [];
+  const map = new Map();
+  shortages.forEach(sh=>{
+    if(!map.has(sh.student.id)){
+      map.set(sh.student.id, { student: sh.student, courses: [] });
+      order.push(sh.student.id);
+    }
+    map.get(sh.student.id).courses.push(sh);
+  });
+  order.forEach(id=>{
+    map.get(id).courses.sort((a,b)=> b.gap - a.gap);
+  });
+  return order.map(id=> map.get(id));
+}
+
 function renderShortageDashboard(){
   const wrap = document.getElementById('shortageWrap');
   const summaryLine = document.getElementById('shortageSummaryLine');
@@ -435,24 +451,36 @@ function renderShortageDashboard(){
   }
   if(summaryLine){
     const absPart = pendingAbsences>0 ? ` ／ 未振替 ${pendingAbsences}件` : '';
-    summaryLine.textContent = `${shortages.length}件の教科で確定が不足しています${absPart}`;
+    summaryLine.textContent = `${shortages.length}件の教科で確定が不足しています · 不足が多い順${absPart}`;
   }
   statusBar?.classList.remove('is-ok');
   statusBar?.classList.add('is-warn');
 
   shortages.sort((a,b)=> b.gap - a.gap);
 
-  let html = `<div class="shortage-summary">${shortages.length}件の教科で確定が不足しています（不足コマ数が多い順）</div>`;
-  shortages.forEach(sh=>{
-    const c = subjectColor(sh.student.level, sh.course.subject);
-    const severe = sh.confirmed === 0;
-    html += `<div class="shortage-row ${severe?'severe':''}">
-      <span class="sr-name">${sh.student.name}</span>
-      <span class="sr-subject" style="background:${c.bg};color:${c.text};">${sh.course.subject}</span>
-      <span class="sr-status">確定 ${sh.confirmed} / 週${sh.need}コマ（あと${sh.gap}コマ）</span>
-      <button class="sr-jump" data-student="${sh.student.id}" data-course="${sh.course.id}">候補を確認</button>
+  const groups = groupShortagesByStudent(shortages);
+  let html = '<div class="shortage-well">';
+  groups.forEach(group=>{
+    const gLabel = gradeLabel(group.student);
+    let coursesHtml = '';
+    group.courses.forEach(sh=>{
+      const c = subjectColor(group.student.level, sh.course.subject);
+      const statusCls = sh.gap === 1 ? ' is-mild' : '';
+      coursesHtml += `<div class="shortage-course-row">
+        <span class="sr-subject" style="background:${c.bg};color:${c.text};">${sh.course.subject}</span>
+        <span class="sr-status${statusCls}">週${sh.need} · ${sh.confirmed}確定 · <strong>あと${sh.gap}</strong></span>
+        <button type="button" class="sr-jump" data-student="${sh.student.id}" data-course="${sh.course.id}">候補を確認</button>
+      </div>`;
+    });
+    html += `<div class="shortage-student-card">
+      <div class="shortage-student-head">
+        <span class="sr-name">${group.student.name}</span>
+        <span class="sr-grade">${gLabel}</span>
+      </div>
+      ${coursesHtml}
     </div>`;
   });
+  html += '</div>';
   wrap.innerHTML = html;
 
   wrap.querySelectorAll('.sr-jump').forEach(btn=>{
