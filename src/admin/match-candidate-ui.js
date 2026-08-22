@@ -56,9 +56,13 @@ export function renderMatchCandidateList(candidates, opts){
         ${dateStr ? `data-date="${escapeAttr(dateStr)}"` : ''}>講師を決める</button>` : '';
     html += `<div class="match-cand-row">
       <span class="match-cand-rank">${idx + 1}</span>
-      <span class="match-cand-name">${cand.teacher.name}</span>
-      <span class="match-cand-badges">${badges}</span>
-      <div class="match-cand-actions">${prefHtml}${confirmHtml}</div>
+      <div class="match-cand-main">
+        <div class="match-cand-head">
+          <span class="match-cand-name">${cand.teacher.name}</span>
+          <div class="match-cand-actions">${prefHtml}${confirmHtml}</div>
+        </div>
+        ${badges ? `<div class="match-cand-badges">${badges}</div>` : ''}
+      </div>
     </div>`;
   });
   html += '</div>';

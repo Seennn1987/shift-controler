@@ -287,33 +287,53 @@ function highlightSelectedDaySection(dateStr){
   });
 }
 
-function buildFutureWeeksOfferHtml(offer){
+function shouldOfferPrefPair(studentId, courseId, teacherId){
+  if(isPreferredPair(studentId, courseId, teacherId)) return false;
+  const existing = S.preferredPairs.find(p=> p.studentId === studentId && p.courseId === courseId);
+  if(existing) return false;
+  return true;
+}
+
+function buildPrefPairFollowUpHtml(offer){
+  if(!offer || !shouldOfferPrefPair(offer.studentId, offer.courseId, offer.teacherId)) return '';
+  return `<div class="matching-panel-flash-followup" id="mpPrefPairOffer">
+    <span class="matching-panel-flash-followup-text">${offer.teacherName}先生を、この生徒の${offer.subject}の担当生徒にしますか？</span>
+    <div class="matching-panel-flash-followup-actions">
+      <button type="button" class="ghost matching-panel-flash-btn" id="mpSetPrefPairBtn">担当生徒にする</button>
+      <button type="button" class="matching-panel-flash-dismiss" id="mpDismissPrefPairBtn">あとで</button>
+    </div>
+  </div>`;
+}
+
+function buildFutureWeeksFollowUpHtml(offer){
   if(!offer) return '';
   const slotDef = SLOTS.find(s=> s.id === offer.slot);
   const monthText = offer.monthLabels.length ? offer.monthLabels.join('・') : '対象月なし';
-  return `
-    <div class="matching-panel-future-offer" id="mpFutureOffer">
-      <p class="matching-panel-hint">この講師は、${monthText}の${offer.day}曜${slotDef?.label || ''}に、あと<strong>${offer.dateCount}回</strong>担当できます。</p>
-      <button type="button" class="primary mp-action" id="mpApplyFutureBtn">この講師で翌週以降も設定</button>
-      <button type="button" class="ghost mp-action mp-dismiss-btn" id="mpDismissFutureBtn">閉じる</button>
-    </div>`;
-}
-
-function buildPrefPairOfferHtml(offer){
-  if(!offer) return '';
-  return `
-    <div class="matching-panel-pref-pair-offer" id="mpPrefPairOffer">
-      <p class="matching-panel-hint">${offer.teacherName}先生を、この生徒の${offer.subject}の<strong>担当生徒</strong>にしますか？</p>
-      <button type="button" class="primary mp-action" id="mpSetPrefPairBtn">担当生徒にする</button>
-      <button type="button" class="ghost mp-action mp-dismiss-btn" id="mpDismissPrefPairBtn">あとで</button>
-    </div>`;
+  return `<div class="matching-panel-flash-followup" id="mpFutureOffer">
+    <span class="matching-panel-flash-followup-text">この講師は、${monthText}の${offer.day}曜${slotDef?.label || ''}に、あと<strong>${offer.dateCount}回</strong>担当できます。</span>
+    <div class="matching-panel-flash-followup-actions">
+      <button type="button" class="ghost matching-panel-flash-btn" id="mpApplyFutureBtn">翌週以降も同じ講師にする</button>
+      <button type="button" class="matching-panel-flash-dismiss" id="mpDismissFutureBtn">閉じる</button>
+    </div>
+  </div>`;
 }
 
 function buildPostAssignBannersHtml(){
-  const flashHtml = matchingPanelFlashMsg
-    ? `<div class="matching-panel-result-msg ok">${matchingPanelFlashMsg}</div>`
-    : '';
-  return `${flashHtml}${buildPrefPairOfferHtml(matchingPanelPrefPairOffer)}${buildFutureWeeksOfferHtml(matchingPanelFutureOffer)}`;
+  const prefOffer = matchingPanelPrefPairOffer &&
+    shouldOfferPrefPair(matchingPanelPrefPairOffer.studentId, matchingPanelPrefPairOffer.courseId, matchingPanelPrefPairOffer.teacherId)
+    ? matchingPanelPrefPairOffer
+    : null;
+  const followUpHtml = `${buildPrefPairFollowUpHtml(prefOffer)}${buildFutureWeeksFollowUpHtml(matchingPanelFutureOffer)}`;
+  if(matchingPanelFlashMsg){
+    return `<div class="matching-panel-result-msg ok">
+      <div class="matching-panel-flash-main">${matchingPanelFlashMsg}</div>
+      ${followUpHtml}
+    </div>`;
+  }
+  if(followUpHtml){
+    return `<div class="matching-panel-result-msg ok">${followUpHtml}</div>`;
+  }
+  return '';
 }
 
 function bindFutureWeeksOffer(root){
@@ -465,9 +485,9 @@ function bindConfirmButtons(root){
       });
       const future = countFutureWeeksForTeacher(ctx.teacherId, ctx.day, ctx.slot, ctx.dateStr);
       matchingPanelFutureOffer = future.dateCount > 0 ? { ...ctx, ...future } : null;
-      matchingPanelPrefPairOffer = isPreferredPair(ctx.studentId, ctx.courseId, ctx.teacherId)
-        ? null
-        : { ...ctx };
+      matchingPanelPrefPairOffer = shouldOfferPrefPair(ctx.studentId, ctx.courseId, ctx.teacherId)
+        ? { ...ctx }
+        : null;
       afterMatchingChange(ctx.dateStr);
     });
   });
