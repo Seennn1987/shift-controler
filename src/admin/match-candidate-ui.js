@@ -6,18 +6,20 @@ function escapeAttr(v){
   return String(v ?? '').replace(/"/g, '&quot;');
 }
 
-export function buildPrefPairActionHtmlForTeacher(studentId, courseId, teacherId){
+export function buildPrefPairActionHtmlForTeacher(studentId, courseId, teacherId, opts = {}){
+  const { allowSet = true } = opts;
   if(!teacherId) return '';
   const common = `data-student="${escapeAttr(studentId)}" data-course="${escapeAttr(courseId)}" data-teacher="${escapeAttr(teacherId)}"`;
   if(isPreferredPair(studentId, courseId, teacherId)){
     return `<span class="pref-pair-assigned-badge">担当生徒</span>
       <button type="button" class="ghost pref-pair-unset-btn" ${common}>解除</button>`;
   }
+  if(!allowSet) return '';
   return `<button type="button" class="ghost pref-pair-set-btn" ${common}>担当生徒にする</button>`;
 }
 
-function buildPrefPairActionHtml(cand, studentId, courseId){
-  return buildPrefPairActionHtmlForTeacher(studentId, courseId, cand.teacher.id);
+function buildPrefPairActionHtml(cand, studentId, courseId, allowSet){
+  return buildPrefPairActionHtmlForTeacher(studentId, courseId, cand.teacher.id, { allowSet });
 }
 
 export function renderMatchCandidateList(candidates, opts){
@@ -28,6 +30,7 @@ export function renderMatchCandidateList(candidates, opts){
     roomFull = false,
     showConfirm = true,
     showPrefPairAction = true,
+    showPrefPairSetAction = false,
   } = opts;
 
   if(roomFull){
@@ -45,7 +48,9 @@ export function renderMatchCandidateList(candidates, opts){
       .filter(label=> !(showPrefPairAction && cand.prefPair && label === '担当生徒'))
       .map(label=> `<span class="match-reason-badge">${label}</span>`)
       .join('');
-    const prefHtml = showPrefPairAction ? buildPrefPairActionHtml(cand, studentId, courseId) : '';
+    const prefHtml = showPrefPairAction
+      ? buildPrefPairActionHtml(cand, studentId, courseId, showPrefPairSetAction)
+      : '';
     const confirmHtml = showConfirm ? `<button type="button" class="${btnClass}"
         data-student="${escapeAttr(studentId)}"
         data-course="${escapeAttr(courseId)}"
