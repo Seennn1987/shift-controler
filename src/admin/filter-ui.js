@@ -59,10 +59,6 @@ const COMBOBOX_DEFAULTS = {
     emptyLabel: '講師を選択',
     searchPlaceholder: '名前・読み仮名で検索…',
   },
-  courseSubjectSelect: {
-    emptyLabel: '教科を選択',
-    searchPlaceholder: '教科名で検索…',
-  },
   teacherListFilter: {
     ...FILTER_COMBO_OPTS,
     emptyLabel: 'すべて表示',
@@ -227,22 +223,6 @@ export function refreshPrefTeacherCombobox(student, { disabled = false } = {}){
     groups,
     value: cur,
     disabled,
-  });
-}
-
-export function refreshCourseSubjectCombobox(subjects){
-  initSearchComboboxes();
-  const cur = document.getElementById('courseSubjectSelect')?.value || '';
-  const items = subjects.map(sub=>({
-    value: sub,
-    label: sub,
-    searchText: sub,
-  }));
-  refreshSearchCombobox('courseSubjectSelect', {
-    ...COMBOBOX_DEFAULTS.courseSubjectSelect,
-    groups: items.length ? [{ label: '教科', items }] : [],
-    value: items.some(it=> it.value === cur) ? cur : (items[0]?.value || ''),
-    disabled: items.length === 0,
   });
 }
 

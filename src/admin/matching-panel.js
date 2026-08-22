@@ -4,22 +4,19 @@ import { S } from './state.js';
 import { getStudentDateRows } from './absences.js';
 import { getDayStatus, renderCalendar } from './calendar.js';
 import { refreshCalFilterOptions, clearCalFilter, setCalFilterStudent } from './filter-ui.js';
-import { bulkAutoAssign, bulkCancelAuto, renderMatching, renderShortageDashboard } from './matching.js';
+import { bulkAutoAssign, bulkCancelAuto, fillStudentFormForEdit, renderMatching, renderShortageDashboard } from './matching.js';
 import { switchCalMode, switchView, renderCalendarWeek } from './finance-ui.js';
-import { getDateSlotState, gradeLabel, isAvailable, subjectColor, teacherHonorific } from './schedule-core.js';
+import { getDateSlotState, gradeLabel, subjectColor, teacherHonorific } from './schedule-core.js';
 import { scheduleSave } from './students-persistence.js';
 import { bindDayDetailEvents, getDayDetailTitle, renderDayDetailPanel } from './day-detail-panel.js';
 import {
-  buildCandidateInfo,
   confirmAssignment,
   countRoomSlot,
   countTeacherSlot,
-  findAlternativeSlots,
   findEffectiveAssignment,
   teacherHasSubmittedMonth,
 } from './teacher-schedule-tab.js';
-import { compareCandidateInfo } from './matching-config.js';
-import { renderMatchCandidateList } from './match-candidate-ui.js';
+import { buildMatchCandidatesHtml } from './match-candidates-html.js';
 
 function monthHasSubmittedTeachers(yearMonth){
   return S.teachers.some(t=> teacherHasSubmittedMonth(t.id, yearMonth));
@@ -48,6 +45,37 @@ function hideCalDetailCard(){
     card.hidden = true;
     card.setAttribute('aria-hidden', 'true');
   }
+}
+
+function updateMatchingReturnBar(){
+  const bar = document.getElementById('matchingReturnBar');
+  const btn = document.getElementById('matchingReturnToStudentBtn');
+  if(!bar || !btn) return;
+  const id = S.matchingReturnToStudentId;
+  if(!id || !S.matchingPanelOpen){
+    bar.hidden = true;
+    return;
+  }
+  const student = S.students.find(s=> s.id === id);
+  if(!student){
+    S.matchingReturnToStudentId = null;
+    bar.hidden = true;
+    return;
+  }
+  bar.hidden = false;
+  btn.textContent = `← ${student.name}さんの登録に戻る`;
+}
+
+function returnToStudentRegistration(){
+  const id = S.matchingReturnToStudentId;
+  S.matchingReturnToStudentId = null;
+  closeMatchingPanel();
+  const student = id ? S.students.find(s=> s.id === id) : null;
+  if(student){
+    fillStudentFormForEdit(student);
+    return;
+  }
+  switchView('student');
 }
 
 function updateDrawerHeader(dateStr){
@@ -293,45 +321,10 @@ function bindBackToMenu(root){
 }
 
 function buildCandidatesHtml(student, courseId, subject, day, slot, dateStr){
-  const detailYearMonth = dateStr.slice(0, 7);
-  const slotDef = SLOTS.find(s=> s.id === slot);
-  const candidates = S.teachers
-    .filter(t=> isAvailable(t, day, slot))
-    .filter(t=> t.subjects.some(ts=> ts.level === student.level && ts.subject === subject))
-    .map(t=> buildCandidateInfo(student.id, courseId, student.level, subject, day, slot, t))
-    .sort(compareCandidateInfo);
-
-  const roomUsed = countRoomSlot(day, slot, student.id, detailYearMonth);
-  const roomFull = roomUsed >= S.roomCapacity;
-
-  if(candidates.length === 0){
-    const course = student.courses.find(co=> co.id === courseId);
-    const alternatives = course ? findAlternativeSlots(student.level, subject, course.desiredSlots) : [];
-    let html = `<div class="match-none">対応できる講師がいません</div>`;
-    if(alternatives.length > 0){
-      html += `<div class="matching-panel-alt-title">代替日程の候補</div>`;
-      alternatives.forEach(alt=>{
-        const altSlot = SLOTS.find(sl=> sl.id === alt.slot);
-        html += `<div class="matching-panel-alt-item">${alt.day}曜 ${altSlot?.label || ''}（${altSlot?.time || ''}）</div>`;
-      });
-    }
-    return html;
-  }
-
-  let html = renderMatchCandidateList(candidates, {
-    studentId: student.id,
-    courseId,
-    subject,
-    day,
-    slot,
-    dateStr,
+  return buildMatchCandidatesHtml(student, courseId, subject, day, slot, dateStr, {
     btnClass: 'confirm-btn mp-confirm-btn',
-    roomFull,
+    showConfirm: true,
   });
-  if(!html && !roomFull){
-    html = `<div class="match-none">定員に達しているため、候補講師はありません</div>`;
-  }
-  return html;
 }
 
 function buildAssignmentFlashMessage({slotLabel, subject, teacherName, pending}){
@@ -475,6 +468,7 @@ function applyPanelLayout(){
   panel?.classList.toggle('is-open', open);
   panel?.setAttribute('aria-hidden', open ? 'false' : 'true');
   document.body.classList.toggle('cal-drawer-open', open);
+  updateMatchingReturnBar();
 }
 
 function scrollCalendarIntoView(){
@@ -492,6 +486,7 @@ function openMatchingPanel(){
   S.matchingPanelOpen = true;
   S.matchingPanelStudentId = null;
   S.matchingPanelSlot = null;
+  S.matchingReturnToStudentId = null;
   S.calendarDrawerView = 'matching-menu';
   closeCalActionPanels();
   applyPanelLayout();
@@ -508,6 +503,7 @@ function closeMatchingPanel(){
   S.matchingPanelOpen = false;
   S.matchingPanelStudentId = null;
   S.matchingPanelSlot = null;
+  S.matchingReturnToStudentId = null;
   S.calendarDrawerView = 'day';
   applyPanelLayout();
   renderMatchingDesiredBar();
@@ -828,8 +824,12 @@ function onCalendarRendered(){
 function initMatchingPanel(){
   document.getElementById('openMatchingPanelBtn')?.addEventListener('click', openMatchingPanel);
   document.getElementById('matchingPanelCloseBtn')?.addEventListener('click', closeMatchingPanel);
+  document.getElementById('matchingReturnToStudentBtn')?.addEventListener('click', returnToStudentRegistration);
   document.addEventListener('keydown', e=>{
     if(e.key === 'Escape' && S.matchingPanelOpen) closeMatchingPanel();
+  });
+  document.addEventListener('matching:force-close', ()=>{
+    if(S.matchingPanelOpen) closeMatchingPanel();
   });
   document.addEventListener('calendar:show-day', onShowDay);
   document.addEventListener('calendar:refresh-day', onRefreshDay);

@@ -7,7 +7,7 @@ import { registerCalFilterUiSync, setCalFilterFromSelect } from './cal-filter.js
 import { initSearchComboboxes, refreshAbsenceStudentCombobox, refreshAbsenceTeacherCombobox, refreshAllPersonComboboxes } from './filter-ui.js';
 import { setSearchComboboxValue } from './search-combobox.js';
 import { getWeekMonday, renderCalendarWeek, renderFinance, renderLegend, renderMatrix, switchCalMode, switchView, toggleCalMode } from './finance-ui.js';
-import { buildStudentLevelArea, genCourseId, handleStudentSave, jumpToCalendarForDate, refreshCourseSubjectOptions, refreshPrefCourseAndTeacherOptions, renderFormCourses, renderMatching, renderPrefPairList, renderStudentList, renderTeacherAbsencePanel, resetStudentForm } from './matching.js';
+import { buildStudentLevelArea, handleStudentSave, jumpToCalendarForDate, refreshPrefCourseAndTeacherOptions, renderFormCourses, renderMatching, renderPrefPairList, renderStudentList, renderTeacherAbsencePanel, resetStudentForm } from './matching.js';
 import { initMatchingPanel } from './matching-panel.js';
 import { addRaiseRow, buildBaseAvailArea, getOrCreateDraftSchedule, gradeLabel } from './schedule-core.js';
 import { buildClosedDayArea, handleClosureSave, handleTermSave, initMatchingPrioritySettings, renderClosedDaySettings, renderClosureList, renderMatchingPrioritySettings, renderTermList, resetClosureForm, resetTermForm } from './settings.js';
@@ -115,7 +115,6 @@ async function init(){
   document.getElementById('matrixWrap').innerHTML = '<div class="loading">読み込み中…</div>';
 
   buildStudentLevelArea();
-  refreshCourseSubjectOptions();
   renderFormCourses();
   document.getElementById('matchingWrap').innerHTML = '<div class="loading">読み込み中…</div>';
   document.getElementById('shortageWrap').innerHTML = '<div class="loading">読み込み中…</div>';
@@ -342,14 +341,6 @@ async function init(){
   document.getElementById('subjectFilter').addEventListener('change', renderMatrix);
   document.getElementById('studentSaveBtn').addEventListener('click', handleStudentSave);
   document.getElementById('studentCancelBtn').addEventListener('click', resetStudentForm);
-  document.getElementById('addCourseBtn').addEventListener('click', ()=>{
-    const sel = document.getElementById('courseSubjectSelect');
-    const subject = sel.value;
-    if(!subject) return;
-    S.formCourses.push({id:genCourseId(), subject, weeklyCount:1, desiredSlots:[]});
-    refreshCourseSubjectOptions();
-    renderFormCourses();
-  });
   document.getElementById('teacherCapacityInput').addEventListener('change', (e)=>{
     let v = parseInt(e.target.value, 10);
     if(!Number.isFinite(v) || v < 1) v = 1;

@@ -357,7 +357,7 @@
   <!-- ===== 生徒登録・マッチング ===== -->
   <section id="view-student" class="view">
     <div class="card">
-      <h2><span id="studentFormModeTitle">生徒を登録</span><span class="help-tip" tabindex="0">?<span class="help-tip-text">氏名・学年を入力し、教科ごとに「週の受講コマ数」と、生徒が実際に希望する曜日/コマ（週コマ数とちょうど同じ数）を登録してください。対応できる講師がいない枠は、後で代替日程を提案できます。</span></span></h2>
+      <h2><span id="studentFormModeTitle">生徒を登録</span><span class="help-tip" tabindex="0">?<span class="help-tip-text">氏名・学年を入力し「基本情報を登録」を押してください。そのあと週カレンダーで希望コマと教科を選びます。講師の担当決定はカレンダー画面の右パネルで行います。</span></span></h2>
 
       <label class="field-label" for="studentNameInput">生徒名</label>
       <input type="text" id="studentNameInput" placeholder="例：山田 花子">
@@ -374,15 +374,12 @@
       <input type="text" inputmode="numeric" id="studentGradeInput" style="max-width:100px;" placeholder="例：5">
 
       <div style="height:22px"></div>
-      <label class="field-label">受講科目<span class="help-tip" tabindex="0">?<span class="help-tip-text">教科を選んで「追加」を押すと、週コマ数・希望曜日を入力する枠が下に追加されます。</span></span></label>
-      <div class="course-add-bar">
-        <select id="courseSubjectSelect"></select>
-        <button type="button" class="ghost" id="addCourseBtn">＋ 教科を追加</button>
-      </div>
+      <label class="field-label">受講科目<span class="help-tip" tabindex="0">?<span class="help-tip-text">まず「基本情報を登録」を押してください。そのあと、空いているマスをクリックして教科を選びます。講師の担当決定は「担当講師を決める」から、カレンダー画面の右パネルで行います。</span></span></label>
       <div id="courseList"></div>
+      <div id="studentMatchingAction" class="student-matching-action" hidden></div>
 
       <div class="form-actions">
-        <button class="primary" id="studentSaveBtn">登録する</button>
+        <button class="primary" id="studentSaveBtn">基本情報を登録</button>
         <button class="ghost" id="studentCancelBtn" style="display:none;">キャンセル</button>
         <span class="form-msg" id="studentFormMsg"></span>
       </div>
@@ -579,6 +576,9 @@
       <h2 class="matching-drawer-title" id="matchingDrawerTitle">コマを組む</h2>
     </div>
     <button type="button" class="matching-drawer-close" id="matchingPanelCloseBtn" aria-label="閉じる">×</button>
+  </div>
+  <div id="matchingReturnBar" class="matching-drawer-return-bar" hidden>
+    <button type="button" class="ghost matching-drawer-return-btn" id="matchingReturnToStudentBtn">← 登録に戻る</button>
   </div>
   <div id="matchingPanelBody" class="matching-drawer-body"></div>
 </aside>

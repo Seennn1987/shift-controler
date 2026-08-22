@@ -11,6 +11,7 @@ export function renderMatchCandidateList(candidates, opts){
     dateStr = '',
     btnClass = 'confirm-btn',
     roomFull = false,
+    showConfirm = true,
   } = opts;
 
   if(roomFull){
@@ -31,14 +32,14 @@ export function renderMatchCandidateList(candidates, opts){
       <span class="match-cand-rank">${idx + 1}</span>
       <span class="match-cand-name">${cand.teacher.name}</span>
       <span class="match-cand-badges">${badges}</span>
-      <button type="button" class="${btnClass}"
+      ${showConfirm ? `<button type="button" class="${btnClass}"
         data-student="${escapeAttr(studentId)}"
         data-course="${escapeAttr(courseId)}"
         data-subject="${escapeAttr(subject)}"
         data-day="${escapeAttr(day)}"
         data-slot="${slot}"
         data-teacher="${escapeAttr(cand.teacher.id)}"
-        ${dateStr ? `data-date="${escapeAttr(dateStr)}"` : ''}>担当を決める</button>
+        ${dateStr ? `data-date="${escapeAttr(dateStr)}"` : ''}>担当を決める</button>` : ''}
     </div>`;
   });
   html += '</div>';

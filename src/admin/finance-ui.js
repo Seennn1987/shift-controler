@@ -507,6 +507,9 @@ function renderLegend(){
 }
 
 function switchView(name){
+  if(name !== 'calendar'){
+    document.dispatchEvent(new CustomEvent('matching:force-close'));
+  }
   document.querySelectorAll('.tab-btn').forEach(b=>b.classList.toggle('active', b.dataset.view===name));
   document.getElementById('view-calendar').classList.toggle('active', name==='calendar');
   document.getElementById('view-manage').classList.toggle('active', name==='manage');

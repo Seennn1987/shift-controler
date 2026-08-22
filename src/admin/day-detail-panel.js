@@ -25,6 +25,7 @@ import {
 } from './teacher-schedule-tab.js';
 import { compareCandidateInfo } from './matching-config.js';
 import { renderMatchCandidateList } from './match-candidate-ui.js';
+import { analyzePendingMatchSlot } from './match-slot-status.js';
 
 export function getDayDetailTitle(dateStr){
   const status = getDayStatus(dateStr);
@@ -207,11 +208,12 @@ export function renderDayDetailPanel(container, dateStr){
 
         const roomUsed = countRoomSlot(weekday, r.slot.id, null, detailYearMonth);
         const roomFull = roomUsed >= S.roomCapacity;
+        const slotAnalysis = analyzePendingMatchSlot(filterStudent, r.course, weekday, r.slot.id, detailYearMonth);
 
         let candHtml = '';
         if(candidates.length === 0){
           const alternatives = findAlternativeSlots(filterStudent.level, r.course.subject, r.course.desiredSlots);
-          candHtml = `<div class="match-none">対応できる講師がいません（${weekday}曜${r.slot.label}は希望通りには組めません）</div>`;
+          candHtml = `<div class="match-none">${slotAnalysis.label}：${slotAnalysis.detailLines?.[0] || `対応できる講師がいません（${weekday}曜${r.slot.label}は希望通りには組めません）`}</div>`;
           if(alternatives.length === 0){
             candHtml += `<div class="match-none">他に空いている代替日程もありません。講師の追加登録をご検討ください。</div>`;
           }else{

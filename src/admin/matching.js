@@ -1,19 +1,24 @@
-import { SUBJECT_MAP, DAYS, SLOTS, WEEKDAY_JP, WEEK_FULL, LEVELS_ORDER } from '../shared/constants.js';
+import { DAYS, SLOTS, WEEKDAY_JP, WEEK_FULL, LEVELS_ORDER } from '../shared/constants.js';
 import { HOLIDAYS_JP } from '../shared/holidays.js';
 import { pad2, daysInYearMonth, toDateStr, getTodayStr } from '../shared/date-utils.js';
 import { firebaseConfig, fbAuth, fbDb, STORAGE_KEY, getSecondaryAuth, S } from './state.js';
 import { cancelSubstitute, cancelTeacherAbsence, confirmSubstitute, findSubstituteCandidatesForStudent, findTeacherAbsence, getTeacherLessonsOnDate, recordTeacherAbsence, resolveSlotViaStudentAbsence } from './absences.js';
 import { renderCalendar } from './calendar.js';
-import { refreshCalFilterOptions, setCalFilterStudent, refreshCourseSubjectCombobox, refreshPrefCourseCombobox, refreshPrefStudentCombobox, refreshPrefTeacherCombobox, refreshAllPersonComboboxes } from './filter-ui.js';
+import { refreshCalFilterOptions, setCalFilterStudent, refreshPrefCourseCombobox, refreshPrefStudentCombobox, refreshPrefTeacherCombobox, refreshAllPersonComboboxes } from './filter-ui.js';
 import { sortByNameKana } from '../shared/person-sort.js';
 import { renderCalendarWeek, switchCalMode, switchView } from './finance-ui.js';
 import { gradeLabel, isAvailable, subjectColor, teacherHonorific } from './schedule-core.js';
-import { applyClosedDayStyling } from './settings.js';
 import { saveStudents, scheduleSave, scheduleSyncTeacherAssignments } from './students-persistence.js';
 import { buildCandidateInfo, cancelAssignment, confirmAssignment, countCourseConfirmed, countRoomSlot, countTeacherSlot, findAlternativeSlots, findEffectiveAssignment, removePreferredPair, replaceDesiredSlot } from './teacher-schedule-tab.js';
 import { compareCandidateInfo } from './matching-config.js';
 import { renderMatchCandidateList } from './match-candidate-ui.js';
 import { renderTeacherList } from './teachers.js';
+import { analyzePendingMatchSlot } from './match-slot-status.js';
+import {
+  normalizeFormCoursesForSave,
+  renderStudentCourseCalendar,
+  resetCourseCalendarSelection,
+} from './student-course-calendar.js';
 
 // ---- 一括自動仮組み ----
 // 未確定の希望枠をまとめて自動的に埋める。候補が少ない（融通が利かない）枠から優先的に処理する。
@@ -81,7 +86,6 @@ function buildStudentLevelArea(){
     r.addEventListener('change', ()=>{
       // 学年を変えると対象教科が変わるため、未確定の受講科目はリセットする
       S.formCourses = [];
-      refreshCourseSubjectOptions();
       renderFormCourses();
     });
   });
@@ -96,127 +100,85 @@ function getSelectedStudentLevel(){
 // S.formCourses: フォーム入力中の作業用データ。保存時に student.courses として確定する。
 function genCourseId(){ return 'c-'+Date.now()+'-'+Math.random().toString(36).slice(2,7); }
 
-function refreshCourseSubjectOptions(){
-  const level = getSelectedStudentLevel();
-  const already = S.formCourses.map(c=>c.subject);
-  const remain = (SUBJECT_MAP[level]||[]).filter(sub=>!already.includes(sub));
-  refreshCourseSubjectCombobox(remain);
-  document.getElementById('addCourseBtn').disabled = remain.length===0;
-}
-
-function buildCourseAvailGrid(course){
-  const table = document.createElement('table');
-  table.className = 'avail-grid';
-  let thead = '<thead><tr><th class="slot-h">時間割</th>' + DAYS.map(d=>`<th data-day="${d}">${d}</th>`).join('') + '</tr></thead>';
-  let tbody = '<tbody>';
-  SLOTS.forEach(slot=>{
-    tbody += `<tr><th class="slot-h" style="border:1px solid var(--border);background:#fff;font-weight:600;">${slot.label}<br><span style="color:var(--ink-soft);font-weight:400;">${slot.time}</span></th>`;
-    DAYS.forEach(day=>{
-      const checked = course.desiredSlots.some(ds=>ds.day===day && ds.slot===slot.id);
-      const id = `cavail-${course.id}-${day}-${slot.id}`;
-      tbody += `<td data-day="${day}"><label for="${id}"><input type="checkbox" id="${id}" data-course="${course.id}" data-day="${day}" data-slot="${slot.id}" ${checked?'checked':''}><span class="dot"></span></label></td>`;
-    });
-    tbody += '</tr>';
-  });
-  tbody += '</tbody>';
-  table.innerHTML = thead + tbody;
-  return table;
-}
-
 function renderFormCourses(){
   const level = getSelectedStudentLevel();
   const wrap = document.getElementById('courseList');
-  wrap.innerHTML = '';
-  S.formCourses.forEach(course=>{
-    const c = subjectColor(level, course.subject);
-    const card = document.createElement('div');
-    card.className = 'course-card';
-
-    const head = document.createElement('div');
-    head.className = 'cc-head';
-    head.innerHTML = `
-      <span class="cc-subject" style="background:${c.bg};color:${c.text};">${course.subject}</span>
-      <span class="cc-weekly">週<input type="text" inputmode="numeric" value="${course.weeklyCount}" data-course="${course.id}" class="course-weekly-input">コマ希望</span>
-      <button type="button" class="cc-remove" data-course="${course.id}">✕ この教科を削除</button>
-    `;
-    card.appendChild(head);
-
-    const label = document.createElement('label');
-    label.className = 'field-label';
-    label.style.fontSize = '11.5px';
-    label.textContent = '希望する曜日・コマ（週コマ数とちょうど同じ数を選んでください）';
-    card.appendChild(label);
-
-    card.appendChild(buildCourseAvailGrid(course));
-
-    const hint = document.createElement('div');
-    const picked = course.desiredSlots.length;
-    const need = course.weeklyCount;
-    let hintText, hintWarn;
-    if(picked < need){
-      hintText = `あと${need-picked}枠選んでください（現在${picked}／週${need}コマ）`;
-      hintWarn = true;
-    }else if(picked > need){
-      hintText = `週${need}コマに対して${picked}枠選ばれています。ちょうど${need}枠になるよう外してください。`;
-      hintWarn = true;
-    }else{
-      hintText = `✓ 週${need}コマ分、ちょうど選択できています`;
-      hintWarn = false;
-    }
-    hint.className = 'cc-hint' + (hintWarn ? ' warn' : '');
-    hint.textContent = hintText;
-    card.appendChild(hint);
-
-    wrap.appendChild(card);
-  });
-
-  // イベント登録
-  wrap.querySelectorAll('.course-weekly-input').forEach(inp=>{
-    inp.addEventListener('change', (e)=>{
-      const course = S.formCourses.find(c=>c.id===e.target.dataset.course);
-      let v = parseInt(e.target.value, 10);
-      if(!Number.isFinite(v) || v < 1) v = 1;
-      course.weeklyCount = v;
+  if(!S.editingStudentId){
+    wrap.innerHTML = '<p class="scc-locked-hint">先に「基本情報を登録」を押してください。登録後、ここで希望コマを選べます。</p>';
+    renderStudentMatchingAction();
+    return;
+  }
+  renderStudentCourseCalendar(wrap, {
+    formCourses: S.formCourses,
+    level,
+    genCourseId,
+    onChange: async ()=>{
+      await persistFormCourses();
       renderFormCourses();
-    });
+    },
   });
-  wrap.querySelectorAll('.cc-remove').forEach(btn=>{
-    btn.addEventListener('click', ()=>{
-      S.formCourses = S.formCourses.filter(c=>c.id!==btn.dataset.course);
-      refreshCourseSubjectOptions();
-      renderFormCourses();
-    });
+  renderStudentMatchingAction();
+}
+
+function updateStudentFormUi(){
+  const name = document.getElementById('studentNameInput').value.trim();
+  const isEdit = Boolean(S.editingStudentId);
+  document.getElementById('studentFormModeTitle').textContent = isEdit ? `${name || '生徒'} さんを編集` : '生徒を登録';
+  document.getElementById('studentSaveBtn').textContent = isEdit ? '基本情報を更新' : '基本情報を登録';
+  document.getElementById('studentCancelBtn').style.display = isEdit ? 'inline-block' : 'none';
+}
+
+function renderStudentMatchingAction(){
+  const el = document.getElementById('studentMatchingAction');
+  if(!el) return;
+  if(!S.editingStudentId){
+    el.hidden = true;
+    el.innerHTML = '';
+    return;
+  }
+  const courses = normalizeFormCoursesForSave(S.formCourses);
+  if(courses.length === 0){
+    el.hidden = true;
+    el.innerHTML = '';
+    return;
+  }
+  el.hidden = false;
+  el.innerHTML = `
+    <button type="button" class="primary" id="studentGoMatchingBtn">担当講師を決める →</button>
+    <p class="field-hint tight">カレンダー画面の右パネルで、候補講師から担当を決められます。</p>`;
+  el.querySelector('#studentGoMatchingBtn')?.addEventListener('click', ()=>{
+    S.matchingReturnToStudentId = S.editingStudentId;
+    switchView('calendar');
+    switchCalMode('month');
+    document.dispatchEvent(new CustomEvent('matching:go-student-month', {
+      detail: { studentId: S.editingStudentId },
+    }));
   });
-  wrap.querySelectorAll('input[type=checkbox][data-course]').forEach(cb=>{
-    cb.addEventListener('change', ()=>{
-      const course = S.formCourses.find(c=>c.id===cb.dataset.course);
-      const day = cb.dataset.day, slot = Number(cb.dataset.slot);
-      if(cb.checked){
-        if(!course.desiredSlots.some(ds=>ds.day===day && ds.slot===slot)){
-          course.desiredSlots.push({day, slot});
-        }
-      }else{
-        course.desiredSlots = course.desiredSlots.filter(ds=>!(ds.day===day && ds.slot===slot));
-      }
-      renderFormCourses();
-    });
-  });
-  applyClosedDayStyling();
+}
+
+async function persistFormCourses(){
+  if(!S.editingStudentId) return;
+  const idx = S.students.findIndex(s=> s.id === S.editingStudentId);
+  if(idx < 0) return;
+  const courses = normalizeFormCoursesForSave(S.formCourses);
+  S.students[idx].courses = JSON.parse(JSON.stringify(courses));
+  await saveStudents();
+  renderStudentList();
+  renderMatching();
 }
 
 function resetStudentForm(){
   S.editingStudentId = null;
+  resetCourseCalendarSelection();
   document.getElementById('studentNameInput').value = '';
   document.getElementById('studentNameKanaInput').value = '';
   document.getElementById('studentGradeInput').value = '';
   document.querySelectorAll('input[name=studentLevel]').forEach((r,i)=> r.checked = (i===0));
   S.formCourses = [];
-  refreshCourseSubjectOptions();
   renderFormCourses();
-  document.getElementById('studentFormModeTitle').textContent = '生徒を登録';
-  document.getElementById('studentSaveBtn').textContent = '登録する';
-  document.getElementById('studentCancelBtn').style.display = 'none';
   document.getElementById('studentFormMsg').textContent = '';
+  updateStudentFormUi();
+  renderStudentMatchingAction();
 }
 
 function fillStudentFormForEdit(s){
@@ -226,12 +188,9 @@ function fillStudentFormForEdit(s){
   document.getElementById('studentGradeInput').value = s.grade ? String(s.grade) : '';
   document.querySelectorAll('input[name=studentLevel]').forEach(r=> r.checked = (r.value===s.level));
   S.formCourses = JSON.parse(JSON.stringify(s.courses));
-  refreshCourseSubjectOptions();
   renderFormCourses();
-  document.getElementById('studentFormModeTitle').textContent = `${s.name} さんを編集`;
-  document.getElementById('studentSaveBtn').textContent = '更新する';
-  document.getElementById('studentCancelBtn').style.display = 'inline-block';
   document.getElementById('studentFormMsg').textContent = '';
+  updateStudentFormUi();
   switchView('student');
   window.scrollTo({top:0, behavior:'smooth'});
 }
@@ -246,23 +205,25 @@ async function handleStudentSave(){
   const level = getSelectedStudentLevel();
   let grade = parseInt(document.getElementById('studentGradeInput').value, 10);
   if(!Number.isFinite(grade) || grade<1 || grade>6) grade = null;
-  if(S.formCourses.length===0){ msg.textContent = '受講科目を1つ以上追加してください。'; return; }
-  const mismatchCourse = S.formCourses.find(c=>c.desiredSlots.length !== c.weeklyCount);
-  if(mismatchCourse){
-    msg.textContent = `「${mismatchCourse.subject}」は週${mismatchCourse.weeklyCount}コマに対して希望曜日が${mismatchCourse.desiredSlots.length}枠になっています。ちょうど${mismatchCourse.weeklyCount}枠を選んでください。`;
-    return;
-  }
 
-  const courses = JSON.parse(JSON.stringify(S.formCourses));
+  const courses = normalizeFormCoursesForSave(S.formCourses);
+  const coursesCopy = JSON.parse(JSON.stringify(courses));
 
   if(S.editingStudentId){
     const idx = S.students.findIndex(s=>s.id===S.editingStudentId);
-    if(idx>-1) S.students[idx] = {id:S.editingStudentId, name, nameKana, level, grade, courses};
+    if(idx>-1){
+      S.students[idx] = { ...S.students[idx], name, nameKana, level, grade, courses: coursesCopy };
+    }
+    msg.textContent = '基本情報を更新しました。';
   }else{
-    S.students.push({id:'s-'+Date.now()+'-'+Math.random().toString(36).slice(2,7), name, nameKana, level, grade, courses});
+    const id = 's-'+Date.now()+'-'+Math.random().toString(36).slice(2,7);
+    S.students.push({ id, name, nameKana, level, grade, courses: coursesCopy });
+    S.editingStudentId = id;
+    msg.textContent = '基本情報を登録しました。続けて希望コマを選んでください。';
   }
   await saveStudents();
-  resetStudentForm();
+  updateStudentFormUi();
+  renderFormCourses();
   renderStudentList();
   renderMatching();
 }
@@ -394,11 +355,12 @@ function renderMatching(){
 
         const roomUsed = countRoomSlot(day, slotId, null);
         const roomFull = roomUsed >= S.roomCapacity;
+        const slotAnalysis = analyzePendingMatchSlot(s, course, day, slotId, S.referenceYearMonth);
 
         let candHtml = '';
         if(candidates.length===0){
           const alternatives = findAlternativeSlots(s.level, course.subject, course.desiredSlots);
-          candHtml = `<div class="match-none">対応できる講師がいません（${day}曜${slot.label}は希望通りには組めません）</div>`;
+          candHtml = `<div class="match-none">${slotAnalysis.label}：${slotAnalysis.detailLines?.[0] || `対応できる講師がいません（${day}曜${slot.label}）`}</div>`;
           if(alternatives.length===0){
             candHtml += `<div class="match-none">他に空いている代替日程もありません。講師の追加登録をご検討ください。</div>`;
           }else{
@@ -815,4 +777,4 @@ function renderTeacherAbsencePanel(teacherId, dateStr){
 
 // =====================================================================
 
-export { bulkAutoAssign, bulkCancelAuto, buildStudentLevelArea, getSelectedStudentLevel, genCourseId, refreshCourseSubjectOptions, buildCourseAvailGrid, renderFormCourses, resetStudentForm, fillStudentFormForEdit, handleStudentSave, renderStudentList, deleteStudent, renderMatching, refreshPrefStudentOptions, refreshPrefCourseAndTeacherOptions, renderPrefPairList, renderShortageDashboard, findNearestFutureDate, jumpToCalendarForStudent, jumpToCalendarForDate, renderTeacherAbsencePanel };
+export { bulkAutoAssign, bulkCancelAuto, buildStudentLevelArea, getSelectedStudentLevel, genCourseId, renderFormCourses, resetStudentForm, fillStudentFormForEdit, handleStudentSave, renderStudentList, deleteStudent, renderMatching, refreshPrefStudentOptions, refreshPrefCourseAndTeacherOptions, renderPrefPairList, renderShortageDashboard, findNearestFutureDate, jumpToCalendarForStudent, jumpToCalendarForDate, renderTeacherAbsencePanel };

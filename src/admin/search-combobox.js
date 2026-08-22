@@ -82,13 +82,18 @@ function syncTrigger(root, input, config = {}){
   if(!input.value){
     trigger.textContent = emptyLabel;
     trigger.removeAttribute('title');
-    trigger.classList.remove('is-active-filter');
+    trigger.classList.remove('is-active-filter', 'has-value');
     if(clearBtn) clearBtn.hidden = true;
   } else {
     const label = findLabel(root._groups || [], input.value, emptyLabel);
     trigger.textContent = label;
     trigger.title = label;
-    trigger.classList.add('is-active-filter');
+    if(config.showActiveFilterStyle !== false){
+      trigger.classList.add('is-active-filter');
+    } else {
+      trigger.classList.remove('is-active-filter');
+      trigger.classList.add('has-value');
+    }
     if(clearBtn) clearBtn.hidden = !config.showClearButton;
   }
   trigger.disabled = !!root._disabled;
@@ -110,6 +115,8 @@ function buildDom(root, input, config){
   const listEl = root.querySelector('.search-combobox-list');
 
   trigger.id = `${input.id}-trigger`;
+  const labelEl = document.getElementById(`${input.id}-label`);
+  if(labelEl) trigger.setAttribute('aria-labelledby', labelEl.id);
 
   trigger.addEventListener('click', ()=>{
     if(root._disabled) return;
