@@ -1400,3 +1400,27 @@
   .onboarding-body{font-size:var(--text-base);line-height:1.65;color:var(--ink-soft);margin:0 0 20px;}
   .onboarding-actions{display:flex;align-items:center;justify-content:space-between;gap:12px;}
   .onboarding-actions-main{display:flex;gap:8px;}
+
+  /* ログイン診断パネル（原因調査中・後で削除予定） */
+  #authDebugPanel{
+    position:fixed;right:var(--space-md);bottom:var(--space-md);z-index:9999;
+    width:min(28rem,calc(100vw - 2 * var(--space-md)));
+    max-height:12rem;overflow:hidden;
+    background:#fff8e1;border:1px solid #f0c040;border-radius:var(--radius-md);
+    box-shadow:var(--shadow-md);font-size:var(--text-xs);color:#5c4a00;
+  }
+  #authDebugPanel .auth-debug-head{
+    display:flex;flex-wrap:wrap;align-items:center;gap:var(--space-xs);
+    padding:var(--space-xs) var(--space-sm);border-bottom:1px solid #f0e0a0;
+    background:#fff3cd;
+  }
+  #authDebugPanel .auth-debug-note{font-size:10px;opacity:.85;flex:1 1 100%;}
+  #authDebugCopyBtn{
+    font-size:var(--text-xs);padding:2px 8px;border:1px solid #d4a017;
+    border-radius:var(--radius-sm);background:#fff;cursor:pointer;
+  }
+  #authDebugLogList{
+    max-height:8rem;overflow:auto;padding:var(--space-xs) var(--space-sm);
+    font-family:ui-monospace,monospace;line-height:1.35;
+  }
+  #authDebugLogList .auth-debug-line{margin-bottom:2px;word-break:break-all;}

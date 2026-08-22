@@ -12,6 +12,7 @@ import { initMatchingPanel } from './matching-panel.js';
 import { addRaiseRow, buildBaseAvailArea, getOrCreateDraftSchedule, gradeLabel } from './schedule-core.js';
 import { buildClosedDayArea, handleClosureSave, handleTermSave, initMatchingPrioritySettings, renderClosedDaySettings, renderClosureList, renderMatchingPrioritySettings, renderTermList, resetClosureForm, resetTermForm } from './settings.js';
 import { loadStudents, saveAppState, saveTeacherScheduleDoc, scheduleSave, syncTeacherLoginUidEverywhere } from './students-persistence.js';
+import { authDebugLog, wrapSecondaryAuthForDebug } from './auth-debug.js';
 import { addPreferredPair, openTeacherScheduleEditor, renderTeacherScheduleTab } from './teacher-schedule-tab.js';
 import { buildSubjectArea, buildSubjectFilterOptions, fillFormForEdit, handleSave, loadTeachers, renderTeacherList, resetForm, saveTeachers } from './teachers.js';
 import { initOnboarding } from './onboarding.js';
@@ -236,9 +237,11 @@ async function init(){
     if(!password || password.length<6){ msg.textContent = 'パスワードは6文字以上で入力してください。'; return; }
     msg.textContent = '発行中…';
     try{
+      wrapSecondaryAuthForDebug();
       const secAuth = getSecondaryAuth();
       const cred = await secAuth.createUserWithEmailAndPassword(email, password);
       const newUid = cred.user.uid;
+      authDebugLog('講師アカウント発行完了', { newUid: newUid.slice(0, 8) + '…' });
       await secAuth.signOut(); // 一時的な接続からはサインアウトする（教室長のログインには影響しない）
 
       const adminUid = fbAuth.currentUser.uid;
