@@ -98,7 +98,7 @@ function updateBanner(){
   if(requestLine){
     if(unreplied > 0){
       requestLine.style.display = '';
-      requestLine.textContent = `${unreplied}コマ、授業依頼が届いています`;
+      requestLine.textContent = `【カレンダーで選ぶ】あと${unreplied}コマ、授業依頼への返事が必要です`;
     }else{
       requestLine.style.display = 'none';
       requestLine.textContent = '';
@@ -109,7 +109,7 @@ function updateBanner(){
     if(draftCount > 0){
       draftLine.style.display = '';
       const summary = summarizeDrafts(S.responseDrafts);
-      draftLine.textContent = `未送信の返事が${draftCount}件あります${summary ? `（${summary}）` : ''}`;
+      draftLine.textContent = `【教室長に送る】${draftCount}件、まだ送っていません${summary ? `（${summary}）` : ''}`;
     }else{
       draftLine.style.display = 'none';
       draftLine.textContent = '';
@@ -118,10 +118,11 @@ function updateBanner(){
 
   if(draftAllBtn){
     draftAllBtn.style.display = unreplied > 0 ? '' : 'none';
+    draftAllBtn.textContent = `残り${unreplied}コマをすべて承認する`;
   }
   if(submitBtn){
     submitBtn.style.display = draftCount > 0 ? '' : 'none';
-    submitBtn.textContent = `教室長に送信する（${draftCount}件）`;
+    submitBtn.textContent = `${draftCount}件を教室長に送信する`;
   }
 }
 

@@ -40,9 +40,9 @@ export function summarizeDrafts(drafts){
     else if(d.action==='cancel') cancel++;
   });
   const parts = [];
-  if(approve) parts.push(`承認${approve}`);
-  if(reject) parts.push(`断る${reject}`);
-  if(cancel) parts.push(`キャンセル${cancel}`);
+  if(approve) parts.push(`承認${approve}件`);
+  if(reject) parts.push(`断る${reject}件`);
+  if(cancel) parts.push(`キャンセル依頼${cancel}件`);
   return parts.join('・') || '';
 }
 

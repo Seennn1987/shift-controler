@@ -42,7 +42,7 @@ document.getElementById('logoutBtn').addEventListener('click', ()=>{
   const draftCount = uid ? Object.keys(loadResponseDrafts(uid)).length : 0;
   if(draftCount > 0){
     const ok = window.confirm(
-      `未送信の返事が${draftCount}件あります。\nこの端末に保存されたままログアウトします。\n\nよろしいですか？`
+      `まだ教室長に送っていない内容が${draftCount}件あります。\nこの端末に保存されたままログアウトします。\n\nよろしいですか？`
     );
     if(!ok) return;
   }
