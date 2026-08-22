@@ -7,7 +7,7 @@ import { refreshCalFilterOptions, clearCalFilter, setCalFilterStudent } from './
 import { bulkAutoAssign, bulkCancelAuto, fillStudentFormForEdit, renderMatching, renderShortageDashboard } from './matching.js';
 import { switchCalMode, switchView, renderCalendarWeek } from './finance-ui.js';
 import { getDateSlotState, gradeLabel, subjectColor, teacherHonorific } from './schedule-core.js';
-import { scheduleSave } from './students-persistence.js';
+import { clearAllMatchingData, scheduleSave } from './students-persistence.js';
 import { bindDayDetailEvents, getDayDetailTitle, renderDayDetailPanel } from './day-detail-panel.js';
 import {
   confirmAssignment,
@@ -558,7 +558,8 @@ function renderMatchingPanelMenu(){
 
 function handlePanelBulkCancelAuto(){
   const resultEl = document.getElementById('mpBulkResult');
-  const autoCount = S.assignments.filter(a=> a.source === 'auto').length;
+  const autoCount = S.assignments.filter(a=> a.source === 'auto').length
+    + S.pendingAssignments.filter(a=> a.source === 'auto').length;
   if(autoCount === 0){
     if(resultEl) resultEl.innerHTML = '<div class="matching-panel-result-msg">自動で組んだコマはありません。</div>';
     return;
@@ -686,17 +687,17 @@ function handlePanelBulkAuto(){
 
 function handlePanelBulkCancel(){
   const resultEl = document.getElementById('mpBulkResult');
-  const totalCount = S.assignments.length + S.pendingAssignments.length;
+  const totalCount = S.assignments.length + S.pendingAssignments.length
+    + S.absences.length + S.teacherAbsences.length + S.teacherSubstitutions.length;
   if(totalCount === 0){
     if(resultEl) resultEl.innerHTML = '<div class="matching-panel-result-msg">マッチングデータはありません。</div>';
     return;
   }
-  if(!confirm(`確定・講師確認待ちを含む${totalCount}件の組みをすべて解除しますか？`)) return;
-  S.assignments = [];
-  S.pendingAssignments = [];
-  scheduleSave();
-  if(resultEl) resultEl.innerHTML = `<div class="matching-panel-result-msg partial">組み${totalCount}件をすべて解除しました。</div>`;
-  afterMatchingChange();
+  if(!confirm(`確定・講師確認待ち・欠席・代講を含む${totalCount}件のデータをすべて削除しますか？\n（生徒・講師・シフトの登録は残ります）`)) return;
+  clearAllMatchingData().then(()=>{
+    if(resultEl) resultEl.innerHTML = '<div class="matching-panel-result-msg partial">マッチングデータをすべて削除しました。</div>';
+    afterMatchingChange();
+  });
 }
 
 function afterMatchingChange(scrollToDateStr){

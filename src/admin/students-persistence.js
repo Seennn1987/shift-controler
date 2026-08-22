@@ -526,6 +526,22 @@ async function loadAppStateFromFirestore(){
     await saveAppState();
   }
 
+  // 一度だけ：担当組み・欠席・代講・承認チケットをすべて削除（日付ベース修正後のリセット）
+  const MATCHING_RESET_V2_KEY = 'pitakoma_clear_all_matching_v2';
+  let matchingV2WasCleared = false;
+  if(typeof localStorage !== 'undefined' && localStorage.getItem(MATCHING_RESET_V2_KEY) !== 'done'){
+    clearMatchingStateInMemory();
+    localStorage.setItem(MATCHING_RESET_V2_KEY, 'done');
+    matchingV2WasCleared = true;
+  }
+
+  if(matchingV2WasCleared){
+    const user = fbAuth.currentUser;
+    if(user) await deleteAdminMatchingFirestore(user.uid);
+    await saveAppState();
+    console.info('[ピタコマ] 授業マッチデータをすべて削除しました（担当・欠席・代講・承認待ち）。');
+  }
+
   await syncClosureSettings(); // 講師側にも休校日設定を同期しておく
   await syncTeacherAssignments(); // 講師のマイカレンダー用データも、ログインのたびに必ず作り直す（過去の同期失敗を自己修復するため）
   if(matchingWasCleared){
@@ -565,9 +581,37 @@ async function seedTeacherMonthSchedulesFromBase(yearMonth){
 }
 
 
-async function clearAllMatchingData(){
+async function deleteFirestoreDocsByAdminUid(collectionName, adminUid){
+  try{
+    const snap = await fbDb.collection(collectionName).where('adminUid', '==', adminUid).get();
+    if(snap.empty) return 0;
+    const batch = fbDb.batch();
+    snap.forEach(doc=> batch.delete(doc.ref));
+    await batch.commit();
+    return snap.size;
+  }catch(err){
+    console.error(`${collectionName}削除エラー:`, err);
+    return 0;
+  }
+}
+
+async function deleteAdminMatchingFirestore(adminUid){
+  await deleteFirestoreDocsByAdminUid('assignmentApprovals', adminUid);
+  await deleteFirestoreDocsByAdminUid('assignmentCancellationRequests', adminUid);
+}
+
+function clearMatchingStateInMemory(){
   S.assignments = [];
   S.pendingAssignments = [];
+  S.absences = [];
+  S.teacherAbsences = [];
+  S.teacherSubstitutions = [];
+}
+
+async function clearAllMatchingData(){
+  clearMatchingStateInMemory();
+  const user = fbAuth.currentUser;
+  if(user) await deleteAdminMatchingFirestore(user.uid);
   if(!S.firestoreReady) return;
   await saveAppState();
   await syncTeacherAssignments();
