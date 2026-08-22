@@ -12,8 +12,8 @@ export function mountWithdrawConfirm(root, btn, { teacherName, onConfirm }){
     <div class="matching-panel-flash-followup mp-withdraw-confirm" role="group" aria-label="依頼取り消しの確認">
       <span class="matching-panel-flash-followup-text mp-withdraw-confirm-text">${name} への依頼を取り消し、別の講師を選びますか？</span>
       <div class="matching-panel-flash-followup-actions">
-        <button type="button" class="ghost danger-ghost mp-withdraw-confirm-btn" data-action="confirm">依頼を取り消す</button>
-        <button type="button" class="matching-panel-flash-dismiss mp-withdraw-cancel-btn" data-action="cancel">やめる</button>
+        <button type="button" class="mp-inline-action mp-withdraw-confirm-danger" data-action="confirm">依頼を取り消す</button>
+        <button type="button" class="mp-inline-action mp-withdraw-cancel-btn" data-action="cancel">やめる</button>
       </div>
     </div>
   `);
