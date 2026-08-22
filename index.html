@@ -333,7 +333,7 @@
     </div>
 
     <div class="card" id="approvalStatusCard" style="display:none;">
-      <h2>授業の確認状況<span class="help-tip" tabindex="0">?<span class="help-tip-text">教室長が担当を決めた授業について、講師本人が専用ページで確認したかどうかの一覧です。ここでの操作は不要です（確認は講師側で行います）。</span></span></h2>
+      <h2>授業の確認状況<span class="help-tip" tabindex="0">?<span class="help-tip-text">教室長が講師を決めた授業について、講師本人が専用ページで確認したかどうかの一覧です。ここでの操作は不要です（確認は講師側で行います）。</span></span></h2>
       <div id="approvalStatusWrap"></div>
     </div>
 
@@ -362,7 +362,7 @@
   <!-- ===== 生徒登録・マッチング ===== -->
   <section id="view-student" class="view">
     <div class="card">
-      <h2><span id="studentFormModeTitle">生徒を登録</span><span class="help-tip" tabindex="0">?<span class="help-tip-text">氏名・学年を入力し「基本情報を登録」を押してください。そのあと週カレンダーで希望コマと教科を選びます。講師の担当決定はカレンダー画面の右パネルで行います。</span></span></h2>
+      <h2><span id="studentFormModeTitle">生徒を登録</span><span class="help-tip" tabindex="0">?<span class="help-tip-text">氏名・学年を入力し「基本情報を登録」を押してください。そのあと週カレンダーで希望コマと教科を選びます。講師を決める操作はカレンダー画面の右パネルで行います。</span></span></h2>
 
       <label class="field-label" for="studentNameInput">生徒名</label>
       <input type="text" id="studentNameInput" placeholder="例：山田 花子">
@@ -379,7 +379,7 @@
       <input type="text" inputmode="numeric" id="studentGradeInput" style="max-width:100px;" placeholder="例：5">
 
       <div style="height:22px"></div>
-      <label class="field-label">受講科目<span class="help-tip" tabindex="0">?<span class="help-tip-text">まず「基本情報を登録」を押してください。そのあと、空いているマスをクリックして教科を選びます。講師の担当決定は「担当講師を決める」から、カレンダー画面の右パネルで行います。</span></span></label>
+      <label class="field-label">受講科目<span class="help-tip" tabindex="0">?<span class="help-tip-text">まず「基本情報を登録」を押してください。そのあと、空いているマスをクリックして教科を選びます。講師を決める操作は「コマを組む」から、カレンダー画面の右パネルで行います。</span></span></label>
       <div id="courseList"></div>
       <div id="studentMatchingAction" class="student-matching-action" hidden></div>
 
@@ -399,18 +399,7 @@
       <div class="teacher-list student-list" id="studentList"></div>
     </div>
 
-    <div class="card">
-      <h2>優先ペアリング設定（教室長用）<span class="help-tip" tabindex="0">?<span class="help-tip-text">生徒の教科（コース）ごとに、優先的に組ませたい講師を指定できます。指定された組み合わせは、対応可能かつ定員に空きがある限りマッチング候補の最上位に表示されます。</span></span></h2>
-      <div class="pref-pair-form">
-        <select id="prefStudentSelect"><option value="">生徒を選択</option></select>
-        <select id="prefCourseSelect" disabled><option value="">先に生徒を選択</option></select>
-        <select id="prefTeacherSelect" disabled><option value="">先に生徒を選択</option></select>
-        <button type="button" class="ghost" id="addPrefPairBtn">＋ 優先ペアを追加</button>
-      </div>
-      <div id="prefPairList"></div>
-    </div>
-
-    <p class="desc" style="padding:0 4px;">未充足コマ・自動仮組みは「カレンダー」タブ上部にあります。</p>
+    <p class="desc" style="padding:0 4px;">担当生徒の登録は「カレンダー」のコマを組む画面から行えます。登録済みの組み合わせは、下の生徒一覧と「講師管理」の講師一覧に表示されます。未充足コマ・自動仮組みは「カレンダー」タブ上部にあります。</p>
 
     <!-- マッチング候補の詳細操作はカレンダー画面（生徒フィルター＋日付クリック）に統合しました。
          matchingWrapは内部の集計処理用に非表示のまま維持しています。 -->

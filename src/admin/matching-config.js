@@ -2,9 +2,9 @@ import { S } from './state.js';
 
 export const MATCHING_FACTOR_META = {
   prefPair: {
-    label: '指定講師',
-    title: '優先ペアで指定した講師',
-    description: '生徒の教科ごとに「この講師を優先」と登録した組み合わせを最優先にします。',
+    label: '担当生徒',
+    title: '担当生徒に指定した講師',
+    description: '生徒の教科ごとに「担当生徒にする」で登録した組み合わせを最優先にします。',
     field: 'prefPair',
   },
   courseSlotCoverage: {

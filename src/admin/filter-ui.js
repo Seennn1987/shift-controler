@@ -1,4 +1,3 @@
-import { sortByNameKana } from '../shared/person-sort.js';
 import { getCalFilterValue } from './cal-filter.js';
 import {
   buildSubjectFilterGroups,
@@ -43,20 +42,6 @@ const COMBOBOX_DEFAULTS = {
     showResetOption: true,
     emptyLabel: '講師を選択…',
     resetLabel: '講師を選択…',
-    searchPlaceholder: '名前・読み仮名で検索…',
-  },
-  prefStudentSelect: {
-    showResetOption: true,
-    emptyLabel: '生徒を選択',
-    resetLabel: '生徒を選択',
-    searchPlaceholder: '名前・読み仮名で検索…',
-  },
-  prefCourseSelect: {
-    emptyLabel: '教科を選択',
-    searchPlaceholder: '教科名で検索…',
-  },
-  prefTeacherSelect: {
-    emptyLabel: '講師を選択',
     searchPlaceholder: '名前・読み仮名で検索…',
   },
   teacherListFilter: {
@@ -134,98 +119,6 @@ export function refreshAbsenceTeacherCombobox(){
   });
 }
 
-export function refreshPrefStudentCombobox(){
-  initSearchComboboxes();
-  const cur = document.getElementById('prefStudentSelect')?.value || '';
-  refreshSearchCombobox('prefStudentSelect', {
-    ...COMBOBOX_DEFAULTS.prefStudentSelect,
-    groups: studentComboboxGroups(S.students),
-    value: cur,
-  });
-}
-
-export function refreshPrefCourseCombobox(student, { disabled = false } = {}){
-  initSearchComboboxes();
-  const input = document.getElementById('prefCourseSelect');
-  const cur = input?.value || '';
-  if(!student){
-    refreshSearchCombobox('prefCourseSelect', {
-      ...COMBOBOX_DEFAULTS.prefCourseSelect,
-      emptyLabel: '先に生徒を選択',
-      groups: [],
-      value: '',
-      disabled: true,
-    });
-    return;
-  }
-  const items = student.courses.map(c=>({
-    value: c.id,
-    label: c.subject,
-    searchText: c.subject,
-  }));
-  refreshSearchCombobox('prefCourseSelect', {
-    ...COMBOBOX_DEFAULTS.prefCourseSelect,
-    groups: items.length ? [{ label: '教科', items }] : [],
-    value: items.some(it=> it.value === cur) ? cur : (items[0]?.value || ''),
-    disabled,
-  });
-}
-
-export function refreshPrefTeacherCombobox(student, { disabled = false } = {}){
-  initSearchComboboxes();
-  const input = document.getElementById('prefTeacherSelect');
-  const cur = input?.value || '';
-  if(!student){
-    refreshSearchCombobox('prefTeacherSelect', {
-      ...COMBOBOX_DEFAULTS.prefTeacherSelect,
-      emptyLabel: '先に生徒を選択',
-      groups: [],
-      value: '',
-      disabled: true,
-    });
-    return;
-  }
-  const capable = sortByNameKana(
-    S.teachers.filter(t=> t.subjects.some(ts=> ts.level === student.level)),
-    t=> t.nameKana,
-    t=> t.name,
-  );
-  const others = sortByNameKana(
-    S.teachers.filter(t=> !capable.some(c=> c.id === t.id)),
-    t=> t.nameKana,
-    t=> t.name,
-  );
-  const groups = [];
-  if(capable.length){
-    groups.push({
-      label: '対応可能な講師',
-      items: capable.map(t=>({
-        value: t.id,
-        label: t.name,
-        searchText: `${t.name} ${t.nameKana || ''}`,
-        muted: !(t.nameKana && t.nameKana.trim()),
-      })),
-    });
-  }
-  if(others.length){
-    groups.push({
-      label: 'その他の講師',
-      items: others.map(t=>({
-        value: t.id,
-        label: t.name,
-        searchText: `${t.name} ${t.nameKana || ''}`,
-        muted: !(t.nameKana && t.nameKana.trim()),
-      })),
-    });
-  }
-  refreshSearchCombobox('prefTeacherSelect', {
-    ...COMBOBOX_DEFAULTS.prefTeacherSelect,
-    groups,
-    value: cur,
-    disabled,
-  });
-}
-
 export function refreshTeacherListFilterCombobox(){
   initSearchComboboxes();
   const cur = document.getElementById('teacherListFilter')?.value || '';
@@ -255,12 +148,8 @@ export function refreshAllPersonComboboxes(){
   refreshSubjectFilterCombobox();
   refreshAbsenceStudentCombobox();
   refreshAbsenceTeacherCombobox();
-  refreshPrefStudentCombobox();
   refreshTeacherListFilterCombobox();
   refreshStudentListFilterCombobox();
-  const student = S.students.find(s=> s.id === document.getElementById('prefStudentSelect')?.value);
-  refreshPrefCourseCombobox(student, { disabled: !student });
-  refreshPrefTeacherCombobox(student, { disabled: !student });
 }
 
 // 後方互換

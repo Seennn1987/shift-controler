@@ -22,6 +22,7 @@ import {
   replaceDesiredSlot,
 } from './teacher-schedule-tab.js';
 import { buildMatchCandidatesHtml } from './match-candidates-html.js';
+import { buildPrefPairActionHtmlForTeacher } from './match-candidate-ui.js';
 import { analyzePendingMatchSlot } from './match-slot-status.js';
 
 export function getDayDetailTitle(dateStr){
@@ -75,7 +76,7 @@ export function renderDayDetailPanel(container, dateStr){
       return;
     }
 
-    let html = `<div class="cal-day-note">${filterStudent.name}さんの希望曜日パターン（＋振替）から、この日の状況を表示しています。ここから直接、担当を決める・欠席登録・振替の操作ができます。</div>`;
+    let html = `<div class="cal-day-note">${filterStudent.name}さんの希望曜日パターン（＋振替）から、この日の状況を表示しています。ここから直接、講師を決める・欠席登録・振替の操作ができます。</div>`;
     html += `<button type="button" class="ghost mp-action day-detail-go-month" data-student-id="${filterStudent.id}">${filterStudent.name}さんの月間一覧へ</button>`;
 
     rows.forEach(r=>{
@@ -153,6 +154,7 @@ export function renderDayDetailPanel(container, dateStr){
             </div>
           </div>`;
         }else{
+          const prefHtml = buildPrefPairActionHtmlForTeacher(filterStudent.id, r.course.id, r.existing.teacherId);
           html += `<div class="match-slot">
             <div class="ms-slot-label">${r.slot.label}（${r.slot.time}）</div>
             <div class="confirmed-box">
@@ -160,8 +162,10 @@ export function renderDayDetailPanel(container, dateStr){
               <span class="sched-student-tag" style="background:${c.bg};color:${c.text};">${r.course.subject}</span>
               <span class="cb-teacher">講師：${teacherHonorific(teacher)}</span>
               <span class="cb-cap">（定員 ${used}/${S.teacherCapacity}）</span>
-              <button class="absent-btn" data-student="${filterStudent.id}" data-course="${r.course.id}" data-subject="${r.course.subject}" data-day="${weekday}" data-slot="${r.slot.id}" data-date="${dateStr}">欠席にする</button>
-              <button class="unconfirm-btn" data-student="${filterStudent.id}" data-course="${r.course.id}" data-day="${weekday}" data-slot="${r.slot.id}">確定を解除</button>
+              <div class="confirmed-box-actions">${prefHtml}
+                <button class="absent-btn" data-student="${filterStudent.id}" data-course="${r.course.id}" data-subject="${r.course.subject}" data-day="${weekday}" data-slot="${r.slot.id}" data-date="${dateStr}">欠席にする</button>
+                <button class="unconfirm-btn" data-student="${filterStudent.id}" data-course="${r.course.id}" data-day="${weekday}" data-slot="${r.slot.id}">確定を解除</button>
+              </div>
             </div>
           </div>`;
         }
@@ -261,7 +265,7 @@ export function renderDayDetailPanel(container, dateStr){
     return;
   }
 
-  let html = `<div class="cal-day-note">確定した授業と、未確定の希望コマを表示しています。未確定のコマから講師を選んで担当を決められます。</div>`;
+  let html = `<div class="cal-day-note">確定した授業と、未確定の希望コマを表示しています。未確定のコマから講師を決められます。</div>`;
   SLOTS.forEach(slot=>{
     const slotList = list.filter(a=> a.slot === slot.id);
     const slotUnassigned = unassigned.filter(r=> r.slot.id === slot.id);

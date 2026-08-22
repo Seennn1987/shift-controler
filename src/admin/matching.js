@@ -4,12 +4,12 @@ import { pad2, daysInYearMonth, toDateStr, getTodayStr } from '../shared/date-ut
 import { firebaseConfig, fbAuth, fbDb, STORAGE_KEY, getSecondaryAuth, S } from './state.js';
 import { cancelSubstitute, cancelTeacherAbsence, confirmSubstitute, findAbsenceFor, findSubstituteCandidatesForStudent, findTeacherAbsence, getTeacherLessonsOnDate, recordTeacherAbsence, resolveSlotViaStudentAbsence } from './absences.js';
 import { getDayStatus, renderCalendar } from './calendar.js';
-import { refreshCalFilterOptions, setCalFilterStudent, refreshPrefCourseCombobox, refreshPrefStudentCombobox, refreshPrefTeacherCombobox, refreshAllPersonComboboxes } from './filter-ui.js';
+import { refreshCalFilterOptions, setCalFilterStudent, refreshAllPersonComboboxes } from './filter-ui.js';
 import { sortByNameKana } from '../shared/person-sort.js';
 import { renderCalendarWeek, switchCalMode, switchView } from './finance-ui.js';
 import { gradeLabel, isTeacherAvailableOnDate, subjectColor } from './schedule-core.js';
 import { saveStudents, scheduleSave, scheduleSyncTeacherAssignments } from './students-persistence.js';
-import { buildCandidateInfo, confirmAssignment, countCourseConfirmed, findEffectiveAssignment, removePreferredPair } from './teacher-schedule-tab.js';
+import { buildCandidateInfo, confirmAssignment, countCourseConfirmed, findEffectiveAssignment, getPreferredTeachersForCourse } from './teacher-schedule-tab.js';
 import { compareCandidateInfo } from './matching-config.js';
 import { renderTeacherList } from './teachers.js';
 import {
@@ -166,8 +166,8 @@ function renderStudentMatchingAction(){
   }
   el.hidden = false;
   el.innerHTML = `
-    <button type="button" class="primary" id="studentGoMatchingBtn">担当講師を決める →</button>
-    <p class="field-hint tight">カレンダー画面の右パネルで、候補講師から担当を決められます。</p>`;
+    <button type="button" class="primary" id="studentGoMatchingBtn">コマを組む →</button>
+    <p class="field-hint tight">カレンダー画面の右パネルで、候補講師から講師を決められます。</p>`;
   el.querySelector('#studentGoMatchingBtn')?.addEventListener('click', ()=>{
     if(S.editingStudentId) openStudentMatching(S.editingStudentId);
   });
@@ -263,7 +263,7 @@ function getStudentListStatus(student){
     return { kind:'no-slots', label:'希望未設定', priority:0, pendingSlots:0, totalSlots:0 };
   }
   if(pendingSlots > 0){
-    return { kind:'pending', label:`担当未決 ${pendingSlots}`, priority:1, pendingSlots, totalSlots };
+    return { kind:'pending', label:`未確定 ${pendingSlots}`, priority:1, pendingSlots, totalSlots };
   }
   return { kind:'done', label:'確定済み', priority:2, pendingSlots:0, totalSlots };
 }
@@ -305,13 +305,20 @@ function renderStudentList(){
     const isEditing = S.editingStudentId === s.id;
     const tags = (s.courses || []).map(course=>{
       const c = subjectColor(s.level, course.subject);
-      return `<span class="student-row-tag" style="background:${c.bg};color:${c.text};border:1px solid ${c.border};">${course.subject} 週${course.weeklyCount}</span>`;
+      const prefTeachers = getPreferredTeachersForCourse(s.id, course.id);
+      const prefLabel = prefTeachers.length
+        ? prefTeachers.map(t=> `${t.name}先生`).join('、')
+        : '未設定';
+      return `<div class="student-row-course">
+        <span class="student-row-tag" style="background:${c.bg};color:${c.text};border:1px solid ${c.border};">${course.subject} 週${course.weeklyCount}</span>
+        <span class="student-row-pref">担当：${prefLabel}</span>
+      </div>`;
     }).join('');
     const tagsHtml = tags
       ? `<div class="student-row-tags">${tags}</div>`
       : '<div class="student-row-tags is-empty"><span class="student-row-no-tags">希望コマ未設定</span></div>';
     const matchBtn = status.pendingSlots > 0
-      ? `<button type="button" class="match-btn" data-id="${s.id}">担当を決める</button>`
+      ? `<button type="button" class="match-btn" data-id="${s.id}">講師を決める</button>`
       : '';
     return `<div class="student-row${isEditing ? ' is-editing' : ''}${status.priority < 2 ? ' needs-action' : ''}">
       <span class="student-row-status is-${status.kind}">${status.label}</span>
@@ -367,10 +374,8 @@ function refreshAfterMatchingChange(){
   scheduleSave();
   scheduleSyncTeacherAssignments();
   renderShortageDashboard();
+  renderStudentList();
   renderTeacherList();
-  renderPrefPairList();
-  refreshPrefStudentOptions();
-  refreshPrefCourseAndTeacherOptions();
   refreshAllPersonComboboxes();
   if(document.getElementById('view-calendar') && document.getElementById('view-calendar').classList.contains('active')){
     if(S.calMode==='week') renderCalendarWeek();
@@ -384,43 +389,6 @@ function refreshAfterMatchingChange(){
 /** @deprecated 互換用。refreshAfterMatchingChange を呼ぶ */
 function renderMatching(){
   refreshAfterMatchingChange();
-}
-
-// ---- 優先ペアリング設定UI ----
-function refreshPrefStudentOptions(){
-  refreshPrefStudentCombobox();
-}
-function refreshPrefCourseAndTeacherOptions(){
-  const studentId = document.getElementById('prefStudentSelect')?.value || '';
-  const student = S.students.find(s=> s.id === studentId);
-  refreshPrefCourseCombobox(student, { disabled: !student });
-  refreshPrefTeacherCombobox(student, { disabled: !student });
-}
-
-function renderPrefPairList(){
-  scheduleSave();
-  const wrap = document.getElementById('prefPairList');
-  if(S.preferredPairs.length===0){
-    wrap.innerHTML = '<div class="empty-note">まだ優先ペアリングは設定されていません。</div>';
-    return;
-  }
-  wrap.innerHTML = S.preferredPairs.map(p=>{
-    const student = S.students.find(s=>s.id===p.studentId);
-    const teacher = S.teachers.find(t=>t.id===p.teacherId);
-    const course = student ? student.courses.find(c=>c.id===p.courseId) : null;
-    const label = `${student ? student.name : '(削除済み生徒)'}｜${course ? course.subject : '(削除済み教科)'} → ${teacher ? teacher.name : '(削除済み講師)'}`;
-    return `<div class="pref-pair-row">
-      <span class="ppr-text">★ ${label}</span>
-      <button type="button" class="ppr-remove" data-id="${p.id}">解除</button>
-    </div>`;
-  }).join('');
-  wrap.querySelectorAll('.ppr-remove').forEach(btn=>{
-    btn.addEventListener('click', ()=>{
-      removePreferredPair(btn.dataset.id);
-      renderPrefPairList();
-      renderMatching();
-    });
-  });
 }
 
 // 未充足コマ一覧（週の必要コマ数に対して確定が足りていない教科だけを抽出）
@@ -693,4 +661,4 @@ function renderTeacherAbsencePanel(teacherId, dateStr){
 
 // =====================================================================
 
-export { bulkAutoAssign, bulkCancelAuto, buildStudentLevelArea, getSelectedStudentLevel, genCourseId, renderFormCourses, resetStudentForm, fillStudentFormForEdit, handleStudentSave, renderStudentList, deleteStudent, renderMatching, refreshAfterMatchingChange, refreshPrefStudentOptions, refreshPrefCourseAndTeacherOptions, renderPrefPairList, renderShortageDashboard, findNearestFutureDate, jumpToCalendarForStudent, jumpToCalendarForDate, renderTeacherAbsencePanel };
+export { bulkAutoAssign, bulkCancelAuto, buildStudentLevelArea, getSelectedStudentLevel, genCourseId, renderFormCourses, resetStudentForm, fillStudentFormForEdit, handleStudentSave, renderStudentList, deleteStudent, renderMatching, refreshAfterMatchingChange, renderShortageDashboard, findNearestFutureDate, jumpToCalendarForStudent, jumpToCalendarForDate, renderTeacherAbsencePanel };

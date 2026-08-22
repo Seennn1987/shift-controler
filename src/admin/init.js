@@ -7,13 +7,13 @@ import { registerCalFilterUiSync, setCalFilterFromSelect } from './cal-filter.js
 import { initSearchComboboxes, refreshAbsenceStudentCombobox, refreshAbsenceTeacherCombobox, refreshAllPersonComboboxes } from './filter-ui.js';
 import { setSearchComboboxValue } from './search-combobox.js';
 import { getWeekMonday, renderCalendarWeek, renderFinance, renderLegend, renderMatrix, switchCalMode, switchView, toggleCalMode } from './finance-ui.js';
-import { buildStudentLevelArea, handleStudentSave, jumpToCalendarForDate, refreshPrefCourseAndTeacherOptions, renderFormCourses, renderMatching, renderPrefPairList, renderStudentList, renderTeacherAbsencePanel, resetStudentForm } from './matching.js';
+import { buildStudentLevelArea, handleStudentSave, jumpToCalendarForDate, renderFormCourses, renderMatching, renderStudentList, renderTeacherAbsencePanel, resetStudentForm } from './matching.js';
 import { initMatchingPanel } from './matching-panel.js';
 import { addRaiseRow, buildBaseAvailArea, getOrCreateDraftSchedule, gradeLabel } from './schedule-core.js';
 import { buildClosedDayArea, handleClosureSave, handleTermSave, initMatchingPrioritySettings, renderClosedDaySettings, renderClosureList, renderMatchingPrioritySettings, renderTermList, resetClosureForm, resetTermForm } from './settings.js';
 import { loadStudents, saveAppState, saveTeacherScheduleDoc, scheduleSave, syncTeacherLoginUidEverywhere } from './students-persistence.js';
 import { authDebugLog, wrapSecondaryAuthForDebug } from './auth-debug.js';
-import { addPreferredPair, openTeacherScheduleEditor, renderTeacherScheduleTab } from './teacher-schedule-tab.js';
+import { openTeacherScheduleEditor, renderTeacherScheduleTab } from './teacher-schedule-tab.js';
 import { buildSubjectArea, buildSubjectFilterOptions, fillFormForEdit, handleSave, loadTeachers, renderTeacherList, resetForm, saveTeachers } from './teachers.js';
 import { initOnboarding } from './onboarding.js';
 
@@ -119,7 +119,6 @@ async function init(){
   document.getElementById('matchingWrap').innerHTML = '<div class="loading">読み込み中…</div>';
   document.getElementById('shortageWrap').innerHTML = '<div class="loading">読み込み中…</div>';
   document.getElementById('calWeekWrap').innerHTML = '<div class="loading">読み込み中…</div>';
-  document.getElementById('prefPairList').innerHTML = '<div class="loading">読み込み中…</div>';
 
   // 基本設定タブの初期値
   document.getElementById('teacherCapacityInput').value = String(S.teacherCapacity);
@@ -481,16 +480,6 @@ async function init(){
     if(!dateStr){ msg.textContent = '日付を選択してください。'; return; }
     closeCalActionPanels();
     renderTeacherAbsencePanel(teacherId, dateStr);
-  });
-  document.getElementById('prefStudentSelect').addEventListener('change', refreshPrefCourseAndTeacherOptions);
-  document.getElementById('addPrefPairBtn').addEventListener('click', ()=>{
-    const studentId = document.getElementById('prefStudentSelect').value;
-    const courseId = document.getElementById('prefCourseSelect').value;
-    const teacherId = document.getElementById('prefTeacherSelect').value;
-    if(!studentId || !courseId || !teacherId) return;
-    addPreferredPair(studentId, courseId, teacherId);
-    renderPrefPairList();
-    renderMatching();
   });
   initMatchingPanel();
   document.addEventListener('click', (e)=>{

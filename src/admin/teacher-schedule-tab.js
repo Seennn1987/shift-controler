@@ -327,12 +327,38 @@ function renderTeacherScheduleGrid(schedule){
 function isPreferredPair(studentId, courseId, teacherId){
   return S.preferredPairs.some(p=>p.studentId===studentId && p.courseId===courseId && p.teacherId===teacherId);
 }
+
+function getPreferredTeachersForCourse(studentId, courseId){
+  return S.preferredPairs
+    .filter(p=> p.studentId === studentId && p.courseId === courseId)
+    .map(p=> S.teachers.find(t=> t.id === p.teacherId))
+    .filter(Boolean);
+}
+
+function getPreferredPairsForTeacher(teacherId){
+  return S.preferredPairs
+    .filter(p=> p.teacherId === teacherId)
+    .map(p=>{
+      const student = S.students.find(s=> s.id === p.studentId);
+      if(!student) return null;
+      const course = student.courses.find(c=> c.id === p.courseId);
+      if(!course) return null;
+      return { student, course };
+    })
+    .filter(Boolean);
+}
 function addPreferredPair(studentId, courseId, teacherId){
   if(isPreferredPair(studentId, courseId, teacherId)) return;
   S.preferredPairs.push({id:'pref-'+Date.now()+'-'+Math.random().toString(36).slice(2,6), studentId, courseId, teacherId});
 }
 function removePreferredPair(id){
   S.preferredPairs = S.preferredPairs.filter(p=>p.id!==id);
+}
+function removePreferredPairFor(studentId, courseId, teacherId){
+  const hit = S.preferredPairs.find(p=>
+    p.studentId===studentId && p.courseId===courseId && p.teacherId===teacherId
+  );
+  if(hit) removePreferredPair(hit.id);
 }
 function isPreferredSubjectForTeacher(teacher, level, subject){
   const s = teacher.subjects.find(ts=>ts.level===level && ts.subject===subject);
@@ -621,4 +647,4 @@ async function replaceDesiredSlot(studentId, courseId, oldDay, oldSlot, newDay, 
 }
 
 
-export { loadPendingChangeRequests, loadAssignmentApprovals, renderApprovalStatus, renderChangeRequests, renderTeacherScheduleTab, openTeacherScheduleEditor, renderTeacherScheduleGrid, isPreferredPair, addPreferredPair, removePreferredPair, isPreferredSubjectForTeacher, teacherWorksOtherSlotOnWeekday, countTeacherCourseSlotCoverage, buildCandidateInfo, findAssignment, getActiveYearMonth, teacherHasSubmittedMonth, isAssignmentEffectiveInMonth, assignmentAppliesOnDate, findEffectiveAssignment, countCourseConfirmed, countTeacherSlot, countTeacherSlotOnDate, countRoomSlot, countRoomSlotOnDate, issueAssignmentApproval, confirmAssignment, cancelAssignment, findAlternativeSlots, replaceDesiredSlot };
+export { loadPendingChangeRequests, loadAssignmentApprovals, renderApprovalStatus, renderChangeRequests, renderTeacherScheduleTab, openTeacherScheduleEditor, renderTeacherScheduleGrid, isPreferredPair, getPreferredTeachersForCourse, getPreferredPairsForTeacher, addPreferredPair, removePreferredPair, removePreferredPairFor, isPreferredSubjectForTeacher, teacherWorksOtherSlotOnWeekday, countTeacherCourseSlotCoverage, buildCandidateInfo, findAssignment, getActiveYearMonth, teacherHasSubmittedMonth, isAssignmentEffectiveInMonth, assignmentAppliesOnDate, findEffectiveAssignment, countCourseConfirmed, countTeacherSlot, countTeacherSlotOnDate, countRoomSlot, countRoomSlotOnDate, issueAssignmentApproval, confirmAssignment, cancelAssignment, findAlternativeSlots, replaceDesiredSlot };

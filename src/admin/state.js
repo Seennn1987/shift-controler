@@ -58,7 +58,7 @@ export const S = {
   matchingPanelOpen: false,
   matchingPanelStudentId: null,
   matchingPanelSlot: null,
-  /** 生徒登録画面から「担当講師を決める」で来たときの戻り先 */
+  /** 生徒登録画面から「コマを組む」で来たときの戻り先 */
   matchingReturnToStudentId: null,
   matchingPriority: null,
   calendarDrawerView: 'day',

@@ -4,21 +4,31 @@ import { S } from './state.js';
 import { getStudentDateRows } from './absences.js';
 import { getDayStatus, renderCalendar } from './calendar.js';
 import { refreshCalFilterOptions, clearCalFilter, setCalFilterStudent } from './filter-ui.js';
-import { bulkAutoAssign, bulkCancelAuto, fillStudentFormForEdit, renderMatching, renderShortageDashboard } from './matching.js';
+import { bulkAutoAssign, bulkCancelAuto, fillStudentFormForEdit, renderMatching, renderShortageDashboard, renderStudentList } from './matching.js';
+import { renderTeacherList } from './teachers.js';
 import { switchCalMode, switchView, renderCalendarWeek } from './finance-ui.js';
 import { getDateSlotState, gradeLabel, subjectColor, teacherHonorific } from './schedule-core.js';
-import { clearAllMatchingData, scheduleSave } from './students-persistence.js';
+import { clearAllMatchingData, scheduleSave, scheduleSyncTeacherAssignments } from './students-persistence.js';
 import { bindDayDetailEvents, getDayDetailTitle, renderDayDetailPanel } from './day-detail-panel.js';
 import {
+  addPreferredPair,
   confirmAssignment,
   countRoomSlot,
   countRoomSlotOnDate,
   countTeacherSlot,
   countTeacherSlotOnDate,
   findEffectiveAssignment,
+  isPreferredPair,
+  removePreferredPairFor,
   teacherHasSubmittedMonth,
 } from './teacher-schedule-tab.js';
 import { buildMatchCandidatesHtml } from './match-candidates-html.js';
+import { buildPrefPairActionHtmlForTeacher } from './match-candidate-ui.js';
+
+function refreshPrefPairViews(){
+  renderStudentList();
+  renderTeacherList();
+}
 
 function monthHasSubmittedTeachers(yearMonth){
   return S.teachers.some(t=> teacherHasSubmittedMonth(t.id, yearMonth));
@@ -104,14 +114,24 @@ function renderDayDetailInDrawer(dateStr){
   const body = document.getElementById('matchingPanelBody');
   if(!body || !dateStr) return;
   body.scrollTop = 0;
-  renderDayDetailPanel(body, dateStr);
-  bindDayDetailEvents(body, dateStr, refreshedDateStr=>{
+  body.innerHTML = `<div class="day-detail-post-assign-banners">${buildPostAssignBannersHtml()}</div><div id="dayDetailPanelRoot"></div>`;
+  const root = body.querySelector('#dayDetailPanelRoot');
+  renderDayDetailPanel(root, dateStr);
+  bindDayDetailEvents(root, dateStr, refreshedDateStr=>{
     renderCalendar();
     if(S.calMode === 'week') renderCalendarWeek();
     renderDayDetailInDrawer(refreshedDateStr);
     updateDrawerHeader(refreshedDateStr);
   });
   bindConfirmButtons(body);
+  bindPrefPairButtons(body, ()=>{
+    renderCalendar();
+    if(S.calMode === 'week') renderCalendarWeek();
+    renderDayDetailInDrawer(dateStr);
+    updateDrawerHeader(dateStr);
+  });
+  bindPrefPairOffer(body);
+  bindFutureWeeksOffer(body);
 }
 
 function renderDrawerContent(){
@@ -218,6 +238,7 @@ function findFirstOpenDateInMonth(){
 
 let matchingPanelFlashMsg = null;
 let matchingPanelFutureOffer = null;
+let matchingPanelPrefPairOffer = null;
 let matchingPanelRenderedPeriodKey = '';
 
 function getPeriodKey(){
@@ -278,6 +299,23 @@ function buildFutureWeeksOfferHtml(offer){
     </div>`;
 }
 
+function buildPrefPairOfferHtml(offer){
+  if(!offer) return '';
+  return `
+    <div class="matching-panel-pref-pair-offer" id="mpPrefPairOffer">
+      <p class="matching-panel-hint">${offer.teacherName}先生を、この生徒の${offer.subject}の<strong>担当生徒</strong>にしますか？</p>
+      <button type="button" class="primary mp-action" id="mpSetPrefPairBtn">担当生徒にする</button>
+      <button type="button" class="ghost mp-action mp-dismiss-btn" id="mpDismissPrefPairBtn">あとで</button>
+    </div>`;
+}
+
+function buildPostAssignBannersHtml(){
+  const flashHtml = matchingPanelFlashMsg
+    ? `<div class="matching-panel-result-msg ok">${matchingPanelFlashMsg}</div>`
+    : '';
+  return `${flashHtml}${buildPrefPairOfferHtml(matchingPanelPrefPairOffer)}${buildFutureWeeksOfferHtml(matchingPanelFutureOffer)}`;
+}
+
 function bindFutureWeeksOffer(root){
   root.querySelector('#mpApplyFutureBtn')?.addEventListener('click', ()=>{
     const offer = matchingPanelFutureOffer;
@@ -296,8 +334,36 @@ function bindFutureWeeksOffer(root){
   });
   root.querySelector('#mpDismissFutureBtn')?.addEventListener('click', ()=>{
     matchingPanelFutureOffer = null;
-    if(S.matchingPanelStudentId) renderStudentPeriodSlots(S.matchingPanelStudentId, S.calSelectedDate);
+    refreshPostAssignView();
   });
+}
+
+function bindPrefPairOffer(root){
+  root.querySelector('#mpSetPrefPairBtn')?.addEventListener('click', ()=>{
+    const offer = matchingPanelPrefPairOffer;
+    if(!offer) return;
+    addPreferredPair(offer.studentId, offer.courseId, offer.teacherId);
+    scheduleSave();
+    scheduleSyncTeacherAssignments();
+    refreshPrefPairViews();
+    matchingPanelFlashMsg = `✓ ${offer.teacherName}先生を担当生徒にしました。`;
+    matchingPanelPrefPairOffer = null;
+    afterMatchingChange(offer.dateStr);
+  });
+  root.querySelector('#mpDismissPrefPairBtn')?.addEventListener('click', ()=>{
+    matchingPanelPrefPairOffer = null;
+    refreshPostAssignView();
+  });
+}
+
+function refreshPostAssignView(){
+  if(S.calendarDrawerView === 'day' && S.calSelectedDate){
+    renderDayDetailInDrawer(S.calSelectedDate);
+    updateDrawerHeader(S.calSelectedDate);
+  }else if(S.calendarDrawerView === 'matching-student' && S.matchingPanelStudentId){
+    renderStudentPeriodSlots(S.matchingPanelStudentId, S.calSelectedDate);
+    updateDrawerHeader();
+  }
 }
 
 function bindStudentPickButtons(root){
@@ -312,6 +378,7 @@ function bindBackToMenu(root){
     S.matchingPanelSlot = null;
     matchingPanelFlashMsg = null;
     matchingPanelFutureOffer = null;
+    matchingPanelPrefPairOffer = null;
     matchingPanelRenderedPeriodKey = '';
     clearCalFilter();
     S.calSelectedDate = null;
@@ -335,6 +402,29 @@ function buildAssignmentFlashMessage({slotLabel, subject, teacherName, pending})
     return `✓ ${detail}を${teacherName}先生に確認依頼しました（講師確認待ち）。`;
   }
   return `✓ ${detail}を${teacherName}先生で確定しました。`;
+}
+
+function bindPrefPairButtons(root, onChanged){
+  root.querySelectorAll('.pref-pair-set-btn').forEach(btn=>{
+    btn.addEventListener('click', ()=>{
+      addPreferredPair(btn.dataset.student, btn.dataset.course, btn.dataset.teacher);
+      scheduleSave();
+      scheduleSyncTeacherAssignments();
+      refreshPrefPairViews();
+      renderMatching();
+      onChanged?.();
+    });
+  });
+  root.querySelectorAll('.pref-pair-unset-btn').forEach(btn=>{
+    btn.addEventListener('click', ()=>{
+      removePreferredPairFor(btn.dataset.student, btn.dataset.course, btn.dataset.teacher);
+      scheduleSave();
+      scheduleSyncTeacherAssignments();
+      refreshPrefPairViews();
+      renderMatching();
+      onChanged?.();
+    });
+  });
 }
 
 function bindConfirmButtons(root){
@@ -375,6 +465,9 @@ function bindConfirmButtons(root){
       });
       const future = countFutureWeeksForTeacher(ctx.teacherId, ctx.day, ctx.slot, ctx.dateStr);
       matchingPanelFutureOffer = future.dateCount > 0 ? { ...ctx, ...future } : null;
+      matchingPanelPrefPairOffer = isPreferredPair(ctx.studentId, ctx.courseId, ctx.teacherId)
+        ? null
+        : { ...ctx };
       afterMatchingChange(ctx.dateStr);
     });
   });
@@ -447,12 +540,14 @@ function buildMatchingSlotCard(r, student, dateStr, weekday){
       </div>`;
     }
     const used = teacher ? countTeacherSlotOnDate(teacher.id, dateStr, r.slot.id, null) : 0;
+    const prefHtml = buildPrefPairActionHtmlForTeacher(student.id, r.course.id, r.existing.teacherId);
     return `<div class="match-slot mp-slot-readonly">
       <div class="ms-slot-label">${r.slot.label}（${r.slot.time}）</div>
       <div class="confirmed-box">
         <span class="cb-label">確定</span>
         <span class="sched-student-tag" style="background:${c.bg};color:${c.text};">${r.course.subject}</span>
         <span class="cb-teacher">講師：${teacherHonorific(teacher)}（${used}/${S.teacherCapacity}）</span>
+        <div class="confirmed-box-actions">${prefHtml}</div>
       </div>
     </div>`;
   }
@@ -613,9 +708,6 @@ function renderStudentPeriodSlots(studentId, scrollToDateStr){
   });
 
   const periodLabel = S.calMode === 'week' ? '今週' : `${Number(getActiveYearMonth().slice(5))}月`;
-  const flashHtml = matchingPanelFlashMsg
-    ? `<div class="matching-panel-result-msg ok">${matchingPanelFlashMsg}</div>`
-    : '';
 
   body.innerHTML = `
     <button type="button" class="ghost mp-back-btn" id="mpBackToMenu">← メニューに戻る</button>
@@ -623,8 +715,7 @@ function renderStudentPeriodSlots(studentId, scrollToDateStr){
       <div class="matching-panel-student-name">${student.name}さん</div>
       <div class="matching-panel-student-grade">${gradeLabel(student)}</div>
     </div>
-    ${flashHtml}
-    ${buildFutureWeeksOfferHtml(matchingPanelFutureOffer)}
+    ${buildPostAssignBannersHtml()}
     <p class="matching-panel-hint">${periodLabel}のコマ一覧（${dayCount}日分）${totalPending > 0 ? ` — 未確定 <strong>${totalPending}コマ</strong>` : ''}</p>
     ${daySectionsHtml
       ? `<div class="matching-panel-period-list">${daySectionsHtml}</div>`
@@ -633,6 +724,8 @@ function renderStudentPeriodSlots(studentId, scrollToDateStr){
 
   bindBackToMenu(body);
   bindConfirmButtons(body);
+  bindPrefPairButtons(body, ()=> afterMatchingChange(S.calSelectedDate));
+  bindPrefPairOffer(body);
   bindFutureWeeksOffer(body);
 
   matchingPanelRenderedPeriodKey = getPeriodKey();
@@ -676,11 +769,11 @@ function handlePanelBulkAuto(){
   if(total===0){
     if(resultEl) resultEl.innerHTML = '<div class="matching-panel-result-msg">未確定のコマはありません。</div>';
   }else if(filled===0){
-    if(resultEl) resultEl.innerHTML = `<div class="matching-panel-result-msg warn">対応できる講師が見つからず、${skipped}件とも自動で担当を決められませんでした。</div>`;
+    if(resultEl) resultEl.innerHTML = `<div class="matching-panel-result-msg warn">対応できる講師が見つからず、${skipped}件とも自動で講師を決められませんでした。</div>`;
   }else if(skipped===0){
-    if(resultEl) resultEl.innerHTML = `<div class="matching-panel-result-msg ok">✓ 未確定だった${filled}件すべて担当を決めました。</div>`;
+    if(resultEl) resultEl.innerHTML = `<div class="matching-panel-result-msg ok">✓ 未確定だった${filled}件すべて講師を決めました。</div>`;
   }else{
-    if(resultEl) resultEl.innerHTML = `<div class="matching-panel-result-msg partial">${filled}件を担当決定。${skipped}件は未確定のままです。</div>`;
+    if(resultEl) resultEl.innerHTML = `<div class="matching-panel-result-msg partial">${filled}件の講師を決めました。${skipped}件は未確定のままです。</div>`;
   }
   afterMatchingChange();
 }

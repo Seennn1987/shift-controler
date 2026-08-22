@@ -8,6 +8,7 @@ import { renderMatrix, switchView } from './finance-ui.js';
 import { renderMatching } from './matching.js';
 import { fillBaseAvailArea, readBaseAvailArea, renderRaiseScheduleList, subjectColor } from './schedule-core.js';
 import { scheduleSave } from './students-persistence.js';
+import { getPreferredPairsForTeacher } from './teacher-schedule-tab.js';
 
 
 
@@ -324,6 +325,13 @@ function renderTeacherList(){
   }
   wrap.innerHTML = '';
   visible.forEach(t=>{
+    const prefPairs = getPreferredPairsForTeacher(t.id);
+    const prefHtml = prefPairs.length
+      ? prefPairs.map(({ student, course })=>{
+        const c = subjectColor(student.level, course.subject);
+        return `<span class="pref-student-chip" style="background:${c.bg};color:${c.text};border:1px solid ${c.border};">${student.name}（${course.subject}）</span>`;
+      }).join('')
+      : '<span class="pref-student-chip is-empty">担当生徒なし</span>';
     const row = document.createElement('div');
     row.className = 'teacher-row';
     row.innerHTML = `
@@ -337,6 +345,10 @@ function renderTeacherList(){
           <button class="edit-btn" data-id="${t.id}">編集</button>
           <button class="del-btn" data-id="${t.id}">削除</button>
         </div>
+      </div>
+      <div class="trow-pref-students">
+        <div class="trow-col-title">担当生徒</div>
+        <div class="trow-pref-student-chips">${prefHtml}</div>
       </div>
       <div class="trow-three-col">
         <div class="trow-col">
