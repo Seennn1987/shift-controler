@@ -26,7 +26,10 @@ async function loadPendingChangeRequests(){
     return [];
   }
 }
-// ---- 授業の承認状況（教室長側は閲覧のみ。承認操作は講師専用ページで行う） ----
+// ---- 授業の承認状況（カレンダー上部・閲覧のみ。承認操作は講師専用ページ） ----
+const APPROVAL_RECENT_LIMIT = 10;
+const APPROVAL_DISMISSED_KEY_PREFIX = 'pitakoma-approval-dismissed-';
+
 async function loadAssignmentApprovals(){
   const user = fbAuth.currentUser;
   if(!user) return [];
@@ -41,38 +44,154 @@ async function loadAssignmentApprovals(){
       const tb = (b.createdAt && b.createdAt.toMillis) ? b.createdAt.toMillis() : 0;
       return tb - ta;
     });
-    return list.slice(0, 30);
+    return list;
   }catch(err){
     console.error('承認状況読み込みエラー:', err);
     return [];
   }
 }
+
+function loadDismissedApprovalIds(){
+  const uid = fbAuth.currentUser ? fbAuth.currentUser.uid : null;
+  if(!uid) return new Set();
+  try{
+    const raw = localStorage.getItem(`${APPROVAL_DISMISSED_KEY_PREFIX}${uid}`);
+    return new Set(raw ? JSON.parse(raw) : []);
+  }catch(err){
+    console.error('承認履歴の読み込みエラー:', err);
+    return new Set();
+  }
+}
+
+function saveDismissedApprovalIds(ids){
+  const uid = fbAuth.currentUser ? fbAuth.currentUser.uid : null;
+  if(!uid) return;
+  try{
+    localStorage.setItem(`${APPROVAL_DISMISSED_KEY_PREFIX}${uid}`, JSON.stringify([...ids]));
+  }catch(err){
+    console.error('承認履歴の保存エラー:', err);
+  }
+}
+
+function findNearestFutureDateForWeekday(weekday){
+  const start = new Date();
+  for(let i=0;i<14;i++){
+    const d = new Date(start);
+    d.setDate(start.getDate()+i);
+    if(WEEKDAY_JP[d.getDay()]===weekday){
+      return toDateStr(d.getFullYear(), d.getMonth(), d.getDate());
+    }
+  }
+  return null;
+}
+
+function approvalScheduleLine(a){
+  const slotLabel = SLOTS.find(s=>s.id===a.slot)?.label || `${a.slot}講`;
+  const dateStr = a.oneTimeDate || findNearestFutureDateForWeekday(a.day);
+  const datePart = dateStr ? `${dateStr}（${a.day}）${slotLabel}` : `${a.day}曜${slotLabel}`;
+  const recur = !a.oneTimeDate && dateStr ? ' · 毎週' : '';
+  return `${datePart}${recur} · ${a.studentName}（${a.studentGrade||''}）· ${a.subject}`;
+}
+
+function approvalBadgeHtml(status){
+  if(status==='rejected'){
+    return '<span class="approval-badge rejected">講師が断りました</span>';
+  }
+  if(status==='approved'){
+    return '<span class="approval-badge approved">確定</span>';
+  }
+  return '<span class="approval-badge pending">確認待ち</span>';
+}
+
+function renderApprovalDashboardItem(a, teacherName, status){
+  const rowCls = status==='rejected' ? ' approval-item-rejected' : '';
+  return `<div class="approval-item${rowCls}">
+    <div class="approval-item-teacher">${teacherName}</div>
+    <div class="approval-item-meta">${approvalScheduleLine(a)}${approvalBadgeHtml(status)}</div>
+  </div>`;
+}
+
 async function renderApprovalStatus(){
-  const card = document.getElementById('approvalStatusCard');
+  const bar = document.getElementById('approvalStatusBar');
   const wrap = document.getElementById('approvalStatusWrap');
-  if(!card || !wrap) return;
-  const list = await loadAssignmentApprovals();
-  if(list.length===0){
-    card.style.display = 'none';
+  const summaryLine = document.getElementById('approvalSummaryLine');
+  if(!bar || !wrap || !summaryLine) return;
+
+  if(!S.dataReady || !S.studentDataReady){
+    bar.style.display = 'none';
     return;
   }
-  card.style.display = '';
-  wrap.innerHTML = list.map(a=>{
-    const teacher = S.teachers.find(t=>t.id===a.teacherId);
-    const teacherName = teacher ? teacher.name : '(削除された講師)';
-    const statusHtml = a.status==='approved'
-      ? '<span class="approval-badge approved">確定</span>'
-      : a.status==='rejected'
-        ? '<span class="approval-badge rejected">講師が断りました</span>'
-        : '<span class="approval-badge pending">講師確認待ち</span>';
-    return `<div class="change-req-row">
-      <div class="change-req-main">
-        <span class="change-req-name">${teacherName}</span>
-        <span class="change-req-detail">${a.day}曜${SLOTS.find(s=>s.id===a.slot)?.label||a.slot+'講'}　${a.studentName}（${a.studentGrade||''}）${a.subject}</span>
+
+  const list = await loadAssignmentApprovals();
+  const dismissed = loadDismissedApprovalIds();
+  const pending = list.filter(a=> a.status==='pending');
+  const rejected = list.filter(a=> a.status==='rejected' && !a.handled);
+  const actionCount = pending.length + rejected.length;
+
+  if(actionCount===0){
+    bar.style.display = 'none';
+    wrap.innerHTML = '';
+    return;
+  }
+
+  bar.style.display = '';
+  bar.classList.add('is-warn');
+  bar.classList.remove('is-ok');
+
+  const summaryParts = [`講師の確認待ち ${pending.length}件`];
+  if(rejected.length>0) summaryParts.push(`断り ${rejected.length}件`);
+  summaryLine.textContent = summaryParts.join(' · ');
+
+  const approved = list
+    .filter(a=> a.status==='approved' && !dismissed.has(a.id))
+    .slice(0, APPROVAL_RECENT_LIMIT);
+
+  const leftHtml = [
+    ...rejected.map(a=>{
+      const teacher = S.teachers.find(t=>t.id===a.teacherId);
+      return renderApprovalDashboardItem(a, teacher ? teacher.name : '(削除された講師)', 'rejected');
+    }),
+    ...(pending.length
+      ? pending.map(a=>{
+          const teacher = S.teachers.find(t=>t.id===a.teacherId);
+          return renderApprovalDashboardItem(a, teacher ? teacher.name : '(削除された講師)', 'pending');
+        })
+      : ['<div class="approval-col-empty">確認待ちはありません</div>']),
+  ].join('');
+
+  const approvedHtml = approved.length
+    ? approved.map(a=>{
+        const teacher = S.teachers.find(t=>t.id===a.teacherId);
+        return renderApprovalDashboardItem(a, teacher ? teacher.name : '(削除された講師)', 'approved');
+      }).join('')
+    : '<div class="approval-col-empty">承認済みの履歴はありません</div>';
+
+  wrap.innerHTML = `<div class="approval-detail-well">
+    <div class="approval-two-col">
+      <div class="approval-col approval-col-pending">
+        <div class="approval-col-label">要対応 <span class="approval-col-num">${actionCount}件</span></div>
+        <div class="approval-scroll" aria-label="確認待ちと断られた授業">${leftHtml}</div>
       </div>
-      ${statusHtml}
-    </div>`;
-  }).join('');
+      <div class="approval-col approval-col-done">
+        <div class="approval-col-head">
+          <div class="approval-col-label is-muted">承認済み（直近）</div>
+          <button type="button" class="approval-history-clear-btn" id="approvalHistoryClearBtn">履歴削除</button>
+        </div>
+        <div class="approval-scroll approval-scroll-done" aria-label="承認済みの履歴">
+          <div class="approval-approved-list">${approvedHtml}</div>
+        </div>
+        <div class="approval-col-footnote">※ 古い確定は表示しません</div>
+      </div>
+    </div>
+  </div>`;
+
+  document.getElementById('approvalHistoryClearBtn')?.addEventListener('click', ()=>{
+    if(approved.length===0) return;
+    if(!window.confirm('表示中の承認済み履歴を削除します。\nよろしいですか？')) return;
+    approved.forEach(a=> dismissed.add(a.id));
+    saveDismissedApprovalIds(dismissed);
+    renderApprovalStatus();
+  });
 }
 
 async function loadPendingCancellationRequests(){
@@ -196,7 +315,6 @@ function renderTeacherScheduleTab(){
   scheduleSave();
   renderChangeRequests();
   renderCancellationRequests();
-  renderApprovalStatus();
   const wrap = document.getElementById('tsTeacherListWrap');
   if(!wrap) return;
   if(S.calYear===undefined){

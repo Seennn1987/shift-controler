@@ -72,6 +72,16 @@
       </div>
     </div>
 
+    <div class="cal-status-bar" id="approvalStatusBar" style="display:none;">
+      <div class="cal-status-inner">
+        <div id="approvalSummaryLine" class="cal-status-text">読み込み中…</div>
+        <button type="button" class="btn-text" id="approvalToggleBtn">詳細 ▾</button>
+      </div>
+      <div id="approvalDetailWrap" class="cal-status-detail" style="display:none;">
+        <div id="approvalStatusWrap"></div>
+      </div>
+    </div>
+
     <div class="cal-action-zone card">
       <div class="cal-zone-label">操作</div>
       <div class="cal-action-bar">
@@ -318,11 +328,6 @@
     <div class="card" id="cancellationRequestCard" style="display:none;">
       <h2>担当授業のキャンセル依頼<span class="help-tip" tabindex="0">?<span class="help-tip-text">講師がマイカレンダーから送った、確定済み授業のキャンセル依頼です。承認すると担当から外れます。</span></span></h2>
       <div id="cancellationRequestWrap"></div>
-    </div>
-
-    <div class="card" id="approvalStatusCard" style="display:none;">
-      <h2>授業の確認状況<span class="help-tip" tabindex="0">?<span class="help-tip-text">教室長が講師を決めた授業について、講師本人が専用ページで確認したかどうかの一覧です。ここでの操作は不要です（確認は講師側で行います）。</span></span></h2>
-      <div id="approvalStatusWrap"></div>
     </div>
 
     <div class="card ts-card">

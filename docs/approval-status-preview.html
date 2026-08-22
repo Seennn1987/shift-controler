@@ -1,0 +1,51 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ピタコマ 授業の確認状況 UI プレビュー</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Zen+Kaku+Gothic+New:wght@400;500;700;900&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="approval-status-preview.css">
+</head>
+<body>
+  <header class="preview-header">
+    <div class="preview-header-inner">
+      <h1>授業の確認状況 UI プレビュー</h1>
+      <p>シフト管理タブ — <strong>公開中</strong> vs <strong>2カラム案（改訂）</strong>（具体日付・左右スクロール・履歴削除）</p>
+    </div>
+  </header>
+
+  <main class="preview-main">
+    <section class="intro-block">
+      <h2>問題と方針</h2>
+      <div id="evalSummary" class="eval-summary"></div>
+      <div id="evalRecommend" class="recommend-box"></div>
+    </section>
+
+    <section class="compare-block">
+      <h2>一覧全体 — 公開中 vs 2カラム案</h2>
+      <p class="section-desc">左が<strong>いま</strong>（曜日だけ）、右が<strong>改訂案</strong>（具体日付・断りも同型・スクロール・履歴削除）。</p>
+      <div id="fullCompare" class="column-compare"></div>
+    </section>
+
+    <section class="compare-block">
+      <h2>横幅の使い方 — 1列 vs 2列</h2>
+      <p class="section-desc">広い画面で「要対応」と「参考履歴」を<strong>同時に</strong>見られるイメージ。</p>
+      <div id="widthCompare" class="wide-compare"></div>
+    </section>
+
+    <section class="compare-block">
+      <h2>日付と断りの見せ方 — 曜日だけ vs 具体日付＋同型カード</h2>
+      <div id="rowCompare" class="column-compare"></div>
+    </section>
+
+    <section class="intro-block">
+      <h2>2カラム案のルール</h2>
+      <ul class="principle-list" id="principleList"></ul>
+    </section>
+  </main>
+
+  <script src="approval-status-preview.js"></script>
+</body>
+</html>

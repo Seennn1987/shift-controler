@@ -9,7 +9,7 @@ import { setSearchComboboxValue } from './search-combobox.js';
 import { getWeekMonday, renderCalendarWeek, renderMatrix } from './finance-ui.js';
 import { renderMatching } from './matching.js';
 import { subjectColor } from './schedule-core.js';
-import { findEffectiveAssignment, renderTeacherScheduleTab } from './teacher-schedule-tab.js';
+import { findEffectiveAssignment, renderApprovalStatus, renderTeacherScheduleTab } from './teacher-schedule-tab.js';
 
 // カレンダー（トップページ・TimeTree風シンプルUI）
 // =====================================================================
@@ -296,6 +296,7 @@ function renderCalendar(){
   document.dispatchEvent(new CustomEvent('calendar:rendered'));
 
   refreshCalToolbarSecondary();
+  renderApprovalStatus();
 }
 
 // refreshCalFilterOptions は filter-ui.js で定義

@@ -455,6 +455,13 @@ async function init(){
     detail.style.display = isOpen ? 'none' : 'block';
     btn.textContent = isOpen ? '詳細 ▾' : '詳細 ▴';
   });
+  document.getElementById('approvalToggleBtn').addEventListener('click', ()=>{
+    const detail = document.getElementById('approvalDetailWrap');
+    const btn = document.getElementById('approvalToggleBtn');
+    const isOpen = detail.style.display !== 'none';
+    detail.style.display = isOpen ? 'none' : 'block';
+    btn.textContent = isOpen ? '詳細 ▾' : '詳細 ▴';
+  });
   document.getElementById('studentAbsenceActionBtn').addEventListener('click', (e)=>{
     e.stopPropagation();
     toggleAbsenceDropdown('student');

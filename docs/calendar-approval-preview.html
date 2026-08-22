@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ピタコマ カレンダー「講師の確認待ち」UI プレビュー</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Zen+Kaku+Gothic+New:wght@400;500;700;900&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="calendar-approval-preview.css">
+</head>
+<body>
+  <header class="preview-header">
+    <div class="preview-header-inner">
+      <h1>カレンダー「講師の確認待ち」UI プレビュー</h1>
+      <p>「授業の確認状況」を<strong>シフト管理からカレンダーへ移す</strong>案。確定不足バーの下に、同じ開き方で載せます。</p>
+    </div>
+  </header>
+
+  <main class="preview-main">
+    <section class="intro-block">
+      <h2>方針</h2>
+      <div id="evalSummary" class="eval-summary"></div>
+      <div id="evalRecommend" class="recommend-box"></div>
+    </section>
+
+    <section class="compare-block">
+      <h2>置き場所 — シフト管理 vs カレンダー</h2>
+      <p class="section-desc">左は<strong>いま</strong>（シフト管理タブの下の方）。右は<strong>カレンダー案</strong>（コマ組みの続きとして上から見る）。</p>
+      <div id="placementCompare" class="column-compare"></div>
+    </section>
+
+    <section class="compare-block">
+      <h2>カレンダー全体 — 詳細を閉じた状態</h2>
+      <p class="section-desc">確定不足のバーの<strong>すぐ下</strong>にもう1行。件数だけ見え、押すと詳細が開きます。</p>
+      <div id="calendarCollapsed" class="single-panel"></div>
+    </section>
+
+    <section class="compare-block">
+      <h2>カレンダー全体 — 「講師の確認待ち」の詳細を開いた状態</h2>
+      <p class="section-desc">2カラム（左：要対応 / 右：承認済み＋履歴削除）。左右とも<strong>スクロール</strong>。「詳細 ▾」を押して試せます。</p>
+      <div id="calendarExpanded" class="single-panel"></div>
+    </section>
+
+    <section class="compare-block">
+      <h2>スマホ幅 — 2つのバーが縦に並ぶ</h2>
+      <div id="mobileMock" class="mobile-frame-wrap"></div>
+    </section>
+
+    <section class="intro-block">
+      <h2>カレンダー案で守るルール</h2>
+      <ul class="principle-list" id="principleList"></ul>
+    </section>
+  </main>
+
+  <script src="calendar-approval-preview.js"></script>
+</body>
+</html>
