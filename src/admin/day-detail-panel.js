@@ -152,7 +152,7 @@ export function renderDayDetailPanel(container, dateStr){
             roomUsed,
             roomCapacity: S.roomCapacity,
             subjectTagHtml: subjectTag,
-            teacherHonorificName: teacherHonorific(teacher),
+            teacherName: teacher?.name || '不明',
             studentId: filterStudent.id,
             courseId: r.course.id,
             weekday,

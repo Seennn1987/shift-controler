@@ -605,7 +605,7 @@ function buildMatchingSlotCard(r, student, dateStr, weekday){
         roomUsed,
         roomCapacity: S.roomCapacity,
         subjectTagHtml: subjectTag,
-        teacherHonorificName: teacherHonorific(teacher),
+        teacherName: teacher?.name || '不明',
         studentId: student.id,
         courseId: r.course.id,
         weekday,

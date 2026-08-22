@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ピタコマ マッチングコマ UI 統一プレビュー</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Zen+Kaku+Gothic+New:wght@400;500;700;900&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="matching-slot-unify-preview.css">
+</head>
+<body>
+  <header class="preview-header">
+    <div class="preview-header-inner">
+      <h1>マッチングコマ UI 統一プレビュー</h1>
+      <p>8月6日（木）の <strong>承認待ち（4講）</strong> と <strong>未確定（5講）</strong> — 公開中 vs 修正版 v2</p>
+    </div>
+  </header>
+
+  <main class="preview-main">
+    <section class="intro-block">
+      <h2>問題と方針</h2>
+      <div id="evalSummary" class="eval-summary"></div>
+      <div id="evalRecommend" class="recommend-box"></div>
+    </section>
+
+    <section class="compare-block">
+      <h2>同じ日 — 公開中 vs 修正版 v2</h2>
+      <p class="section-desc">左が<strong>いま</strong>。右が<strong>修正版</strong>（状態1つ・名前統一・枠1枚・ボタン同サイズ）。</p>
+      <div id="dayCompare" class="column-compare"></div>
+    </section>
+
+    <section class="compare-block">
+      <h2>前案で却下した点</h2>
+      <p class="section-desc">「承認待ち」と「依頼済み」の<strong>二重表示</strong>、<strong>先生</strong>だけ付く名前、<strong>箱の入れ子</strong> — これらは v2 で外します。</p>
+      <div id="prevMistake" class="single-panel"></div>
+    </section>
+
+    <section class="compare-block">
+      <h2>承認待ち1コマ — 拡大比較</h2>
+      <div id="waitingZoom" class="column-compare"></div>
+    </section>
+
+    <section class="compare-block">
+      <h2>ボタンサイズ — 拡大</h2>
+      <p class="section-desc">「別の講師を選ぶ」を「この講師に依頼」と<strong>同じ高さ</strong>に。色だけ副操作（白枠）に。</p>
+      <div id="buttonCompare" class="column-compare"></div>
+    </section>
+
+    <section class="intro-block">
+      <h2>修正版 v2 で守るルール</h2>
+      <ul class="principle-list" id="principleList"></ul>
+    </section>
+  </main>
+
+  <script src="matching-slot-unify-preview.js"></script>
+</body>
+</html>

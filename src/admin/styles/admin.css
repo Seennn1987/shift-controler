@@ -470,12 +470,14 @@
     border-top:1px solid var(--border);padding:12px 0;
   }
   .match-slot .ms-slot-label{font-size:var(--text-base);font-weight:var(--font-weight-bold);color:var(--green-800);margin-bottom:var(--space-3);}
-  .match-cand-list{display:flex;flex-direction:column;gap:0;border:1px solid var(--border);border-radius:var(--radius-md);overflow:hidden;}
+  .match-slot-rows{display:flex;flex-direction:column;gap:0;border-top:1px solid var(--border);margin-top:var(--space-2);}
+  .mp-slot-card .match-slot-rows{margin-top:0;}
   .match-cand-row{
     display:grid;grid-template-columns:28px 1fr;align-items:start;gap:var(--space-3);
     font-size:var(--text-base);padding:var(--space-3) var(--space-4);border-top:1px solid var(--border);background:var(--surface-card);
   }
-  .match-cand-row:first-child{border-top:none;}
+  .match-slot-rows > .match-cand-row:first-child{border-top:none;}
+  .mp-slot-card .match-slot-rows > .match-cand-row{padding-left:0;padding-right:0;background:transparent;}
   .match-cand-rank{font-size:var(--text-sm);font-weight:var(--font-weight-bold);color:var(--ink-soft);text-align:center;padding-top:2px;}
   .match-cand-main{min-width:0;}
   .match-cand-head{display:flex;align-items:center;justify-content:space-between;gap:var(--space-3);flex-wrap:wrap;}
@@ -483,9 +485,14 @@
   .match-cand-badges{display:flex;flex-wrap:wrap;gap:4px;margin-top:6px;justify-content:flex-start;}
   .match-cand-actions{display:flex;align-items:center;gap:var(--space-2);flex-wrap:wrap;justify-content:flex-end;margin-left:auto;}
   .match-cand-actions .ghost,
-  .match-cand-actions .confirm-btn{
+  .match-cand-actions .confirm-btn,
+  .match-cand-actions .mp-change-teacher-btn{
     font-size:var(--text-xs);font-weight:700;padding:4px 10px;border-radius:var(--radius-sm);white-space:nowrap;margin-left:0;
   }
+  .match-cand-actions .mp-change-teacher-btn{
+    border:1px solid var(--border);background:var(--surface-card);color:var(--ink);cursor:pointer;font-family:inherit;
+  }
+  .match-cand-actions .mp-change-teacher-btn:hover{border-color:var(--brand-300);background:var(--brand-50);}
   .match-cand-actions .pref-pair-unset-btn:hover{border-color:var(--danger);color:var(--danger);}
   .pref-pair-assigned-badge{
     font-size:var(--text-xs);font-weight:var(--font-weight-bold);padding:2px 7px;border-radius:var(--radius-sm);flex-shrink:0;
@@ -1530,15 +1537,6 @@
   .mp-slot-badge{font-size:var(--text-xs);font-weight:var(--font-weight-bold);padding:2px 7px;border-radius:var(--radius-sm);}
   .mp-slot-badge.pending{background:var(--pending-bg);color:var(--pending-ink);border:1px solid var(--pending-border);}
   .mp-slot-badge.waiting{background:var(--pending-bg);color:var(--pending-ink);border:1px solid var(--pending-border);}
-  .mp-slot-waiting-teacher{
-    font-size:var(--text-md);font-weight:700;color:var(--ink);margin:0 0 var(--space-2);
-  }
-  .mp-slot-actions{display:flex;justify-content:flex-end;margin-top:var(--space-1);}
-  .mp-change-teacher-btn{
-    font-size:var(--text-sm);font-weight:700;padding:6px 12px;border-radius:var(--radius-md);
-    border:1px solid var(--border);background:var(--surface-card);color:var(--ink);cursor:pointer;
-  }
-  .mp-change-teacher-btn:hover{border-color:var(--brand-300);background:var(--brand-50);}
   .mp-slot-readonly{opacity:.92;}
   .mp-slot-note{display:block;font-size:var(--text-md);color:var(--ink-soft);margin-top:var(--space-2);line-height:var(--leading-relaxed);}
   .matching-drawer-close{
@@ -1590,7 +1588,7 @@
   .matching-panel-slot-head{margin-bottom:var(--space-5);}
   .matching-panel-slot-title{font-size:var(--text-lg);font-weight:var(--font-weight-bold);margin-top:var(--space-2);}
   .matching-panel-slot-meta{font-size:var(--text-sm);color:var(--ink-soft);margin-top:var(--space-1);}
-  .matching-panel-cand-list .match-cand-list{margin-top:4px;}
+  .matching-panel-cand-list .match-slot-rows{margin-top:0;}
   .matching-priority-intro{
     font-size:var(--text-md);color:var(--ink-soft);margin:0 0 var(--space-3);line-height:var(--leading-relaxed);
   }
