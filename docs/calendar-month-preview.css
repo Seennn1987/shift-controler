@@ -1314,3 +1314,292 @@ h2 {
   background: #E8F4FD;
   color: var(--preview-brand-deep);
 }
+
+/* ===== 週間 v6 修正案（4パターン） ===== */
+.week-v6-block {
+  background: linear-gradient(180deg, #FFF 0%, #F8FAFC 100%);
+  border: 2px solid #2D5016;
+  border-radius: 14px;
+  padding: 22px 20px 28px;
+  margin-bottom: 48px;
+}
+
+.week-v6-block h2 { color: #2D5016; }
+
+.week-v5-block--archived {
+  border-color: var(--preview-ink-faint);
+  opacity: 0.92;
+}
+
+.week-v5-block--archived h2 {
+  color: var(--preview-ink-soft);
+  font-size: 15px;
+}
+
+.week-v6-recommend {
+  background: #EEF6EB;
+  border: 1px solid #C8E6C9;
+  border-radius: 10px;
+  padding: 14px 16px;
+  font-size: 13px;
+  line-height: 1.65;
+  margin-bottom: 18px;
+}
+
+.week-v6-recommend strong { color: #2D5016; }
+
+.week-v6-variant-cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  gap: 10px;
+  margin-bottom: 22px;
+}
+
+.week-v6-variant-card {
+  border: 1px solid var(--preview-border);
+  border-radius: 10px;
+  padding: 10px 12px;
+  background: var(--preview-card);
+  font-size: 12px;
+  line-height: 1.55;
+}
+
+.week-v6-variant-card.is-rec {
+  border-color: #2D5016;
+  box-shadow: 0 0 0 1px rgba(45, 80, 22, 0.15);
+}
+
+.week-v6-variant-card .v6-tag {
+  display: inline-block;
+  font-size: 10px;
+  font-weight: 900;
+  padding: 2px 7px;
+  border-radius: 4px;
+  margin-bottom: 6px;
+}
+
+.week-v6-variant-card.is-rec .v6-tag {
+  background: #2D5016;
+  color: #fff;
+}
+
+.week-v6-variant-card:not(.is-rec) .v6-tag {
+  background: var(--preview-surface-subtle);
+  color: var(--preview-ink-soft);
+}
+
+.week-v6-cell-grid {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 10px;
+  margin-bottom: 8px;
+}
+
+@media (max-width: 1100px) {
+  .week-v6-cell-grid { grid-template-columns: repeat(3, 1fr); }
+}
+
+@media (max-width: 720px) {
+  .week-v6-cell-grid { grid-template-columns: 1fr 1fr; }
+}
+
+.week-v6-mini-panel {
+  border: 1px solid var(--preview-border);
+  border-radius: 10px;
+  overflow: hidden;
+  background: var(--preview-card);
+  min-width: 0;
+}
+
+.week-v6-mini-head {
+  font-size: 10px;
+  font-weight: 900;
+  padding: 7px 8px;
+  text-align: center;
+  border-bottom: 1px solid var(--preview-border);
+}
+
+.week-v6-mini-head.is-live { background: #FFF3E0; color: #9A6B00; }
+.week-v6-mini-head.is-a { background: #EEF6EB; color: #2D5016; }
+.week-v6-mini-head.is-b { background: #E8F4FD; color: var(--preview-brand-deep); }
+.week-v6-mini-head.is-c { background: #F3E8FF; color: #6D28D9; }
+.week-v6-mini-head.is-d { background: #EFF1F4; color: var(--preview-ink); }
+
+.week-v6-mini-body { padding: 6px; min-width: 0; }
+
+.week-v6-mini-note {
+  font-size: 10px;
+  color: var(--preview-ink-soft);
+  line-height: 1.45;
+  padding: 6px 8px 8px;
+  border-top: 1px dashed var(--preview-border);
+}
+
+/* --- 共通：v6 マス土台 --- */
+.week-v6-well {
+  background: var(--preview-surface-subtle);
+  border-radius: 6px;
+  min-height: 120px;
+}
+
+.week-v6-well.is-deep { background: #E8EBF0; }
+
+.week-v6-head {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--preview-ink);
+  padding: 5px 8px 4px;
+  border-bottom: 1px solid rgba(0, 0, 0, 0.06);
+}
+
+.week-v6-lesson-row1,
+.week-v6-lesson-row2 { /* filled by shared classes below */ }
+
+.week-v6-lesson-row1 {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  flex-wrap: wrap;
+  min-width: 0;
+}
+
+.week-v6-lesson-name {
+  flex: 1 1 auto;
+  min-width: 0;
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 1.35;
+}
+
+.week-v6-lesson-grade {
+  font-size: 10px;
+  color: var(--preview-ink-soft);
+  flex-shrink: 0;
+}
+
+.week-v6-lesson-row2 {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  margin-top: 3px;
+  font-size: 10px;
+}
+
+.week-v6-meta-label { color: var(--preview-ink-soft); }
+.week-v6-meta-value { font-weight: 700; }
+.week-v6-meta-value.is-pending { color: var(--preview-pending-ink); }
+
+/* 案A：浮きカード（影＋隙間・枠線なし） */
+.week-v6a-stack {
+  padding: 6px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.week-v6a-card {
+  background: var(--preview-card);
+  border-radius: 8px;
+  padding: 7px 8px;
+  box-shadow: 0 1px 3px rgba(51, 51, 51, 0.12), 0 0 0 1px rgba(51, 51, 51, 0.04);
+}
+
+/* 案B：1枚の白パネル（中は区切り線） */
+.week-v6b-panel {
+  margin: 6px;
+  background: var(--preview-card);
+  border-radius: 8px;
+  box-shadow: 0 2px 8px rgba(51, 51, 51, 0.1);
+  overflow: hidden;
+}
+
+.week-v6b-panel .week-v6-head {
+  background: rgba(255, 255, 255, 0.9);
+}
+
+.week-v6b-lesson {
+  padding: 6px 8px 7px;
+  border-top: 1px solid var(--preview-border);
+}
+
+.week-v6b-panel .week-v6b-lesson:first-of-type { border-top: none; }
+
+/* 案C：左アクセント＋軽い浮き */
+.week-v6c-stack {
+  padding: 6px;
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
+.week-v6c-card {
+  display: flex;
+  background: var(--preview-card);
+  border-radius: 6px;
+  overflow: hidden;
+  box-shadow: 0 1px 2px rgba(51, 51, 51, 0.1);
+}
+
+.week-v6c-accent {
+  width: 3px;
+  flex-shrink: 0;
+  background: var(--preview-brand);
+}
+
+.week-v6c-body { padding: 6px 8px 7px; flex: 1; min-width: 0; }
+
+/* 案D：くぼみ＋白カード（v2改良・薄い枠＋影） */
+.week-v6d-stack {
+  padding: 6px;
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
+.week-v6d-card {
+  background: var(--preview-card);
+  border-radius: 8px;
+  padding: 7px 8px;
+  border: 1px solid rgba(212, 216, 221, 0.85);
+  box-shadow: 0 2px 4px rgba(51, 51, 51, 0.08);
+}
+
+.week-v6-pros-cons {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+
+@media (max-width: 720px) {
+  .week-v6-pros-cons { grid-template-columns: 1fr; }
+}
+
+.week-v6-pros-item {
+  border: 1px solid var(--preview-border);
+  border-radius: 10px;
+  padding: 12px 14px;
+  font-size: 12px;
+  line-height: 1.6;
+}
+
+.week-v6-pros-item h4 {
+  margin: 0 0 6px;
+  font-size: 13px;
+}
+
+.week-v6-pros-item.is-rec { border-color: #2D5016; background: #FAFFF8; }
+.week-v6-pros-item ul { margin: 0; padding-left: 1.1em; }
+.week-v6-pros-item li { margin-bottom: 4px; }
+
+.week-v6-table td.week-v6-td {
+  background: var(--preview-surface-subtle);
+  padding: 0;
+  vertical-align: top;
+}
+
+.week-v6-table td.week-v6-td.is-empty .week-v6-empty {
+  padding: 18px 4px;
+  text-align: center;
+  font-size: 11px;
+  color: var(--preview-ink-faint);
+}

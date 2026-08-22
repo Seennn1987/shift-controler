@@ -12,14 +12,29 @@
   <header class="preview-header">
     <div class="preview-header-inner">
       <h1>カレンダー UI プレビュー</h1>
-      <p>先頭に<strong>週間 v5 ブラッシュアップ案</strong>（公開中 vs 改善案）。その下に月間 v4 など過去の比較があります。</p>
+      <p>先頭に<strong>週間 v6 修正案（4パターン）</strong>。v5 公開後のフィードバックを反映。下に過去の v5/v4 比較あり。</p>
     </div>
   </header>
 
   <main class="preview-main">
-    <section class="week-v5-block" id="weekV5Section">
-      <h2>週間カレンダー — 公開中の評価 → v5 改善案</h2>
-      <p class="section-desc">スクショ（8/17〜8/22・4講）を基準に自己評価。<strong>★★☆☆☆（枠の階層）</strong>が最大の問題。月次 v4 と同じ「リスト IN マス」に揃えます。</p>
+    <section class="week-v6-block" id="weekV6Section">
+      <h2>v5 公開後フィードバック → 週間 v6 案（4パターン）</h2>
+      <p class="section-desc">v5（枠なしリスト）は<strong>より分かりづらい</strong>との指摘。表の線と生徒情報の差は、<strong>生徒ボックスを浮かせる</strong>方向で再設計します。</p>
+      <div id="weekV6Summary" class="v4-summary"></div>
+      <div id="weekV6Recommend" class="week-v6-recommend"></div>
+      <div id="weekV6VariantCards" class="week-v6-variant-cards"></div>
+      <h3 class="sub-heading">① 1マス拡大 — 木曜4講・3人（5つ並べ）</h3>
+      <p class="section-desc">左から：<strong>いま公開中（v5）</strong> → 案A〜D。影・余白・背景の違いに注目してください。</p>
+      <div id="weekV6CellCompare" class="week-v6-cell-grid"></div>
+      <h3 class="sub-heading">② 1週間の4講行 — おすすめ案A vs 公開中</h3>
+      <div id="weekV6GridCompare" class="week-v5-grid-compare"></div>
+      <h3 class="sub-heading">③ 各案の長所・短所</h3>
+      <div id="weekV6ProsCons" class="week-v6-pros-cons"></div>
+    </section>
+
+    <section class="week-v5-block week-v5-block--archived" id="weekV5Section">
+      <h2>【参考・却下】週間 v5 案（リスト IN マス）</h2>
+      <p class="section-desc">この方針は<strong>公開済みだが不採用</strong>。上の v6 案で置き換え予定。</p>
       <div id="weekV5Summary" class="v4-summary"></div>
       <div id="weekV5PlanList" class="v4-plan-list"></div>
       <h3 class="sub-heading">① いちばんの問題 — 表の線と生徒の箱が同じ</h3>

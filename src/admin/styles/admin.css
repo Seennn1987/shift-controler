@@ -558,12 +558,14 @@
   }
   table.sched tbody th .time{display:block;font-size:var(--text-sm);font-weight:500;color:var(--ink-soft);margin-top:2px;}
   table.sched td.sched-cell{width:150px;vertical-align:top;}
+  /* 週間 v6d：くぼみマス（薄いグレー）＋白カード（枠＋影）で生徒を浮かせる */
   table.sched td.sched-cell.week-date-cell{
-    padding:0;background:var(--surface-subtle);
+    padding:0;background:var(--surface-muted);
   }
   table.sched td.sched-cell.week-date-cell.is-empty .sched-empty{
     padding:20px 6px;text-align:center;font-size:var(--text-sm);color:var(--ink-disabled);opacity:.85;
   }
+  table.sched td.sched-cell.week-date-cell > .sched-teacher-group{margin:6px;}
   table.sched th.week-date-head{cursor:pointer;transition:background .15s;}
   table.sched td.week-date-cell{cursor:pointer;transition:background .15s;}
   table.sched th.week-date-head:hover,
@@ -571,19 +573,20 @@
   table.sched td.sched-cell .cal-entries{gap:3px;padding:6px;}
   table.sched td.sched-cell .opening-cell-inner{padding:6px;}
   .sched-cell-inner{display:flex;flex-direction:column;min-height:100%;}
-  .sched-lesson-list{display:flex;flex-direction:column;min-width:0;}
+  .sched-lesson-list{
+    display:flex;flex-direction:column;gap:5px;padding:6px;min-width:0;
+  }
   .sched-total{
     font-size:var(--text-sm);font-weight:700;color:var(--ink);
-    padding:5px 6px 4px;border-bottom:1px solid var(--border);
-    background:rgba(255,255,255,0.55);margin-bottom:0;
+    padding:5px 8px 4px;border-bottom:1px solid var(--border);
+    background:rgba(255,255,255,0.65);margin-bottom:0;
   }
   .sched-empty{color:var(--ink-soft);font-size:var(--text-md);}
   .sched-lesson-card{
-    border:none;border-radius:0;padding:5px 6px 6px;background:transparent;
-    margin-bottom:0;min-height:0;width:100%;box-sizing:border-box;
-    border-top:1px solid var(--border);
+    border:1px solid var(--border);border-radius:var(--radius-md);padding:7px 8px;
+    background:var(--surface-card);margin-bottom:0;min-height:0;width:100%;box-sizing:border-box;
+    box-shadow:0 2px 4px rgba(51,51,51,0.08);
   }
-  .sched-lesson-list > .sched-lesson-card:first-child{border-top:none;}
   .sched-card-row1{display:flex;align-items:center;gap:5px;min-width:0;flex-wrap:wrap;}
   .sched-card-name{
     flex:1 1 auto;min-width:0;font-size:var(--text-sm);font-weight:700;line-height:var(--leading-normal);
@@ -599,15 +602,15 @@
   .sched-card-meta-value{font-weight:700;color:var(--ink);}
   .sched-card-meta-value.is-pending{color:var(--pending-ink);}
   .sched-teacher-group{
-    border-top:1px solid var(--border);padding:0;background:transparent;
+    border:1px solid var(--border);border-radius:var(--radius-md);padding:0;
+    background:var(--surface-card);box-shadow:0 2px 4px rgba(51,51,51,0.08);
   }
-  .sched-lesson-list > .sched-teacher-group:first-child{border-top:none;}
   .sched-teacher-head{
     font-size:var(--text-xs);font-weight:700;color:var(--green-900);
-    padding:5px 6px 3px;border-bottom:1px dashed var(--border);
+    padding:6px 8px 4px;border-bottom:1px dashed var(--border);
   }
   .sched-teacher-head .sched-cap{font-weight:500;color:var(--ink-soft);font-size:var(--text-xs);margin-left:4px;}
-  .sched-teacher-students{padding:2px 6px 4px;}
+  .sched-teacher-students{padding:4px 8px 6px;}
   .sched-teacher-box{
     border:1px solid var(--border);border-radius:var(--radius-md);padding:6px 8px;background:var(--surface-card);margin-bottom:6px;
   }

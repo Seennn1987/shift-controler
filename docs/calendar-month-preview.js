@@ -878,6 +878,211 @@ function renderWeekV5GridTable(contentFn, tableCls = '') {
   return `<table class="week-grid-table ${tableCls}"><thead><tr><th>4講</th>${headers}</tr></thead><tbody><tr><th>14:50〜</th>${cells}</tr></tbody></table>`;
 }
 
+/* ===== 週間 v6（v5 却下後・4パターン） ===== */
+const WEEK_V6_SUMMARY = 'v5 は「表と生徒の枠を分ける」ために<strong>枠を全部消した</strong>結果、生徒1人1人の塊が消え、<strong>文字が罫線に溶け込む</strong>状態になった。週間は情報量が多いので、<strong>マスはくぼませ、生徒は白い箱で浮かせる</strong>のが正解に近い。';
+
+const WEEK_V6_VARIANTS = [
+  {
+    id: 'live',
+    tag: '公開中 v5',
+    title: '枠なしリスト',
+    desc: 'いまの画面。行の区切り線だけ。ボックス感ゼロ。',
+    rec: false,
+  },
+  {
+    id: 'a',
+    tag: '案A ★おすすめ',
+    title: '浮きカード',
+    desc: '灰色マス＋白カードに<strong>影と隙間</strong>。枠線は使わない。',
+    rec: true,
+  },
+  {
+    id: 'b',
+    tag: '案B',
+    title: '1枚パネル',
+    desc: 'マス内に白パネル1枚。生徒は中で区切り線。',
+    rec: false,
+  },
+  {
+    id: 'c',
+    tag: '案C',
+    title: '左ライン',
+    desc: '白行＋左の青ライン＋軽い影。カードより薄い。',
+    rec: false,
+  },
+  {
+    id: 'd',
+    tag: '案D',
+    title: 'くぼみ＋枠付きカード',
+    desc: 'v2 に近い。濃いめのマス＋白カード（薄枠＋影）。',
+    rec: false,
+  },
+];
+
+const WEEK_V6_PROSCONS = [
+  {
+    id: 'a',
+    title: '案A 浮きカード（おすすめ）',
+    rec: true,
+    good: ['生徒1人＝1つの白い箱と一目で分かる', '表の罫線と箱の影で<strong>階層がはっきり</strong>', '3人並びでも読みやすい', '月次（リスト）と役割分担できる'],
+    bad: ['影を使うので月次より「厚み」は出る', '実装は CSS 数行増'],
+  },
+  {
+    id: 'b',
+    title: '案B 1枚パネル',
+    rec: false,
+    good: ['マス内がすっきり1ブロック', '実装が単純'],
+    bad: ['生徒の境目が区切り線のみ → 案Aより弱い', '3人だと再び「線だらけ」に見えやすい'],
+  },
+  {
+    id: 'c',
+    title: '案C 左ライン',
+    rec: false,
+    good: ['軽くてモダン', '未決行だけライン色を変える拡張も可'],
+    bad: ['「箱」より「行」に見える → 要望の浮き感は案A・Dに劣る'],
+  },
+  {
+    id: 'live',
+    title: '公開中 v5（却下）',
+    rec: false,
+    good: ['月次 v4 と見た目ルールを揃えられる'],
+    bad: ['週間では情報が多すぎて<strong>より分かりづらい</strong>（フィードバックどおり）', '生徒の開始・終了が視覚的に分からない'],
+  },
+  {
+    id: 'd',
+    title: '案D くぼみ＋枠付きカード',
+    rec: false,
+    good: ['v2 時代よりマス背景で表と分離', 'カード感は案Aと同程度'],
+    bad: ['カード枠＋表罫線で、案Aより「線」が多い', 'v2 の二重枠問題が残りやすい'],
+  },
+];
+
+function renderWeekV6LessonBody(lesson) {
+  const teacherHtml = lesson.pending
+    ? '<span class="week-v6-meta-value is-pending">未決</span>'
+    : `<span class="week-v6-meta-value">${lesson.teacher} 先生</span>`;
+  return `<div class="week-v6-lesson-row1">
+      ${weekV5SubjectTag(lesson.subject)}
+      <span class="week-v6-lesson-name">${lesson.student}</span>
+      <span class="week-v6-lesson-grade">${lesson.grade}</span>
+    </div>
+    <div class="week-v6-lesson-row2">
+      <span class="week-v6-meta-label">講師</span>
+      ${teacherHtml}
+    </div>`;
+}
+
+function renderWeekV6Head(count) {
+  return `<div class="week-v6-head">教室 ${count}人</div>`;
+}
+
+function renderWeekV6LiveCell(day) {
+  if (day.empty || !day.lessons?.length) {
+    return '<div class="week-v6-empty">予定なし</div>';
+  }
+  return `<div class="week-v6-well">${renderWeekV6Head(day.roomCount)}<div class="week-v5-list">${day.lessons.map(l => `<div class="week-v5-lesson">${renderWeekV6LessonBody(l)}</div>`).join('')}</div></div>`;
+}
+
+function renderWeekV6aCell(day) {
+  if (day.empty || !day.lessons?.length) {
+    return '<div class="week-v6-empty">予定なし</div>';
+  }
+  return `<div class="week-v6-well">${renderWeekV6Head(day.roomCount)}<div class="week-v6a-stack">${day.lessons.map(l => `<div class="week-v6a-card">${renderWeekV6LessonBody(l)}</div>`).join('')}</div></div>`;
+}
+
+function renderWeekV6bCell(day) {
+  if (day.empty || !day.lessons?.length) {
+    return '<div class="week-v6-empty">予定なし</div>';
+  }
+  return `<div class="week-v6-well"><div class="week-v6b-panel">${renderWeekV6Head(day.roomCount)}${day.lessons.map(l => `<div class="week-v6b-lesson">${renderWeekV6LessonBody(l)}</div>`).join('')}</div></div>`;
+}
+
+function renderWeekV6cCell(day) {
+  if (day.empty || !day.lessons?.length) {
+    return '<div class="week-v6-empty">予定なし</div>';
+  }
+  return `<div class="week-v6-well">${renderWeekV6Head(day.roomCount)}<div class="week-v6c-stack">${day.lessons.map(l => `<div class="week-v6c-card"><span class="week-v6c-accent"></span><div class="week-v6c-body">${renderWeekV6LessonBody(l)}</div></div>`).join('')}</div></div>`;
+}
+
+function renderWeekV6dCell(day) {
+  if (day.empty || !day.lessons?.length) {
+    return '<div class="week-v6-empty">予定なし</div>';
+  }
+  return `<div class="week-v6-well is-deep">${renderWeekV6Head(day.roomCount)}<div class="week-v6d-stack">${day.lessons.map(l => `<div class="week-v6d-card">${renderWeekV6LessonBody(l)}</div>`).join('')}</div></div>`;
+}
+
+const WEEK_V6_RENDERERS = {
+  live: renderWeekV6LiveCell,
+  a: renderWeekV6aCell,
+  b: renderWeekV6bCell,
+  c: renderWeekV6cCell,
+  d: renderWeekV6dCell,
+};
+
+function renderWeekV6MiniPanel(variant, day, note) {
+  const v = WEEK_V6_VARIANTS.find(x => x.id === variant);
+  const render = WEEK_V6_RENDERERS[variant];
+  return `<div class="week-v6-mini-panel">
+    <div class="week-v6-mini-head is-${variant === 'live' ? 'live' : variant}">${v.tag}</div>
+    <div class="week-v6-mini-body">${render(day)}</div>
+    <div class="week-v6-mini-note">${note}</div>
+  </div>`;
+}
+
+function renderWeekV6GridTable(contentFn) {
+  const headers = WEEK_V5_GRID_DAYS.map(d => `<th>${d.date.replace(/\(.\)/, '')}</th>`).join('');
+  const cells = WEEK_V5_GRID_DAYS.map(d => {
+    const cls = d.empty ? 'week-v6-td is-empty' : 'week-v6-td';
+    return `<td class="${cls}">${contentFn(d)}</td>`;
+  }).join('');
+  return `<table class="week-grid-table week-v6-table"><thead><tr><th>4講</th>${headers}</tr></thead><tbody><tr><th>14:50〜</th>${cells}</tr></tbody></table>`;
+}
+
+function renderWeekV6Section() {
+  document.getElementById('weekV6Summary').innerHTML = WEEK_V6_SUMMARY;
+  document.getElementById('weekV6Recommend').innerHTML = `
+    <strong>AIのおすすめ：案A（浮きカード）</strong><br>
+    理由：ご指摘の「生徒ボックスを浮かび上がらせる」にいちばん素直。表の罫線は<strong>マスの外側だけ</strong>、生徒は<strong>白＋影＋6pxの隙間</strong>で1人1箱に見える。月次は行リストのまま、週間だけカード型に分けるのが合理的（週間は1マスに複数生徒が載るため）。
+  `;
+
+  document.getElementById('weekV6VariantCards').innerHTML = WEEK_V6_VARIANTS.map(v => `
+    <div class="week-v6-variant-card${v.rec ? ' is-rec' : ''}">
+      <span class="v6-tag">${v.tag}</span>
+      <strong>${v.title}</strong><br>${v.desc}
+    </div>
+  `).join('');
+
+  const sample = WEEK_V5_THU_SAMPLE;
+  document.getElementById('weekV6CellCompare').innerHTML = [
+    renderWeekV6MiniPanel('live', sample, '行の区切りだけ。箱として認識しにくい'),
+    renderWeekV6MiniPanel('a', sample, '1人＝1枚の白カード。影で表から浮く'),
+    renderWeekV6MiniPanel('b', sample, '白パネル1枚の中に3行。塊はあるが個別感は弱い'),
+    renderWeekV6MiniPanel('c', sample, '左の青線で行を強調。軽いが「箱」感は中程度'),
+    renderWeekV6MiniPanel('d', sample, 'v2系。枠線＋影。案Aより線が多い'),
+  ].join('');
+
+  document.getElementById('weekV6GridCompare').innerHTML = `
+    <div class="compare-panel">
+      <div class="compare-panel-head v3b-now">公開中 v5 — 8/17〜8/22 · 4講</div>
+      <div class="compare-panel-body">${renderWeekV6GridTable(renderWeekV6LiveCell)}</div>
+    </div>
+    <div class="compare-panel">
+      <div class="compare-panel-head v4">案A 浮きカード — 同じデータ</div>
+      <div class="compare-panel-body">${renderWeekV6GridTable(renderWeekV6aCell)}</div>
+    </div>
+  `;
+
+  document.getElementById('weekV6ProsCons').innerHTML = WEEK_V6_PROSCONS.map(item => `
+    <div class="week-v6-pros-item${item.rec ? ' is-rec' : ''}">
+      <h4>${item.title}</h4>
+      <strong>良い点</strong>
+      <ul>${item.good.map(g => `<li>${g}</li>`).join('')}</ul>
+      <strong>弱い点</strong>
+      <ul>${item.bad.map(b => `<li>${b}</li>`).join('')}</ul>
+    </div>
+  `).join('');
+}
+
 function renderWeekV5Section() {
   document.getElementById('weekV5Summary').innerHTML = WEEK_V5_SUMMARY;
   document.getElementById('weekV5PlanList').innerHTML = WEEK_V5_PLAN.map(item => `
@@ -1097,6 +1302,7 @@ function renderV4PlanSection() {
 
 document.getElementById('principleList').innerHTML = PRINCIPLES.map(p => `<li>${p}</li>`).join('');
 document.getElementById('weekPrincipleList').innerHTML = WEEK_PRINCIPLES.map(p => `<li>${p}</li>`).join('');
+renderWeekV6Section();
 renderWeekV5Section();
 renderV4PlanSection();
 renderFeedbackSummary();
