@@ -9,6 +9,7 @@ import { loadResponseDrafts } from './response-draft.js';
 import {
   loadNewAssignments,
   loadPendingCancellationRequests,
+  loadAdminCancelledNotices,
   reloadDraftsFromStorage,
   startMyAssignmentsListener,
   initResponseDraftHandlers,
@@ -105,6 +106,7 @@ async function bootstrap(user){
   await loadMyPendingRequests();
   S.newAssignments = await loadNewAssignments();
   S.pendingCancellationRequests = await loadPendingCancellationRequests();
+  S.adminCancelledNotices = await loadAdminCancelledNotices();
   reloadDraftsFromStorage();
   renderMyCalendar();
   render();

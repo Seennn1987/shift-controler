@@ -3,6 +3,8 @@ import { pad2, daysInYearMonth, toDateStr } from '../shared/date-utils.js';
 import { S } from './state.js';
 import { getDayStatus } from './day-status.js';
 import {
+  markAdminCancelledNoticeRead,
+  formatAdminCancelledNoticeLine,
   findPendingTicket,
   findPendingCancellation,
   getDraftForEntry,
@@ -77,20 +79,47 @@ function rowClass(entry, approvalState, ticket){
   return 'mycal-lesson-row';
 }
 
+function bindNoticeDismiss(root){
+  root.querySelectorAll('.pending-notice-dismiss-btn').forEach(btn=>{
+    btn.addEventListener('click', async ()=>{
+      btn.disabled = true;
+      await markAdminCancelledNoticeRead(btn.dataset.noticeId);
+      renderMyCalendar();
+    });
+  });
+}
+
 function updateBanner(){
   pruneStaleResponseDrafts();
   const bannerCard = document.getElementById('pendingBannerCard');
   const requestLine = document.getElementById('pendingBannerRequest');
   const draftLine = document.getElementById('pendingBannerDraft');
+  const noticeWrap = document.getElementById('pendingBannerNotices');
   const draftAllBtn = document.getElementById('draftApproveAllBtn');
   const submitBtn = document.getElementById('submitResponsesBtn');
 
   const unreplied = countUnrepliedPendingTickets();
   const draftCount = Object.keys(S.responseDrafts).length;
-  const show = unreplied > 0 || draftCount > 0;
+  const notices = S.adminCancelledNotices || [];
+  const show = unreplied > 0 || draftCount > 0 || notices.length > 0;
 
   if(!bannerCard) return;
   bannerCard.style.display = show ? '' : 'none';
+
+  if(noticeWrap){
+    if(notices.length > 0){
+      noticeWrap.style.display = '';
+      noticeWrap.innerHTML = notices.map(n=> `
+        <div class="pending-banner-notice-row">
+          <p class="pending-banner-line pending-banner-notice">【お知らせ】教室長が依頼を取り消しました — ${formatAdminCancelledNoticeLine(n)}</p>
+          <button type="button" class="ghost pending-notice-dismiss-btn" data-notice-id="${n.id}">確認した</button>
+        </div>
+      `).join('');
+    }else{
+      noticeWrap.style.display = 'none';
+      noticeWrap.innerHTML = '';
+    }
+  }
 
   if(requestLine){
     if(unreplied > 0){
@@ -214,6 +243,7 @@ function renderMyCalendar(){
 
   wrap.innerHTML = html;
   bindRowActions(wrap);
+  bindNoticeDismiss(document.getElementById('pendingBannerCard') || document);
 }
 
 document.getElementById('calPrevBtn').addEventListener('click', ()=>{

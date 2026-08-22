@@ -27,5 +27,6 @@ export const S = {
   myAssignTimer: null,
   responseDrafts: {},
   pendingCancellationRequests: [],
+  adminCancelledNotices: [],
 };
 

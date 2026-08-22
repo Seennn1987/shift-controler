@@ -789,7 +789,13 @@ async function revokePendingApprovalTicket(student, course, day, slot, oneTimeDa
     }else if(a.oneTimeDate){
       return;
     }
-    updates.push(fbDb.collection('assignmentApprovals').doc(doc.id).update({ status: 'cancelled', handled: true }));
+    updates.push(fbDb.collection('assignmentApprovals').doc(doc.id).update({
+      status: 'cancelled',
+      handled: true,
+      cancelledByAdmin: true,
+      cancelledAt: firebase.firestore.FieldValue.serverTimestamp(),
+      teacherRead: false,
+    }));
   });
   await Promise.all(updates);
 }
@@ -806,10 +812,6 @@ async function withdrawPendingAssignment(studentId, courseId, day, slot, dateStr
     return { ok: false, msg: '承認待ちのコマが見つかりません。' };
   }
   const teacher = S.teachers.find(t=> t.id === eff.entry.teacherId);
-  const teacherLabel = teacher ? `${teacher.name}先生` : '講師';
-  if(!window.confirm(`${teacherLabel}への依頼を取り消し、別の講師を選びますか？`)){
-    return { ok: false, cancelled: true };
-  }
   const oneTimeDate = eff.entry.oneTimeDate || null;
   cancelAssignment(studentId, courseId, day, slot);
   try{
@@ -821,7 +823,7 @@ async function withdrawPendingAssignment(studentId, courseId, day, slot, dateStr
   scheduleSave();
   scheduleSyncTeacherAssignments();
   renderApprovalStatus();
-  return { ok: true };
+  return { ok: true, teacherName: teacher?.name || '' };
 }
 
 // 希望通りの枠に対応できる講師がいない場合の代替候補（学年・教科が対応可能な曜日/コマ）を探す

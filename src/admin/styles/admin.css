@@ -1666,6 +1666,7 @@
     background:var(--surface-card);
   }
   .match-slot.mp-slot-waiting{border-color:var(--pending-border);background:var(--surface-card);}
+  .match-slot .mp-withdraw-confirm{margin-top:var(--space-3);}
   .pick-cand-btn{
     width:100%;padding:var(--space-3) var(--space-5);border:1px solid var(--brand-500);border-radius:var(--radius-md);
     background:var(--brand-50);color:var(--pending-ink);font-weight:var(--font-weight-bold);cursor:pointer;font-family:inherit;font-size:var(--text-md);

@@ -25,6 +25,7 @@ import {
 } from './teacher-schedule-tab.js';
 import { buildMatchCandidatesHtml } from './match-candidates-html.js';
 import { buildPrefPairActionHtmlForTeacher, buildWaitingSlotCardHtml } from './match-candidate-ui.js';
+import { mountWithdrawConfirm } from './withdraw-pending-ui.js';
 
 function refreshPrefPairViews(){
   renderStudentList();
@@ -472,25 +473,39 @@ function bindPrefPairButtons(root, onChanged){
   });
 }
 
+function resolvePendingTeacherName(btn, dateStr){
+  const ym = dateStr ? dateStr.slice(0, 7) : getActiveYearMonth();
+  const eff = findEffectiveAssignment(
+    btn.dataset.student,
+    btn.dataset.course,
+    btn.dataset.day,
+    Number(btn.dataset.slot),
+    ym,
+    btn.dataset.date || dateStr || null,
+  );
+  const teacher = S.teachers.find(t=> t.id === eff?.entry?.teacherId);
+  return teacher?.name || '';
+}
+
 function bindChangeTeacherButtons(root){
   root.querySelectorAll('.mp-change-teacher-btn').forEach(btn=>{
-    btn.addEventListener('click', async ()=>{
-      btn.disabled = true;
-      const result = await withdrawPendingAssignment(
-        btn.dataset.student,
-        btn.dataset.course,
-        btn.dataset.day,
-        Number(btn.dataset.slot),
-        btn.dataset.date || null,
-      );
-      btn.disabled = false;
-      if(result.cancelled) return;
-      if(!result.ok){
-        window.alert(result.msg || '取り消しに失敗しました。');
-        return;
-      }
-      matchingPanelFlashMsg = '依頼を取り消しました。別の講師を選んでください。';
-      afterMatchingChange(btn.dataset.date || null);
+    btn.addEventListener('click', ()=>{
+      mountWithdrawConfirm(root, btn, {
+        teacherName: resolvePendingTeacherName(btn, btn.dataset.date || null),
+        onConfirm: async ()=>{
+          const result = await withdrawPendingAssignment(
+            btn.dataset.student,
+            btn.dataset.course,
+            btn.dataset.day,
+            Number(btn.dataset.slot),
+            btn.dataset.date || null,
+          );
+          if(!result.ok) return result;
+          matchingPanelFlashMsg = '依頼を取り消しました。別の講師を選んでください。';
+          afterMatchingChange(btn.dataset.date || null);
+          return result;
+        },
+      });
     });
   });
 }

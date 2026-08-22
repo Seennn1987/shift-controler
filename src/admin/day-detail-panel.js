@@ -21,9 +21,12 @@ import {
   findAlternativeSlots,
   replaceDesiredSlot,
   withdrawPendingAssignment,
+  findEffectiveAssignment,
+  getActiveYearMonth,
 } from './teacher-schedule-tab.js';
 import { buildMatchCandidatesHtml } from './match-candidates-html.js';
 import { buildPrefPairActionHtmlForTeacher, buildWaitingSlotCardHtml } from './match-candidate-ui.js';
+import { mountWithdrawConfirm } from './withdraw-pending-ui.js';
 import { analyzePendingMatchSlot } from './match-slot-status.js';
 
 export function getDayDetailTitle(dateStr){
@@ -345,22 +348,33 @@ export function bindDayDetailEvents(container, dateStr, onRefresh){
   });
 
   container.querySelectorAll('.mp-change-teacher-btn').forEach(btn=>{
-    btn.addEventListener('click', async ()=>{
-      btn.disabled = true;
-      const result = await withdrawPendingAssignment(
-        btn.dataset.student,
-        btn.dataset.course,
-        btn.dataset.day,
-        Number(btn.dataset.slot),
-        btn.dataset.date || dateStr,
-      );
-      btn.disabled = false;
-      if(result.cancelled) return;
-      if(!result.ok){
-        window.alert(result.msg || '取り消しに失敗しました。');
-        return;
-      }
-      refresh();
+    btn.addEventListener('click', ()=>{
+      mountWithdrawConfirm(container, btn, {
+        teacherName: (()=>{
+          const ym = (btn.dataset.date || dateStr || '').slice(0, 7) || getActiveYearMonth();
+          const eff = findEffectiveAssignment(
+            btn.dataset.student,
+            btn.dataset.course,
+            btn.dataset.day,
+            Number(btn.dataset.slot),
+            ym,
+            btn.dataset.date || dateStr || null,
+          );
+          return S.teachers.find(t=> t.id === eff?.entry?.teacherId)?.name || '';
+        })(),
+        onConfirm: async ()=>{
+          const result = await withdrawPendingAssignment(
+            btn.dataset.student,
+            btn.dataset.course,
+            btn.dataset.day,
+            Number(btn.dataset.slot),
+            btn.dataset.date || dateStr,
+          );
+          if(!result.ok) return result;
+          refresh();
+          return result;
+        },
+      });
     });
   });
 

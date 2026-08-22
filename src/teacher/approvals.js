@@ -13,6 +13,53 @@ import {
   actionLabel,
 } from './response-draft.js';
 
+async function loadAdminCancelledNotices(){
+  const uid = fbAuth.currentUser ? fbAuth.currentUser.uid : null;
+  if(!uid) return [];
+  try{
+    const snap = await fbDb.collection('assignmentApprovals')
+      .where('teacherLoginUid','==',uid).get();
+    const list = [];
+    snap.forEach(doc=>{
+      const data = doc.data();
+      if(data.status !== 'cancelled') return;
+      if(!data.cancelledByAdmin) return;
+      if(data.teacherRead) return;
+      list.push({id:doc.id, ...data});
+    });
+    list.sort((a,b)=>{
+      const ta = (a.cancelledAt && a.cancelledAt.toMillis) ? a.cancelledAt.toMillis() : 0;
+      const tb = (b.cancelledAt && b.cancelledAt.toMillis) ? b.cancelledAt.toMillis() : 0;
+      return tb - ta;
+    });
+    return list;
+  }catch(err){
+    console.error('取り消しお知らせ読み込みエラー:', err);
+    return [];
+  }
+}
+
+async function markAdminCancelledNoticeRead(ticketId){
+  if(!ticketId) return;
+  try{
+    await fbDb.collection('assignmentApprovals').doc(ticketId).update({ teacherRead: true });
+    S.adminCancelledNotices = S.adminCancelledNotices.filter(n=> n.id !== ticketId);
+  }catch(err){
+    console.error('お知らせ既読更新エラー:', err);
+  }
+}
+
+function formatAdminCancelledNoticeLine(notice){
+  const slotDef = SLOTS.find(s=> Number(s.id) === Number(notice.slot));
+  const slotLabel = slotDef ? slotDef.label : `${notice.slot}講`;
+  if(notice.oneTimeDate){
+    const d = new Date(`${notice.oneTimeDate}T00:00:00`);
+    const wd = WEEKDAY_JP[d.getDay()];
+    return `${d.getMonth() + 1}/${d.getDate()}（${wd}）${slotLabel} ${notice.subject} ${notice.studentName}さん`;
+  }
+  return `${notice.day}曜 ${slotLabel} ${notice.subject} ${notice.studentName}さん`;
+}
+
 async function loadNewAssignments(){
   const uid = fbAuth.currentUser ? fbAuth.currentUser.uid : null;
   if(!uid) return [];
@@ -289,6 +336,7 @@ async function submitResponseDrafts(){
   persistDrafts();
   S.newAssignments = await loadNewAssignments();
   S.pendingCancellationRequests = await loadPendingCancellationRequests();
+  S.adminCancelledNotices = await loadAdminCancelledNotices();
   renderMyCalendar();
   if(btn) btn.disabled = false;
 
@@ -307,6 +355,7 @@ function startMyAssignmentsListener(){
       S.myAssignmentEntries = snap.exists ? (snap.data().entries || []) : [];
       S.newAssignments = await loadNewAssignments();
       S.pendingCancellationRequests = await loadPendingCancellationRequests();
+      S.adminCancelledNotices = await loadAdminCancelledNotices();
       pruneStaleResponseDrafts();
       renderMyCalendar();
     }catch(err){
@@ -320,6 +369,7 @@ function startMyAssignmentsListener(){
 async function refreshPendingAndRender(){
   S.newAssignments = await loadNewAssignments();
   S.pendingCancellationRequests = await loadPendingCancellationRequests();
+  S.adminCancelledNotices = await loadAdminCancelledNotices();
   pruneStaleResponseDrafts();
   renderMyCalendar();
 }
@@ -340,6 +390,9 @@ function initResponseDraftHandlers(){
 export {
   loadNewAssignments,
   loadPendingCancellationRequests,
+  loadAdminCancelledNotices,
+  markAdminCancelledNoticeRead,
+  formatAdminCancelledNoticeLine,
   findPendingTicket,
   findPendingCancellation,
   getDraftForEntry,

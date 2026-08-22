@@ -62,6 +62,12 @@
   .pending-banner-line{font-size:var(--text-md);font-weight:var(--font-weight-bold);margin:0;}
   .pending-banner-request{color:var(--danger);}
   .pending-banner-draft{color:var(--green-800);}
+  .pending-banner-notices{display:flex;flex-direction:column;gap:var(--space-3);}
+  .pending-banner-notice-row{
+    display:flex;align-items:flex-start;justify-content:space-between;gap:var(--space-3);flex-wrap:wrap;
+  }
+  .pending-banner-notice{color:var(--warning-ink);font-weight:var(--font-weight-normal);}
+  .pending-notice-dismiss-btn{font-size:var(--text-sm);flex-shrink:0;}
   .pending-banner-actions{display:flex;align-items:center;gap:var(--space-3);flex-wrap:wrap;}
   .ghost{
     border:1px solid var(--border);background:var(--surface-card);color:var(--ink-soft);
