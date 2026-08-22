@@ -6,7 +6,7 @@ import { findCustomClosure, getDayStatus, renderCalendar } from './calendar.js';
 import { renderMatrix } from './finance-ui.js';
 import { renderMatching, renderStudentList } from './matching.js';
 import { cycleTeacherState, findTeacherSchedule, getOrCreateDraftSchedule, getDateSlotState, getWeekdayAvailabilityInMonth, gradeLabel, isAvailable, isPreferredDay, isTeacherAvailableOnDate, setDateSlotState } from './schedule-core.js';
-import { saveStudents, saveTeacherScheduleDoc, scheduleSave, approveCancellationRequest, rejectCancellationRequest } from './students-persistence.js';
+import { saveStudents, saveTeacherScheduleDoc, scheduleSave, scheduleSyncTeacherAssignments, approveCancellationRequest, rejectCancellationRequest } from './students-persistence.js';
 
 // 講師スケジュール（月次提出）タブ
 // =====================================================================
@@ -128,7 +128,7 @@ function approvalBadgeHtml(status){
   if(status==='approved'){
     return '<span class="approval-badge approved">確定</span>';
   }
-  return '<span class="approval-badge pending">確認待ち</span>';
+  return '<span class="approval-badge pending">講師確認待ち</span>';
 }
 
 function renderApprovalDashboardItem(a, teacherName, status, { action = false } = {}){
@@ -774,6 +774,56 @@ function cancelAssignment(studentId, courseId, day, slot){
   S.pendingAssignments = S.pendingAssignments.filter(a=>!(a.studentId===studentId && a.courseId===courseId && a.day===day && a.slot===slot));
 }
 
+async function revokePendingApprovalTicket(student, course, day, slot, oneTimeDate){
+  const user = fbAuth.currentUser;
+  if(!user) return;
+  const updates = [];
+  const snap = await fbDb.collection('assignmentApprovals').where('adminUid','==', user.uid).get();
+  snap.forEach(doc=>{
+    const a = doc.data();
+    if(a.status !== 'pending') return;
+    if(a.studentName !== student.name || a.subject !== course.subject) return;
+    if(a.day !== day || Number(a.slot) !== Number(slot)) return;
+    if(oneTimeDate){
+      if(a.oneTimeDate !== oneTimeDate) return;
+    }else if(a.oneTimeDate){
+      return;
+    }
+    updates.push(fbDb.collection('assignmentApprovals').doc(doc.id).update({ status: 'cancelled', handled: true }));
+  });
+  await Promise.all(updates);
+}
+
+async function withdrawPendingAssignment(studentId, courseId, day, slot, dateStr){
+  const student = S.students.find(s=> s.id === studentId);
+  const course = student?.courses.find(c=> c.id === courseId);
+  if(!student || !course){
+    return { ok: false, msg: '生徒または教科が見つかりません。' };
+  }
+  const ym = dateStr ? dateStr.slice(0, 7) : getActiveYearMonth();
+  const eff = findEffectiveAssignment(studentId, courseId, day, slot, ym, dateStr || null);
+  if(!eff?.isPending){
+    return { ok: false, msg: '講師確認待ちのコマが見つかりません。' };
+  }
+  const teacher = S.teachers.find(t=> t.id === eff.entry.teacherId);
+  const teacherLabel = teacher ? `${teacher.name}先生` : '講師';
+  if(!window.confirm(`${teacherLabel}への依頼を取り消し、別の講師を選びますか？`)){
+    return { ok: false, cancelled: true };
+  }
+  const oneTimeDate = eff.entry.oneTimeDate || null;
+  cancelAssignment(studentId, courseId, day, slot);
+  try{
+    await revokePendingApprovalTicket(student, course, day, slot, oneTimeDate);
+  }catch(err){
+    console.error('承認依頼取り消しエラー:', err);
+    return { ok: false, msg: '依頼の取り消しに失敗しました。' };
+  }
+  scheduleSave();
+  scheduleSyncTeacherAssignments();
+  renderApprovalStatus();
+  return { ok: true };
+}
+
 // 希望通りの枠に対応できる講師がいない場合の代替候補（学年・教科が対応可能な曜日/コマ）を探す
 function findAlternativeSlots(level, subject, excludeSlots){
   const alternatives = [];
@@ -806,4 +856,4 @@ async function replaceDesiredSlot(studentId, courseId, oldDay, oldSlot, newDay, 
 }
 
 
-export { loadPendingChangeRequests, loadAssignmentApprovals, renderApprovalStatus, renderChangeRequests, renderTeacherScheduleTab, openTeacherScheduleEditor, renderTeacherScheduleGrid, isPreferredPair, getPreferredTeachersForCourse, getPreferredPairsForTeacher, addPreferredPair, removePreferredPair, removePreferredPairFor, isPreferredSubjectForTeacher, teacherWorksOtherSlotOnWeekday, countTeacherCourseSlotCoverage, buildCandidateInfo, findAssignment, getActiveYearMonth, teacherHasSubmittedMonth, isAssignmentEffectiveInMonth, assignmentAppliesOnDate, findEffectiveAssignment, countCourseConfirmed, countTeacherSlot, countTeacherSlotOnDate, countRoomSlot, countRoomSlotOnDate, issueAssignmentApproval, confirmAssignment, cancelAssignment, findAlternativeSlots, replaceDesiredSlot };
+export { loadPendingChangeRequests, loadAssignmentApprovals, renderApprovalStatus, renderChangeRequests, renderTeacherScheduleTab, openTeacherScheduleEditor, renderTeacherScheduleGrid, isPreferredPair, getPreferredTeachersForCourse, getPreferredPairsForTeacher, addPreferredPair, removePreferredPair, removePreferredPairFor, isPreferredSubjectForTeacher, teacherWorksOtherSlotOnWeekday, countTeacherCourseSlotCoverage, buildCandidateInfo, findAssignment, getActiveYearMonth, teacherHasSubmittedMonth, isAssignmentEffectiveInMonth, assignmentAppliesOnDate, findEffectiveAssignment, countCourseConfirmed, countTeacherSlot, countTeacherSlotOnDate, countRoomSlot, countRoomSlotOnDate, issueAssignmentApproval, confirmAssignment, cancelAssignment, withdrawPendingAssignment, findAlternativeSlots, replaceDesiredSlot };

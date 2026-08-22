@@ -21,9 +21,10 @@ import {
   isPreferredPair,
   removePreferredPairFor,
   teacherHasSubmittedMonth,
+  withdrawPendingAssignment,
 } from './teacher-schedule-tab.js';
 import { buildMatchCandidatesHtml } from './match-candidates-html.js';
-import { buildPrefPairActionHtmlForTeacher } from './match-candidate-ui.js';
+import { buildPrefPairActionHtmlForTeacher, buildWaitingSlotCardHtml } from './match-candidate-ui.js';
 
 function refreshPrefPairViews(){
   renderStudentList();
@@ -124,6 +125,7 @@ function renderDayDetailInDrawer(dateStr){
     updateDrawerHeader(refreshedDateStr);
   });
   bindConfirmButtons(body);
+  bindChangeTeacherButtons(body);
   bindPrefPairButtons(body, ()=>{
     renderCalendar();
     if(S.calMode === 'week') renderCalendarWeek();
@@ -470,6 +472,29 @@ function bindPrefPairButtons(root, onChanged){
   });
 }
 
+function bindChangeTeacherButtons(root){
+  root.querySelectorAll('.mp-change-teacher-btn').forEach(btn=>{
+    btn.addEventListener('click', async ()=>{
+      btn.disabled = true;
+      const result = await withdrawPendingAssignment(
+        btn.dataset.student,
+        btn.dataset.course,
+        btn.dataset.day,
+        Number(btn.dataset.slot),
+        btn.dataset.date || null,
+      );
+      btn.disabled = false;
+      if(result.cancelled) return;
+      if(!result.ok){
+        window.alert(result.msg || '取り消しに失敗しました。');
+        return;
+      }
+      matchingPanelFlashMsg = '依頼を取り消しました。別の講師を選んでください。';
+      afterMatchingChange(btn.dataset.date || null);
+    });
+  });
+}
+
 function bindConfirmButtons(root){
   root.querySelectorAll('.mp-confirm-btn').forEach(btn=>{
     btn.addEventListener('click', ()=>{
@@ -573,14 +598,20 @@ function buildMatchingSlotCard(r, student, dateStr, weekday){
   if(r.existing){
     const teacher = S.teachers.find(t=> t.id === r.existing.teacherId);
     if(r.isPending){
-      return `<div class="match-slot mp-slot-readonly">
-        <div class="ms-slot-label">${r.slot.label}（${r.slot.time}）</div>
-        <div class="confirmed-box pending-box">
-          <span class="cb-label pending-label">講師確認待ち</span>
-          <span class="sched-student-tag" style="background:${c.bg};color:${c.text};">${r.course.subject}</span>
-          <span class="cb-teacher">講師：${teacherHonorific(teacher)}</span>
-        </div>
-      </div>`;
+      const subjectTag = `<span class="sched-student-tag" style="background:${c.bg};color:${c.text};">${r.course.subject}</span>`;
+      return buildWaitingSlotCardHtml({
+        slotLabel: r.slot.label,
+        slotTime: r.slot.time,
+        roomUsed,
+        roomCapacity: S.roomCapacity,
+        subjectTagHtml: subjectTag,
+        teacherHonorificName: teacherHonorific(teacher),
+        studentId: student.id,
+        courseId: r.course.id,
+        weekday,
+        slotId: r.slot.id,
+        dateStr,
+      });
     }
     const used = teacher ? countTeacherSlotOnDate(teacher.id, dateStr, r.slot.id, null) : 0;
     const prefHtml = buildPrefPairActionHtmlForTeacher(student.id, r.course.id, r.existing.teacherId);
@@ -767,6 +798,7 @@ function renderStudentPeriodSlots(studentId, scrollToDateStr){
 
   bindBackToMenu(body);
   bindConfirmButtons(body);
+  bindChangeTeacherButtons(body);
   bindPrefPairButtons(body, ()=> afterMatchingChange(S.calSelectedDate));
   bindPrefPairOffer(body);
   bindFutureWeeksOffer(body);

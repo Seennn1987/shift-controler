@@ -20,9 +20,10 @@ import {
   countTeacherSlotOnDate,
   findAlternativeSlots,
   replaceDesiredSlot,
+  withdrawPendingAssignment,
 } from './teacher-schedule-tab.js';
 import { buildMatchCandidatesHtml } from './match-candidates-html.js';
-import { buildPrefPairActionHtmlForTeacher } from './match-candidate-ui.js';
+import { buildPrefPairActionHtmlForTeacher, buildWaitingSlotCardHtml } from './match-candidate-ui.js';
 import { analyzePendingMatchSlot } from './match-slot-status.js';
 
 export function getDayDetailTitle(dateStr){
@@ -143,16 +144,21 @@ export function renderDayDetailPanel(container, dateStr){
         const used = teacher ? countTeacherSlotOnDate(teacher.id, dateStr, r.slot.id, null) : 0;
         const autoBadge = r.existing.source === 'auto' ? '<span class="auto-badge">自動</span>' : '';
         if(r.isPending){
-          html += `<div class="match-slot">
-            <div class="ms-slot-label">${r.slot.label}（${r.slot.time}）</div>
-            <div class="confirmed-box pending-box">
-              <span class="cb-label pending-label">講師確認待ち${autoBadge}</span>
-              <span class="sched-student-tag" style="background:${c.bg};color:${c.text};">${r.course.subject}</span>
-              <span class="cb-teacher">講師：${teacherHonorific(teacher)}</span>
-              <span class="cb-cap">（講師が専用ページで確認するまで、まだ確定していません）</span>
-              <button class="unconfirm-btn" data-student="${filterStudent.id}" data-course="${r.course.id}" data-day="${weekday}" data-slot="${r.slot.id}">取り消す</button>
-            </div>
-          </div>`;
+          const roomUsed = countRoomSlotOnDate(dateStr, r.slot.id, null);
+          const subjectTag = `<span class="sched-student-tag" style="background:${c.bg};color:${c.text};">${r.course.subject}</span>`;
+          html += buildWaitingSlotCardHtml({
+            slotLabel: r.slot.label,
+            slotTime: r.slot.time,
+            roomUsed,
+            roomCapacity: S.roomCapacity,
+            subjectTagHtml: subjectTag,
+            teacherHonorificName: teacherHonorific(teacher),
+            studentId: filterStudent.id,
+            courseId: r.course.id,
+            weekday,
+            slotId: r.slot.id,
+            dateStr,
+          });
         }else{
           const prefHtml = buildPrefPairActionHtmlForTeacher(filterStudent.id, r.course.id, r.existing.teacherId);
           html += `<div class="match-slot">
@@ -334,6 +340,26 @@ export function bindDayDetailEvents(container, dateStr, onRefresh){
   container.querySelectorAll('.unconfirm-btn').forEach(btn=>{
     btn.addEventListener('click', ()=>{
       cancelAssignment(btn.dataset.student, btn.dataset.course, btn.dataset.day, Number(btn.dataset.slot));
+      refresh();
+    });
+  });
+
+  container.querySelectorAll('.mp-change-teacher-btn').forEach(btn=>{
+    btn.addEventListener('click', async ()=>{
+      btn.disabled = true;
+      const result = await withdrawPendingAssignment(
+        btn.dataset.student,
+        btn.dataset.course,
+        btn.dataset.day,
+        Number(btn.dataset.slot),
+        btn.dataset.date || dateStr,
+      );
+      btn.disabled = false;
+      if(result.cancelled) return;
+      if(!result.ok){
+        window.alert(result.msg || '取り消しに失敗しました。');
+        return;
+      }
       refresh();
     });
   });
