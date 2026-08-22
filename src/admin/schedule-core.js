@@ -213,24 +213,35 @@ function teacherHonorific(teacher){
 }
 
 // 教科ごとに色相（hue）を固定し、小/中/高で濃淡（明度）を変える
+// v2: 算数・数学はティール（188°）で UI 青（217°）と混同しない
 const SUBJECT_HUE = {
-  '国語': 352,   // 赤系
-  '算数': 208,   // 青系
-  '数学': 208,   // 青系（算数と同系統）
-  '英語': 265,   // 紫系
-  '理科': 138,   // 緑系
-  '社会': 32,    // 橙系
+  '国語': 350,   // 赤系（Flamingo）
+  '算数': 188,   // 青緑ティール（Peacock）
+  '数学': 188,   // 算数と同系統
+  '英語': 278,   // 紫系（Grape）
+  '理科': 142,   // 緑系（Sage）
+  '社会': 28,    // 橙系（Tangerine）
+};
+const SUBJECT_TEXT = {
+  '国語': { light: '#9F1239', dark: '#ffffff' },
+  '算数': { light: '#0F766E', dark: '#ffffff' },
+  '数学': { light: '#0F766E', dark: '#ffffff' },
+  '英語': { light: '#6D28D9', dark: '#ffffff' },
+  '理科': { light: '#15803D', dark: '#ffffff' },
+  '社会': { light: '#C2410C', dark: '#ffffff' },
 };
 const LEVEL_SHADE = {
-  '小学': {s:62, l:90},  // 薄い
-  '中学': {s:62, l:74},  // 中間
-  '高校': {s:58, l:50},  // 濃い
+  '小学': {s:52, l:92},  // 薄い
+  '中学': {s:48, l:82},  // 中間
+  '高校': {s:44, l:46},  // 濃い
 };
 function subjectColor(level, subject){
-  const h = SUBJECT_HUE[subject] ?? 0;
-  const shade = LEVEL_SHADE[level] || {s:55, l:70};
+  const subKey = subject === '数学' && level === '小学' ? '算数' : subject;
+  const h = SUBJECT_HUE[subKey] ?? SUBJECT_HUE[subject] ?? 0;
+  const shade = LEVEL_SHADE[level] || {s:48, l:82};
   const bg = `hsl(${h} ${shade.s}% ${shade.l}%)`;
-  const text = shade.l < 58 ? '#ffffff' : '#2c2416';
+  const textCfg = SUBJECT_TEXT[subKey] || SUBJECT_TEXT[subject];
+  const text = shade.l < 58 ? (textCfg?.dark || '#ffffff') : (textCfg?.light || '#333333');
   const border = `hsl(${h} ${shade.s}% ${Math.max(shade.l-18,15)}%)`;
   return {bg, text, border};
 }

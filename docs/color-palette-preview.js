@@ -48,17 +48,95 @@ const LEGACY_TOKENS = [
   { name: '--danger', hex: '#B3462C', use: 'エラー' },
 ];
 
-const SUBJECT_HUE = { '国語': 352, '数学': 208, '英語': 265, '理科': 138, '社会': 32 };
+const SUBJECT_HUE_CURRENT = { '国語': 352, '算数': 208, '数学': 208, '英語': 265, '理科': 138, '社会': 32 };
+const SUBJECT_HUE_V2 = { '国語': 350, '算数': 188, '数学': 188, '英語': 278, '理科': 142, '社会': 28 };
+
+const SUBJECT_TEXT_V2 = {
+  '国語': { light: '#9F1239', dark: '#ffffff' },
+  '算数': { light: '#0F766E', dark: '#ffffff' },
+  '数学': { light: '#0F766E', dark: '#ffffff' },
+  '英語': { light: '#6D28D9', dark: '#ffffff' },
+  '理科': { light: '#15803D', dark: '#ffffff' },
+  '社会': { light: '#C2410C', dark: '#ffffff' },
+};
+
+const SUBJECT_CONVENTIONS = [
+  {
+    subject: '国語', abbr: '国', hueOld: 352, hueNew: 350,
+    convention: 'Google「Tomato / Flamingo」・教科書の赤系',
+    reference: '#e67c73',
+    change: '維持（微調整のみ）',
+    isNew: false,
+  },
+  {
+    subject: '算数・数学', abbr: '数', hueOld: 208, hueNew: 188,
+    convention: 'Google「Peacock」＝青緑ティール（Cobaltの「青」とは別系統）',
+    reference: '#039BE5',
+    change: '★変更：UI青 #3B7DE9（217°）と離す',
+    isNew: true,
+  },
+  {
+    subject: '英語', abbr: '英', hueOld: 265, hueNew: 278,
+    convention: 'Google「Grape / Wisteria」・英語教材の紫系',
+    reference: '#8e24aa',
+    change: '維持（紫をややはっきり）',
+    isNew: false,
+  },
+  {
+    subject: '理科', abbr: '理', hueOld: 138, hueNew: 142,
+    convention: 'Google「Sage / Basil」・自然・実験の緑',
+    reference: '#0b8043',
+    change: '維持（微調整のみ）',
+    isNew: false,
+  },
+  {
+    subject: '社会', abbr: '社', hueOld: 32, hueNew: 28,
+    convention: 'Google「Tangerine / Pumpkin」・地図・歴史の橙系',
+    reference: '#f4511e',
+    change: '維持（微調整のみ）',
+    isNew: false,
+  },
+];
+
 const LEVELS = [
   { key: '小学', s: 62, l: 90, label: '小' },
-  { key: '中学', s: 62, l: 74, label: '中' },
-  { key: '高校', s: 58, l: 50, label: '高' },
+  { key: '中学', s: 58, l: 78, label: '中' },
+  { key: '高校', s: 52, l: 48, label: '高' },
 ];
+
+const LEVELS_V2 = [
+  { key: '小学', s: 52, l: 92, label: '小' },
+  { key: '中学', s: 48, l: 82, label: '中' },
+  { key: '高校', s: 44, l: 46, label: '高' },
+];
+
+function subjectColorFromHue(hueMap, levelShades, textMap, level, subject) {
+  const subKey = subject === '数学' && level === '小学' ? '算数' : subject;
+  const h = hueMap[subKey] ?? hueMap[subject] ?? 0;
+  const lv = levelShades.find(x => x.key === level) || levelShades[1];
+  const bg = `hsl(${h} ${lv.s}% ${lv.l}%)`;
+  const textCfg = textMap?.[subKey] || textMap?.[subject];
+  const text = lv.l < 58 ? (textCfg?.dark || '#fff') : (textCfg?.light || '#333333');
+  return { bg, text, h };
+}
+
+function subjectColorCurrent(level, subject) {
+  return subjectColorFromHue(SUBJECT_HUE_CURRENT, LEVELS, null, level, subject);
+}
+
+function subjectColorV2(level, subject) {
+  return subjectColorFromHue(SUBJECT_HUE_V2, LEVELS_V2, SUBJECT_TEXT_V2, level, subject);
+}
+
+/** @deprecated preview内の旧呼び出し用 */
+function subjectColor(level, subject) {
+  return subjectColorV2(level, subject);
+}
 
 const STATUS_COLORS = [
   { name: '未確定', bg: MF.solitude, border: MF.royalBlue, text: MF.cobalt, dashed: true, note: 'MFの選択行トーン。黄・橙（社会）と被らない' },
   { name: '欠席', bg: MF.whiteSmoke, border: MF.whiteSmoke, text: MF.darkGray, strike: true, note: 'グレー＋打消し線' },
-  { name: '振替', bg: '#CFE8FA', border: MF.nightRider, text: '#0C4A6E', dashed: true, note: '教科色＋黒破線' },
+  { name: '振替', bg: '#BFE8E0', border: MF.nightRider, text: '#0F766E', dashed: true, note: 'v2算数色＋黒破線' },
   { name: '休校・定休', bg: MF.cloudGrey, border: MF.cloudGrey, text: MF.darkGray, note: '非稼働は中立グレー' },
   { name: '祝日', bg: MF.mistyRose, border: MF.mistyRose, text: MF.venetianRed, note: 'MFエラー系の薄い背景' },
   { name: '今日', bg: MF.royalBlue, border: MF.royalBlue, text: '#FFFFFF', round: true, note: 'ゴールド丸の代替' },
@@ -68,12 +146,23 @@ const STATUS_COLORS = [
   { name: 'エラー', bg: MF.mistyRose, border: MF.mistyRose, text: MF.venetianRed, note: 'MF venetianRed' },
 ];
 
-function subjectColor(level, subject) {
-  const h = SUBJECT_HUE[subject] ?? 0;
-  const lv = LEVELS.find(x => x.key === level) || LEVELS[1];
-  const bg = `hsl(${h} ${lv.s}% ${lv.l}%)`;
-  const text = lv.l < 58 ? '#ffffff' : (subject === '国語' ? '#7A1E34' : subject === '数学' ? '#0C4A6E' : subject === '英語' ? '#4C1D95' : subject === '理科' ? '#14532D' : '#7C2D12');
-  return { bg, text };
+function renderUiVsSubjectBar() {
+  const mathCur = subjectColorCurrent('小学', '算数');
+  const mathV2 = subjectColorV2('小学', '算数');
+  document.getElementById('uiVsSubjectBar').innerHTML = `
+    <div class="ui-vs-chip" style="background:linear-gradient(180deg,${MF.royalBlue},${MF.cobalt});color:#fff;border-color:${MF.cobalt};">
+      UI：依頼ボタン<small>#3B7DE9 → #0054AC（217°）</small>
+    </div>
+    <div class="ui-vs-chip" style="background:${MF.solitude};color:${MF.cobalt};border:1px dashed ${MF.royalBlue};">
+      UI：未確定<small>背景 #ECF2FD / 217°系</small>
+    </div>
+    <div class="ui-vs-chip" style="background:${mathCur.bg};color:${mathCur.text};">
+      現行：算数タグ<small>hsl(208°) ← UIと近い</small>
+    </div>
+    <div class="ui-vs-chip" style="background:${mathV2.bg};color:${mathV2.text};border-color:#99D5C9;">
+      v2：算数タグ<small>hsl(188°) ティール ← 区別しやすい</small>
+    </div>
+  `;
 }
 
 function showToast(msg) {
@@ -82,6 +171,121 @@ function showToast(msg) {
   el.hidden = false;
   clearTimeout(showToast._t);
   showToast._t = setTimeout(() => { el.hidden = true; }, 1800);
+}
+
+function renderSubjectConventionTable() {
+  document.getElementById('subjectConventionTable').innerHTML = `
+    <table class="convention-table">
+      <thead>
+        <tr>
+          <th>教科</th>
+          <th>世間の慣習</th>
+          <th>色相</th>
+          <th>変更</th>
+        </tr>
+      </thead>
+      <tbody>
+        ${SUBJECT_CONVENTIONS.map(row => {
+          const sample = subjectColorV2('中学', row.subject.includes('算') ? '数学' : row.subject);
+          return `<tr>
+            <td><span class="swatch-inline" style="background:${sample.bg};"></span><strong>${row.subject}</strong></td>
+            <td>${row.convention}<br><span style="font-size:10px;color:#787E8D;">参考 ${row.reference}</span></td>
+            <td>${row.hueOld}° → <strong>${row.hueNew}°</strong></td>
+            <td class="${row.isNew ? 'change-new' : ''}">${row.change}</td>
+          </tr>`;
+        }).join('')}
+      </tbody>
+    </table>
+  `;
+}
+
+function renderSubjectGridIn(containerId, colorFn, hueMap, levelShades) {
+  const subjects = ['国語', '数学', '英語', '理科', '社会'];
+  const el = document.getElementById(containerId);
+  if (!el) return;
+  el.innerHTML = subjects.map(sub => {
+    const shades = levelShades.map(lv => {
+      const s = sub === '数学' && lv.key === '小学' ? '算数' : sub;
+      const c = colorFn(lv.key, s);
+      const abbr = { '国語': '国', '算数': '数', '数学': '数', '英語': '英', '理科': '理', '社会': '社' }[s];
+      const h = hueMap[s] ?? hueMap[sub];
+      return `
+        <div class="subject-shade" data-hex="${c.bg}" data-label="${s}${lv.label}">
+          <div class="subject-shade-bar" style="background:${c.bg};color:${c.text};">${abbr}・${lv.label}</div>
+          <div class="subject-shade-label">${lv.key} hsl(${h} ${lv.s}% ${lv.l}%)</div>
+        </div>
+      `;
+    }).join('');
+    const h = hueMap[sub];
+    return `
+      <div class="subject-row">
+        <div class="subject-row-head">
+          <h3>${sub}${sub === '数学' ? '（算数と同色）' : ''}</h3>
+          <span>色相 ${h}°</span>
+        </div>
+        <div class="subject-shades">${shades}</div>
+      </div>
+    `;
+  }).join('');
+  el.querySelectorAll('.subject-shade').forEach(node => {
+    node.addEventListener('click', () => copyHex(node.dataset.hex, node.dataset.label));
+  });
+}
+
+function renderSubjectGrid() {
+  renderSubjectGridIn('subjectSwatches', subjectColorV2, SUBJECT_HUE_V2, LEVELS_V2);
+}
+
+function renderSubjectCompare() {
+  document.getElementById('subjectCompare').innerHTML = `
+    <div class="subject-compare-col">
+      <div class="subject-compare-col-head current">現行（本番コード）</div>
+      <div class="subject-compare-col-body" id="subjectSwatchesCurrent"></div>
+    </div>
+    <div class="subject-compare-col">
+      <div class="subject-compare-col-head v2">v2 修正案</div>
+      <div class="subject-compare-col-body" id="subjectSwatchesV2"></div>
+    </div>
+  `;
+  renderSubjectGridIn('subjectSwatchesCurrent', subjectColorCurrent, SUBJECT_HUE_CURRENT, LEVELS);
+  renderSubjectGridIn('subjectSwatchesV2', subjectColorV2, SUBJECT_HUE_V2, LEVELS_V2);
+}
+
+function renderMatchingPanelCompare() {
+  const renderPanel = (colorFn, label, headClass) => {
+    const c = colorFn('小学', '算数');
+    const rows = [
+      { name: '鈴木 先生', badges: ['得意科目'] },
+      { name: '佐藤 先生', badges: ['講師希望コマ'] },
+      { name: '田中 先生', badges: ['全コマ対応'] },
+    ];
+    return `
+      <div class="cal-panel">
+        <div class="cal-panel-label ${headClass}">${label}</div>
+        <div class="matching-mock">
+          <div class="matching-mock-head">4講（14:50〜16:20）／ 教室 0/12</div>
+          <div class="matching-mock-meta">
+            <span class="mock-subject-tag" style="background:${c.bg};color:${c.text};">算数</span>
+            <span>テステスさん 小4</span>
+            <span class="mock-pending">未確定</span>
+          </div>
+          ${rows.map((r, i) => `
+            <div class="matching-mock-row">
+              <span class="matching-mock-num">${i + 1}</span>
+              <div>
+                <div class="matching-mock-name">${r.name}</div>
+                <div class="matching-mock-badges">${r.badges.map(b => `<span class="mock-pref">${b}</span>`).join('')}</div>
+              </div>
+              <button type="button" class="mock-request-btn">この講師に依頼</button>
+            </div>
+          `).join('')}
+        </div>
+      </div>
+    `;
+  };
+  document.getElementById('matchingPanelCompare').innerHTML =
+    renderPanel(subjectColorCurrent, '現行 — 算数≈UI青', 'legacy') +
+    renderPanel(subjectColorV2, 'v2 — 算数=ティール', 'proposed');
 }
 
 function copyHex(hex, label) {
@@ -120,7 +324,7 @@ function renderLayerDiagram() {
       <div class="layer-card-head">B. 教科色</div>
       <div class="layer-card-body">
         <strong>国・数・英・理・社で色相固定</strong>
-        授業タグ・カレンダー予定バーだけ。数学タグは淡い空色、ボタンは濃いロイヤルブルーで役割分担。
+        数学・算数は<strong>ティール188°</strong>（UI青217°と別）。授業タグだけに使う。
       </div>
     </div>
     <div class="layer-card layer-c">
@@ -131,34 +335,6 @@ function renderLayerDiagram() {
       </div>
     </div>
   `;
-}
-
-function renderSubjectGrid() {
-  const subjects = ['国語', '数学', '英語', '理科', '社会'];
-  document.getElementById('subjectSwatches').innerHTML = subjects.map(sub => {
-    const shades = LEVELS.map(lv => {
-      const c = subjectColor(lv.key, sub);
-      const abbr = { '国語': '国', '数学': '数', '英語': '英', '理科': '理', '社会': '社' }[sub];
-      return `
-        <div class="subject-shade" data-hex="${c.bg}" data-label="${sub}${lv.label}">
-          <div class="subject-shade-bar" style="background:${c.bg};color:${c.text};">${abbr}・${lv.label}</div>
-          <div class="subject-shade-label">${lv.key} hsl(${SUBJECT_HUE[sub]} ${lv.s}% ${lv.l}%)</div>
-        </div>
-      `;
-    }).join('');
-    return `
-      <div class="subject-row">
-        <div class="subject-row-head">
-          <h3>${sub}</h3>
-          <span>色相 ${SUBJECT_HUE[sub]}°</span>
-        </div>
-        <div class="subject-shades">${shades}</div>
-      </div>
-    `;
-  }).join('');
-  document.querySelectorAll('.subject-shade').forEach(node => {
-    node.addEventListener('click', () => copyHex(node.dataset.hex, node.dataset.label));
-  });
 }
 
 function renderStatusGrid() {
@@ -196,41 +372,42 @@ function miniCalCell(opts) {
 }
 
 function renderCalendarCompare() {
-  const kokugo = subjectColor('中学', '国語');
-  const sugaku = subjectColor('中学', '数学');
+  const kokugoV2 = subjectColorV2('中学', '国語');
+  const sugakuCur = subjectColorCurrent('中学', '数学');
+  const sugakuV2 = subjectColorV2('中学', '数学');
   const dow = ['月', '火', '水', '木', '金', '土', '日'];
 
   const legacyCells = [
     miniCalCell({ day: 13 }),
-    miniCalCell({ day: 14, entries: [{ label: '国:田中', bg: kokugo.bg, text: kokugo.text }] }),
+    miniCalCell({ day: 14, entries: [{ label: '国:田中', bg: subjectColorCurrent('中学', '国語').bg, text: subjectColorCurrent('中学', '国語').text }] }),
     miniCalCell({
       day: 15,
       cellStyle: 'background:#474B52;',
       dayStyle: 'color:#fff;',
       entries: [
-        { label: '数:佐藤', bg: sugaku.bg, text: sugaku.text },
+        { label: '数:佐藤', bg: sugakuCur.bg, text: sugakuCur.text },
         { label: '未確定', bg: '#FFF3CD', text: '#856404', dashed: true },
       ],
     }),
-    miniCalCell({ day: 16, cellStyle: 'box-shadow:inset 0 0 0 2px #8A7248;', entries: [{ label: '英:山田', bg: subjectColor('中学', '英語').bg, text: subjectColor('中学', '英語').text }] }),
-    miniCalCell({ day: 17, today: { bg: '#8A7248', fg: '#fff' }, entries: [{ label: '理:鈴木', bg: subjectColor('中学', '理科').bg, text: subjectColor('中学', '理科').text }] }),
+    miniCalCell({ day: 16, entries: [{ label: '英:山田', bg: subjectColorCurrent('中学', '英語').bg, text: subjectColorCurrent('中学', '英語').text }] }),
+    miniCalCell({ day: 17, today: { bg: '#8A7248', fg: '#fff' }, entries: [{ label: '理:鈴木', bg: subjectColorCurrent('中学', '理科').bg, text: subjectColorCurrent('中学', '理科').text }] }),
     miniCalCell({ day: 18 }),
     miniCalCell({ day: 19 }),
   ];
 
   const proposedCells = [
     miniCalCell({ day: 13 }),
-    miniCalCell({ day: 14, entries: [{ label: '国:田中', bg: kokugo.bg, text: kokugo.text }] }),
+    miniCalCell({ day: 14, entries: [{ label: '国:田中', bg: kokugoV2.bg, text: kokugoV2.text }] }),
     miniCalCell({
       day: 15,
       cellStyle: `background:${MF.darkenAliceBlue};outline:2px solid ${MF.royalBlue};outline-offset:-2px;`,
       entries: [
-        { label: '数:佐藤', bg: sugaku.bg, text: sugaku.text },
+        { label: '数:佐藤', bg: sugakuV2.bg, text: sugakuV2.text },
         { label: '未確定', bg: MF.solitude, text: MF.cobalt, dashed: true, border: MF.royalBlue },
       ],
     }),
-    miniCalCell({ day: 16, entries: [{ label: '英:山田', bg: subjectColor('中学', '英語').bg, text: subjectColor('中学', '英語').text }] }),
-    miniCalCell({ day: 17, today: { bg: MF.royalBlue, fg: '#fff' }, entries: [{ label: '理:鈴木', bg: subjectColor('中学', '理科').bg, text: subjectColor('中学', '理科').text }] }),
+    miniCalCell({ day: 16, entries: [{ label: '英:山田', bg: subjectColorV2('中学', '英語').bg, text: subjectColorV2('中学', '英語').text }] }),
+    miniCalCell({ day: 17, today: { bg: MF.royalBlue, fg: '#fff' }, entries: [{ label: '理:鈴木', bg: subjectColorV2('中学', '理科').bg, text: subjectColorV2('中学', '理科').text }] }),
     miniCalCell({ day: 18, entries: [{ label: '社:欠席', strike: true }] }),
     miniCalCell({ day: 19, cellStyle: `background:${MF.mistyRose};`, dayStyle: `color:${MF.venetianRed};`, entries: [] }),
   ];
@@ -246,7 +423,7 @@ function renderCalendarCompare() {
       <div class="mini-cal">${grid(legacyCells)}</div>
     </div>
     <div class="cal-panel">
-      <div class="cal-panel-label proposed">提案 — MFクラウド系ブルー</div>
+      <div class="cal-panel-label proposed">MF UI ＋ v2教科色</div>
       <div class="mini-cal">${grid(proposedCells)}</div>
     </div>
   `;
@@ -254,9 +431,9 @@ function renderCalendarCompare() {
 
 function renderUiMock() {
   const tags = [
-    { sub: '国語', ...subjectColor('中学', '国語') },
-    { sub: '数学', ...subjectColor('中学', '数学') },
-    { sub: '英語', ...subjectColor('中学', '英語') },
+    { sub: '国語', ...subjectColorV2('中学', '国語') },
+    { sub: '数学', ...subjectColorV2('中学', '数学') },
+    { sub: '英語', ...subjectColorV2('中学', '英語') },
   ];
   document.getElementById('uiMock').innerHTML = `
     <div class="mock-app-header">
@@ -287,6 +464,10 @@ function renderUiMock() {
 }
 
 renderLayerDiagram();
+renderUiVsSubjectBar();
+renderSubjectConventionTable();
+renderMatchingPanelCompare();
+renderSubjectCompare();
 renderCalendarCompare();
 renderUiMock();
 renderSwatchGrid('uiSwatches', UI_TOKENS);
