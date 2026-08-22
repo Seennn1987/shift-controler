@@ -58,7 +58,7 @@ export function renderMatchCandidateList(candidates, opts){
         data-day="${escapeAttr(day)}"
         data-slot="${slot}"
         data-teacher="${escapeAttr(cand.teacher.id)}"
-        ${dateStr ? `data-date="${escapeAttr(dateStr)}"` : ''}>講師を決める</button>` : '';
+        ${dateStr ? `data-date="${escapeAttr(dateStr)}"` : ''}>この講師に依頼</button>` : '';
     html += `<div class="match-cand-row">
       <span class="match-cand-rank">${idx + 1}</span>
       <div class="match-cand-main">

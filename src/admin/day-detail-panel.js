@@ -76,7 +76,7 @@ export function renderDayDetailPanel(container, dateStr){
       return;
     }
 
-    let html = `<div class="cal-day-note">${filterStudent.name}さんの希望曜日パターン（＋振替）から、この日の状況を表示しています。ここから直接、講師を決める・欠席登録・振替の操作ができます。</div>`;
+    let html = `<div class="cal-day-note">${filterStudent.name}さんの希望曜日パターン（＋振替）から、この日の状況を表示しています。ここから直接、講師に依頼・欠席登録・振替の操作ができます。</div>`;
     html += `<button type="button" class="ghost mp-action day-detail-go-month" data-student-id="${filterStudent.id}">${filterStudent.name}さんの月間一覧へ</button>`;
 
     rows.forEach(r=>{
