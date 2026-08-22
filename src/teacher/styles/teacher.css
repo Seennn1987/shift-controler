@@ -93,6 +93,7 @@
   }
   .mycal-status-badge.is-pending{background:var(--danger-bg);color:var(--danger);border-color:var(--danger);}
   .mycal-status-badge.is-confirmed{background:var(--green-100);color:var(--green-900);border-color:var(--green-700);}
+  .mycal-status-badge.is-assigned{background:var(--green-100);color:var(--green-900);border-color:var(--green-600);}
   .mycal-status-badge.is-sub{background:var(--surface-card);color:var(--ink-soft);border-color:var(--border);}
   .mycal-actions{display:flex;align-items:center;gap:var(--space-2);flex-shrink:0;flex-wrap:wrap;}
   .mycal-approve-btn{

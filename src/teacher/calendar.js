@@ -201,7 +201,7 @@ function renderMyCalendar(){
             <div class="mycal-lesson-info">
               <span class="mycal-slot-tag">${slotLabel?slotLabel.label:e.slot+'講'}</span>
               <b>${e.studentName}</b>（${e.studentGrade||''}）　${e.subject}
-              ${e.oneTimeDate ? '<span class="mycal-status-badge is-sub">単発の代講</span>' : ''}
+              ${e.isPreferredPair ? '<span class="mycal-status-badge is-assigned">担当生徒</span>' : ''}
             </div>
             ${buildActionsHtml(e, ticket, approvalState)}
           </div>`;

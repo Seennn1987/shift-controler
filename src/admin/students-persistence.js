@@ -323,8 +323,11 @@ function scheduleSyncTeacherAssignments(){
   if(S.syncTeacherAssignmentsTimer) clearTimeout(S.syncTeacherAssignmentsTimer);
   S.syncTeacherAssignmentsTimer = setTimeout(syncTeacherAssignments, 1200);
 }
-function expandAssignmentForTeacherCalendar(a, approvalStatus){
+function expandAssignmentForTeacherCalendar(a, approvalStatus, teacherId){
   const student = S.students.find(s=>s.id===a.studentId);
+  const isPreferredPair = S.preferredPairs.some(p=>
+    p.studentId===a.studentId && p.courseId===a.courseId && p.teacherId===teacherId
+  );
   const base = {
     day: a.day,
     slot: a.slot,
@@ -332,6 +335,7 @@ function expandAssignmentForTeacherCalendar(a, approvalStatus){
     studentGrade: student ? gradeLabel(student) : '',
     subject: a.subject,
     approvalStatus,
+    isPreferredPair,
   };
   if(a.oneTimeDate){
     return [{ ...base, oneTimeDate: a.oneTimeDate }];
@@ -355,10 +359,10 @@ async function syncTeacherAssignments(){
   for(const t of loginTeachers){
     const entries = [];
     S.assignments.filter(a=>a.teacherId===t.id).forEach(a=>{
-      expandAssignmentForTeacherCalendar(a, 'confirmed').forEach(e=> entries.push(e));
+      expandAssignmentForTeacherCalendar(a, 'confirmed', t.id).forEach(e=> entries.push(e));
     });
     S.pendingAssignments.filter(a=>a.teacherId===t.id).forEach(a=>{
-      expandAssignmentForTeacherCalendar(a, 'pending').forEach(e=> entries.push(e));
+      expandAssignmentForTeacherCalendar(a, 'pending', t.id).forEach(e=> entries.push(e));
     });
     // この講師が「代講」として単発で担当する授業（該当日だけの特別枠）
     S.teacherSubstitutions.forEach(sub=>{
@@ -369,6 +373,9 @@ async function syncTeacherAssignments(){
       );
       if(!original) return;
       const student = S.students.find(s=>s.id===original.studentId);
+      const isPreferredPair = S.preferredPairs.some(p=>
+        p.studentId===original.studentId && p.courseId===original.courseId && p.teacherId===t.id
+      );
       entries.push({
         day: getDayStatus(sub.date).weekday, slot: sub.slot,
         studentName: student ? student.name : '(削除された生徒)',
@@ -376,6 +383,7 @@ async function syncTeacherAssignments(){
         subject: original.subject,
         oneTimeDate: sub.date,
         approvalStatus: 'confirmed',
+        isPreferredPair,
       });
     });
     const ref = fbDb.collection('teacherAssignments').doc(`${user.uid}_${t.id}`);
