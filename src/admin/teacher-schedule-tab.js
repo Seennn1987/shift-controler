@@ -85,12 +85,40 @@ function findNearestFutureDateForWeekday(weekday){
   return null;
 }
 
+function approvalJumpDate(a){
+  if(a.oneTimeDate) return a.oneTimeDate;
+  const ym = getActiveYearMonth();
+  const today = getTodayStr();
+  const total = daysInYearMonth(ym);
+  for(let d=1; d<=total; d++){
+    const dateStr = `${ym}-${pad2(d)}`;
+    if(dateStr < today) continue;
+    if(getDayStatus(dateStr).weekday === a.day) return dateStr;
+  }
+  for(let d=1; d<=total; d++){
+    const dateStr = `${ym}-${pad2(d)}`;
+    if(getDayStatus(dateStr).weekday === a.day) return dateStr;
+  }
+  return findNearestFutureDateForWeekday(a.day);
+}
+
 function approvalScheduleLine(a){
   const slotLabel = SLOTS.find(s=>s.id===a.slot)?.label || `${a.slot}講`;
-  const dateStr = a.oneTimeDate || findNearestFutureDateForWeekday(a.day);
+  const dateStr = approvalJumpDate(a);
   const datePart = dateStr ? `${dateStr}（${a.day}）${slotLabel}` : `${a.day}曜${slotLabel}`;
   const recur = !a.oneTimeDate && dateStr ? ' · 毎週' : '';
   return `${datePart}${recur} · ${a.studentName}（${a.studentGrade||''}）· ${a.subject}`;
+}
+
+function openMatchingForApprovalTicket(a){
+  const student = S.students.find(s=> s.name === a.studentName);
+  if(!student){
+    window.alert(`${a.studentName}さんのデータが見つかりませんでした。`);
+    return;
+  }
+  document.dispatchEvent(new CustomEvent('matching:go-student-date', {
+    detail: { studentId: student.id, dateStr: approvalJumpDate(a) },
+  }));
 }
 
 function approvalBadgeHtml(status){
@@ -103,15 +131,17 @@ function approvalBadgeHtml(status){
   return '<span class="approval-badge pending">確認待ち</span>';
 }
 
-function renderApprovalDashboardItem(a, teacherName, status){
+function renderApprovalDashboardItem(a, teacherName, status, { action = false } = {}){
   const rowCls = status==='rejected' ? ' approval-item-rejected' : '';
-  return `<div class="approval-item${rowCls}">
-    <div class="approval-item-main">
+  const inner = `<div class="approval-item-main">
       <span class="approval-item-teacher">${teacherName}</span>
       <span class="approval-item-detail">${approvalScheduleLine(a)}</span>
     </div>
-    ${approvalBadgeHtml(status)}
-  </div>`;
+    ${approvalBadgeHtml(status)}`;
+  if(!action){
+    return `<div class="approval-item${rowCls}">${inner}</div>`;
+  }
+  return `<button type="button" class="approval-item approval-item-btn${rowCls}" data-approval-id="${a.id}" aria-label="${teacherName}のコマをマッチングで開く">${inner}</button>`;
 }
 
 async function renderApprovalStatus(){
@@ -149,15 +179,16 @@ async function renderApprovalStatus(){
     .filter(a=> a.status==='approved' && !dismissed.has(a.id))
     .slice(0, APPROVAL_RECENT_LIMIT);
 
+  const actionItems = [...rejected, ...pending];
   const leftHtml = [
     ...rejected.map(a=>{
       const teacher = S.teachers.find(t=>t.id===a.teacherId);
-      return renderApprovalDashboardItem(a, teacher ? teacher.name : '(削除された講師)', 'rejected');
+      return renderApprovalDashboardItem(a, teacher ? teacher.name : '(削除された講師)', 'rejected', { action: true });
     }),
     ...(pending.length
       ? pending.map(a=>{
           const teacher = S.teachers.find(t=>t.id===a.teacherId);
-          return renderApprovalDashboardItem(a, teacher ? teacher.name : '(削除された講師)', 'pending');
+          return renderApprovalDashboardItem(a, teacher ? teacher.name : '(削除された講師)', 'pending', { action: true });
         })
       : ['<div class="approval-col-empty">確認待ちはありません</div>']),
   ].join('');
@@ -194,6 +225,13 @@ async function renderApprovalStatus(){
     approved.forEach(a=> dismissed.add(a.id));
     saveDismissedApprovalIds(dismissed);
     renderApprovalStatus();
+  });
+
+  wrap.querySelectorAll('.approval-item-btn[data-approval-id]').forEach(btn=>{
+    btn.addEventListener('click', ()=>{
+      const ticket = actionItems.find(a=> a.id === btn.dataset.approvalId);
+      if(ticket) openMatchingForApprovalTicket(ticket);
+    });
   });
 }
 

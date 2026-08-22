@@ -163,17 +163,40 @@ function showDayDetail(dateStr){
 }
 
 function showMatchingStudentView(studentId){
+  showMatchingStudentAtDate(studentId, null);
+}
+
+function showMatchingStudentAtDate(studentId, dateStr){
   if(!studentId) return;
   S.matchingPanelStudentId = studentId;
   S.matchingPanelSlot = null;
   S.calendarDrawerView = 'matching-student';
   setCalFilterStudent(studentId);
   S.matchingPanelOpen = true;
+  switchView('calendar');
+  switchCalMode('month');
+  closeCalActionPanels();
+
+  if(dateStr){
+    syncCalMonthToDate(dateStr);
+    S.calSelectedDate = dateStr;
+  }else{
+    const firstPending = findFirstPendingDate(studentId);
+    if(firstPending){
+      syncCalMonthToDate(firstPending);
+      S.calSelectedDate = firstPending;
+    }else{
+      const fallback = findFirstOpenDateInMonth();
+      if(fallback) S.calSelectedDate = fallback;
+    }
+  }
+
   refreshCalFilterOptions();
   applyPanelLayout();
   hideCalDetailCard();
   renderMatchingDesiredBar();
   renderCalendar();
+  scrollCalendarIntoView();
   renderDrawerContent();
 }
 
@@ -953,6 +976,9 @@ function initMatchingPanel(){
   document.addEventListener('calendar:refresh-day', onRefreshDay);
   document.addEventListener('matching:go-student-month', e=>{
     showMatchingStudentView(e.detail?.studentId);
+  });
+  document.addEventListener('matching:go-student-date', e=>{
+    showMatchingStudentAtDate(e.detail?.studentId, e.detail?.dateStr);
   });
   document.addEventListener('calendar:rendered', onCalendarRendered);
   document.addEventListener('matching:refresh-panel', ()=>{

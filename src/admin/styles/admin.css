@@ -726,6 +726,12 @@
   .approval-item-teacher{font-weight:900;color:var(--ink);margin-right:6px;}
   .approval-item-detail{color:var(--ink-soft);}
   .approval-item .approval-badge{flex-shrink:0;}
+  button.approval-item-btn{
+    width:100%;font-family:inherit;text-align:left;cursor:pointer;
+    transition:border-color .12s,background .12s;
+  }
+  button.approval-item-btn:hover{border-color:var(--brand-300);background:var(--brand-50);}
+  button.approval-item-btn:focus-visible{outline:2px solid var(--brand-500);outline-offset:2px;}
   .approval-col-empty{
     font-size:var(--text-sm);color:var(--ink-faint);text-align:center;padding:20px 8px;
   }
