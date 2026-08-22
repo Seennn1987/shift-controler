@@ -89,7 +89,7 @@ export function buildWaitingSlotCardHtml({
 }){
   return `<div class="match-slot mp-slot-card mp-slot-waiting">
     <div class="ms-slot-label">${slotLabel}（${slotTime}）<span class="mp-slot-meta">教室 ${roomUsed}/${roomCapacity}</span></div>
-    <div class="mp-slot-subject">${subjectTagHtml}<span class="mp-slot-badge waiting">講師確認待ち</span></div>
+    <div class="mp-slot-subject">${subjectTagHtml}<span class="mp-slot-badge waiting">承認待ち</span></div>
     <div class="mp-slot-waiting-teacher">講師：${teacherHonorificName}</div>
     <div class="mp-slot-actions">
       <button type="button" class="ghost mp-change-teacher-btn"

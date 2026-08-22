@@ -444,7 +444,7 @@ function buildCandidatesHtml(student, courseId, subject, day, slot, dateStr){
 function buildAssignmentFlashMessage({slotLabel, subject, teacherName, pending}){
   const detail = `${slotLabel || ''}（${subject}）`;
   if(pending){
-    return `✓ ${detail}を${teacherName}先生に確認依頼しました（講師確認待ち）。`;
+    return `✓ ${detail}を${teacherName}先生に依頼しました（承認待ち）。`;
   }
   return `✓ ${detail}を${teacherName}先生で確定しました。`;
 }
@@ -861,7 +861,7 @@ function handlePanelBulkCancel(){
     if(resultEl) resultEl.innerHTML = '<div class="matching-panel-result-msg">マッチングデータはありません。</div>';
     return;
   }
-  if(!confirm(`確定・講師確認待ち・欠席・代講を含む${totalCount}件のデータをすべて削除しますか？\n（生徒・講師・シフトの登録は残ります）`)) return;
+  if(!confirm(`確定・承認待ち・欠席・代講を含む${totalCount}件のデータをすべて削除しますか？\n（生徒・講師・シフトの登録は残ります）`)) return;
   clearAllMatchingData().then(()=>{
     if(resultEl) resultEl.innerHTML = '<div class="matching-panel-result-msg partial">マッチングデータをすべて削除しました。</div>';
     afterMatchingChange();
@@ -930,7 +930,7 @@ function renderMatchingDesiredBar(){
       let label = '未確定';
       if(eff){
         status = eff.isPending ? 'waiting' : 'done';
-        label = eff.isPending ? '講師確認待ち' : '確定';
+        label = eff.isPending ? '承認待ち' : '確定';
       }
       const active = !!(S.calSelectedDate &&
         getDayStatus(S.calSelectedDate).weekday === ds.day);

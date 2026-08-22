@@ -128,7 +128,7 @@ function approvalBadgeHtml(status){
   if(status==='approved'){
     return '<span class="approval-badge approved">確定</span>';
   }
-  return '<span class="approval-badge pending">講師確認待ち</span>';
+  return '<span class="approval-badge pending">承認待ち</span>';
 }
 
 function renderApprovalDashboardItem(a, teacherName, status, { action = false } = {}){
@@ -171,7 +171,7 @@ async function renderApprovalStatus(){
   bar.classList.add('is-warn');
   bar.classList.remove('is-ok');
 
-  const summaryParts = [`講師の確認待ち ${pending.length}件`];
+  const summaryParts = [`承認待ち ${pending.length}件（講師の返事待ち）`];
   if(rejected.length>0) summaryParts.push(`断り ${rejected.length}件`);
   summaryLine.textContent = summaryParts.join(' · ');
 
@@ -190,7 +190,7 @@ async function renderApprovalStatus(){
           const teacher = S.teachers.find(t=>t.id===a.teacherId);
           return renderApprovalDashboardItem(a, teacher ? teacher.name : '(削除された講師)', 'pending', { action: true });
         })
-      : ['<div class="approval-col-empty">確認待ちはありません</div>']),
+      : ['<div class="approval-col-empty">承認待ちはありません</div>']),
   ].join('');
 
   const approvedHtml = approved.length
@@ -204,7 +204,7 @@ async function renderApprovalStatus(){
     <div class="approval-two-col">
       <div class="approval-col approval-col-pending">
         <div class="approval-col-label">要対応 <span class="approval-col-num">${actionCount}件</span></div>
-        <div class="approval-scroll" aria-label="確認待ちと断られた授業">${leftHtml}</div>
+        <div class="approval-scroll" aria-label="承認待ちと断られた授業">${leftHtml}</div>
       </div>
       <div class="approval-col approval-col-done">
         <div class="approval-col-head">
@@ -803,7 +803,7 @@ async function withdrawPendingAssignment(studentId, courseId, day, slot, dateStr
   const ym = dateStr ? dateStr.slice(0, 7) : getActiveYearMonth();
   const eff = findEffectiveAssignment(studentId, courseId, day, slot, ym, dateStr || null);
   if(!eff?.isPending){
-    return { ok: false, msg: '講師確認待ちのコマが見つかりません。' };
+    return { ok: false, msg: '承認待ちのコマが見つかりません。' };
   }
   const teacher = S.teachers.find(t=> t.id === eff.entry.teacherId);
   const teacherLabel = teacher ? `${teacher.name}先生` : '講師';

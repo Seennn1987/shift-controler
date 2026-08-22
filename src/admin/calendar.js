@@ -59,7 +59,7 @@ function studentRowToCalLine(r, student){
   }
   if(r.existing){
     if(r.isPending){
-      return {text:`${subAbbr}:確認待ち`, cls:'pending'};
+      return {text:`${subAbbr}:承認待`, cls:'pending'};
     }
     const teacher = S.teachers.find(t=>t.id===r.existing.teacherId);
     return {text:`${subAbbr}:${teacher?shortName(teacher.name):'?'}`, cls:'confirmed', bg:sc.bg, color:sc.text};
