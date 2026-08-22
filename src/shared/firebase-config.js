@@ -17,3 +17,16 @@ export function initPrimaryFirebase() {
   fbDb.settings({ experimentalAutoDetectLongPolling: true, merge: true });
   return { fbAuth, fbDb };
 }
+
+/** 講師用ページ専用。教室長（default）と Auth セッションを分離し、別タブ同時ログインを可能にする */
+export function initTeacherFirebase() {
+  const appName = 'teacher';
+  let app = firebase.apps.find(a => a.name === appName);
+  if (!app) {
+    app = firebase.initializeApp(firebaseConfig, appName);
+  }
+  const fbAuth = firebase.auth(app);
+  const fbDb = firebase.firestore(app);
+  fbDb.settings({ experimentalAutoDetectLongPolling: true, merge: true });
+  return { fbAuth, fbDb };
+}
