@@ -57,10 +57,8 @@
   .tab-view{display:none;}
   .tab-view.active{display:block;}
 
-  .pending-banner{display:flex;align-items:flex-start;justify-content:space-between;gap:var(--space-5);flex-wrap:wrap;}
-  .pending-banner-text{display:flex;flex-direction:column;gap:var(--space-2);min-width:0;}
-  .pending-banner-text > span:first-child{font-size:var(--text-md);font-weight:var(--font-weight-bold);color:var(--danger);}
-  .pending-banner-hint{font-size:var(--text-sm);color:var(--ink-soft);font-weight:var(--font-weight-regular);line-height:var(--leading-relaxed);}
+  .pending-banner{display:flex;align-items:center;justify-content:space-between;gap:var(--space-5);flex-wrap:wrap;}
+  .pending-banner #pendingBannerText{font-size:var(--text-md);font-weight:var(--font-weight-bold);color:var(--danger);}
 
   .mycal-day{margin-bottom:var(--space-5);}
   .mycal-date-label{font-size:var(--text-md);font-weight:var(--font-weight-bold);color:var(--green-800);margin-bottom:var(--space-2);}

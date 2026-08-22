@@ -15,23 +15,36 @@ function statusBadgeHtml(state){
   return '<span class="mycal-status-badge is-confirmed">確定済み</span>';
 }
 
+// 今月のカレンダー上に「依頼中」と表示される行数（講師が目で見える件数）
+function countPendingRowsInMonth(){
+  const total = daysInYearMonth(`${S.myCalYear}-${pad2(S.myCalMonth+1)}`);
+  let count = 0;
+  for(let d=1; d<=total; d++){
+    const dateStr = `${S.myCalYear}-${pad2(S.myCalMonth+1)}-${pad2(d)}`;
+    const wd = WEEKDAY_JP[new Date(dateStr+'T00:00:00').getDay()];
+    if(getDayStatus(dateStr).type !== 'open') continue;
+    const dayEntries = S.myAssignmentEntries.filter(e=> e.oneTimeDate ? e.oneTimeDate===dateStr : e.day===wd);
+    dayEntries.forEach(e=>{
+      if(resolveApprovalState(e) === 'pending') count++;
+    });
+  }
+  return count;
+}
+
 // ---- マイカレンダー（実日付ベースの担当授業一覧） ----
 function renderMyCalendar(){
   const wrap = document.getElementById('myCalWrap');
   if(!wrap) return;
   document.getElementById('calMonthTitle').textContent = `${S.myCalYear}年${S.myCalMonth+1}月`;
 
-  const pendingCount = S.newAssignments.length;
+  const pendingCount = countPendingRowsInMonth();
   const bannerCard = document.getElementById('pendingBannerCard');
-  const bannerHint = document.getElementById('pendingBannerHint');
   if(pendingCount>0){
     bannerCard.style.display = '';
     document.getElementById('pendingBannerText').textContent = `${pendingCount}コマ、授業依頼が届いています`;
     document.getElementById('approveAllBtn').textContent = `まとめて承認（${pendingCount}コマ）`;
-    if(bannerHint) bannerHint.textContent = '同じコマは毎週の曜日ごとに表示されます。承認は1回でそのコマ全体に反映されます。';
   }else{
     bannerCard.style.display = 'none';
-    if(bannerHint) bannerHint.textContent = '';
   }
 
   const total = daysInYearMonth(`${S.myCalYear}-${pad2(S.myCalMonth+1)}`);
