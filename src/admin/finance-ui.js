@@ -173,7 +173,7 @@ function renderCalendarWeekGrid(axis){
 
   let tbody = '<tbody>';
   SLOTS.forEach((slot, si)=>{
-    tbody += `<tr class="${si===0?'sched-day-start':''}"><th>${slot.label}<span class="time">${slot.time}</span></th>`;
+    tbody += `<tr><th>${slot.label}<span class="time">${slot.time}</span></th>`;
     weekDates.forEach(ds=>{
       const status = getDayStatus(ds);
       if(status.type!=='open'){
@@ -211,7 +211,7 @@ function renderCalendarWeekGrid(axis){
         : buildTeacherAxisCell(list) + buildWeekUnassignedTeacherBlock(unassigned);
       tbody += `<td class="sched-cell week-date-cell" data-date="${ds}">
         <div class="sched-cell-inner">
-          <div class="sched-total">\u6559\u5ba4 ${totalCount}\u4eba</div>
+          <div class="sched-total">\u5408\u8a08${totalCount}\u540d</div>
           <div class="sched-lesson-list">${cellInner}</div>
         </div>
       </td>`;
