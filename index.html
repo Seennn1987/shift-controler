@@ -141,7 +141,7 @@
         <button type="button" class="week-axis-btn active" data-axis="student">生徒別</button>
         <button type="button" class="week-axis-btn" data-axis="teacher">講師別</button>
         <button type="button" class="week-axis-btn" data-axis="openings">空き状況</button>
-        <span class="help-tip" tabindex="0">?<span class="help-tip-text" id="calWeekDesc">生徒ごとの箱に、担当講師を表示します。未確定のコマもここに表示されます。</span></span>
+        <span class="help-tip" tabindex="0">?<span class="help-tip-text" id="calWeekDesc">生徒ごとのカードに、担当講師を表示します。講師未決のコマも同じ形で表示されます。</span></span>
         <label class="chip cal-openings-subject-toggle" id="calOpeningsSubjectToggleWrap" hidden>
           <input type="checkbox" id="calOpeningsShowSubjectsToggle">
           <span>講師ごとの教科タグを表示</span>
@@ -152,9 +152,8 @@
         <div id="matchingDesiredSlotsBar" class="matching-desired-bar" style="display:none;"></div>
         <div class="cal-grid" id="calGrid"></div>
         <div class="cal-legend" id="calLegendWrap">
-          <span class="cal-legend-item"><span class="cal-heat-box lv1 cal-legend-swatch" aria-hidden="true"></span>生徒数</span>
-          <span class="cal-legend-item"><span class="cal-heat-box lv2 cal-legend-swatch" aria-hidden="true"></span>やや多い</span>
-          <span class="cal-legend-item"><span class="cal-heat-box lv3 cal-legend-swatch" aria-hidden="true"></span>定員に近い</span>
+          <span class="cal-legend-item"><span class="cal-heat-box cal-legend-swatch-wide" aria-hidden="true"><span class="cal-heat-label">4講</span><span class="cal-heat-count">2人</span><span class="cal-heat-badge-anchor"></span></span>各コマの生徒数</span>
+          <span class="cal-legend-item"><span class="cal-heat-box is-empty cal-legend-swatch-wide" aria-hidden="true"><span class="cal-heat-label">7講</span><span class="cal-heat-count is-dash">—</span><span class="cal-heat-badge-anchor"></span></span>予定なし</span>
           <span class="cal-legend-item"><span class="cal-heat-pending-badge cal-legend-badge-swatch" aria-hidden="true">未決</span>講師未決</span>
           <span class="cal-legend-item"><span class="cal-dot closed"></span>定休日</span>
           <span class="cal-legend-item"><span class="cal-dot holiday"></span>祝日休校</span>
@@ -165,7 +164,8 @@
       <div id="calModeWeek" style="display:none;">
         <div id="calWeekWrap" style="padding:0 16px;"></div>
         <div class="cal-legend cal-week-legend" id="calWeekLegendWrap">
-          <span class="cal-legend-item"><span class="cal-entry pending" style="width:14px;height:12px;display:inline-block;padding:0;"></span>未確定</span>
+          <span class="cal-legend-item"><span class="sched-lesson-card cal-legend-swatch-card" aria-hidden="true">生徒カード</span>確定・未決共通</span>
+          <span class="cal-legend-item"><span class="sched-card-meta-value is-pending">未決</span>講師行の表示</span>
         </div>
       </div>
     </div>

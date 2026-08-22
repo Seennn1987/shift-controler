@@ -140,34 +140,24 @@ function getUnassignedRowsForDate(dateStr){
   return rows;
 }
 
-function heatOccupancyLevel(ratio){
-  if(ratio === 0) return 0;
-  if(ratio < 0.4) return 1;
-  if(ratio < 0.8) return 2;
-  return 3;
-}
-
 function heatBoxTitle(h){
   const parts = [`${h.slotLabel} · 生徒${h.count}人`, `定員${S.roomCapacity}人`];
   if(h.pendingCount > 0) parts.push(`講師未決${h.pendingCount}人`);
   return parts.join(' · ');
 }
 
-/** 教室全体表示：コマ帯（人数＋未決バッジ。略語「確定+未」は使わない） */
+/** 教室全体表示：4講〜7講を常に4行。人数＋未決バッジ（右余白） */
 function heatBoxHtml(h){
-  const pendingOnly = h.pendingCount > 0 && h.confirmedCount === 0;
+  const isEmpty = h.count === 0;
   const hasPending = h.pendingCount > 0;
-  const level = heatOccupancyLevel(h.ratio);
-  const mainText = pendingOnly ? h.slotLabel : `${h.slotLabel} ${h.count}人`;
+  const countHtml = isEmpty
+    ? '<span class="cal-heat-count is-dash">—</span>'
+    : `<span class="cal-heat-count">${h.count}人</span>`;
   const badge = hasPending
     ? `<span class="cal-heat-pending-badge">未決${h.pendingCount}</span>`
     : '';
-  const cls = [
-    'cal-heat-box',
-    pendingOnly ? 'is-pending-only' : `lv${level}`,
-    hasPending && !pendingOnly ? 'has-pending-badge' : '',
-  ].filter(Boolean).join(' ');
-  return `<div class="${cls}" title="${heatBoxTitle(h)}"><span class="cal-heat-main">${mainText}</span>${badge}</div>`;
+  const cls = ['cal-heat-box', isEmpty ? 'is-empty' : ''].filter(Boolean).join(' ');
+  return `<div class="${cls}" title="${heatBoxTitle(h)}"><span class="cal-heat-label">${h.slotLabel}</span>${countHtml}<span class="cal-heat-badge-anchor">${badge}</span></div>`;
 }
 
 // 教室全体表示用：その実日付における4コマ(4講〜7講)それぞれの混雑度（確定＋未マッチの希望コマを反映）
@@ -268,24 +258,18 @@ function renderCalendar(){
         }
         inner += entriesHtml ? `<div class="cal-entries">${entriesHtml}</div>` : `<div class="cal-heat-empty">−</div>`;
       }else{
-        // 教室全体表示時：個別列挙ではなく、コマ別の混雑度を「4講:3コマ」のように文字＋色で縦に並べて示す
         const heat = buildDayHeat(dateStr);
         const total = heat.reduce((sum,h)=>sum+h.count, 0);
-        if(total===0){
-          classes.push('no-activity');
-          inner += `<div class="cal-heat-empty">−</div>`;
-        }else{
-          const heatBoxes = heat.map(h=>{
-            if(h.count === 0) return '';
-            return heatBoxHtml(h);
-          }).filter(Boolean).join('');
-          if(!heatBoxes){
-            classes.push('no-activity');
-            inner += `<div class="cal-heat-empty">−</div>`;
-          }else{
-            inner += `<div class="cal-heat-stack">${heatBoxes}</div>`;
-          }
+        if(total===0) classes.push('no-activity');
+        if(heat.some(h=>h.pendingCount>0)){
+          classes.push('has-pending');
+          inner = inner.replace(
+            `<div class="cal-daynum">${day}</div>`,
+            `<div class="cal-daynum">${day}<span class="cal-day-pending-dot" aria-hidden="true"></span></div>`
+          );
         }
+        const heatBoxes = heat.map(h=>heatBoxHtml(h)).join('');
+        inner += `<div class="cal-heat-stack">${heatBoxes}</div>`;
       }
     }else if(status.type==='holiday'){
       inner += `<div class="cal-sublabel">${status.holidayName}</div>`;

@@ -1,0 +1,67 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ピタコマ カレンダーUI プレビュー</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Zen+Kaku+Gothic+New:wght@400;500;700;900&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="calendar-month-preview.css">
+</head>
+<body>
+  <header class="preview-header">
+    <div class="preview-header-inner">
+      <h1>カレンダー UI プレビュー</h1>
+      <p>月間・週間の教室全体表示 — 現状（公開中）と v2 修正案。未決の見せ方と行の型を月間・週間で揃えます。</p>
+    </div>
+  </header>
+
+  <main class="preview-main">
+    <section class="intro-block">
+      <h2>v2 の考え方（ゼロベース）</h2>
+      <ul class="principle-list" id="principleList"></ul>
+    </section>
+
+    <section class="compare-block">
+      <h2>同じ日付列の比較（8月・木曜）</h2>
+      <p class="section-desc">左がいま公開中の見た目、右が v2 案。<strong>3日</strong>（確定＋未決が混在）と<strong>10日</strong>（未決だけ）で、デザインのバラつきが出やすい例です。</p>
+      <div id="columnCompare" class="column-compare"></div>
+    </section>
+
+    <section class="compare-block">
+      <h2>1マスずつ拡大</h2>
+      <p class="section-desc">行の型が毎日同じか、未決バッジだけが目立つかを確認してください。</p>
+      <div id="cellZoomCompare" class="cell-zoom-compare"></div>
+    </section>
+
+    <section class="compare-block">
+      <h2>凡例（月間）</h2>
+      <div id="legendCompare" class="legend-compare"></div>
+    </section>
+
+    <section class="intro-block week-intro">
+      <h2>週間カレンダー v2 — 月間と同じルール</h2>
+      <ul class="principle-list" id="weekPrincipleList"></ul>
+    </section>
+
+    <section class="compare-block">
+      <h2>週間：1マス拡大（8/17 月 · 4講）</h2>
+      <p class="section-desc">スクショと同じ「2人・未確定2件」のマス。v2 は<strong>白箱のみ</strong>・名前1行・未決は講師行に「未決」と1回だけ。</p>
+      <div id="weekCellCompare" class="column-compare"></div>
+    </section>
+
+    <section class="compare-block">
+      <h2>週間：横並びグリッド（8/17〜8/19 · 4講）</h2>
+      <p class="section-desc">日付をまたいで<strong>カードの高さ・講師行の位置</strong>が揃うか確認してください。</p>
+      <div id="weekGridCompare" class="column-compare"></div>
+    </section>
+
+    <section class="compare-block">
+      <h2>凡例（週間）</h2>
+      <div id="weekLegendCompare" class="legend-compare"></div>
+    </section>
+  </main>
+
+  <script src="calendar-month-preview.js"></script>
+</body>
+</html>

@@ -210,7 +210,7 @@ function renderCalendarWeekGrid(axis){
         ? buildStudentAxisCell(list) + buildWeekUnassignedStudentBoxes(unassigned)
         : buildTeacherAxisCell(list) + buildWeekUnassignedTeacherBlock(unassigned);
       tbody += `<td class="sched-cell week-date-cell" data-date="${ds}">
-        <div class="sched-total">\u6559\u5ba4 ${totalCount}/${S.roomCapacity}</div>
+        <div class="sched-total">\u6559\u5ba4 ${totalCount}\u4eba</div>
         ${cellInner}
       </td>`;
     });
@@ -272,10 +272,27 @@ function buildTeacherAxisCell(list){
   return boxesHtml;
 }
 
-// \u751f\u5f92\u8ef8\uff1a\u30de\u30b9\u76ee\u306e\u4e2d\u306b\u751f\u5f92\u306e\u7bb1\u3092\u4f5c\u308a\u3001\u305d\u306e\u4e2d\u306b\u62c5\u5f53\u8b1b\u5e2b\u3092\u5165\u308c\u308b\uff08\u4e3b\u8a9e\u3092\u5165\u308c\u66ff\u3048\u308b\uff09
+// 週間カレンダー：生徒カード（2行・未決は講師行のみ）
+function buildWeekLessonCard({ subject, subjectStyle, studentName, gradeLabel, teacher, isPending, autoBadge = '', makeupBadge = '' }){
+  const teacherHtml = isPending
+    ? '<span class="sched-card-meta-value is-pending">未決</span>'
+    : `<span class="sched-card-meta-value">${teacherHonorific(teacher)}</span>`;
+  return `<div class="sched-lesson-card">
+    <div class="sched-card-row1">
+      <span class="sched-student-tag" style="background:${subjectStyle.bg};color:${subjectStyle.text};">${subject}</span>
+      <span class="sched-card-name">${studentName}</span>
+      <span class="sched-card-grade">${gradeLabel}</span>${autoBadge}${makeupBadge}
+    </div>
+    <div class="sched-card-row2">
+      <span class="sched-card-meta-label">講師</span>
+      ${teacherHtml}
+    </div>
+  </div>`;
+}
+
+// 生徒軸：マス目の中に生徒の箱を作り、その中に担当講師を入れる（主語を入れ替える）
 function buildStudentAxisCell(list){
-  let boxesHtml = '';
-  list.forEach(a=>{
+  return list.map(a=>{
     const student = S.students.find(s=>s.id===a.studentId);
     const studentName = student ? student.name : '(\u524a\u9664\u3055\u308c\u305f\u751f\u5f92)';
     const gLabel = student ? gradeLabel(student) : '';
@@ -284,48 +301,46 @@ function buildStudentAxisCell(list){
     const teacher = S.teachers.find(t=>t.id===a.teacherId);
     const autoBadge = a.source==='auto' ? '<span class="auto-badge">\u81ea\u52d5</span>' : '';
     const makeupBadge = a.kind==='makeup' ? '<span class="auto-badge" style="background:#fff;color:var(--ink);border:1px dashed var(--ink);">\u632f\u66ff</span>' : '';
-    boxesHtml += `<div class="sched-teacher-box">
-      <div class="sched-teacher-name">
-        <span class="sched-student-tag" style="background:${c.bg};color:${c.text};">${a.subject}</span>
-        ${studentName}<span class="grade-tag">${gLabel}</span>${autoBadge}${makeupBadge}
-      </div>
-      <div class="sched-student-row">\u8b1b\u5e2b\uff1a${teacherHonorific(teacher)}</div>
-    </div>`;
-  });
-  return boxesHtml;
+    return buildWeekLessonCard({
+      subject: a.subject,
+      subjectStyle: c,
+      studentName,
+      gradeLabel: gLabel,
+      teacher,
+      isPending: false,
+      autoBadge,
+      makeupBadge,
+    });
+  }).join('');
 }
 
 function buildWeekUnassignedStudentBoxes(unassignedRows){
-  if(unassignedRows.length===0) return '';
   return unassignedRows.map(row=>{
     const { student, course } = row;
     const c = subjectColor(student.level, course.subject);
-    return `<div class="sched-teacher-box week-unassigned-box">
-      <div class="sched-teacher-name">
-        <span class="sched-student-tag" style="background:${c.bg};color:${c.text};">${course.subject}</span>
-        ${student.name}<span class="grade-tag">${gradeLabel(student)}</span>
-        <span class="mp-slot-badge pending">未確定</span>
-      </div>
-      <div class="sched-student-row">\u8b1b\u5e2b\uff1a\u672a\u78ba\u5b9a</div>
-    </div>`;
+    return buildWeekLessonCard({
+      subject: course.subject,
+      subjectStyle: c,
+      studentName: student.name,
+      gradeLabel: gradeLabel(student),
+      teacher: null,
+      isPending: true,
+    });
   }).join('');
 }
 
 function buildWeekUnassignedTeacherBlock(unassignedRows){
-  if(unassignedRows.length===0) return '';
-  let studentsHtml = '';
-  unassignedRows.forEach(row=>{
+  return unassignedRows.map(row=>{
     const c = subjectColor(row.student.level, row.course.subject);
-    studentsHtml += `<div class="sched-student-row">
-      <span class="sched-student-tag" style="background:${c.bg};color:${c.text};">${row.course.subject}</span>
-      <span>${row.student.name}<span class="grade-tag">${gradeLabel(row.student)}</span></span>
-      <span class="mp-slot-badge pending">未確定</span>
-    </div>`;
-  });
-  return `<div class="sched-teacher-box week-unassigned-box">
-    <div class="sched-teacher-name">\u672a\u78ba\u5b9a<span class="sched-cap">\uff08${unassignedRows.length}\u4ef6\uff09</span></div>
-    ${studentsHtml}
-  </div>`;
+    return buildWeekLessonCard({
+      subject: row.course.subject,
+      subjectStyle: c,
+      studentName: row.student.name,
+      gradeLabel: gradeLabel(row.student),
+      teacher: null,
+      isPending: true,
+    });
+  }).join('');
 }
 
 // \u751f\u5f92\u7d5e\u308a\u8fbc\u307f\u6642\uff1a\u6708\u9593\u30ab\u30ec\u30f3\u30c0\u30fc\u3068\u540c\u3058 cal-entry \u5f62\u5f0f\u3067\u8868\u793a\u3059\u308b
