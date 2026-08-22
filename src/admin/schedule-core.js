@@ -2,7 +2,7 @@ import { SUBJECT_MAP, DAYS, SLOTS, WEEKDAY_JP, WEEK_FULL, LEVELS_ORDER, LEVEL_AB
 import { HOLIDAYS_JP } from '../shared/holidays.js';
 import { pad2, daysInYearMonth, toDateStr, getTodayStr } from '../shared/date-utils.js';
 import { firebaseConfig, fbAuth, fbDb, STORAGE_KEY, getSecondaryAuth, S } from './state.js';
-import { shortName } from './calendar.js';
+import { shortName, getDayStatus } from './calendar.js';
 
 // ---- 講師スケジュール（月次提出・実日付ベース） ----
 // teacher.availability（曜日パターン）は廃止し、月ごとに実際の日付で提出する方式に変更。
@@ -173,6 +173,15 @@ function getWeekdayAvailabilityInMonth(teacherId, weekday, slot, yearMonth){
   return best; // null(不可) | 'normal' | 'preferred'
 }
 
+// 指定日に講師がそのコマでシフト提出済みか（日付ベースの正しい判定）
+function isTeacherAvailableOnDate(teacherId, dateStr, slot){
+  const status = getDayStatus(dateStr);
+  if(status.type !== 'open') return false;
+  const sch = findTeacherSchedule(teacherId, dateStr.slice(0,7));
+  if(!sch || sch.status !== 'submitted') return false;
+  return getDateSlotState(teacherId, dateStr, slot) !== 'none';
+}
+
 // ---- 既存コード互換のためのブリッジ（曜日パターンとして扱う関数群） ----
 // S.referenceYearMonth（対象月）の提出内容をもとに、曜日単位の対応可否を判定する
 function isAvailable(teacher, day, slot){
@@ -275,4 +284,4 @@ function summarizeTeacherSubjects(t){
 
 
 
-export { findTeacherSchedule, getOrCreateDraftSchedule, getDateSlotState, setDateSlotState, cycleTeacherState, buildBaseAvailArea, readBaseAvailArea, fillBaseAvailArea, renderRaiseScheduleList, addRaiseRow, isScheduleDateClosed, buildMonthDaysFromBaseAvailability, getWeekdayAvailabilityInMonth, isAvailable, isPreferredDay, countAvailSlots, abbr, gradeLabel, teacherHonorific, subjectColor, categoryColor, summarizeTeacherSubjects };
+export { findTeacherSchedule, getOrCreateDraftSchedule, getDateSlotState, setDateSlotState, cycleTeacherState, buildBaseAvailArea, readBaseAvailArea, fillBaseAvailArea, renderRaiseScheduleList, addRaiseRow, isScheduleDateClosed, buildMonthDaysFromBaseAvailability, getWeekdayAvailabilityInMonth, isTeacherAvailableOnDate, isAvailable, isPreferredDay, countAvailSlots, abbr, gradeLabel, teacherHonorific, subjectColor, categoryColor, summarizeTeacherSubjects };

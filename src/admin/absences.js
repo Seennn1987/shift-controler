@@ -3,8 +3,8 @@ import { HOLIDAYS_JP } from '../shared/holidays.js';
 import { pad2, daysInYearMonth, toDateStr, getTodayStr } from '../shared/date-utils.js';
 import { firebaseConfig, fbAuth, fbDb, STORAGE_KEY, getSecondaryAuth, S } from './state.js';
 import { getDayStatus } from './calendar.js';
-import { getDateSlotState, getWeekdayAvailabilityInMonth, isAvailable } from './schedule-core.js';
-import { findEffectiveAssignment, isAssignmentEffectiveInMonth, isPreferredSubjectForTeacher, issueAssignmentApproval } from './teacher-schedule-tab.js';
+import { getDateSlotState, isAvailable, isTeacherAvailableOnDate } from './schedule-core.js';
+import { assignmentAppliesOnDate, findEffectiveAssignment, isAssignmentEffectiveInMonth, isPreferredSubjectForTeacher, issueAssignmentApproval } from './teacher-schedule-tab.js';
 
 // ---- 欠席・振替（特定の実日付にのみ影響。曜日パターン自体は変えない） ----
 // {id, studentId, courseId, subject, day, slot, date, status:'pending'|'resolved', makeup:null|{date,slot,teacherId}}
@@ -203,11 +203,6 @@ function countRoomLoadOnDate(dateStr, slot, excludeStudentId){
   });
   return count;
 }
-function isTeacherAvailableOnDate(teacherId, dateStr, slot){
-  const status = getDayStatus(dateStr);
-  if(status.type!=='open') return false;
-  return getWeekdayAvailabilityInMonth(teacherId, status.weekday, slot, dateStr.slice(0,7)) !== null;
-}
 
 // 欠席日より後（いつでも可・当日振替の制限なし）から、対応可能な振替候補を日付順に探す
 function findMakeupCandidates(studentId, level, subject, afterDateStr, limit){
@@ -258,7 +253,7 @@ function getEffectiveDayAssignments(dateStr){
   const yearMonth = dateStr.slice(0,7);
   S.assignments.forEach(a=>{
     if(a.day!==weekday) return;
-    if(!isAssignmentEffectiveInMonth(a, yearMonth)) return;
+    if(!assignmentAppliesOnDate(a, dateStr)) return;
     if(findAbsenceFor(a.studentId, a.courseId, dateStr, a.day, a.slot)) return;
     // studentId指定ありの代講（この生徒だけ）を優先し、なければ全体向け（studentId:null）の代講を見る
     const sub = S.teacherSubstitutions.find(s=>s.teacherId===a.teacherId && s.date===dateStr && s.slot===a.slot && s.studentId===a.studentId)
@@ -268,7 +263,7 @@ function getEffectiveDayAssignments(dateStr){
   });
   S.pendingAssignments.forEach(a=>{
     if(a.day!==weekday) return;
-    if(!isAssignmentEffectiveInMonth(a, yearMonth)) return;
+    if(!assignmentAppliesOnDate(a, dateStr)) return;
     list.push({studentId:a.studentId, courseId:a.courseId, subject:a.subject, slot:a.slot, teacherId:a.teacherId, kind:'normal', source:a.source, pending:true});
   });
   S.absences.forEach(ab=>{
@@ -401,7 +396,7 @@ function getStudentDateRows(student, dateStr){
       const slot = SLOTS.find(sl=>sl.id===ds.slot);
       const absence = findAbsenceFor(student.id, course.id, dateStr, ds.day, ds.slot);
       const yearMonth = dateStr.slice(0,7);
-      const eff = findEffectiveAssignment(student.id, course.id, ds.day, ds.slot, yearMonth);
+      const eff = findEffectiveAssignment(student.id, course.id, ds.day, ds.slot, yearMonth, dateStr);
       let existing = eff ? eff.entry : null;
       let isPending = eff ? eff.isPending : false;
       rows.push({slot, course, existing, absence, isMakeupTarget:false, isPending});

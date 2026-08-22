@@ -158,9 +158,11 @@ function startTeacherScheduleListener(){
 // 単発の代講（oneTimeDateあり）は、緊急対応の性質上ここでは対象にしない（teacherSubstitutionsで即時反映済みのため）
 async function promotePendingAssignment(ticket, ticketId){
   const idx = S.pendingAssignments.findIndex(p=>{
-    if(!(p.teacherId===ticket.teacherId && p.day===ticket.day && p.slot===ticket.slot && p.subject===ticket.subject)) return false;
+    if(!(p.teacherId===ticket.teacherId && p.day===ticket.day && Number(p.slot)===Number(ticket.slot) && p.subject===ticket.subject)) return false;
     const student = S.students.find(s=>s.id===p.studentId);
-    return student && student.name===ticket.studentName;
+    if(!student || student.name!==ticket.studentName) return false;
+    if(ticket.oneTimeDate) return p.oneTimeDate === ticket.oneTimeDate;
+    return !p.oneTimeDate;
   });
   if(idx===-1) return; // 既に処理済み、または対応する承認待ちが見つからない
   const entry = S.pendingAssignments[idx];
@@ -181,7 +183,9 @@ async function rejectPendingAssignment(ticket, ticketId){
   const idx = S.pendingAssignments.findIndex(p=>{
     if(!(p.teacherId===ticket.teacherId && p.day===ticket.day && Number(p.slot)===Number(ticket.slot) && p.subject===ticket.subject)) return false;
     const student = S.students.find(s=>s.id===p.studentId);
-    return student && student.name===ticket.studentName;
+    if(!student || student.name!==ticket.studentName) return false;
+    if(ticket.oneTimeDate) return p.oneTimeDate === ticket.oneTimeDate;
+    return !p.oneTimeDate;
   });
   if(idx===-1){
     try{
@@ -319,34 +323,42 @@ function scheduleSyncTeacherAssignments(){
   if(S.syncTeacherAssignmentsTimer) clearTimeout(S.syncTeacherAssignmentsTimer);
   S.syncTeacherAssignmentsTimer = setTimeout(syncTeacherAssignments, 1200);
 }
+function expandAssignmentForTeacherCalendar(a, approvalStatus){
+  const student = S.students.find(s=>s.id===a.studentId);
+  const base = {
+    day: a.day,
+    slot: a.slot,
+    studentName: student ? student.name : '(削除された生徒)',
+    studentGrade: student ? gradeLabel(student) : '',
+    subject: a.subject,
+    approvalStatus,
+  };
+  if(a.oneTimeDate){
+    return [{ ...base, oneTimeDate: a.oneTimeDate }];
+  }
+  const out = [];
+  S.teacherSchedules.filter(s=>s.teacherId===a.teacherId && s.status==='submitted').forEach(sch=>{
+    Object.keys(sch.days || {}).forEach(dateStr=>{
+      const wd = WEEKDAY_JP[new Date(dateStr+'T00:00:00').getDay()];
+      if(wd !== a.day) return;
+      if(!(sch.days[dateStr]||[]).some(e=>Number(e.slot)===Number(a.slot))) return;
+      out.push({ ...base, oneTimeDate: dateStr });
+    });
+  });
+  return out;
+}
+
 async function syncTeacherAssignments(){
   const user = fbAuth.currentUser;
   if(!user || !S.dataReady || !S.studentDataReady) return;
   const loginTeachers = S.teachers.filter(t=>t.loginUid);
   for(const t of loginTeachers){
-    // 通常の（曜日繰り返しの）担当授業（確定済み）
-    const entries = S.assignments.filter(a=>a.teacherId===t.id).map(a=>{
-      const student = S.students.find(s=>s.id===a.studentId);
-      return {
-        day: a.day, slot: a.slot,
-        studentName: student ? student.name : '(削除された生徒)',
-        studentGrade: student ? gradeLabel(student) : '',
-        subject: a.subject,
-        oneTimeDate: null,
-        approvalStatus: 'confirmed',
-      };
+    const entries = [];
+    S.assignments.filter(a=>a.teacherId===t.id).forEach(a=>{
+      expandAssignmentForTeacherCalendar(a, 'confirmed').forEach(e=> entries.push(e));
     });
-    // 承認待ちの授業も、講師のカレンダーに「その日」として表示できるよう含める
     S.pendingAssignments.filter(a=>a.teacherId===t.id).forEach(a=>{
-      const student = S.students.find(s=>s.id===a.studentId);
-      entries.push({
-        day: a.day, slot: a.slot,
-        studentName: student ? student.name : '(削除された生徒)',
-        studentGrade: student ? gradeLabel(student) : '',
-        subject: a.subject,
-        oneTimeDate: null,
-        approvalStatus: 'pending',
-      });
+      expandAssignmentForTeacherCalendar(a, 'pending').forEach(e=> entries.push(e));
     });
     // この講師が「代講」として単発で担当する授業（該当日だけの特別枠）
     S.teacherSubstitutions.forEach(sub=>{

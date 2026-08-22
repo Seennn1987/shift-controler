@@ -2,10 +2,10 @@ import { SUBJECT_MAP, DAYS, SLOTS, WEEKDAY_JP, WEEK_FULL } from '../shared/const
 import { HOLIDAYS_JP } from '../shared/holidays.js';
 import { pad2, daysInYearMonth, toDateStr, getTodayStr } from '../shared/date-utils.js';
 import { firebaseConfig, fbAuth, fbDb, STORAGE_KEY, getSecondaryAuth, S } from './state.js';
-import { findCustomClosure, renderCalendar } from './calendar.js';
+import { findCustomClosure, getDayStatus, renderCalendar } from './calendar.js';
 import { renderMatrix } from './finance-ui.js';
 import { renderMatching, renderStudentList } from './matching.js';
-import { cycleTeacherState, findTeacherSchedule, getOrCreateDraftSchedule, getWeekdayAvailabilityInMonth, gradeLabel, isAvailable, isPreferredDay, setDateSlotState } from './schedule-core.js';
+import { cycleTeacherState, findTeacherSchedule, getOrCreateDraftSchedule, getDateSlotState, getWeekdayAvailabilityInMonth, gradeLabel, isAvailable, isPreferredDay, isTeacherAvailableOnDate, setDateSlotState } from './schedule-core.js';
 import { saveStudents, saveTeacherScheduleDoc, scheduleSave, approveCancellationRequest, rejectCancellationRequest } from './students-persistence.js';
 
 // 講師スケジュール（月次提出）タブ
@@ -367,9 +367,11 @@ function countTeacherCourseSlotCoverage(teacher, studentId, courseId, level, sub
   return { covered, total: slots.length };
 }
 
-function buildCandidateInfo(studentId, courseId, level, subject, day, slot, teacher){
+function buildCandidateInfo(studentId, courseId, level, subject, day, slot, teacher, dateStr){
   const ym = getActiveYearMonth();
-  const used = countTeacherSlot(teacher.id, day, slot, studentId, ym);
+  const used = dateStr
+    ? countTeacherSlotOnDate(teacher.id, dateStr, slot, studentId)
+    : countTeacherSlot(teacher.id, day, slot, studentId, ym);
   const coverage = countTeacherCourseSlotCoverage(teacher, studentId, courseId, level, subject, ym);
   return {
     teacher, used,
@@ -389,6 +391,45 @@ function findAssignment(studentId, courseId, day, slot){
   return S.assignments.find(a=>a.studentId===studentId && a.courseId===courseId && a.day===day && a.slot===slot) || null;
 }
 
+function assignmentAppliesOnDate(a, dateStr){
+  if(!dateStr) return true;
+  const status = getDayStatus(dateStr);
+  if(status.type !== 'open') return false;
+  if(a.day !== status.weekday) return false;
+  if(!isAssignmentEffectiveInMonth(a, dateStr.slice(0,7))) return false;
+  if(a.oneTimeDate) return a.oneTimeDate === dateStr;
+  return getDateSlotState(a.teacherId, dateStr, a.slot) !== 'none';
+}
+
+function countTeacherSlotOnDate(teacherId, dateStr, slot, excludeStudentId){
+  const all = S.assignments.concat(S.pendingAssignments);
+  return all.filter(a=>
+    a.teacherId===teacherId && Number(a.slot)===Number(slot) &&
+    a.studentId!==excludeStudentId && assignmentAppliesOnDate(a, dateStr)
+  ).length;
+}
+
+function countRoomSlotOnDate(dateStr, slot, excludeStudentId){
+  const all = S.assignments.concat(S.pendingAssignments);
+  return all.filter(a=>
+    Number(a.slot)===Number(slot) && a.studentId!==excludeStudentId &&
+    assignmentAppliesOnDate(a, dateStr)
+  ).length;
+}
+
+function removeSlotAssignmentsOnDate(studentId, courseId, day, slot, dateStr){
+  const conflicts = a=> a.studentId===studentId && a.courseId===courseId && a.day===day && Number(a.slot)===Number(slot) &&
+    assignmentAppliesOnDate(a, dateStr);
+  S.assignments = S.assignments.filter(a=> !conflicts(a));
+  S.pendingAssignments = S.pendingAssignments.filter(a=> !conflicts(a));
+}
+
+function removeAllSlotAssignments(studentId, courseId, day, slot){
+  const matches = a=> a.studentId===studentId && a.courseId===courseId && a.day===day && Number(a.slot)===Number(slot);
+  S.assignments = S.assignments.filter(a=> !matches(a));
+  S.pendingAssignments = S.pendingAssignments.filter(a=> !matches(a));
+}
+
 // 講師がその月のシフトを提出済みか（提出済みの月だけマッチングを有効とみなす）
 function getActiveYearMonth(yearMonth){
   if(yearMonth) return yearMonth;
@@ -405,18 +446,19 @@ function isAssignmentEffectiveInMonth(assignment, yearMonth){
   if(!assignment) return false;
   return teacherHasSubmittedMonth(assignment.teacherId, yearMonth);
 }
-// 表示・集計用：その月に有効な割当だけ返す（未提出月は null 扱い）
-function findEffectiveAssignment(studentId, courseId, day, slot, yearMonth){
+// 表示・集計用：その月（と任意の日付）に有効な割当だけ返す
+function findEffectiveAssignment(studentId, courseId, day, slot, yearMonth, dateStr){
   const ym = getActiveYearMonth(yearMonth);
-  const confirmed = findAssignment(studentId, courseId, day, slot);
-  if(confirmed && isAssignmentEffectiveInMonth(confirmed, ym)){
-    return {entry: confirmed, isPending: false};
-  }
-  const pending = S.pendingAssignments.find(a=>a.studentId===studentId && a.courseId===courseId && a.day===day && a.slot===slot);
-  if(pending && isAssignmentEffectiveInMonth(pending, ym)){
-    return {entry: pending, isPending: true};
-  }
-  return null;
+  const pick = (list, isPending)=>{
+    const hit = list.find(a=>{
+      if(a.studentId!==studentId || a.courseId!==courseId || a.day!==day || Number(a.slot)!==Number(slot)) return false;
+      if(!isAssignmentEffectiveInMonth(a, ym)) return false;
+      if(dateStr && !assignmentAppliesOnDate(a, dateStr)) return false;
+      return true;
+    });
+    return hit ? {entry: hit, isPending} : null;
+  };
+  return pick(S.assignments, false) || pick(S.pendingAssignments, true) || null;
 }
 
 function countCourseConfirmed(studentId, courseId, yearMonth){
@@ -457,7 +499,7 @@ function computeTeacherShiftFill(teacherId, yearMonth){
     entries.forEach(entry=>{
       hope++;
       const wd = WEEKDAY_JP[new Date(dateStr+'T00:00:00').getDay()];
-      if(countTeacherSlot(teacherId, wd, entry.slot, null, yearMonth) > 0){
+      if(countTeacherSlotOnDate(teacherId, dateStr, entry.slot, null) > 0){
         lesson++;
       }
     });
@@ -490,35 +532,55 @@ async function issueAssignmentApproval(studentId, courseId, subject, day, slot, 
 
 // 教室長がマッチングを確定した時点では、まだ「承認待ち」扱いにする。
 // 講師にログインアカウントが無い場合は、承認という概念がそもそも無いため、即座に確定させる。
-function confirmAssignment(studentId, courseId, subject, day, slot, teacherId, source){
+// opts.dateStr … その日だけの担当（oneTimeDate）。opts.recurring … 提出済みシフトがある日すべて（曜日繰り返し）
+function confirmAssignment(studentId, courseId, subject, day, slot, teacherId, source, opts){
   source = source || 'manual';
+  opts = opts || {};
+  const dateStr = opts.dateStr || null;
+  const recurring = !!opts.recurring;
   const teacher = S.teachers.find(t=>t.id===teacherId);
   if(!teacher) return {ok:false, msg:'講師が見つかりません。'};
 
-  const teacherUsed = countTeacherSlot(teacherId, day, slot, studentId);
-  if(teacherUsed >= (S.teacherCapacity)){
-    return {ok:false, msg:`${teacher.name}先生は${day}曜${SLOTS.find(s=>s.id===slot).label}の定員（${S.teacherCapacity}人）に達しています。`};
-  }
-  const roomUsed = countRoomSlot(day, slot, studentId);
-  if(roomUsed >= S.roomCapacity){
-    return {ok:false, msg:`${day}曜${SLOTS.find(s=>s.id===slot).label}は教室全体の定員（${S.roomCapacity}人）に達しています。`};
-  }
-
-  // 既存の割当（確定済み・承認待ちどちらも）があれば置き換える
-  S.assignments = S.assignments.filter(a=>!(a.studentId===studentId && a.courseId===courseId && a.day===day && a.slot===slot));
-  S.pendingAssignments = S.pendingAssignments.filter(a=>!(a.studentId===studentId && a.courseId===courseId && a.day===day && a.slot===slot));
-
-  const entry = {id:'asg-'+Date.now()+'-'+Math.random().toString(36).slice(2,6), studentId, courseId, subject, day, slot, teacherId, source};
-  if(teacher.loginUid){
-    // ログインアカウントがある講師：講師確認待ちとして積み、確認チケットを発行する
-    S.pendingAssignments.push(entry);
-    issueAssignmentApproval(studentId, courseId, subject, day, slot, teacherId);
-    return {ok:true, pending:true};
+  if(dateStr && !recurring){
+    if(!isTeacherAvailableOnDate(teacherId, dateStr, slot)){
+      return {ok:false, msg:`${teacher.name}先生はこの日のシフト未登録です。`};
+    }
+    const teacherUsed = countTeacherSlotOnDate(teacherId, dateStr, slot, studentId);
+    if(teacherUsed >= S.teacherCapacity){
+      const slotLabel = SLOTS.find(s=>s.id===slot)?.label || slot+'講';
+      return {ok:false, msg:`${teacher.name}先生は${dateStr} ${slotLabel}の定員（${S.teacherCapacity}人）に達しています。`};
+    }
+    const roomUsed = countRoomSlotOnDate(dateStr, slot, studentId);
+    if(roomUsed >= S.roomCapacity){
+      const slotLabel = SLOTS.find(s=>s.id===slot)?.label || slot+'講';
+      return {ok:false, msg:`${dateStr} ${slotLabel}は教室全体の定員（${S.roomCapacity}人）に達しています。`};
+    }
+    removeSlotAssignmentsOnDate(studentId, courseId, day, slot, dateStr);
   }else{
-    // ログインアカウントが無い講師：講師確認という概念が無いため、即座に確定させる
-    S.assignments.push(entry);
-    return {ok:true, pending:false};
+    const teacherUsed = countTeacherSlot(teacherId, day, slot, studentId);
+    if(teacherUsed >= S.teacherCapacity){
+      return {ok:false, msg:`${teacher.name}先生は${day}曜${SLOTS.find(s=>s.id===slot).label}の定員（${S.teacherCapacity}人）に達しています。`};
+    }
+    const roomUsed = countRoomSlot(day, slot, studentId);
+    if(roomUsed >= S.roomCapacity){
+      return {ok:false, msg:`${day}曜${SLOTS.find(s=>s.id===slot).label}は教室全体の定員（${S.roomCapacity}人）に達しています。`};
+    }
+    removeAllSlotAssignments(studentId, courseId, day, slot);
   }
+
+  const entry = {
+    id:'asg-'+Date.now()+'-'+Math.random().toString(36).slice(2,6),
+    studentId, courseId, subject, day, slot, teacherId, source,
+  };
+  if(dateStr && !recurring) entry.oneTimeDate = dateStr;
+
+  if(teacher.loginUid){
+    S.pendingAssignments.push(entry);
+    issueAssignmentApproval(studentId, courseId, subject, day, slot, teacherId, entry.oneTimeDate || null);
+    return {ok:true, pending:true};
+  }
+  S.assignments.push(entry);
+  return {ok:true, pending:false};
 }
 function cancelAssignment(studentId, courseId, day, slot){
   S.assignments = S.assignments.filter(a=>!(a.studentId===studentId && a.courseId===courseId && a.day===day && a.slot===slot));
@@ -557,4 +619,4 @@ async function replaceDesiredSlot(studentId, courseId, oldDay, oldSlot, newDay, 
 }
 
 
-export { loadPendingChangeRequests, loadAssignmentApprovals, renderApprovalStatus, renderChangeRequests, renderTeacherScheduleTab, openTeacherScheduleEditor, renderTeacherScheduleGrid, isPreferredPair, addPreferredPair, removePreferredPair, isPreferredSubjectForTeacher, teacherWorksOtherSlotOnWeekday, countTeacherCourseSlotCoverage, buildCandidateInfo, findAssignment, getActiveYearMonth, teacherHasSubmittedMonth, isAssignmentEffectiveInMonth, findEffectiveAssignment, countCourseConfirmed, countTeacherSlot, countRoomSlot, issueAssignmentApproval, confirmAssignment, cancelAssignment, findAlternativeSlots, replaceDesiredSlot };
+export { loadPendingChangeRequests, loadAssignmentApprovals, renderApprovalStatus, renderChangeRequests, renderTeacherScheduleTab, openTeacherScheduleEditor, renderTeacherScheduleGrid, isPreferredPair, addPreferredPair, removePreferredPair, isPreferredSubjectForTeacher, teacherWorksOtherSlotOnWeekday, countTeacherCourseSlotCoverage, buildCandidateInfo, findAssignment, getActiveYearMonth, teacherHasSubmittedMonth, isAssignmentEffectiveInMonth, assignmentAppliesOnDate, findEffectiveAssignment, countCourseConfirmed, countTeacherSlot, countTeacherSlotOnDate, countRoomSlot, countRoomSlotOnDate, issueAssignmentApproval, confirmAssignment, cancelAssignment, findAlternativeSlots, replaceDesiredSlot };

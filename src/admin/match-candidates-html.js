@@ -1,9 +1,10 @@
 import { SLOTS } from '../shared/constants.js';
 import { S } from './state.js';
-import { isAvailable } from './schedule-core.js';
+import { isAvailable, isTeacherAvailableOnDate } from './schedule-core.js';
 import {
   buildCandidateInfo,
   countRoomSlot,
+  countRoomSlotOnDate,
   findAlternativeSlots,
   getActiveYearMonth,
 } from './teacher-schedule-tab.js';
@@ -17,12 +18,12 @@ export function buildMatchCandidatesHtml(student, courseId, subject, day, slot, 
   } = opts;
   const detailYearMonth = dateStr ? dateStr.slice(0, 7) : getActiveYearMonth();
   const candidates = S.teachers
-    .filter(t=> isAvailable(t, day, slot))
+    .filter(t=> dateStr ? isTeacherAvailableOnDate(t.id, dateStr, slot) : isAvailable(t, day, slot))
     .filter(t=> t.subjects.some(ts=> ts.level === student.level && ts.subject === subject))
-    .map(t=> buildCandidateInfo(student.id, courseId, student.level, subject, day, slot, t))
+    .map(t=> buildCandidateInfo(student.id, courseId, student.level, subject, day, slot, t, dateStr))
     .sort(compareCandidateInfo);
 
-  const roomUsed = countRoomSlot(day, slot, student.id, detailYearMonth);
+  const roomUsed = dateStr ? countRoomSlotOnDate(dateStr, slot, student.id) : countRoomSlot(day, slot, student.id, detailYearMonth);
   const roomFull = roomUsed >= S.roomCapacity;
 
   if(candidates.length === 0){

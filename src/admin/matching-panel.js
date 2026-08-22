@@ -12,7 +12,9 @@ import { bindDayDetailEvents, getDayDetailTitle, renderDayDetailPanel } from './
 import {
   confirmAssignment,
   countRoomSlot,
+  countRoomSlotOnDate,
   countTeacherSlot,
+  countTeacherSlotOnDate,
   findEffectiveAssignment,
   teacherHasSubmittedMonth,
 } from './teacher-schedule-tab.js';
@@ -280,7 +282,7 @@ function bindFutureWeeksOffer(root){
   root.querySelector('#mpApplyFutureBtn')?.addEventListener('click', ()=>{
     const offer = matchingPanelFutureOffer;
     if(!offer) return;
-    const result = confirmAssignment(offer.studentId, offer.courseId, offer.subject, offer.day, offer.slot, offer.teacherId);
+    const result = confirmAssignment(offer.studentId, offer.courseId, offer.subject, offer.day, offer.slot, offer.teacherId, 'manual', { recurring: true, dateStr: offer.dateStr });
     if(!result.ok){
       alert(result.msg);
       return;
@@ -345,7 +347,9 @@ function bindConfirmButtons(root){
         btn.dataset.subject,
         btn.dataset.day,
         Number(btn.dataset.slot),
-        btn.dataset.teacher
+        btn.dataset.teacher,
+        'manual',
+        { dateStr: btn.dataset.date || null }
       );
       if(!result.ok){
         alert(result.msg);
@@ -405,7 +409,7 @@ function countFutureWeeksForTeacher(teacherId, day, slot, fromDateStr){
 function buildMatchingSlotCard(r, student, dateStr, weekday){
   const c = subjectColor(student.level, r.course.subject);
   const detailYearMonth = dateStr.slice(0, 7);
-  const roomUsed = countRoomSlot(weekday, r.slot.id, null, detailYearMonth);
+  const roomUsed = countRoomSlotOnDate(dateStr, r.slot.id, null);
 
   if(r.isMakeupTarget){
     const teacher = S.teachers.find(t=> t.id === r.absence.makeup.teacherId);
@@ -442,7 +446,7 @@ function buildMatchingSlotCard(r, student, dateStr, weekday){
         </div>
       </div>`;
     }
-    const used = teacher ? countTeacherSlot(teacher.id, weekday, r.slot.id, null, detailYearMonth) : 0;
+    const used = teacher ? countTeacherSlotOnDate(teacher.id, dateStr, r.slot.id, null) : 0;
     return `<div class="match-slot mp-slot-readonly">
       <div class="ms-slot-label">${r.slot.label}（${r.slot.time}）</div>
       <div class="confirmed-box">
