@@ -6,7 +6,7 @@ import { findCustomClosure, renderCalendar } from './calendar.js';
 import { renderMatrix } from './finance-ui.js';
 import { renderMatching, renderStudentList } from './matching.js';
 import { cycleTeacherState, findTeacherSchedule, getOrCreateDraftSchedule, getWeekdayAvailabilityInMonth, gradeLabel, isAvailable, isPreferredDay, setDateSlotState } from './schedule-core.js';
-import { saveStudents, saveTeacherScheduleDoc, scheduleSave } from './students-persistence.js';
+import { saveStudents, saveTeacherScheduleDoc, scheduleSave, approveCancellationRequest, rejectCancellationRequest } from './students-persistence.js';
 
 // 講師スケジュール（月次提出）タブ
 // =====================================================================
@@ -75,6 +75,74 @@ async function renderApprovalStatus(){
   }).join('');
 }
 
+async function loadPendingCancellationRequests(){
+  const user = fbAuth.currentUser;
+  if(!user) return [];
+  try{
+    const snap = await fbDb.collection('assignmentCancellationRequests')
+      .where('adminUid','==',user.uid).where('status','==','pending').get();
+    const list = [];
+    snap.forEach(doc=> list.push({id:doc.id, ...doc.data()}));
+    return list;
+  }catch(err){
+    console.error('キャンセル依頼の読み込みエラー:', err);
+    return [];
+  }
+}
+
+async function renderCancellationRequests(){
+  const card = document.getElementById('cancellationRequestCard');
+  const wrap = document.getElementById('cancellationRequestWrap');
+  if(!card || !wrap) return;
+  const requests = await loadPendingCancellationRequests();
+  if(requests.length===0){
+    card.style.display = 'none';
+    return;
+  }
+  card.style.display = '';
+  wrap.innerHTML = requests.map(r=>{
+    const teacher = S.teachers.find(t=>t.id===r.teacherId);
+    const teacherName = teacher ? teacher.name : '(削除された講師)';
+    const dateNote = r.oneTimeDate ? `（${r.oneTimeDate} 単発）` : '';
+    return `<div class="change-req-row">
+      <div class="change-req-main">
+        <span class="change-req-name">${teacherName}</span>
+        <span class="change-req-detail">${r.day}曜${SLOTS.find(s=>s.id===r.slot)?.label||r.slot+'講'}　${r.studentName}（${r.studentGrade||''}）${r.subject}${dateNote}</span>
+        <div class="change-req-note">担当授業のキャンセルを依頼しています</div>
+      </div>
+      <div class="change-req-actions">
+        <button class="primary" data-id="${r.id}" data-action="approve">承認</button>
+        <button class="ghost" data-id="${r.id}" data-action="reject">却下</button>
+      </div>
+    </div>`;
+  }).join('');
+
+  wrap.querySelectorAll('button[data-action]').forEach(btn=>{
+    btn.addEventListener('click', async ()=>{
+      const req = requests.find(r=>r.id===btn.dataset.id);
+      if(!req) return;
+      const verb = btn.dataset.action==='approve' ? 'キャンセルを承認' : 'キャンセルを却下';
+      if(!window.confirm(`${req.studentName}さんの${req.day}曜${SLOTS.find(s=>s.id===req.slot)?.label||req.slot+'講'} ${req.subject}について、${verb}します。\nよろしいですか？`)) return;
+      btn.disabled = true;
+      try{
+        if(btn.dataset.action==='approve'){
+          await approveCancellationRequest(req, req.id);
+        }else{
+          await rejectCancellationRequest(req.id);
+        }
+        renderCancellationRequests();
+        renderTeacherScheduleTab();
+        renderMatrix();
+        renderMatching();
+        renderCalendar();
+      }catch(err){
+        btn.disabled = false;
+        window.alert('処理に失敗しました。Firestoreの設定を確認してください。');
+      }
+    });
+  });
+}
+
 async function renderChangeRequests(){
   const card = document.getElementById('changeRequestCard');
   const wrap = document.getElementById('changeRequestWrap');
@@ -127,6 +195,7 @@ async function renderChangeRequests(){
 function renderTeacherScheduleTab(){
   scheduleSave();
   renderChangeRequests();
+  renderCancellationRequests();
   renderApprovalStatus();
   const wrap = document.getElementById('tsTeacherListWrap');
   if(!wrap) return;

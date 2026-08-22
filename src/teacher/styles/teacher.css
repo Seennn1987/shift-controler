@@ -58,7 +58,17 @@
   .tab-view.active{display:block;}
 
   .pending-banner{display:flex;align-items:center;justify-content:space-between;gap:var(--space-5);flex-wrap:wrap;}
-  .pending-banner #pendingBannerText{font-size:var(--text-md);font-weight:var(--font-weight-bold);color:var(--danger);}
+  .pending-banner-col{display:flex;flex-direction:column;gap:var(--space-4);}
+  .pending-banner-line{font-size:var(--text-md);font-weight:var(--font-weight-bold);margin:0;}
+  .pending-banner-request{color:var(--danger);}
+  .pending-banner-draft{color:var(--green-800);}
+  .pending-banner-actions{display:flex;align-items:center;gap:var(--space-3);flex-wrap:wrap;}
+  .ghost{
+    border:1px solid var(--border);background:var(--surface-card);color:var(--ink-soft);
+    font-family:inherit;font-size:var(--text-md);font-weight:var(--font-weight-bold);
+    padding:var(--space-3) var(--space-5);border-radius:var(--radius-md);cursor:pointer;
+  }
+  .ghost:hover{border-color:var(--green-700);color:var(--green-900);}
 
   .mycal-day{margin-bottom:var(--space-5);}
   .mycal-date-label{font-size:var(--text-md);font-weight:var(--font-weight-bold);color:var(--green-800);margin-bottom:var(--space-2);}
@@ -69,6 +79,8 @@
     margin-bottom:var(--space-2);background:var(--surface-card);
   }
   .mycal-lesson-row.pending{border-style:dashed;border-color:var(--danger);}
+  .mycal-lesson-row.has-draft{border-color:var(--green-700);background:var(--green-100);}
+  .mycal-lesson-row.is-cancel-waiting{border-color:var(--warning-ink);background:var(--warning-bg);}
   .mycal-lesson-info{font-size:var(--text-md);display:flex;flex-wrap:wrap;align-items:center;gap:var(--space-2);}
   .mycal-lesson-info b{font-weight:var(--font-weight-bold);}
   .mycal-slot-tag{
@@ -94,6 +106,22 @@
     padding:var(--space-2) var(--space-5);border-radius:var(--radius-md);cursor:pointer;
   }
   .mycal-reject-btn:hover{border-color:var(--danger);color:var(--danger);}
+  .mycal-cancel-btn{
+    border:1px solid var(--border);background:var(--surface-card);color:var(--ink-soft);
+    font-family:inherit;font-size:var(--text-sm);font-weight:var(--font-weight-bold);
+    padding:var(--space-2) var(--space-5);border-radius:var(--radius-md);cursor:pointer;
+  }
+  .mycal-cancel-btn:hover{border-color:var(--warning-ink);color:var(--warning-ink);}
+  .mycal-undo-btn{
+    border:none;background:transparent;color:var(--ink-soft);
+    font-family:inherit;font-size:var(--text-sm);font-weight:var(--font-weight-bold);
+    padding:var(--space-2) var(--space-3);border-radius:var(--radius-md);cursor:pointer;text-decoration:underline;
+  }
+  .mycal-undo-btn:hover{color:var(--ink);}
+  .mycal-approve-btn.is-done{opacity:.85;cursor:default;}
+  .mycal-reject-btn.is-selected{border-color:var(--danger);color:var(--danger);background:var(--danger-bg);cursor:default;}
+  .mycal-cancel-btn.is-selected{border-color:var(--warning-ink);color:var(--warning-ink);background:var(--warning-bg);cursor:default;}
+  .mycal-cancel-btn.is-waiting{opacity:.7;cursor:default;}
   .mycal-orphan-note{font-size:var(--text-sm);color:var(--warning-ink);font-weight:var(--font-weight-bold);}
   .mycal-day.is-closed{opacity:.55;}
   .mycal-lesson-row.closed, .mycal-lesson-row.empty{background:transparent;border-style:dashed;}

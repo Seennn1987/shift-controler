@@ -25,5 +25,7 @@ export const S = {
   myCalYear: undefined,
   myCalMonth: undefined,
   myAssignTimer: null,
+  responseDrafts: {},
+  pendingCancellationRequests: [],
 };
 

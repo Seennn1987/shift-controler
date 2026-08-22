@@ -127,6 +127,7 @@ Firebase Authenticationは教室長・講師で同じログイン基盤（同一
 | `teacherAccounts/{teacherLoginUid}` | 講師ログインIDと教室長・講師IDの紐付け |
 | `scheduleChangeRequests/{docId}` | 講師からのシフト変更リクエスト |
 | `assignmentApprovals/{docId}` | 講師への授業承認チケット |
+| `assignmentCancellationRequests/{docId}` | 講師からの担当授業キャンセル依頼 |
 | `teacherAssignments/{adminUid}_{teacherId}` | 講師のマイカレンダー表示用データ（教室長側から同期） |
 | `classroomSettings/{adminUid}` | 休校日設定（定休日・祝日判定・個別休校日）。講師側にも同期される |
 
@@ -174,6 +175,14 @@ service cloud.firestore {
         request.auth.uid == resource.data.teacherLoginUid
       );
       allow create: if request.auth != null && request.auth.uid == request.resource.data.adminUid;
+    }
+    match /assignmentCancellationRequests/{docId} {
+      allow read: if request.auth != null && (
+        request.auth.uid == resource.data.adminUid ||
+        request.auth.uid == resource.data.teacherLoginUid
+      );
+      allow update: if request.auth != null && request.auth.uid == resource.data.adminUid;
+      allow create: if request.auth != null && request.auth.uid == request.resource.data.teacherLoginUid;
     }
     match /teacherAssignments/{docId} {
       allow read: if request.auth != null && (

@@ -379,6 +379,44 @@ async function syncTeacherAssignments(){
   await ensureMissingApprovalTickets();
 }
 
+async function approveCancellationRequest(req, reqId){
+  if(req.oneTimeDate){
+    S.teacherSubstitutions = S.teacherSubstitutions.filter(s=>
+      !(s.substituteTeacherId===req.teacherId && s.date===req.oneTimeDate &&
+        Number(s.slot)===Number(req.slot))
+    );
+  }else{
+    const idx = S.assignments.findIndex(a=>{
+      if(a.teacherId!==req.teacherId) return false;
+      if(a.day!==req.day) return false;
+      if(Number(a.slot)!==Number(req.slot)) return false;
+      if(a.subject!==req.subject) return false;
+      const student = S.students.find(s=>s.id===a.studentId);
+      return student && student.name===req.studentName;
+    });
+    if(idx!==-1) S.assignments.splice(idx, 1);
+  }
+  try{
+    await fbDb.collection('assignmentCancellationRequests').doc(reqId).update({status:'approved'});
+  }catch(err){
+    console.error('キャンセル承認の更新エラー:', err);
+    throw err;
+  }
+  scheduleSyncTeacherAssignments();
+  scheduleSave();
+  renderMatching();
+  renderCalendar();
+}
+
+async function rejectCancellationRequest(reqId){
+  try{
+    await fbDb.collection('assignmentCancellationRequests').doc(reqId).update({status:'rejected'});
+  }catch(err){
+    console.error('キャンセル却下の更新エラー:', err);
+    throw err;
+  }
+}
+
 
 // 全データを1つのドキュメントにまとめてFirestoreへ保存する（呼び出しが重ならないよう1.2秒デバウンス）
 // ※teacherSchedulesは別コレクション（S.teacherSchedules）で管理するため、ここには含めない
@@ -524,4 +562,4 @@ async function clearAllMatchingData(){
 }
 
 
-export { loadStudents, saveStudents, getStateDocRef, teacherSchedDocRef, syncTeacherLoginUidEverywhere, saveTeacherScheduleDoc, loadAllTeacherSchedules, startTeacherScheduleListener, promotePendingAssignment, startApprovalPromotionListener, scheduleSyncClosureSettings, syncClosureSettings, scheduleSyncTeacherAssignments, syncTeacherAssignments, scheduleSave, saveAppState, loadAppStateFromFirestore, clearAllMatchingData, seedTeacherMonthSchedulesFromBase };
+export { loadStudents, saveStudents, getStateDocRef, teacherSchedDocRef, syncTeacherLoginUidEverywhere, saveTeacherScheduleDoc, loadAllTeacherSchedules, startTeacherScheduleListener, promotePendingAssignment, startApprovalPromotionListener, scheduleSyncClosureSettings, syncClosureSettings, scheduleSyncTeacherAssignments, syncTeacherAssignments, scheduleSave, saveAppState, loadAppStateFromFirestore, clearAllMatchingData, seedTeacherMonthSchedulesFromBase, approveCancellationRequest, rejectCancellationRequest };

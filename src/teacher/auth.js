@@ -5,7 +5,13 @@ import { fbAuth, fbDb, S } from './state.js';
 import { debugLog } from './debug.js';
 import { startClassroomSettingsListener } from './classroom-settings.js';
 import { startScheduleListener,loadMyPendingRequests } from './schedule.js';
-import { loadNewAssignments,startMyAssignmentsListener } from './approvals.js';
+import { loadResponseDrafts } from './response-draft.js';
+import {
+  loadNewAssignments,
+  loadPendingCancellationRequests,
+  startMyAssignmentsListener,
+  initResponseDraftHandlers,
+} from './approvals.js';
 import { renderMyCalendar } from './calendar.js';
 import { render } from './shift-ui.js';
 
@@ -31,7 +37,17 @@ function handleLogin(){
 }
 document.getElementById('loginBtn').addEventListener('click', handleLogin);
 document.getElementById('loginPassword').addEventListener('keydown', (e)=>{ if(e.key==='Enter') handleLogin(); });
-document.getElementById('logoutBtn').addEventListener('click', ()=>{ fbAuth.signOut(); });
+document.getElementById('logoutBtn').addEventListener('click', ()=>{
+  const uid = fbAuth.currentUser ? fbAuth.currentUser.uid : null;
+  const draftCount = uid ? Object.keys(loadResponseDrafts(uid)).length : 0;
+  if(draftCount > 0){
+    const ok = window.confirm(
+      `未送信の返事が${draftCount}件あります。\nこの端末に保存されたままログアウトします。\n\nよろしいですか？`
+    );
+    if(!ok) return;
+  }
+  fbAuth.signOut();
+});
 
 fbAuth.onAuthStateChanged(async user=>{
   if(user){
@@ -81,11 +97,14 @@ async function bootstrap(user){
   const t = new Date();
   if(S.curYear===undefined){ S.curYear = t.getFullYear(); S.curMonth = t.getMonth(); }
   if(S.myCalYear===undefined){ S.myCalYear = t.getFullYear(); S.myCalMonth = t.getMonth(); }
-  startScheduleListener(); // 講師スケジュールをリアルタイム監視（教室長側の変更も即座に反映される）
-  startMyAssignmentsListener(); // 担当授業一覧（マイカレンダー）をリアルタイム監視
-  startClassroomSettingsListener(); // 休校日設定（定休日・祝日・個別休校日）をリアルタイム監視
+  S.responseDrafts = loadResponseDrafts(user.uid);
+  initResponseDraftHandlers();
+  startScheduleListener();
+  startMyAssignmentsListener();
+  startClassroomSettingsListener();
   await loadMyPendingRequests();
   S.newAssignments = await loadNewAssignments();
+  S.pendingCancellationRequests = await loadPendingCancellationRequests();
   renderMyCalendar();
   render();
 }
