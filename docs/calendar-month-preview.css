@@ -1161,3 +1161,156 @@ h2 {
 }
 
 .week-grid-table td { min-width: 150px; }
+
+/* ===== 週間 v5 プレビュー ===== */
+.week-v5-block {
+  background: var(--preview-card);
+  border: 2px solid var(--preview-brand);
+  border-radius: 14px;
+  padding: 22px 20px 28px;
+  margin-bottom: 48px;
+}
+
+.week-v5-block h2 { color: var(--preview-brand-deep); }
+
+.week-v5-grid-compare {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+}
+
+@media (max-width: 900px) {
+  .week-v5-grid-compare { grid-template-columns: 1fr; }
+}
+
+.week-v5-grid-compare .compare-panel-body {
+  overflow-x: auto;
+}
+
+/* 公開中＝本番と同型（sched-lesson-card） */
+.week-shipped-cell-inner { min-width: 0; }
+
+.week-shipped-total {
+  font-size: 11px;
+  font-weight: 700;
+  color: #15803D;
+  margin-bottom: 6px;
+}
+
+/* v5：マス＝薄い背景＋罫線、生徒＝枠なしリスト */
+.week-v5-table td.week-v5-td {
+  background: var(--preview-surface-subtle);
+  padding: 0;
+}
+
+.week-v5-table td.week-v5-td.is-empty {
+  opacity: 1;
+}
+
+.week-v5-table td.week-v5-td.is-empty .week-v5-empty {
+  padding: 20px 6px;
+  font-size: 12px;
+  color: var(--preview-ink-faint);
+  text-align: center;
+  opacity: 0.85;
+}
+
+.week-v5-cell {
+  display: flex;
+  flex-direction: column;
+  min-height: 100%;
+}
+
+.week-v5-head {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--preview-ink);
+  padding: 5px 6px 4px;
+  border-bottom: 1px solid var(--preview-border);
+  background: rgba(255, 255, 255, 0.55);
+}
+
+.week-v5-list { display: flex; flex-direction: column; }
+
+.week-v5-lesson {
+  padding: 5px 6px 6px;
+  border-top: 1px solid var(--preview-border);
+  background: transparent;
+}
+
+.week-v5-list .week-v5-lesson:first-child { border-top: none; }
+
+.week-v5-lesson-row1 {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  min-width: 0;
+  flex-wrap: wrap;
+}
+
+.week-v5-lesson-name {
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 1.4;
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.week-v5-lesson-grade {
+  font-size: 10px;
+  font-weight: 500;
+  color: var(--preview-ink-soft);
+  flex-shrink: 0;
+}
+
+.week-v5-lesson-row2 {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  margin-top: 3px;
+  font-size: 10px;
+}
+
+.week-v5-lesson-row2 .week-v5-meta-label {
+  color: var(--preview-ink-soft);
+  flex-shrink: 0;
+}
+
+.week-v5-lesson-row2 .week-v5-meta-value {
+  font-weight: 700;
+  color: var(--preview-ink);
+}
+
+.week-v5-lesson-row2 .week-v5-meta-value.is-pending {
+  color: var(--preview-pending-ink);
+}
+
+.week-v5-annotate {
+  margin-top: 10px;
+  font-size: 11px;
+  line-height: 1.55;
+}
+
+.week-v5-annotate span {
+  display: inline-block;
+  padding: 1px 6px;
+  border-radius: 4px;
+  font-weight: 700;
+  margin-right: 4px;
+}
+
+.week-v5-annotate .tag-grid {
+  background: #EFF1F4;
+  color: var(--preview-ink-soft);
+}
+
+.week-v5-annotate .tag-card {
+  background: #FFF3E0;
+  color: #9A6B00;
+  text-decoration: line-through;
+}
+
+.week-v5-annotate .tag-list {
+  background: #E8F4FD;
+  color: var(--preview-brand-deep);
+}

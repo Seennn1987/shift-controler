@@ -724,6 +724,229 @@ function renderWeekLegendCompare() {
   `;
 }
 
+/* ===== 週間 v5（公開中評価 → 改善案） ===== */
+const WEEK_V5_SUMMARY = '公開中の週間は<strong>表のマス目（1px罫線）</strong>と<strong>生徒カード（同じ1px枠）</strong>が重なり、「どこが日付の区切りでどこが生徒の箱か」分かりにくい。月次 v4 で直した方針を週間にも適用する。';
+
+const WEEK_V5_PLAN = [
+  { prio: 'A', title: '枠の階層を分ける', now: 'マス罫線＝1px・カード枠＝1px・同じ色 → 二重枠', fix: 'マスは罫線＋薄い背景。生徒は<strong>枠なし</strong>・行と行の区切り線だけ' },
+  { prio: 'A', title: '「教室 N人」をヘッダー化', now: '緑の小文字がカード直上 → ヘッダー感が弱い', fix: 'マス最上段に固定し、下線で生徒リストと分離' },
+  { prio: 'B', title: '空きマス（予定なし）', now: '文字だけ・予定ありマスの方が線が多く見える', fix: 'マス背景を薄く。枠のない空 vs 中身あり、を一目で' },
+  { prio: 'B', title: '月次 v4 との統一', now: '月次＝リスト IN マス、週次＝カード IN マスでルールが違う', fix: '同じ「リスト IN マス」。未決・教科色の付け方は現状維持' },
+  { prio: 'C', title: '講師軸も同型に', now: '講師軸だけ sched-teacher-box（別デザイン）', fix: 'v5 本番反映時に講師軸もリスト型へ（別フェーズ可）' },
+];
+
+const WEEK_V5_PRINCIPLES = [
+  '表のマス＝日付×コマの単位。罫線はここだけ（＋薄い背景）',
+  '生徒1件＝枠なし2行（教科＋名前＋学年／講師行）。未決は講師行に「未決」1回',
+  '生徒どうしは区切り線のみ。角丸の白箱は使わない（月次 v4 と同じ）',
+  '「教室 N人」はマス内ヘッダー。定員 /12 は画面に出さない',
+  '凡例は付けない（月次と同様、画面から削除済み）',
+];
+
+const SUBJECT_STYLES_V5 = {
+  '国語': { bg: '#FCE8E6', text: '#9F1239' },
+  '算数': { bg: '#E0F7FA', text: '#0E7490' },
+  '数学': { bg: '#DBEAFE', text: '#1D4ED8' },
+  '理科': { bg: '#E6F5EC', text: '#15803D' },
+  '社会': { bg: '#FFF4E5', text: '#C2410C' },
+  '英語': { bg: '#F3E8FF', text: '#7C3AED' },
+};
+
+const WEEK_V5_THU_SAMPLE = {
+  date: '8/20(木)',
+  slot: '4講',
+  roomCount: 3,
+  lessons: [
+    { subject: '国語', student: 'テスト はなこ', grade: '小4', teacher: '三田', pending: false },
+    { subject: '算数', student: 'テスト 太郎', grade: '小5', teacher: '三田', pending: false },
+    { subject: '数学', student: 'テスト 次郎', grade: '中2', teacher: '三田', pending: false },
+  ],
+};
+
+const WEEK_V5_GRID_DAYS = [
+  {
+    date: '8/17(月)',
+    roomCount: 2,
+    lessons: [
+      { subject: '国語', student: 'テスト はなこ', grade: '小4', teacher: '三田', pending: false },
+      { subject: '算数', student: 'テスト 太郎', grade: '小5', teacher: '三田', pending: false },
+    ],
+  },
+  { date: '8/18(火)', empty: true },
+  {
+    date: '8/19(水)',
+    roomCount: 1,
+    lessons: [{ subject: '国語', student: 'テスト はなこ', grade: '小4', teacher: '三田', pending: false }],
+  },
+  {
+    date: '8/20(木)',
+    roomCount: 3,
+    lessons: [
+      { subject: '国語', student: 'テスト はなこ', grade: '小4', teacher: '三田', pending: false },
+      { subject: '算数', student: 'テスト 太郎', grade: '小5', teacher: '三田', pending: false },
+      { subject: '数学', student: 'テスト 次郎', grade: '中2', teacher: '三田', pending: false },
+    ],
+  },
+  {
+    date: '8/21(金)',
+    roomCount: 2,
+    lessons: [
+      { subject: '社会', student: 'テスト 花子', grade: '小6', teacher: '三田', pending: false },
+      { subject: '英語', student: 'テスト 一郎', grade: '中1', teacher: null, pending: true },
+    ],
+  },
+  {
+    date: '8/22(土)',
+    roomCount: 1,
+    lessons: [{ subject: '理科', student: 'テスト あや', grade: '小5', teacher: '三田', pending: false }],
+  },
+];
+
+function weekV5SubjectTag(subject) {
+  const s = SUBJECT_STYLES_V5[subject] || { bg: '#EEE', text: '#333' };
+  return `<span class="week-subject-tag" style="background:${s.bg};color:${s.text};">${subject}</span>`;
+}
+
+function renderWeekShippedLesson(lesson) {
+  const teacherHtml = lesson.pending
+    ? '<span class="week-card-meta-value is-pending">未決</span>'
+    : `<span class="week-card-meta-value">${lesson.teacher} 先生</span>`;
+  return `<div class="week-card">
+    <div class="week-card-row1">
+      ${weekV5SubjectTag(lesson.subject)}
+      <span class="week-card-name">${lesson.student}</span>
+      <span class="week-card-grade">${lesson.grade}</span>
+    </div>
+    <div class="week-card-row2">
+      <span class="week-card-meta-label">講師</span>
+      ${teacherHtml}
+    </div>
+  </div>`;
+}
+
+function renderWeekV5Lesson(lesson) {
+  const teacherHtml = lesson.pending
+    ? '<span class="week-v5-meta-value is-pending">未決</span>'
+    : `<span class="week-v5-meta-value">${lesson.teacher} 先生</span>`;
+  return `<div class="week-v5-lesson">
+    <div class="week-v5-lesson-row1">
+      ${weekV5SubjectTag(lesson.subject)}
+      <span class="week-v5-lesson-name">${lesson.student}</span>
+      <span class="week-v5-lesson-grade">${lesson.grade}</span>
+    </div>
+    <div class="week-v5-lesson-row2">
+      <span class="week-v5-meta-label">講師</span>
+      ${teacherHtml}
+    </div>
+  </div>`;
+}
+
+function renderWeekShippedCellContent(day) {
+  if (day.empty || !day.lessons?.length) {
+    return '<div class="week-empty">予定なし</div>';
+  }
+  return `<div class="week-shipped-cell-inner">
+    <div class="week-shipped-total">教室 ${day.roomCount}人</div>
+    ${day.lessons.map(renderWeekShippedLesson).join('')}
+  </div>`;
+}
+
+function renderWeekV5CellContent(day) {
+  if (day.empty || !day.lessons?.length) {
+    return '<div class="week-v5-empty">予定なし</div>';
+  }
+  return `<div class="week-v5-cell">
+    <div class="week-v5-head">教室 ${day.roomCount}人</div>
+    <div class="week-v5-list">${day.lessons.map(renderWeekV5Lesson).join('')}</div>
+  </div>`;
+}
+
+function renderWeekV5SlotMock(day, contentFn, extraCls = '') {
+  return `<div class="week-cell-mock ${extraCls}">
+    <div class="week-cell-head">${day.date} · ${day.slot || '4講'}</div>
+    ${contentFn(day)}
+  </div>`;
+}
+
+function renderWeekV5GridTable(contentFn, tableCls = '') {
+  const isV5 = tableCls.includes('week-v5-table');
+  const headers = WEEK_V5_GRID_DAYS.map(d => `<th>${d.date.replace(/\(.\)/, '')}</th>`).join('');
+  const cells = WEEK_V5_GRID_DAYS.map(d => {
+    const tdCls = isV5 ? (d.empty ? 'week-v5-td is-empty' : 'week-v5-td') : '';
+    return `<td${tdCls ? ` class="${tdCls}"` : ''}>${contentFn(d)}</td>`;
+  }).join('');
+  return `<table class="week-grid-table ${tableCls}"><thead><tr><th>4講</th>${headers}</tr></thead><tbody><tr><th>14:50〜</th>${cells}</tr></tbody></table>`;
+}
+
+function renderWeekV5Section() {
+  document.getElementById('weekV5Summary').innerHTML = WEEK_V5_SUMMARY;
+  document.getElementById('weekV5PlanList').innerHTML = WEEK_V5_PLAN.map(item => `
+    <div class="v4-plan-item">
+      <span class="prio">${item.prio}</span>
+      <div><strong>${item.title}</strong>いま：${item.now}<br>v5：${item.fix}</div>
+    </div>
+  `).join('');
+  document.getElementById('weekV5PrincipleList').innerHTML = WEEK_V5_PRINCIPLES.map(p => `<li>${p}</li>`).join('');
+
+  document.getElementById('weekV5BorderCompare').innerHTML = `
+    <div class="compare-panel">
+      <div class="compare-panel-head v3b-now">公開中 — 表の線＋カードの枠が同じ</div>
+      <div class="compare-panel-body">
+        ${renderWeekV5SlotMock(WEEK_V5_THU_SAMPLE, renderWeekShippedCellContent)}
+        <div class="week-v5-annotate">
+          <span class="tag-grid">■ 薄グレー線</span>＝日付×コマのマス目<br>
+          <span class="tag-card">■ 同じ薄グレー線</span>＝生徒カードの枠 → <strong>区別がつかない</strong>
+        </div>
+        <div class="problem-callout bad">3人並ぶと横線が4重。どこまでが「木曜のマス」か読み取りにくい</div>
+      </div>
+    </div>
+    <div class="compare-panel">
+      <div class="compare-panel-head v4">v5 案 — マスは背景＋罫線、生徒は行リスト</div>
+      <div class="compare-panel-body">
+        ${renderWeekV5SlotMock(WEEK_V5_THU_SAMPLE, renderWeekV5CellContent, 'is-v5')}
+        <div class="week-v5-annotate">
+          <span class="tag-grid">■ マス</span>＝薄い背景＋外側罫線だけ<br>
+          <span class="tag-list">■ 生徒</span>＝枠なし。行と行の間だけ区切り線
+        </div>
+        <div class="problem-callout good">「表の区切り」と「生徒の情報」が別レイヤーに見える</div>
+      </div>
+    </div>
+  `;
+
+  document.getElementById('weekV5GridCompare').innerHTML = `
+    <div class="compare-panel">
+      <div class="compare-panel-head v3b-now">公開中 — 8/17〜8/22 · 4講</div>
+      <div class="compare-panel-body">${renderWeekV5GridTable(renderWeekShippedCellContent)}</div>
+    </div>
+    <div class="compare-panel">
+      <div class="compare-panel-head v4">v5 案 — 同じデータ</div>
+      <div class="compare-panel-body">${renderWeekV5GridTable(renderWeekV5CellContent, 'week-v5-table')}</div>
+    </div>
+  `;
+
+  document.getElementById('weekV5HeaderCompare').innerHTML = `
+    <div class="compare-panel">
+      <div class="compare-panel-head v3b-now">公開中</div>
+      <div class="compare-panel-body">
+        <div style="max-width:160px;">
+          <div class="week-shipped-total">教室 2人</div>
+          ${renderWeekShippedLesson(WEEK_V5_GRID_DAYS[0].lessons[0])}
+        </div>
+        <div class="problem-callout bad">人数ラベルと1人目カードの距離が近く、<strong>ヘッダー</strong>に見えない</div>
+      </div>
+    </div>
+    <div class="compare-panel">
+      <div class="compare-panel-head v4">v5 案</div>
+      <div class="compare-panel-body">
+        <div style="max-width:160px;border:1px solid var(--preview-border);background:var(--preview-surface-subtle);">
+          ${renderWeekV5CellContent(WEEK_V5_GRID_DAYS[0])}
+        </div>
+        <div class="problem-callout good">「教室 2人」行の<strong>下線</strong>で、サマリーと生徒リストが分かれる</div>
+      </div>
+    </div>
+  `;
+}
+
 /* ===== v4 修正方針（v3b 評価後） ===== */
 const V4_SUMMARY = 'v3b で「4講→2人→未決」の順序は直った。残るのは<strong>マス右の空白・二重枠・凡例の長さ・週行の高さ揃え</strong>。v4 はここを狙う。';
 
@@ -874,6 +1097,7 @@ function renderV4PlanSection() {
 
 document.getElementById('principleList').innerHTML = PRINCIPLES.map(p => `<li>${p}</li>`).join('');
 document.getElementById('weekPrincipleList').innerHTML = WEEK_PRINCIPLES.map(p => `<li>${p}</li>`).join('');
+renderWeekV5Section();
 renderV4PlanSection();
 renderFeedbackSummary();
 renderFeedbackIssueList();

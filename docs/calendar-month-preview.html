@@ -12,11 +12,28 @@
   <header class="preview-header">
     <div class="preview-header-inner">
       <h1>カレンダー UI プレビュー</h1>
-      <p>月間・週間カレンダー UI — <strong>v3b 公開後</strong>の評価と <strong>v4 修正方針</strong>を先頭にまとめています。</p>
+      <p>先頭に<strong>週間 v5 ブラッシュアップ案</strong>（公開中 vs 改善案）。その下に月間 v4 など過去の比較があります。</p>
     </div>
   </header>
 
   <main class="preview-main">
+    <section class="week-v5-block" id="weekV5Section">
+      <h2>週間カレンダー — 公開中の評価 → v5 改善案</h2>
+      <p class="section-desc">スクショ（8/17〜8/22・4講）を基準に自己評価。<strong>★★☆☆☆（枠の階層）</strong>が最大の問題。月次 v4 と同じ「リスト IN マス」に揃えます。</p>
+      <div id="weekV5Summary" class="v4-summary"></div>
+      <div id="weekV5PlanList" class="v4-plan-list"></div>
+      <h3 class="sub-heading">① いちばんの問題 — 表の線と生徒の箱が同じ</h3>
+      <p class="section-desc">左が<strong>いま公開中</strong>（白カード＋1px枠）。右が<strong>v5案</strong>（カード枠なし・行の区切りだけ）。木曜4講＝3人の例。</p>
+      <div id="weekV5BorderCompare" class="column-compare"></div>
+      <h3 class="sub-heading">② 1週間の4講行 — 横並びで比較</h3>
+      <p class="section-desc">日付の罫線＝表。中身＝生徒リスト。空きマス（予定なし）は v5 ではマス全体を薄く。</p>
+      <div id="weekV5GridCompare" class="week-v5-grid-compare"></div>
+      <h3 class="sub-heading">③ 「教室 N人」をヘッダー行に</h3>
+      <div id="weekV5HeaderCompare" class="column-compare"></div>
+      <h3 class="sub-heading">④ v5 で守るルール（月次 v4 と同系統）</h3>
+      <ul class="principle-list" id="weekV5PrincipleList"></ul>
+    </section>
+
     <section class="v4-block" id="v4PlanSection">
       <h2>v3b 公開後の評価 → v4 修正方針</h2>
       <p class="section-desc">いま公開中（v3b）を5段階で<strong>★★★☆☆（60点）</strong>と評価。下記が次に入れる修正です（本番反映前の確認用）。</p>

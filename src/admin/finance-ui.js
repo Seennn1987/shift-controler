@@ -202,7 +202,7 @@ function renderCalendarWeekGrid(axis){
       const list = getEffectiveDayAssignments(ds).filter(a=>a.slot===slot.id);
       const unassigned = getUnassignedRowsForDate(ds).filter(r=>r.slot.id===slot.id);
       if(list.length===0 && unassigned.length===0){
-        tbody += `<td class="sched-cell week-date-cell" data-date="${ds}"><div class="sched-empty">\u4e88\u5b9a\u306a\u3057</div></td>`;
+        tbody += `<td class="sched-cell week-date-cell is-empty" data-date="${ds}"><div class="sched-empty">\u4e88\u5b9a\u306a\u3057</div></td>`;
         return;
       }
       const totalCount = list.length + unassigned.length;
@@ -210,8 +210,10 @@ function renderCalendarWeekGrid(axis){
         ? buildStudentAxisCell(list) + buildWeekUnassignedStudentBoxes(unassigned)
         : buildTeacherAxisCell(list) + buildWeekUnassignedTeacherBlock(unassigned);
       tbody += `<td class="sched-cell week-date-cell" data-date="${ds}">
-        <div class="sched-total">\u6559\u5ba4 ${totalCount}\u4eba</div>
-        ${cellInner}
+        <div class="sched-cell-inner">
+          <div class="sched-total">\u6559\u5ba4 ${totalCount}\u4eba</div>
+          <div class="sched-lesson-list">${cellInner}</div>
+        </div>
       </td>`;
     });
     tbody += '</tr>';
@@ -264,9 +266,9 @@ function buildTeacherAxisCell(list){
         <span>${studentName}<span class="grade-tag">${gLabel}</span></span>${autoBadge}${makeupBadge}
       </div>`;
     });
-    boxesHtml += `<div class="sched-teacher-box">
-      <div class="sched-teacher-name">${teacherHonorific(teacher)}<span class="sched-cap">\uff08${entries.length}/${S.teacherCapacity}\uff09</span></div>
-      ${studentsHtml}
+    boxesHtml += `<div class="sched-teacher-group">
+      <div class="sched-teacher-head">${teacherHonorific(teacher)}<span class="sched-cap">\uff08${entries.length}/${S.teacherCapacity}\uff09</span></div>
+      <div class="sched-teacher-students">${studentsHtml}</div>
     </div>`;
   });
   return boxesHtml;
@@ -372,9 +374,9 @@ function buildWeekTeacherFilterCell(teacher, dateStr, slot){
       <span>${studentName}<span class="grade-tag">${gLabel}</span></span>${autoBadge}${makeupBadge}
     </div>`;
   });
-  return `<div class="sched-teacher-box">
-    <div class="sched-teacher-name">${teacherHonorific(teacher)}<span class="sched-cap">（${list.length}/${S.teacherCapacity}）</span></div>
-    ${studentsHtml}
+  return `<div class="sched-teacher-group">
+    <div class="sched-teacher-head">${teacherHonorific(teacher)}<span class="sched-cap">（${list.length}/${S.teacherCapacity}）</span></div>
+    <div class="sched-teacher-students">${studentsHtml}</div>
   </div>`;
 }
 
