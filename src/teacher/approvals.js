@@ -10,13 +10,21 @@ import { renderMyCalendar } from './calendar.js';
  // 実際の担当授業一覧（teacherAssignments、曜日繰り返し＋単発の代講）
 
 async function loadNewAssignments(){
+  const uid = fbAuth.currentUser ? fbAuth.currentUser.uid : null;
+  if(!uid) return [];
   try{
+    // where は1つだけ（複合索引不要）。pending の絞り込みはクライアント側（教室長画面と同じ方針）
     const snap = await fbDb.collection('assignmentApprovals')
-      .where('teacherLoginUid','==',fbAuth.currentUser.uid).where('status','==','pending').get();
+      .where('teacherLoginUid','==',uid).get();
     const list = [];
-    snap.forEach(doc=> list.push({id:doc.id, ...doc.data()}));
+    snap.forEach(doc=>{
+      const data = doc.data();
+      if(data.status === 'pending') list.push({id:doc.id, ...data});
+    });
+    debugLog(`[assignmentApprovals] 成功 pending=${list.length}件`);
     return list;
   }catch(err){
+    debugLog(`[assignmentApprovals] ★失敗★ code=${err.code} message=${err.message}`);
     console.error('新しい授業の読み込みエラー:', err);
     return [];
   }
@@ -24,8 +32,9 @@ async function loadNewAssignments(){
 
 // 承認待ちチケットと、実際の担当授業一覧を突き合わせ、該当する授業に承認待ちの目印を付ける
 function findPendingTicket(day, slot, subject, studentName, oneTimeDate){
+  const slotNum = Number(slot);
   return S.newAssignments.find(a=>
-    a.day===day && a.slot===slot && a.subject===subject && a.studentName===studentName &&
+    a.day===day && Number(a.slot)===slotNum && a.subject===subject && a.studentName===studentName &&
     (oneTimeDate ? a.oneTimeDate===oneTimeDate : !a.oneTimeDate)
   );
 }
@@ -41,6 +50,7 @@ function startMyAssignmentsListener(){
       const snap = await ref.get();
       debugLog(`[teacherAssignments] 成功 exists=${snap.exists}`);
       S.myAssignmentEntries = snap.exists ? (snap.data().entries || []) : [];
+      S.newAssignments = await loadNewAssignments();
       renderMyCalendar();
     }catch(err){
       debugLog(`[teacherAssignments] ★失敗★ code=${err.code} message=${err.message}`);

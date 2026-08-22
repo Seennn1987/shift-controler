@@ -67,11 +67,16 @@ async function saveMonthEntry(yearMonth, entry){
 }
 
 async function loadMyPendingRequests(){
+  const uid = fbAuth.currentUser ? fbAuth.currentUser.uid : null;
+  if(!uid){ S.pendingRequests = []; return; }
   try{
     const snap = await fbDb.collection('scheduleChangeRequests')
-      .where('teacherLoginUid','==',fbAuth.currentUser.uid).where('status','==','pending').get();
+      .where('teacherLoginUid','==',uid).get();
     S.pendingRequests = [];
-    snap.forEach(doc=> S.pendingRequests.push({id:doc.id, ...doc.data()}));
+    snap.forEach(doc=>{
+      const data = doc.data();
+      if(data.status === 'pending') S.pendingRequests.push({id:doc.id, ...data});
+    });
   }catch(err){
     console.error('変更リクエスト読み込みエラー:', err);
     S.pendingRequests = [];
