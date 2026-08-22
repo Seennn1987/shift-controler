@@ -1,9 +1,19 @@
 import { SLOTS, WEEKDAY_JP } from '../shared/constants.js';
-import { HOLIDAYS_JP } from '../shared/holidays.js';
 import { pad2, daysInYearMonth, toDateStr } from '../shared/date-utils.js';
-import { fbAuth, fbDb, S } from './state.js';
+import { S } from './state.js';
 import { getDayStatus } from './day-status.js';
-import { findPendingTicket,approveTicket } from './approvals.js';
+import { findPendingTicket, approveTicket, rejectTicket } from './approvals.js';
+
+function resolveApprovalState(entry){
+  if(entry.approvalStatus === 'pending') return 'pending';
+  if(entry.approvalStatus === 'confirmed') return 'confirmed';
+  return findPendingTicket(entry.day, entry.slot, entry.subject, entry.studentName, entry.oneTimeDate) ? 'pending' : 'confirmed';
+}
+
+function statusBadgeHtml(state){
+  if(state === 'pending') return '<span class="mycal-status-badge is-pending">依頼中</span>';
+  return '<span class="mycal-status-badge is-confirmed">確定済み</span>';
+}
 
 // ---- マイカレンダー（実日付ベースの担当授業一覧） ----
 function renderMyCalendar(){
@@ -13,12 +23,15 @@ function renderMyCalendar(){
 
   const pendingCount = S.newAssignments.length;
   const bannerCard = document.getElementById('pendingBannerCard');
+  const bannerHint = document.getElementById('pendingBannerHint');
   if(pendingCount>0){
     bannerCard.style.display = '';
-    document.getElementById('pendingBannerText').textContent = `${pendingCount}件、確認が必要な授業があります`;
-    document.getElementById('approveAllBtn').textContent = `まとめて承認する（${pendingCount}件）`;
+    document.getElementById('pendingBannerText').textContent = `${pendingCount}コマ、授業依頼が届いています`;
+    document.getElementById('approveAllBtn').textContent = `まとめて承認（${pendingCount}コマ）`;
+    if(bannerHint) bannerHint.textContent = '同じコマは毎週の曜日ごとに表示されます。承認は1回でそのコマ全体に反映されます。';
   }else{
     bannerCard.style.display = 'none';
+    if(bannerHint) bannerHint.textContent = '';
   }
 
   const total = daysInYearMonth(`${S.myCalYear}-${pad2(S.myCalMonth+1)}`);
@@ -43,16 +56,27 @@ function renderMyCalendar(){
         dayEntries.sort((a,b)=> a.slot - b.slot);
         rowsHtml = dayEntries.map(e=>{
           const slotLabel = SLOTS.find(s=>s.id===e.slot);
-          const ticket = findPendingTicket(e.day, e.slot, e.subject, e.studentName, e.oneTimeDate);
-          const isPending = !!ticket;
+          const approvalState = resolveApprovalState(e);
+          const isPending = approvalState === 'pending';
+          const ticket = isPending ? findPendingTicket(e.day, e.slot, e.subject, e.studentName, e.oneTimeDate) : null;
+          const isOrphan = isPending && !ticket;
+          let actionsHtml = '';
+          if(ticket){
+            actionsHtml = `<div class="mycal-actions">
+              <button type="button" class="mycal-approve-btn" data-id="${ticket.id}">承認する</button>
+              <button type="button" class="mycal-reject-btn" data-id="${ticket.id}">断る</button>
+            </div>`;
+          }else if(isOrphan){
+            actionsHtml = '<span class="mycal-orphan-note">反映待ち（教室長に連絡）</span>';
+          }
           return `<div class="mycal-lesson-row ${isPending?'pending':''}">
             <div class="mycal-lesson-info">
               <span class="mycal-slot-tag">${slotLabel?slotLabel.label:e.slot+'講'}</span>
               <b>${e.studentName}</b>（${e.studentGrade||''}）　${e.subject}
-              ${e.oneTimeDate ? '<span class="mycal-pending-tag" style="color:var(--ink-soft);">単発の代講</span>' : ''}
-              ${isPending ? '<span class="mycal-pending-tag">確認待ち</span>' : ''}
+              ${e.oneTimeDate ? '<span class="mycal-status-badge is-sub">単発の代講</span>' : ''}
+              ${statusBadgeHtml(approvalState)}
             </div>
-            ${isPending ? `<button type="button" class="mycal-approve-btn" data-id="${ticket.id}">承認する</button>` : ''}
+            ${actionsHtml}
           </div>`;
         }).join('');
       }
@@ -67,6 +91,9 @@ function renderMyCalendar(){
   wrap.innerHTML = html;
   wrap.querySelectorAll('.mycal-approve-btn').forEach(btn=>{
     btn.addEventListener('click', ()=> approveTicket(btn.dataset.id));
+  });
+  wrap.querySelectorAll('.mycal-reject-btn').forEach(btn=>{
+    btn.addEventListener('click', ()=> rejectTicket(btn.dataset.id));
   });
 }
 

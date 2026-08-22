@@ -62,7 +62,9 @@ async function renderApprovalStatus(){
     const teacherName = teacher ? teacher.name : '(削除された講師)';
     const statusHtml = a.status==='approved'
       ? '<span class="approval-badge approved">確定</span>'
-      : '<span class="approval-badge pending">講師確認待ち</span>';
+      : a.status==='rejected'
+        ? '<span class="approval-badge rejected">講師が断りました</span>'
+        : '<span class="approval-badge pending">講師確認待ち</span>';
     return `<div class="change-req-row">
       <div class="change-req-main">
         <span class="change-req-name">${teacherName}</span>

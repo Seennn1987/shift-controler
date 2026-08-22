@@ -166,6 +166,7 @@
   .approval-badge{font-size:var(--text-xs);font-weight:700;padding:3px 10px;border-radius:var(--radius-pill);flex-shrink:0;}
   .approval-badge.pending{border:1px dashed var(--ink-soft);color:var(--ink-soft);}
   .approval-badge.approved{background:var(--green-100);color:var(--green-900);}
+  .approval-badge.rejected{background:var(--danger-bg);color:var(--danger);border:1px solid var(--danger);}
   .raise-row{display:flex;gap:10px;align-items:center;margin-bottom:8px;flex-wrap:wrap;}
   .raise-row input[type=month]{padding:8px 10px;border:1px solid var(--border);border-radius:var(--radius-md);font-family:inherit;font-size:var(--text-md);background:var(--surface-card);}
   .raise-row input[type=text]{padding:8px 10px;border:1px solid var(--border);border-radius:var(--radius-md);font-family:inherit;font-size:var(--text-md);background:var(--surface-card);width:120px;}

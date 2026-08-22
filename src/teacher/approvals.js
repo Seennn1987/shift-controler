@@ -76,6 +76,17 @@ async function approveTicket(id){
   await refreshPendingAndRender();
 }
 
+async function rejectTicket(id){
+  if(!window.confirm('この授業依頼を断りますか？教室長に通知され、担当は外れます。')) return;
+  try{
+    await fbDb.collection('assignmentApprovals').doc(id).update({status:'rejected'});
+  }catch(err){
+    console.error('拒否エラー:', err);
+    return;
+  }
+  await refreshPendingAndRender();
+}
+
 document.getElementById('approveAllBtn').addEventListener('click', async ()=>{
   const btn = document.getElementById('approveAllBtn');
   btn.disabled = true;
@@ -89,4 +100,4 @@ document.getElementById('approveAllBtn').addEventListener('click', async ()=>{
   btn.disabled = false;
   await refreshPendingAndRender();
 });
-export { loadNewAssignments, findPendingTicket, refreshPendingAndRender, approveTicket, startMyAssignmentsListener };
+export { loadNewAssignments, findPendingTicket, refreshPendingAndRender, approveTicket, rejectTicket, startMyAssignmentsListener };

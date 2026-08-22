@@ -171,6 +171,34 @@ async function promotePendingAssignment(ticket, ticketId){
   }catch(e){
     console.error('チケットの昇格フラグ更新エラー:', e);
   }
+  scheduleSyncTeacherAssignments();
+  scheduleSave();
+  renderMatching();
+  renderCalendar();
+}
+
+async function rejectPendingAssignment(ticket, ticketId){
+  const idx = S.pendingAssignments.findIndex(p=>{
+    if(!(p.teacherId===ticket.teacherId && p.day===ticket.day && Number(p.slot)===Number(ticket.slot) && p.subject===ticket.subject)) return false;
+    const student = S.students.find(s=>s.id===p.studentId);
+    return student && student.name===ticket.studentName;
+  });
+  if(idx===-1){
+    try{
+      await fbDb.collection('assignmentApprovals').doc(ticketId).update({handled:true});
+    }catch(e){
+      console.error('チケットの処理済みフラグ更新エラー:', e);
+    }
+    return;
+  }
+  S.pendingAssignments.splice(idx, 1);
+  try{
+    await fbDb.collection('assignmentApprovals').doc(ticketId).update({handled:true});
+  }catch(e){
+    console.error('チケットの処理済みフラグ更新エラー:', e);
+  }
+  scheduleSyncTeacherAssignments();
+  scheduleSave();
   renderMatching();
   renderCalendar();
 }
@@ -180,14 +208,30 @@ async function pollApprovalPromotions(){
   if(!user) return;
   try{
     const snap = await fbDb.collection('assignmentApprovals')
-      .where('adminUid','==',user.uid).where('status','==','approved').get();
+      .where('adminUid','==',user.uid).get();
     snap.forEach(doc=>{
       const a = doc.data();
-      if(a.promoted || a.oneTimeDate) return;
+      if(a.status!=='approved' || a.promoted || a.oneTimeDate) return;
       promotePendingAssignment(a, doc.id);
     });
   }catch(err){
     console.error('承認昇格の読み込みエラー:', err);
+  }
+}
+
+async function pollApprovalRejections(){
+  const user = fbAuth.currentUser;
+  if(!user) return;
+  try{
+    const snap = await fbDb.collection('assignmentApprovals')
+      .where('adminUid','==',user.uid).get();
+    snap.forEach(doc=>{
+      const a = doc.data();
+      if(a.status!=='rejected' || a.handled) return;
+      rejectPendingAssignment(a, doc.id);
+    });
+  }catch(err){
+    console.error('承認拒否の読み込みエラー:', err);
   }
 }
 
@@ -196,7 +240,56 @@ function startApprovalPromotionListener(){
   if(!user) return;
   if(S.approvalPromotionPollTimer) clearInterval(S.approvalPromotionPollTimer);
   pollApprovalPromotions();
-  S.approvalPromotionPollTimer = setInterval(pollApprovalPromotions, 10000);
+  pollApprovalRejections();
+  S.approvalPromotionPollTimer = setInterval(()=>{
+    pollApprovalPromotions();
+    pollApprovalRejections();
+  }, 10000);
+}
+
+// pendingAssignments に対応する承認チケットが無ければ補完する（過去データの取りこぼし修復）
+async function ensureMissingApprovalTickets(){
+  const user = fbAuth.currentUser;
+  if(!user) return;
+  let existing = [];
+  try{
+    const snap = await fbDb.collection('assignmentApprovals').where('adminUid','==',user.uid).get();
+    snap.forEach(doc=> existing.push(doc.data()));
+  }catch(err){
+    console.error('承認チケット一覧の読み込みエラー:', err);
+    return;
+  }
+  for(const a of S.pendingAssignments){
+    const teacher = S.teachers.find(t=>t.id===a.teacherId);
+    if(!teacher || !teacher.loginUid) continue;
+    const student = S.students.find(s=>s.id===a.studentId);
+    if(!student) continue;
+    const hasPending = existing.some(t=>
+      t.status==='pending' &&
+      t.teacherId===a.teacherId &&
+      t.day===a.day &&
+      Number(t.slot)===Number(a.slot) &&
+      t.subject===a.subject &&
+      t.studentName===student.name
+    );
+    if(hasPending) continue;
+    try{
+      await fbDb.collection('assignmentApprovals').add({
+        adminUid: user.uid,
+        teacherId: a.teacherId,
+        teacherLoginUid: teacher.loginUid,
+        studentName: student.name,
+        studentGrade: gradeLabel(student),
+        subject: a.subject,
+        day: a.day,
+        slot: a.slot,
+        status: 'pending',
+        createdAt: firebase.firestore.FieldValue.serverTimestamp(),
+      });
+    }catch(err){
+      console.error('承認チケット補完エラー:', err);
+    }
+  }
 }
 
 // ---- 休校日設定（定休日・祝日判定・個別休校日）を講師にも同期する ----
@@ -240,6 +333,7 @@ async function syncTeacherAssignments(){
         studentGrade: student ? gradeLabel(student) : '',
         subject: a.subject,
         oneTimeDate: null,
+        approvalStatus: 'confirmed',
       };
     });
     // 承認待ちの授業も、講師のカレンダーに「その日」として表示できるよう含める
@@ -251,6 +345,7 @@ async function syncTeacherAssignments(){
         studentGrade: student ? gradeLabel(student) : '',
         subject: a.subject,
         oneTimeDate: null,
+        approvalStatus: 'pending',
       });
     });
     // この講師が「代講」として単発で担当する授業（該当日だけの特別枠）
@@ -268,6 +363,7 @@ async function syncTeacherAssignments(){
         studentGrade: student ? gradeLabel(student) : '',
         subject: original.subject,
         oneTimeDate: sub.date,
+        approvalStatus: 'confirmed',
       });
     });
     const ref = fbDb.collection('teacherAssignments').doc(`${user.uid}_${t.id}`);
@@ -280,6 +376,7 @@ async function syncTeacherAssignments(){
       console.error('講師カレンダー同期エラー:', err);
     }
   }
+  await ensureMissingApprovalTickets();
 }
 
 
