@@ -36,20 +36,27 @@ export function buildCalAlertSubjectTag(subjectColor, level, subject){
   return `<span class="sched-student-tag cal-alert-subject-tag" style="background:${c.bg};color:${c.text};">${label}</span>`;
 }
 
+function buildCalAlertRowTail(subjectTag, badgeHtml = ''){
+  if(!badgeHtml) return subjectTag;
+  return `<span class="cal-alert-row-tail">${subjectTag}${badgeHtml}</span>`;
+}
+
 export function buildCalAlertRowBody(parts, layout = 'full'){
   const layoutCls = layout === 'person' ? ' cal-alert-row-body--person' : ' cal-alert-row-body--full';
   return `<div class="cal-alert-row-body${layoutCls}">${parts.join('')}</div>`;
 }
 
 export function buildShortageAlertRowHtml({ whenPill, personHead, subjectTag, badgeHtml = '', dataAttrs = '' }){
+  const tail = buildCalAlertRowTail(subjectTag, badgeHtml);
   return `<button type="button" class="approval-item approval-item-btn cal-alert-row-c4"${dataAttrs}>
-    ${buildCalAlertRowBody([whenPill, personHead, subjectTag], 'person')}${badgeHtml}
+    ${buildCalAlertRowBody([whenPill, personHead, tail], 'person')}
   </button>`;
 }
 
 export function buildApprovalAlertRowHtml({ whenPill, teacherHead, personInline, subjectTag, badgeHtml = '', rowCls = '', dataAttrs = '', tag = 'button' }){
   const cls = `approval-item cal-alert-row-c4${rowCls}${tag === 'button' ? ' approval-item-btn' : ''}`;
-  const inner = `${buildCalAlertRowBody([whenPill, teacherHead, personInline, subjectTag], 'full')}${badgeHtml}`;
+  const tail = buildCalAlertRowTail(subjectTag, badgeHtml);
+  const inner = buildCalAlertRowBody([whenPill, teacherHead, personInline, tail], 'full');
   if(tag === 'button'){
     return `<button type="button" class="${cls}"${dataAttrs}>${inner}</button>`;
   }
