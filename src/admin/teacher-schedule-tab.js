@@ -5,9 +5,13 @@ import { firebaseConfig, fbAuth, fbDb, STORAGE_KEY, getSecondaryAuth, S } from '
 import { findCustomClosure, getDayStatus, renderCalendar } from './calendar.js';
 import { renderMatrix } from './finance-ui.js';
 import { renderMatching, renderStudentList } from './matching.js';
-import { cycleTeacherState, findTeacherSchedule, getOrCreateDraftSchedule, getDateSlotState, getWeekdayAvailabilityInMonth, gradeLabel, isAvailable, isPreferredDay, isTeacherAvailableOnDate, setDateSlotState } from './schedule-core.js';
+import { cycleTeacherState, findTeacherSchedule, getOrCreateDraftSchedule, getDateSlotState, getWeekdayAvailabilityInMonth, gradeLabel, isAvailable, isPreferredDay, isTeacherAvailableOnDate, setDateSlotState, subjectColor } from './schedule-core.js';
 import { saveStudents, saveTeacherScheduleDoc, scheduleSave, scheduleSyncTeacherAssignments, approveCancellationRequest, rejectCancellationRequest } from './students-persistence.js';
 import { mountInlineConfirm, showInlineNotice } from '../shared/inline-confirm.js';
+import {
+  buildApprovalAlertRowHtml, buildCalAlertPersonInline,
+  buildCalAlertSubjectTag, buildCalAlertWhenPill, calAlertDateParts,
+} from '../shared/cal-alert-row.js';
 
 // 講師スケジュール（月次提出）タブ
 // =====================================================================
@@ -103,12 +107,29 @@ function approvalJumpDate(a){
   return findNearestFutureDateForWeekday(a.day);
 }
 
-function approvalScheduleLine(a){
+function approvalWhenPill(a){
   const slotLabel = SLOTS.find(s=>s.id===a.slot)?.label || `${a.slot}講`;
   const dateStr = approvalJumpDate(a);
-  const datePart = dateStr ? `${dateStr}（${a.day}）${slotLabel}` : `${a.day}曜${slotLabel}`;
-  const recur = !a.oneTimeDate && dateStr ? ' · 毎週' : '';
-  return `${datePart}${recur} · ${a.studentName}（${a.studentGrade||''}）· ${a.subject}`;
+  if(dateStr){
+    const { md, weekday } = calAlertDateParts(dateStr, getDayStatus);
+    return buildCalAlertWhenPill(md, weekday, slotLabel);
+  }
+  return buildCalAlertWhenPill(`${a.day}曜`, '', slotLabel);
+}
+
+function approvalRowAriaLabel(a, teacherName){
+  const slotLabel = SLOTS.find(s=>s.id===a.slot)?.label || `${a.slot}講`;
+  const dateStr = approvalJumpDate(a);
+  const datePart = dateStr ? (()=>{
+    const { md, weekday } = calAlertDateParts(dateStr, getDayStatus);
+    return `${md}（${weekday}）${slotLabel}`;
+  })() : `${a.day}曜${slotLabel}`;
+  return `${teacherName} ${datePart} ${a.studentName}（${a.studentGrade||''}）${a.subject}`;
+}
+
+function approvalSubjectLevel(a){
+  const student = S.students.find(s=> s.name === a.studentName);
+  return student?.level || '中学';
 }
 
 function openMatchingForApprovalTicket(a){
@@ -135,15 +156,22 @@ function approvalBadgeHtml(status){
 
 function renderApprovalDashboardItem(a, teacherName, status, { action = false } = {}){
   const rowCls = status==='rejected' ? ' approval-item-rejected' : '';
-  const inner = `<div class="approval-item-main">
-      <span class="approval-item-teacher">${teacherName}</span>
-      <span class="approval-item-detail">${approvalScheduleLine(a)}</span>
-    </div>
-    ${approvalBadgeHtml(status)}`;
+  const badge = approvalBadgeHtml(status);
+  const whenPill = approvalWhenPill(a);
+  const teacherHead = `<span class="cal-alert-row-head">${teacherName}</span>`;
+  const personInline = buildCalAlertPersonInline(a.studentName, a.studentGrade || '');
+  const subjectTag = buildCalAlertSubjectTag(subjectColor, approvalSubjectLevel(a), a.subject);
+  const aria = approvalRowAriaLabel(a, teacherName);
   if(!action){
-    return `<div class="approval-item${rowCls}">${inner}</div>`;
+    return buildApprovalAlertRowHtml({
+      whenPill, teacherHead, personInline, subjectTag, badgeHtml: badge, rowCls, tag: 'div',
+    });
   }
-  return `<button type="button" class="approval-item approval-item-btn${rowCls}" data-approval-id="${a.id}" aria-label="${teacherName}のコマをマッチングで開く">${inner}</button>`;
+  return buildApprovalAlertRowHtml({
+    whenPill, teacherHead, personInline, subjectTag, badgeHtml: badge, rowCls,
+    dataAttrs: ` data-approval-id="${a.id}" aria-label="${aria}のコマをマッチングで開く"`,
+    tag: 'button',
+  });
 }
 
 async function renderApprovalStatus(){
@@ -213,7 +241,7 @@ async function renderApprovalStatus(){
           <div class="approval-col-label is-muted">承認済み（直近）</div>
           <button type="button" class="approval-history-clear-btn" id="approvalHistoryClearBtn">履歴削除</button>
         </div>
-        <div class="approval-scroll approval-scroll-done" aria-label="承認済みの履歴">
+        <div class="approval-scroll" aria-label="承認済みの履歴">
           <div class="approval-approved-list">${approvedHtml}</div>
         </div>
         <div class="approval-col-footnote">※ 古い確定は表示しません</div>

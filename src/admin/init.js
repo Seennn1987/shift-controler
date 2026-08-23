@@ -460,9 +460,11 @@ async function init(){
   document.getElementById('approvalToggleBtn').addEventListener('click', ()=>{
     const detail = document.getElementById('approvalDetailWrap');
     const btn = document.getElementById('approvalToggleBtn');
+    const chevron = btn.querySelector('.cal-status-chevron');
     const isOpen = detail.style.display !== 'none';
     detail.style.display = isOpen ? 'none' : 'block';
-    btn.textContent = isOpen ? '詳細 ▾' : '詳細 ▴';
+    btn.setAttribute('aria-expanded', isOpen ? 'false' : 'true');
+    if(chevron) chevron.textContent = isOpen ? '▾' : '▴';
   });
   document.getElementById('studentAbsenceActionBtn').addEventListener('click', (e)=>{
     e.stopPropagation();

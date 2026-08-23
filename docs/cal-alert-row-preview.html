@@ -1,0 +1,47 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ピタコマ カレンダーアラート行 UI プレビュー v2</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Zen+Kaku+Gothic+New:wght@400;500;700;900&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="cal-alert-row-preview.css">
+</head>
+<body>
+  <header class="preview-header">
+    <div class="preview-header-inner">
+      <h1>カレンダーアラート行 UI プレビュー v2</h1>
+      <p><strong>1行・縦幅最小</strong>を前提に、案Cベースで4案。色は <code>variables.css</code> のUI基盤色のみ（緑は使いません）。</p>
+      <p class="preview-url">URL: <a href="http://localhost:5173/docs/cal-alert-row-preview.html">http://localhost:5173/docs/cal-alert-row-preview.html</a></p>
+    </div>
+  </header>
+
+  <main class="preview-main">
+    <section class="intro-block">
+      <h2>前回の修正点</h2>
+      <div id="colorNote" class="color-note"></div>
+      <ul class="rule-list" id="ruleList"></ul>
+      <div id="evalRecommend" class="recommend-box"></div>
+    </section>
+
+    <section class="compare-block">
+      <h2>案C派生 × 4 — 未確定・承認待ち</h2>
+      <p class="section-desc">同じ2件データ。行の高さを揃えて比較しています。</p>
+      <div id="variantGrid" class="variant-grid"></div>
+    </section>
+
+    <section class="compare-block">
+      <h2>色の使い分け（デザインシステム）</h2>
+      <div id="colorLegend" class="color-legend"></div>
+    </section>
+
+    <section class="compare-block">
+      <h2>各案の長所・短所</h2>
+      <div id="prosConsGrid" class="pros-cons-grid"></div>
+    </section>
+  </main>
+
+  <script src="cal-alert-row-preview.js"></script>
+</body>
+</html>

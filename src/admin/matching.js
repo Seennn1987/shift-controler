@@ -13,6 +13,10 @@ import { buildCandidateInfo, confirmAssignment, countCourseConfirmed, findEffect
 import { compareCandidateInfo } from './matching-config.js';
 import { showActiveTabNotice } from '../shared/inline-confirm.js';
 import {
+  buildCalAlertPersonHead, buildCalAlertSubjectTag, buildCalAlertWhenPill,
+  buildShortageAlertRowHtml, calAlertDateParts,
+} from '../shared/cal-alert-row.js';
+import {
   normalizeFormCoursesForSave,
   renderStudentCourseCalendar,
   resetCourseCalendarSelection,
@@ -415,28 +419,25 @@ function collectUpcomingUnassignedFlat(){
   return flat;
 }
 
-function shortageScheduleLine(dateStr, slot, student, course){
+function shortageRowAriaLabel(dateStr, slot, student, course){
+  const { md, weekday } = calAlertDateParts(dateStr, getDayStatus);
   const gLabel = gradeLabel(student);
-  return `${formatShortageDateLabel(dateStr)}${slot.label} · ${course.subject}（${gLabel}）`;
+  return `${md}（${weekday}）${slot.label} ${student.name}（${gLabel}）${course.subject}`;
 }
 
 function renderShortageDashboardItem(entry){
   const { dateStr, row } = entry;
   const { student, course, slot } = row;
-  const detail = shortageScheduleLine(dateStr, slot, student, course);
-  return `<button type="button" class="approval-item approval-item-btn" data-student="${student.id}" data-date="${dateStr}" aria-label="${student.name} ${detail}">
-    <div class="approval-item-main">
-      <span class="approval-item-teacher">${student.name}</span>
-      <span class="approval-item-detail">${detail}</span>
-    </div>
-    <span class="approval-badge pending">未確定</span>
-  </button>`;
-}
-
-function formatShortageDateLabel(dateStr){
-  const status = getDayStatus(dateStr);
-  const d = new Date(`${dateStr}T00:00:00`);
-  return `${d.getMonth()+1}/${d.getDate()}（${status.weekday}）`;
+  const { md, weekday } = calAlertDateParts(dateStr, getDayStatus);
+  const gLabel = gradeLabel(student);
+  const aria = shortageRowAriaLabel(dateStr, slot, student, course);
+  return buildShortageAlertRowHtml({
+    whenPill: buildCalAlertWhenPill(md, weekday, slot.label),
+    personHead: buildCalAlertPersonHead(student.name, gLabel),
+    subjectTag: buildCalAlertSubjectTag(subjectColor, student.level, course.subject),
+    badgeHtml: '<span class="approval-badge pending">未確定</span>',
+    dataAttrs: ` data-student="${student.id}" data-date="${dateStr}" aria-label="${aria}"`,
+  });
 }
 
 function renderShortageDashboard(){
@@ -480,9 +481,11 @@ function renderShortageDashboard(){
 
   const listHtml = flatItems.map(renderShortageDashboardItem).join('');
   wrap.innerHTML = `<div class="approval-detail-well">
-    <div class="approval-col shortage-list-col">
-      <div class="approval-col-label">要対応 <span class="approval-col-num">${totalSlots}コマ</span></div>
-      <div class="approval-scroll" aria-label="未確定のコマ">${listHtml}</div>
+    <div class="cal-alert-list-shell">
+      <div class="approval-col">
+        <div class="approval-col-label">要対応 <span class="approval-col-num">${totalSlots}コマ</span></div>
+        <div class="approval-scroll" aria-label="未確定のコマ">${listHtml}</div>
+      </div>
     </div>
   </div>`;
 
