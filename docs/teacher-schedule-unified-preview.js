@@ -64,7 +64,7 @@ function subjectTag(name) {
 function shiftButtons(groupClass, slotId, style) {
   const base = baseline[slotId] || 'none';
   const current = localOverrides[slotId] ?? base;
-  const items = ['none', 'preferred', 'normal'];
+  const items = ['preferred', 'normal', 'none'];
 
   if (style === 'S4') {
     return `<div class="shift-pick-group ${groupClass}" data-slot="${slotId}" role="group" aria-label="${slotId}講の出勤希望">

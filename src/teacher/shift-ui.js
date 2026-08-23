@@ -3,11 +3,11 @@ import { fbAuth, fbDb, S } from './state.js';
 import { cellKey } from './schedule-utils.js';
 import { saveMonthEntry } from './schedule.js';
 
-/** 左から ×不可 → △可能 → ○優先（右端が○） */
+/** 左から ○優先 → △可能 → ×不可（右端が×） */
 export const SHIFT_PICK_OPTIONS = [
-  { key: 'none', sym: '×', label: '不可' },
-  { key: 'normal', sym: '△', label: '可能' },
   { key: 'preferred', sym: '○', label: '優先' },
+  { key: 'normal', sym: '△', label: '可能' },
+  { key: 'none', sym: '×', label: '不可' },
 ];
 
 function getMonthEntry(yearMonth){
