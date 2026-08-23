@@ -664,7 +664,8 @@
     flex:1 1 auto;min-width:0;display:flex;align-items:center;flex-wrap:wrap;
     gap:5px;justify-content:flex-start;
   }
-  .cal-alert-row-c4 .approval-badge{margin-left:auto;}
+  .cal-alert-row-c4 .approval-badge,
+  .cal-alert-row-c4 > .auto-badge{margin-left:auto;flex-shrink:0;}
   .cal-alert-when-pill{
     font-size:var(--text-xs);font-weight:700;padding:3px 8px;border-radius:var(--radius-sm);
     border:1px solid var(--border);background:var(--surface-card);color:var(--ink);

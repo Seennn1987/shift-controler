@@ -752,13 +752,14 @@ function renderDraftDashboardItem(entry){
   const { md, weekday } = calAlertDateParts(dateStr, getDayStatus);
   const gLabel = gradeLabel(student);
   const teacherName = teacher?.name || '不明';
-  const autoBadge = assignment.source === 'auto' ? ' <span class="auto-badge">自動</span>' : '';
+  const autoBadge = assignment.source === 'auto' ? '<span class="auto-badge">自動</span>' : '';
   const aria = `${md}（${weekday}）${slot.label} ${teacherName} ${student.name}（${gLabel}）${course.subject} 仮決め`;
   return buildApprovalAlertRowHtml({
     whenPill: buildCalAlertWhenPill(md, weekday, slot.label),
-    teacherHead: `<span class="cal-alert-row-head">${teacherName}${autoBadge}</span>`,
+    teacherHead: `<span class="cal-alert-row-head">${teacherName}</span>`,
     personInline: buildCalAlertPersonInline(student.name, gLabel),
     subjectTag: buildCalAlertSubjectTag(subjectColor, student.level, course.subject),
+    badgeHtml: autoBadge,
     dataAttrs: ` data-student="${student.id}" data-date="${dateStr}" aria-label="${aria}"`,
     tag: 'button',
   });
