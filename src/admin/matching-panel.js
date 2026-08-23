@@ -850,7 +850,7 @@ function renderMatchingDesiredBar(){
       if(eff){
         if(eff.isDraft){
           status = 'draft';
-          label = '下書き';
+          label = '仮決め';
         }else if(eff.isPending){
           status = 'waiting';
           label = '承認待ち';

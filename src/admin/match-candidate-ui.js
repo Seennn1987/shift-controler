@@ -91,7 +91,7 @@ export function buildDraftSlotCardHtml({
   const name = teacherName || '不明';
   return `<div class="match-slot mp-slot-card mp-slot-waiting">
     <div class="ms-slot-label">${slotLabel}（${slotTime}）<span class="mp-slot-meta">教室 ${roomUsed}/${roomCapacity}</span></div>
-    <div class="mp-slot-subject">${subjectTagHtml}<span class="mp-slot-badge pending">下書き</span>${autoBadge}</div>
+    <div class="mp-slot-subject">${subjectTagHtml}<span class="mp-slot-badge tentative">仮決め</span>${autoBadge}</div>
     <div class="match-slot-rows">
       <div class="match-cand-row">
         <span class="match-cand-rank">—</span>

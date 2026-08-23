@@ -59,10 +59,14 @@ function studentRowToCalLine(r, student){
   }
   if(r.existing){
     if(r.isPending){
-      return {text:`${subAbbr}:承認待`, cls:'pending'};
+      const teacher = S.teachers.find(t=>t.id===r.existing.teacherId);
+      const tName = teacher ? shortName(teacher.name) : '?';
+      return {text:`${subAbbr}:${tName}(待)`, cls:'pending'};
     }
     if(r.isDraft){
-      return {text:`${subAbbr}:下書`, cls:'pending'};
+      const teacher = S.teachers.find(t=>t.id===r.existing.teacherId);
+      const tName = teacher ? shortName(teacher.name) : '?';
+      return {text:`${subAbbr}:${tName}(仮)`, cls:'draft'};
     }
     const teacher = S.teachers.find(t=>t.id===r.existing.teacherId);
     return {text:`${subAbbr}:${teacher?shortName(teacher.name):'?'}`, cls:'confirmed', bg:sc.bg, color:sc.text};
@@ -93,9 +97,24 @@ function buildDayCellLines(dateStr, filterStudent){
     getEffectiveDayAssignments(dateStr).forEach(a=>{
       const student = S.students.find(s=>s.id===a.studentId);
       const subAbbr = SUBJECT_ABBR[a.subject] || a.subject.slice(0,1);
-      const suffix = a.kind==='makeup' ? '(振替)' : '';
       const sc = student ? subjectColor(student.level, a.subject) : {bg:'#eee', text:'#333'};
-      lines.push({text:`${subAbbr}:${student?shortName(student.name):'?'}${suffix}`, cls: a.kind==='makeup' ? 'makeup' : 'confirmed', bg:sc.bg, color:sc.text});
+      let text;
+      let cls;
+      if(a.kind==='makeup'){
+        text = `${subAbbr}:${student?shortName(student.name):'?'}(振替)`;
+        cls = 'makeup';
+      }else if(a.draft){
+        text = `${subAbbr}:${student?shortName(student.name):'?'}(仮)`;
+        cls = 'draft';
+      }else if(a.pending){
+        const teacher = S.teachers.find(t=>t.id===a.teacherId);
+        text = `${subAbbr}:${student?shortName(student.name):'?'}(${teacher?shortName(teacher.name):'?'}待)`;
+        cls = 'pending';
+      }else{
+        text = `${subAbbr}:${student?shortName(student.name):'?'}`;
+        cls = 'confirmed';
+      }
+      lines.push({text, cls, bg: cls==='confirmed' ? sc.bg : undefined, color: cls==='confirmed' ? sc.text : undefined});
     });
   }
   return lines;

@@ -275,10 +275,17 @@ function buildTeacherAxisCell(list){
 }
 
 // 週間カレンダー：生徒カード（2行・未決は講師行のみ）
-function buildWeekLessonCard({ subject, subjectStyle, studentName, gradeLabel, teacher, isPending, autoBadge = '', makeupBadge = '' }){
-  const teacherHtml = isPending
-    ? '<span class="sched-card-meta-value is-pending">未決</span>'
-    : `<span class="sched-card-meta-value">${teacherHonorific(teacher)}</span>`;
+function buildWeekLessonCard({ subject, subjectStyle, studentName, gradeLabel, teacher, isPending, isDraft = false, isWaiting = false, autoBadge = '', makeupBadge = '' }){
+  let teacherHtml;
+  if(isPending){
+    teacherHtml = '<span class="sched-card-meta-value is-pending">未決</span>';
+  }else if(isDraft){
+    teacherHtml = `<span class="sched-card-meta-value is-draft">${teacherHonorific(teacher)}（仮）</span>`;
+  }else if(isWaiting){
+    teacherHtml = `<span class="sched-card-meta-value is-waiting">${teacherHonorific(teacher)}（承認待ち）</span>`;
+  }else{
+    teacherHtml = `<span class="sched-card-meta-value">${teacherHonorific(teacher)}</span>`;
+  }
   return `<div class="sched-lesson-card">
     <div class="sched-card-row1">
       <span class="sched-student-tag" style="background:${subjectStyle.bg};color:${subjectStyle.text};">${subject}</span>
@@ -310,6 +317,8 @@ function buildStudentAxisCell(list){
       gradeLabel: gLabel,
       teacher,
       isPending: false,
+      isDraft: !!a.draft,
+      isWaiting: !!a.pending,
       autoBadge,
       makeupBadge,
     });
@@ -369,9 +378,12 @@ function buildWeekTeacherFilterCell(teacher, dateStr, slot){
     const c = level ? subjectColor(level, a.subject) : {bg:'#eee', text:'#333'};
     const autoBadge = a.source==='auto' ? '<span class="auto-badge">自動</span>' : '';
     const makeupBadge = a.kind==='makeup' ? '<span class="auto-badge" style="background:#fff;color:var(--ink);border:1px dashed var(--ink);">振替</span>' : '';
+    const stateBadge = a.draft
+      ? '<span class="week-status-tag tentative">仮</span>'
+      : (a.pending ? '<span class="week-status-tag waiting">承認待ち</span>' : '');
     studentsHtml += `<div class="sched-student-row">
       <span class="sched-student-tag" style="background:${c.bg};color:${c.text};">${a.subject}</span>
-      <span>${studentName}<span class="grade-tag">${gLabel}</span></span>${autoBadge}${makeupBadge}
+      <span>${studentName}<span class="grade-tag">${gLabel}</span></span>${autoBadge}${makeupBadge}${stateBadge}
     </div>`;
   });
   return `<div class="sched-teacher-group">

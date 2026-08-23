@@ -165,6 +165,7 @@
   .change-req-actions .ghost{border:1px solid var(--border);background:var(--surface-card);color:var(--ink-soft);}
   .approval-badge{font-size:var(--text-xs);font-weight:700;padding:3px 10px;border-radius:var(--radius-pill);flex-shrink:0;}
   .approval-badge.pending{border:1px dashed var(--ink-soft);color:var(--ink-soft);}
+  .approval-badge.tentative{background:var(--warning-bg);color:var(--warning-ink);border:1px solid var(--warning-ink);}
   .approval-badge.approved{background:var(--green-100);color:var(--green-900);}
   .approval-badge.rejected{background:var(--danger-bg);color:var(--danger);border:1px solid var(--danger);}
   .raise-row{display:flex;gap:10px;align-items:center;margin-bottom:8px;flex-wrap:wrap;}
@@ -608,6 +609,8 @@
   .sched-card-meta-label{color:var(--ink-soft);font-weight:500;flex-shrink:0;}
   .sched-card-meta-value{font-weight:700;color:var(--ink);}
   .sched-card-meta-value.is-pending{color:var(--pending-ink);}
+  .sched-card-meta-value.is-draft{color:var(--warning-ink);}
+  .sched-card-meta-value.is-waiting{color:var(--pending-ink);}
   .sched-teacher-group{
     border:1px solid var(--border);border-radius:var(--radius-md);padding:0;
     background:var(--surface-card);box-shadow:0 2px 4px rgba(51,51,51,0.08);
@@ -684,6 +687,7 @@
   .shortage-action-result{
     font-size:var(--text-xs);font-weight:700;color:var(--ink-soft);min-height:1.2em;
   }
+  .shortage-list-block + .shortage-list-block{margin-top:10px;}
   .desired-slot-chip.draft{border-color:var(--border-strong);}
   .desired-slot-chip.draft .dsc-status{color:var(--ink-soft);}
 
@@ -1096,9 +1100,11 @@
   /* confirmed / makeup は教科色をJSのインラインstyleで適用する。ここでは状態を枠線・不透明度だけで区別する */
   .cal-entry.makeup{border:1px dashed var(--ink);}
   .cal-entry.pending{background:var(--pending-bg);color:var(--pending-ink);border:1px dashed var(--pending-border);}
+  .cal-entry.draft{background:var(--warning-bg);color:var(--warning-ink);border:1px dashed var(--warning-ink);}
   .cal-entry.absent{background:var(--surface-page);color:var(--ink-soft);text-decoration:line-through;}
   .cal-entry-more{font-size:var(--text-sm);color:var(--ink-soft);padding:1px 6px;}
   .cal-cell.selected .cal-entry.pending{background:var(--pending-bg);color:var(--pending-ink);border-color:var(--pending-border);}
+  .cal-cell.selected .cal-entry.draft{background:var(--warning-bg);color:var(--warning-ink);border-color:var(--warning-ink);}
   .cal-cell.selected .cal-entry.absent{background:var(--surface-muted);color:var(--ink-soft);}
   .cal-cell.selected .cal-entry-more{color:var(--ink-soft);}
 
@@ -1134,6 +1140,7 @@
   }
   .week-status-tag.pending{background:var(--pending-bg);color:var(--pending-ink);border:1px solid var(--pending-border);}
   .week-status-tag.waiting{background:var(--brand-50);color:var(--pending-ink);border:1px solid var(--pending-border);}
+  .week-status-tag.tentative{background:var(--warning-bg);color:var(--warning-ink);border:1px solid var(--warning-ink);}
   .week-status-tag.absent{background:var(--danger-bg);color:var(--danger);border:1px solid var(--danger);}
   .week-status-tag.makeup{background:var(--surface-muted);color:var(--ink);border:1px solid var(--border);}
   .cal-filter-bar label{font-size:var(--text-md);font-weight:700;color:var(--green-800);flex:0 0 auto;}
@@ -1566,6 +1573,7 @@
   .mp-slot-subject{display:flex;align-items:center;gap:var(--space-3);margin:var(--space-2) 0 var(--space-3);}
   .mp-slot-badge{font-size:var(--text-xs);font-weight:var(--font-weight-bold);padding:2px 7px;border-radius:var(--radius-sm);}
   .mp-slot-badge.pending{background:var(--pending-bg);color:var(--pending-ink);border:1px solid var(--pending-border);}
+  .mp-slot-badge.tentative{background:var(--warning-bg);color:var(--warning-ink);border:1px solid var(--warning-ink);}
   .mp-slot-badge.waiting{background:var(--pending-bg);color:var(--pending-ink);border:1px solid var(--pending-border);}
   .mp-slot-readonly{opacity:.92;}
   .mp-slot-note{display:block;font-size:var(--text-md);color:var(--ink-soft);margin-top:var(--space-2);line-height:var(--leading-relaxed);}

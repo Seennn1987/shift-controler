@@ -9,11 +9,12 @@ import { sortByNameKana } from '../shared/person-sort.js';
 import { renderCalendarWeek, switchCalMode, switchView } from './finance-ui.js';
 import { gradeLabel, isTeacherAvailableOnDate, subjectColor } from './schedule-core.js';
 import { saveStudents, scheduleSave, scheduleSyncTeacherAssignments } from './students-persistence.js';
-import { buildCandidateInfo, confirmAssignment, countAssignmentsInMonth, cancelAllDrafts, cancelDraftAuto, findEffectiveAssignment, getActiveYearMonth, getPreferredTeachersForCourse, sendDraftAssignments, teacherHasSubmittedMonth } from './teacher-schedule-tab.js';
+import { assignmentAppliesOnDate, buildCandidateInfo, confirmAssignment, countAssignmentsInMonth, cancelAllDrafts, cancelDraftAuto, findEffectiveAssignment, getActiveYearMonth, getPreferredTeachersForCourse, isAssignmentEffectiveInMonth, sendDraftAssignments, teacherHasSubmittedMonth } from './teacher-schedule-tab.js';
 import { compareCandidateInfo } from './matching-config.js';
 import { showActiveTabNotice, mountInlineConfirm } from '../shared/inline-confirm.js';
 import {
-  buildCalAlertPersonHead, buildCalAlertSubjectTag, buildCalAlertWhenPill,
+  buildApprovalAlertRowHtml, buildCalAlertPersonHead, buildCalAlertPersonInline,
+  buildCalAlertSubjectTag, buildCalAlertWhenPill,
   buildShortageAlertRowHtml, calAlertDateParts,
 } from '../shared/cal-alert-row.js';
 import {
@@ -415,6 +416,37 @@ function collectUpcomingUnassignedFlat(){
   return flat;
 }
 
+function collectUpcomingDraftsFlat(){
+  const ym = getActiveYearMonth();
+  const today = getTodayStr();
+  const flat = [];
+  const days = daysInYearMonth(ym);
+  for(let d = 1; d <= days; d++){
+    const dateStr = `${ym}-${pad2(d)}`;
+    if(dateStr < today) continue;
+    if(getDayStatus(dateStr).type !== 'open') continue;
+    S.draftAssignments.forEach(a=>{
+      if(!isAssignmentEffectiveInMonth(a, ym)) return;
+      if(!assignmentAppliesOnDate(a, dateStr)) return;
+      if(findAbsenceFor(a.studentId, a.courseId, dateStr, a.day, a.slot)) return;
+      const student = S.students.find(s=> s.id === a.studentId);
+      if(!student) return;
+      const course = student.courses.find(c=> c.id === a.courseId);
+      if(!course) return;
+      const slot = SLOTS.find(sl=> sl.id === a.slot);
+      if(!slot) return;
+      const teacher = S.teachers.find(t=> t.id === a.teacherId);
+      flat.push({ dateStr, student, course, slot, teacher, assignment: a });
+    });
+  }
+  flat.sort((a, b)=>
+    a.dateStr.localeCompare(b.dateStr)
+    || a.slot.id - b.slot.id
+    || a.student.name.localeCompare(b.student.name, 'ja'),
+  );
+  return flat;
+}
+
 function shortageRowAriaLabel(dateStr, slot, student, course){
   const { md, weekday } = calAlertDateParts(dateStr, getDayStatus);
   const gLabel = gradeLabel(student);
@@ -437,7 +469,7 @@ function expandShortageBar(){
 
 function buildShortageSummaryLine({ draftCount, unassignedCount, pendingCount, pendingAbsences }){
   const parts = [];
-  if(draftCount > 0) parts.push(`下書き ${draftCount}件`);
+  if(draftCount > 0) parts.push(`仮決め ${draftCount}件`);
   if(unassignedCount > 0) parts.push(`未確定 ${unassignedCount}コマ`);
   if(pendingCount > 0) parts.push(`承認待ち ${pendingCount}件`);
   if(pendingAbsences > 0) parts.push(`未振替 ${pendingAbsences}件`);
@@ -572,6 +604,24 @@ function renderShortageDashboardItem(entry){
   });
 }
 
+function renderDraftDashboardItem(entry){
+  const { dateStr, student, course, slot, teacher, assignment } = entry;
+  const { md, weekday } = calAlertDateParts(dateStr, getDayStatus);
+  const gLabel = gradeLabel(student);
+  const teacherName = teacher?.name || '不明';
+  const autoBadge = assignment.source === 'auto' ? ' <span class="auto-badge">自動</span>' : '';
+  const aria = `${md}（${weekday}）${slot.label} ${teacherName} ${student.name}（${gLabel}）${course.subject} 仮決め`;
+  return buildApprovalAlertRowHtml({
+    whenPill: buildCalAlertWhenPill(md, weekday, slot.label),
+    teacherHead: `<span class="cal-alert-row-head">${teacherName}${autoBadge}</span>`,
+    personInline: buildCalAlertPersonInline(student.name, gLabel),
+    subjectTag: buildCalAlertSubjectTag(subjectColor, student.level, course.subject),
+    badgeHtml: '<span class="approval-badge tentative">仮決め</span>',
+    dataAttrs: ` data-student="${student.id}" data-date="${dateStr}" aria-label="${aria}"`,
+    tag: 'button',
+  });
+}
+
 function renderShortageDashboard(){
   const wrap = document.getElementById('shortageWrap');
   const summaryLine = document.getElementById('shortageSummaryLine');
@@ -593,8 +643,9 @@ function renderShortageDashboard(){
 
   const ym = getActiveYearMonth();
   const flatItems = collectUpcomingUnassignedFlat();
+  const draftItems = collectUpcomingDraftsFlat();
   const pendingAbsences = S.absences.filter(a=> a.status === 'pending').length;
-  const draftCount = countAssignmentsInMonth(S.draftAssignments, ym);
+  const draftCount = draftItems.length;
   const pendingCount = countAssignmentsInMonth(S.pendingAssignments, ym);
   const unassignedCount = flatItems.length;
   const hasWork = unassignedCount > 0 || draftCount > 0 || pendingCount > 0 || pendingAbsences > 0;
@@ -616,8 +667,8 @@ function renderShortageDashboard(){
     return;
   }
 
-  const listHtml = flatItems.length > 0
-    ? `<div class="approval-detail-well">
+  const unassignedHtml = flatItems.length > 0
+    ? `<div class="approval-detail-well shortage-list-block">
         <div class="cal-alert-list-shell">
           <div class="approval-col">
             <div class="approval-col-label">未確定 <span class="approval-col-num">${unassignedCount}コマ</span></div>
@@ -625,9 +676,24 @@ function renderShortageDashboard(){
           </div>
         </div>
       </div>`
-    : '<div class="shortage-ok">未確定のコマはありません（下書き・承認待ちは上のボタンで操作できます）</div>';
+    : '';
 
-  wrap.innerHTML = `${renderShortageActionsHtml(ym)}${listHtml}`;
+  const draftHtml = draftItems.length > 0
+    ? `<div class="approval-detail-well shortage-list-block">
+        <div class="cal-alert-list-shell">
+          <div class="approval-col">
+            <div class="approval-col-label">仮決め <span class="approval-col-num">${draftCount}件</span></div>
+            <div class="approval-scroll" aria-label="仮決めのコマ">${draftItems.map(renderDraftDashboardItem).join('')}</div>
+          </div>
+        </div>
+      </div>`
+    : '';
+
+  const emptyHtml = (!unassignedHtml && !draftHtml)
+    ? '<div class="shortage-ok">未確定・仮決めのコマはありません（承認待ちは下の承認バーを確認してください）</div>'
+    : '';
+
+  wrap.innerHTML = `${renderShortageActionsHtml(ym)}${unassignedHtml}${draftHtml}${emptyHtml}`;
   bindShortageDashboardActions(wrap);
 
   wrap.querySelectorAll('.approval-item-btn[data-student]').forEach(btn=>{
