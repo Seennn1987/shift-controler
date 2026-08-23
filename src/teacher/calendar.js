@@ -171,10 +171,11 @@ function buildSlotCardHtml(dateStr, slotId, entries){
   const cls = ['mycal-slot-card', stateClass, draft ? 'has-draft' : ''].filter(Boolean).join(' ');
   const headerActions = buildSlotHeaderActionsHtml(dateStr, slotId, entries);
   const studentsHtml = entries.map((entry, index)=> buildStudentLineHtml(entry, index === entries.length - 1)).join('');
+  const actionsHtml = headerActions ? `<div class="mycal-slot-head-actions">${headerActions}</div>` : '';
   return `<div class="${cls}">
     <div class="mycal-slot-head">
       <span class="mycal-slot-label">${slotLabel}</span>
-      <div class="mycal-slot-head-actions">${headerActions}</div>
+      ${actionsHtml}
     </div>
     ${studentsHtml ? `<div class="mycal-slot-students">${studentsHtml}</div>` : ''}
   </div>`;
@@ -193,13 +194,8 @@ function buildDayHtml(dateStr, dayNum, wd, isToday, dayStatus){
   let cardsHtml = '';
   SLOTS.forEach(slot=>{
     const slotEntries = mergeSlotEntriesWithTickets(dateStr, slot.id, bySlot.get(slot.id) || []);
-    if(slotEntries.length === 0 && getSlotPendingTickets(dateStr, slot.id).length === 0) return;
     cardsHtml += buildSlotCardHtml(dateStr, slot.id, slotEntries);
   });
-
-  if(!cardsHtml){
-    cardsHtml = `<div class="mycal-lesson-row empty"><div class="mycal-lesson-info mycal-empty-label">確定授業なし</div></div>`;
-  }
 
   return `<div class="mycal-day">
     <div class="mycal-date-label ${isToday ? 'is-today' : ''}">${S.curMonth + 1}月${dayNum}日（${wd}）${isToday ? '（今日）' : ''}</div>
