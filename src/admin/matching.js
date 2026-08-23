@@ -16,7 +16,7 @@ import { dismissAppConfirmDialog, runAppConfirmDialog } from '../shared/app-conf
 import {
   buildApprovalAlertRowHtml, buildCalAlertPersonHead, buildCalAlertPersonInline,
   buildCalAlertSubjectTag, buildCalAlertWhenPill,
-  buildCalStatusSummaryHtml, buildCalWorkflowSummaryHtml, buildShortageAlertRowHtml, calAlertDateParts,
+  buildCalWorkflowSummaryHtml, buildShortageAlertRowHtml, calAlertDateParts,
 } from '../shared/cal-alert-row.js';
 import {
   normalizeFormCoursesForSave,
