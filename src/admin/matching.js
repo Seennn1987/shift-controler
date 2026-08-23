@@ -8,7 +8,7 @@ import { refreshCalFilterOptions, setCalFilterStudent, setCalFilterTeacher, refr
 import { sortByNameKana } from '../shared/person-sort.js';
 import { renderCalendarWeek, switchCalMode, switchView } from './finance-ui.js';
 import { gradeLabel, isTeacherAvailableOnDate, subjectColor } from './schedule-core.js';
-import { saveStudents, scheduleSave, scheduleSyncTeacherAssignments } from './students-persistence.js';
+import { saveStudents, scheduleSave, scheduleSyncTeacherAssignments, saveAppState } from './students-persistence.js';
 import { renderTeacherList } from './teachers.js';
 import { assignmentAppliesOnDate, approvalAppliesInMonth, buildCandidateInfo, confirmAssignment, confirmDualAssignment, cancelAllDrafts, cancelDraftAuto, findEffectiveAssignment, getActiveYearMonth, getPreferredTeachersForCourse, isAssignmentEffectiveInMonth, loadAssignmentApprovals, loadDismissedApprovalIds, openMatchingForApprovalTicket, renderApprovalDashboardItem, saveDismissedApprovalIds, sendDraftAssignments, teacherHasSubmittedMonth } from './teacher-schedule-tab.js';
 import { findDualPairAtSlot, teacherTeachesBoth, buildDualSubjectTagsHtml } from './dual-subject.js';
@@ -448,12 +448,11 @@ function renderMatching(){
 // 未確定コマ一覧：日付詳細パネルと同じ getUnassignedRowsForDate で列挙
 function collectUpcomingUnassignedByDate(){
   const ym = getActiveYearMonth();
-  const today = getTodayStr();
   const groups = [];
   const days = daysInYearMonth(ym);
   for(let d = 1; d <= days; d++){
     const dateStr = `${ym}-${pad2(d)}`;
-    if(dateStr < today) continue;
+    if(getDayStatus(dateStr).type !== 'open') continue;
     const rows = getUnassignedRowsForDate(dateStr);
     if(rows.length === 0) continue;
     groups.push({ dateStr, rows });
@@ -469,6 +468,25 @@ function collectUpcomingUnassignedFlat(){
   return flat;
 }
 
+function resolveDashboardDualSubjects(student, day, slot){
+  const dualPair = findDualPairAtSlot(student.courses, day, slot);
+  if(dualPair?.subjects?.length >= 2){
+    return { subjects: dualPair.subjects, dualGroupId: dualPair.dualGroupId };
+  }
+  return { subjects: null, dualGroupId: null };
+}
+
+function buildDashboardSubjectTag(student, course, subjects){
+  if(subjects?.length >= 2){
+    return buildDualSubjectTagsHtml(student.level, subjects, subjectColor);
+  }
+  return buildCalAlertSubjectTag(subjectColor, student.level, course.subject);
+}
+
+function dashboardSubjectLabel(course, subjects){
+  return subjects?.length >= 2 ? subjects.join('') : course.subject;
+}
+
 function collectUpcomingDraftsFlat(){
   const ym = getActiveYearMonth();
   const flat = [];
@@ -480,21 +498,22 @@ function collectUpcomingDraftsFlat(){
     S.draftAssignments.forEach(a=>{
       if(!isAssignmentEffectiveInMonth(a, ym)) return;
       if(!assignmentAppliesOnDate(a, dateStr)) return;
+      const eff = findEffectiveAssignment(a.studentId, a.courseId, a.day, a.slot, ym, dateStr);
+      if(!eff?.isDraft) return;
       if(findAbsenceFor(a.studentId, a.courseId, dateStr, a.day, a.slot)) return;
-      if(a.dualGroupId){
-        const dualKey = `${dateStr}:${a.studentId}:${a.slot}:${a.dualGroupId}`;
-        if(seenDual.has(dualKey)) return;
-        seenDual.add(dualKey);
-      }
       const student = S.students.find(s=> s.id === a.studentId);
       if(!student) return;
       const course = student.courses.find(c=> c.id === a.courseId);
       if(!course) return;
+      const { subjects, dualGroupId } = resolveDashboardDualSubjects(student, a.day, a.slot);
+      if(dualGroupId){
+        const dualKey = `${dateStr}:${a.studentId}:${a.slot}:${dualGroupId}`;
+        if(seenDual.has(dualKey)) return;
+        seenDual.add(dualKey);
+      }
       const slot = SLOTS.find(sl=> sl.id === a.slot);
       if(!slot) return;
       const teacher = S.teachers.find(t=> t.id === a.teacherId);
-      const dualPair = a.dualGroupId ? findDualPairAtSlot(student.courses, a.day, a.slot) : null;
-      const subjects = dualPair?.subjects?.length >= 2 ? dualPair.subjects : null;
       flat.push({ dateStr, student, course, slot, teacher, assignment: a, subjects });
     });
   }
@@ -508,25 +527,32 @@ function collectUpcomingDraftsFlat(){
 
 function collectUpcomingPendingFlat(){
   const ym = getActiveYearMonth();
-  const today = getTodayStr();
   const flat = [];
+  const seenDual = new Set();
   const days = daysInYearMonth(ym);
   for(let d = 1; d <= days; d++){
     const dateStr = `${ym}-${pad2(d)}`;
-    if(dateStr < today) continue;
     if(getDayStatus(dateStr).type !== 'open') continue;
     S.pendingAssignments.forEach(a=>{
       if(!isAssignmentEffectiveInMonth(a, ym)) return;
       if(!assignmentAppliesOnDate(a, dateStr)) return;
+      const eff = findEffectiveAssignment(a.studentId, a.courseId, a.day, a.slot, ym, dateStr);
+      if(!eff?.isPending) return;
       if(findAbsenceFor(a.studentId, a.courseId, dateStr, a.day, a.slot)) return;
       const student = S.students.find(s=> s.id === a.studentId);
       if(!student) return;
       const course = student.courses.find(c=> c.id === a.courseId);
       if(!course) return;
+      const { subjects, dualGroupId } = resolveDashboardDualSubjects(student, a.day, a.slot);
+      if(dualGroupId){
+        const dualKey = `${dateStr}:${a.studentId}:${a.slot}:${dualGroupId}`;
+        if(seenDual.has(dualKey)) return;
+        seenDual.add(dualKey);
+      }
       const slot = SLOTS.find(sl=> sl.id === a.slot);
       if(!slot) return;
       const teacher = S.teachers.find(t=> t.id === a.teacherId);
-      flat.push({ dateStr, student, course, slot, teacher, assignment: a });
+      flat.push({ dateStr, student, course, slot, teacher, assignment: a, subjects });
     });
   }
   flat.sort((a, b)=>
@@ -537,10 +563,11 @@ function collectUpcomingPendingFlat(){
   return flat;
 }
 
-function shortageRowAriaLabel(dateStr, slot, student, course){
+function shortageRowAriaLabel(dateStr, slot, student, course, subjects){
   const { md, weekday } = calAlertDateParts(dateStr, getDayStatus);
   const gLabel = gradeLabel(student);
-  return `${md}（${weekday}）${slot.label} ${student.name}（${gLabel}）${course.subject}`;
+  const subjectLabel = dashboardSubjectLabel(course, subjects);
+  return `${md}（${weekday}）${slot.label} ${student.name}（${gLabel}）${subjectLabel}`;
 }
 
 function monthHasSubmittedTeachers(yearMonth){
@@ -697,7 +724,8 @@ function bindShortageDashboardActions(wrap){
       variant: 'primary',
     }, async ()=>{
       const { sent, skippedNoLogin, noLoginTeachers: skippedNames } = await sendDraftAssignments();
-      scheduleSave();
+      if(S.saveTimer) clearTimeout(S.saveTimer);
+      await saveAppState();
       scheduleSyncTeacherAssignments();
       refreshAfterMatchingChange();
       if(resultEl){
@@ -793,14 +821,15 @@ function renderShortageActionsHtml(ym){
 
 function renderShortageDashboardItem(entry){
   const { dateStr, row } = entry;
-  const { student, course, slot } = row;
+  const { student, course, slot, dualPair } = row;
+  const subjects = dualPair?.subjects?.length >= 2 ? dualPair.subjects : null;
   const { md, weekday } = calAlertDateParts(dateStr, getDayStatus);
   const gLabel = gradeLabel(student);
-  const aria = shortageRowAriaLabel(dateStr, slot, student, course);
+  const aria = shortageRowAriaLabel(dateStr, slot, student, course, subjects);
   return buildShortageAlertRowHtml({
     whenPill: buildCalAlertWhenPill(md, weekday, slot.label),
     personHead: buildCalAlertPersonHead(student.name, gLabel),
-    subjectTag: buildCalAlertSubjectTag(subjectColor, student.level, course.subject),
+    subjectTag: buildDashboardSubjectTag(student, course, subjects),
     dataAttrs: ` data-student="${student.id}" data-date="${dateStr}" aria-label="${aria}"`,
   });
 }
@@ -811,10 +840,8 @@ function renderDraftDashboardItem(entry){
   const gLabel = gradeLabel(student);
   const teacherName = teacher?.name || '不明';
   const autoBadge = assignment.source === 'auto' ? '<span class="auto-badge">自動</span>' : '';
-  const subjectLabel = subjects?.length >= 2 ? subjects.join('') : course.subject;
-  const subjectTag = subjects?.length >= 2
-    ? buildDualSubjectTagsHtml(student.level, subjects, subjectColor)
-    : buildCalAlertSubjectTag(subjectColor, student.level, course.subject);
+  const subjectLabel = dashboardSubjectLabel(course, subjects);
+  const subjectTag = buildDashboardSubjectTag(student, course, subjects);
   const aria = `${md}(${weekday}) ${slot.label} ${teacherName} ${student.name}（${gLabel}）${subjectLabel} 仮決め`;
   return buildApprovalAlertRowHtml({
     whenPill: buildCalAlertWhenPill(md, weekday, slot.label),
@@ -828,16 +855,18 @@ function renderDraftDashboardItem(entry){
 }
 
 function renderPendingDashboardItem(entry){
-  const { dateStr, student, course, slot, teacher } = entry;
+  const { dateStr, student, course, slot, teacher, subjects } = entry;
   const { md, weekday } = calAlertDateParts(dateStr, getDayStatus);
   const gLabel = gradeLabel(student);
   const teacherName = teacher?.name || '不明';
-  const aria = `${md}(${weekday}) ${slot.label} ${teacherName} ${student.name}（${gLabel}）${course.subject} 承認待ち`;
+  const subjectLabel = dashboardSubjectLabel(course, subjects);
+  const subjectTag = buildDashboardSubjectTag(student, course, subjects);
+  const aria = `${md}(${weekday}) ${slot.label} ${teacherName} ${student.name}（${gLabel}）${subjectLabel} 承認待ち`;
   return buildApprovalAlertRowHtml({
     whenPill: buildCalAlertWhenPill(md, weekday, slot.label),
     teacherHead: buildCalAlertTeacherHead(teacherName),
     personInline: buildCalAlertPersonInline(student.name, gLabel),
-    subjectTag: buildCalAlertSubjectTag(subjectColor, student.level, course.subject),
+    subjectTag,
     dataAttrs: ` data-student="${student.id}" data-date="${dateStr}" aria-label="${aria}"`,
     tag: 'button',
   });

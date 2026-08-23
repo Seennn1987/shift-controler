@@ -12,7 +12,7 @@ import {
   buildApprovalAlertRowHtml, buildCalAlertPersonInline,
   buildCalAlertSubjectTag, buildCalAlertTeacherHead, buildCalAlertWhenPill, calAlertDateParts,
 } from '../shared/cal-alert-row.js';
-import { countSlotAssignmentUnits, findDualPairAtSlot } from './dual-subject.js';
+import { countSlotAssignmentUnits, findDualPairAtSlot, buildDualSubjectTagsHtml } from './dual-subject.js';
 
 // 講師スケジュール（月次提出）タブ
 // =====================================================================
@@ -173,7 +173,10 @@ function renderApprovalDashboardItem(a, teacherName, status, { action = false } 
   const whenPill = approvalWhenPill(a);
   const teacherHead = buildCalAlertTeacherHead(teacherName);
   const personInline = buildCalAlertPersonInline(a.studentName, a.studentGrade || '');
-  const subjectTag = buildCalAlertSubjectTag(subjectColor, approvalSubjectLevel(a), a.subject);
+  const level = approvalSubjectLevel(a);
+  const subjectTag = a.subjects?.length === 2
+    ? buildDualSubjectTagsHtml(level, a.subjects, subjectColor)
+    : buildCalAlertSubjectTag(subjectColor, level, a.subject);
   const aria = approvalRowAriaLabel(a, teacherName);
   if(!action){
     return buildApprovalAlertRowHtml({
