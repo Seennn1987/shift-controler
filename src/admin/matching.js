@@ -724,7 +724,7 @@ function renderShortageActionsHtml(ym){
   return `<div class="shortage-actions">
     ${!monthSubmitted && ym ? `<div class="shortage-actions-warn">${monthLabel}は講師のシフト提出がまだないため、自動で組めません。</div>` : ''}
     <div class="shortage-actions-toolbar">
-      <button type="button" class="ghost mp-action shortage-action-btn" id="shortageBulkAutoBtn" ${!monthSubmitted ? 'disabled' : ''}>全コマを自動で組む</button>
+      <button type="button" class="ghost mp-action shortage-action-btn shortage-action-btn--muted" id="shortageBulkAutoBtn" ${!monthSubmitted ? 'disabled' : ''}>全コマを自動で組む</button>
       <button type="button" class="primary mp-action shortage-action-btn" id="shortageSendBtn">講師にスケジュールを送信</button>
       <span class="shortage-actions-sep" aria-hidden="true"></span>
       <button type="button" class="btn-text mp-action shortage-action-btn shortage-action-btn--danger" id="shortageCancelAutoBtn">自動マッチングで解除</button>

@@ -45,10 +45,11 @@
     </div>`;
   }
 
-  function renderB(){
-    return `<div class="actions-b">
+  function toolbarHtml(className, autoClass){
+    const autoCls = autoClass || 'ghost';
+    return `<div class="${className}">
       <div class="actions-toolbar">
-        <button type="button" class="ghost">${BUTTONS.auto}</button>
+        <button type="button" class="${autoCls}">${BUTTONS.auto}</button>
         <button type="button" class="primary">${BUTTONS.send}</button>
         <span class="actions-sep" aria-hidden="true"></span>
         <button type="button" class="btn-text">${BUTTONS.cancelAuto}</button>
@@ -56,6 +57,11 @@
       </div>
     </div>`;
   }
+
+  function renderB(){ return toolbarHtml('actions-b'); }
+  function renderB2(){ return toolbarHtml('actions-b2'); }
+  function renderB3(){ return toolbarHtml('actions-b3', 'ghost-muted'); }
+  function renderB4(){ return toolbarHtml('actions-b4', 'ghost-strong'); }
 
   function renderC(){
     return `<div class="actions-c">
@@ -87,13 +93,63 @@
     </div>`;
   }
 
-  function variantCard(title, html, rec){
+  function variantCard(title, html, rec, whiteBg){
+    const zoneCls = whiteBg ? 'mock-zone is-white-bg' : 'mock-zone';
     return `<div class="variant-card${rec ? ' is-rec' : ''}">
       <div class="variant-head">${title}</div>
       <div class="variant-body">
-        <div class="mock-zone">${mockFlow()}${html}</div>
+        <div class="${zoneCls}">${mockFlow()}${html}</div>
       </div>
     </div>`;
+  }
+
+  function renderGhostEval(){
+    document.getElementById('ghostEval').innerHTML = [
+      ['問題', '白上の白', '案Bの「全コマを自動で組む」は <strong>白背景＋白ボタン＋薄い枠</strong>。ページも白なので、ボタンがあること自体が分かりにくい。'],
+      ['原因', 'ghost の定義', '副ボタン = <code>surface-card</code>（白）＋ <code>border</code>（#D4D8DD）。コントラストが弱い。'],
+      ['影響', '押せるか不明', '教室長が「ここを押すの？」と迷う。無効状態と見間違える可能性も。'],
+    ].map(([tag, title, body])=>`<div class="eval-row"><strong>${tag}<br>${title}</strong><span>${body}</span></div>`).join('');
+
+    document.getElementById('ghostRecommend').innerHTML =
+      '<strong>おすすめ：案B2</strong> — 4ボタン全体を<strong>薄グレーの帯（surface-muted）</strong>に載せる。白ボタンが帯の上に浮いて見える。案Bの1行レイアウトはそのまま。';
+  }
+
+  function renderGhostFixGrid(){
+    document.getElementById('ghostFixGrid').innerHTML = [
+      variantCard('公開中（案B）— 白に白で見えにくい', renderB(), false, true),
+      variantCard('案B2（おすすめ）— ツールバー全体を薄グレー', renderB2(), true, true),
+      variantCard('案B3 — 副ボタンだけ薄グレー塗り', renderB3(), false, true),
+      variantCard('案B4 — 副ボタン枠を濃く＋軽い影', renderB4(), false, true),
+    ].join('');
+  }
+
+  function renderGhostProsCons(){
+    const items = [
+      {
+        title: '案B2（おすすめ）',
+        rec: true,
+        pros: ['操作ゾーン全体が1塊と分かる', '白ボタンがはっきり見える', '週間カレンダーのマス（薄グレー）と同系統', '案Bの並び・区切り線を維持'],
+        cons: ['帯の分だけ縦が数px増える'],
+      },
+      {
+        title: '案B3 — 副ボタンだけグレー',
+        pros: ['変更が最小（ボタン1つの色だけ）', '白背景のまま'],
+        cons: ['帯がないので操作エリアのまとまりは弱い'],
+      },
+      {
+        title: '案B4 — 枠を濃く',
+        pros: ['白背景のままコントラストUP'],
+        cons: ['枠+影は他ボタンとまた別ルール', '帯より弱い'],
+      },
+    ];
+    document.getElementById('ghostProsCons').innerHTML = items.map(it=>`
+      <div class="pros-cons-card${it.rec ? ' is-rec' : ''}">
+        <div class="pros-cons-head">${it.title}</div>
+        <div class="pros-cons-body">
+          <h4>長所</h4><ul>${it.pros.map(p=>`<li>${p}</li>`).join('')}</ul>
+          <h4>短所</h4><ul>${it.cons.map(c=>`<li>${c}</li>`).join('')}</ul>
+        </div>
+      </div>`).join('');
   }
 
   function renderEval(){
@@ -159,6 +215,9 @@
       <div class="variant-body"><div class="mock-zone">${mockFlow()}${renderA()}</div></div>`;
   }
 
+  renderGhostEval();
+  renderGhostFixGrid();
+  renderGhostProsCons();
   renderEval();
   renderVariants();
   renderProsCons();

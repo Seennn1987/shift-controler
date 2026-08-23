@@ -276,3 +276,56 @@ button.btn-text:hover { background: var(--danger-bg); }
   background: var(--surface-card);
 }
 .mobile-frame .variant-body { padding: 10px; }
+
+.is-archived { opacity: 0.88; }
+
+.mock-zone.is-white-bg {
+  background: var(--surface-card);
+  border-style: solid;
+}
+
+/* 案B2 — ツールバー全体を薄グレー */
+.actions-b2 .actions-toolbar {
+  display: flex; flex-wrap: wrap; align-items: center; gap: 8px;
+  padding: 8px 10px;
+  background: var(--surface-muted);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+}
+.actions-b2 button { width: auto; flex: 0 0 auto; }
+.actions-b2 .actions-sep { width: 1px; height: 24px; background: var(--border); flex-shrink: 0; }
+
+/* 案B3 — 副ボタンだけ薄グレー塗り */
+button.ghost-muted {
+  background: var(--surface-muted);
+  color: var(--ink);
+  border: 1px solid var(--border);
+  min-height: 40px;
+  padding: 0 18px;
+  border-radius: var(--radius-lg);
+  font-family: inherit;
+  font-size: var(--text-base);
+  font-weight: 700;
+  cursor: pointer;
+}
+.actions-b3 .actions-toolbar { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.actions-b3 button { width: auto; flex: 0 0 auto; }
+.actions-b3 .actions-sep { width: 1px; height: 24px; background: var(--border); flex-shrink: 0; }
+
+/* 案B4 — 副ボタン枠を濃く */
+button.ghost-strong {
+  background: var(--surface-card);
+  color: var(--ink);
+  border: 1px solid var(--ink-soft);
+  box-shadow: 0 1px 2px rgba(51, 51, 51, 0.06);
+  min-height: 40px;
+  padding: 0 18px;
+  border-radius: var(--radius-lg);
+  font-family: inherit;
+  font-size: var(--text-base);
+  font-weight: 700;
+  cursor: pointer;
+}
+.actions-b4 .actions-toolbar { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.actions-b4 button { width: auto; flex: 0 0 auto; }
+.actions-b4 .actions-sep { width: 1px; height: 24px; background: var(--border); flex-shrink: 0; }

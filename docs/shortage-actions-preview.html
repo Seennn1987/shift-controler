@@ -12,32 +12,49 @@
 <body>
   <header class="preview-header">
     <div class="preview-header-inner">
-      <h1>コマ組み — 4操作ボタン UI プレビュー</h1>
-      <p>「色とデザインがバラバラ」「横幅が広すぎる」への回答。公開中と<strong>4案</strong>を比較します。おすすめは<strong>案A</strong>です。</p>
+      <h1>コマ組み — 4操作ボタン UI プレビュー v2</h1>
+      <p><strong>v2追加：</strong>公開済み案Bの「白背景に白ボタン」問題への修正案。下に v1 の4案比較も残しています。</p>
       <p class="preview-url">URL: <a href="http://localhost:5173/docs/shortage-actions-preview.html">http://localhost:5173/docs/shortage-actions-preview.html</a></p>
     </div>
   </header>
 
   <main class="preview-main">
     <section class="intro-block">
-      <h2>UI/UX 評価（公開中）</h2>
+      <h2>v2 — 「白に白ボタン」問題</h2>
+      <div id="ghostEval" class="eval-grid"></div>
+      <div id="ghostRecommend" class="recommend-box"></div>
+    </section>
+
+    <section class="compare-block">
+      <h2>v2 ① 公開中（案B）vs 修正案 — 白背景で比較</h2>
+      <p class="section-desc">背景は本番と同じ<strong>真っ白（surface-card）</strong>。左がいま公開中、右から修正案です。</p>
+      <div id="ghostFixGrid" class="variant-grid"></div>
+    </section>
+
+    <section class="compare-block">
+      <h2>v2 ② 修正案の長所・短所</h2>
+      <div id="ghostProsCons" class="pros-cons-grid"></div>
+    </section>
+
+    <section class="intro-block is-archived">
+      <h2>v1 — UI/UX 評価（初回）</h2>
       <div id="evalGrid" class="eval-grid"></div>
       <div id="recommendBox" class="recommend-box"></div>
     </section>
 
-    <section class="compare-block">
-      <h2>① 公開中 vs 改善案 — 並べて比較</h2>
+    <section class="compare-block is-archived">
+      <h2>v1 ① 公開中 vs 改善案 — 並べて比較</h2>
       <p class="section-desc">上段が4段フロー（参考）、その下が4ボタン。カラム幅は本番に近い960pxです。</p>
       <div id="variantGrid" class="variant-grid"></div>
     </section>
 
-    <section class="compare-block">
-      <h2>② 各案の長所・短所</h2>
+    <section class="compare-block is-archived">
+      <h2>v1 ② 各案の長所・短所</h2>
       <div id="prosCons" class="pros-cons-grid"></div>
     </section>
 
-    <section class="compare-block">
-      <h2>③ 案A — スマホ幅（375px）</h2>
+    <section class="compare-block is-archived">
+      <h2>v1 ③ 案A — スマホ幅（375px）</h2>
       <div id="mobileA" class="mobile-frame"></div>
     </section>
   </main>

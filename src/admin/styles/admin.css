@@ -743,6 +743,15 @@
     display:inline-flex;align-items:center;justify-content:center;
     min-height:40px;white-space:normal;line-height:1.35;padding:8px 10px;
   }
+  .shortage-actions-toolbar .shortage-action-btn--muted{
+    background:var(--surface-muted);
+  }
+  .shortage-actions-toolbar .shortage-action-btn--muted:hover{
+    background:var(--brand-50);border-color:var(--brand-400);
+  }
+  .shortage-actions-toolbar .shortage-action-btn--muted:disabled{
+    opacity:.55;cursor:not-allowed;
+  }
   .shortage-actions-toolbar .shortage-action-btn--danger{
     color:var(--danger);font-size:var(--text-sm);min-height:32px;padding:8px 10px;
   }
