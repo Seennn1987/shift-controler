@@ -84,11 +84,13 @@ function buildUnassignedSlotHtml(row, dateStr, weekday){
     )) || `<div class="match-none">対応できる講師がいません</div>`;
 
   return `<div class="day-detail-unassigned">
-    <div class="day-detail-unassigned-head">
-      ${subjectTag}
-      <span>${student.name}さん</span>
-      <span class="grade-tag">${gradeLabel(student)}</span>
-      <span class="mp-slot-badge pending">講師なし</span>
+    <div class="day-detail-unassigned-head has-flow-badge">
+      <span class="sched-card-flow-badge"><span class="cal-status-chip is-unassigned">講師なし</span></span>
+      <div class="day-detail-unassigned-head-main">
+        ${subjectTag}
+        <span>${student.name}さん</span>
+        <span class="grade-tag">${gradeLabel(student)}</span>
+      </div>
     </div>
     ${candHtml}
   </div>`;

@@ -22,6 +22,23 @@ function buildPrefPairActionHtml(cand, studentId, courseId, allowSet){
   return buildPrefPairActionHtmlForTeacher(studentId, courseId, cand.teacher.id, { allowSet });
 }
 
+/** マッチング枠：教科タグ行（フローバッジは右上・1行） */
+export function buildMpSlotSubjectRow(subjectTagHtml, flowKind, extraHtml = ''){
+  const flowMap = {
+    pending: { cls: 'is-unassigned', text: '講師なし' },
+    tentative: { cls: 'is-tentative-outline', text: '仮決め' },
+    waiting: { cls: 'is-waiting', text: '承認待ち' },
+  };
+  const flow = flowMap[flowKind];
+  const flowBadgeHtml = flow
+    ? `<span class="sched-card-flow-badge"><span class="cal-status-chip ${flow.cls}">${flow.text}</span></span>`
+    : '';
+  return `<div class="mp-slot-subject${flow ? ' has-flow-badge' : ''}">
+    ${flowBadgeHtml}
+    <div class="mp-slot-subject-tags">${subjectTagHtml}${extraHtml}</div>
+  </div>`;
+}
+
 export function renderMatchCandidateList(candidates, opts){
   const {
     studentId, courseId, subject, day, slot,
@@ -96,7 +113,7 @@ export function buildDraftSlotCardHtml({
   const dualAttr = dual ? ' data-dual="1"' : '';
   return `<div class="match-slot mp-slot-card mp-slot-waiting">
     <div class="ms-slot-label">${slotLabel}（${slotTime}）<span class="mp-slot-meta">教室 ${roomUsed}/${roomCapacity}</span></div>
-    <div class="mp-slot-subject">${subjectTagHtml}<span class="mp-slot-badge tentative">仮決め</span>${autoBadge}</div>
+    ${buildMpSlotSubjectRow(subjectTagHtml, 'tentative', autoBadge)}
     <div class="match-slot-rows">
       <div class="match-cand-row">
         <span class="match-cand-rank">—</span>
@@ -136,7 +153,7 @@ export function buildWaitingSlotCardHtml({
   const dualAttr = dual ? ' data-dual="1"' : '';
   return `<div class="match-slot mp-slot-card mp-slot-waiting">
     <div class="ms-slot-label">${slotLabel}（${slotTime}）<span class="mp-slot-meta">教室 ${roomUsed}/${roomCapacity}</span></div>
-    <div class="mp-slot-subject">${subjectTagHtml}<span class="mp-slot-badge waiting">承認待ち</span></div>
+    ${buildMpSlotSubjectRow(subjectTagHtml, 'waiting')}
     <div class="match-slot-rows">
       <div class="match-cand-row">
         <span class="match-cand-rank">—</span>

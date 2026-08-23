@@ -27,7 +27,7 @@ import {
   withdrawPendingAssignment,
 } from './teacher-schedule-tab.js';
 import { buildDualMatchCandidatesHtml, buildMatchCandidatesHtml } from './match-candidates-html.js';
-import { buildDraftSlotCardHtml, buildPrefPairActionHtmlForTeacher, buildWaitingSlotCardHtml } from './match-candidate-ui.js';
+import { buildDraftSlotCardHtml, buildPrefPairActionHtmlForTeacher, buildWaitingSlotCardHtml, buildMpSlotSubjectRow } from './match-candidate-ui.js';
 import { buildDualSubjectTagsHtml, findDualPairForStudent } from './dual-subject.js';
 import { mountWithdrawConfirm } from './withdraw-pending-ui.js';
 import { mountInlineConfirm, showInlineNotice } from '../shared/inline-confirm.js';
@@ -679,7 +679,7 @@ function buildMatchingSlotCard(r, student, dateStr, weekday){
 
   return `<div class="match-slot matching-pick-slot mp-slot-card">
     <div class="ms-slot-label">${r.slot.label}（${r.slot.time}）<span class="mp-slot-meta">教室 ${roomUsed}/${S.roomCapacity}</span></div>
-    <div class="mp-slot-subject">${subjectTag}<span class="mp-slot-badge pending">講師なし</span></div>
+    ${buildMpSlotSubjectRow(subjectTag, 'pending')}
     <div class="matching-panel-cand-list">${buildCandidatesHtml(student, r, weekday, dateStr)}</div>
   </div>`;
 }
