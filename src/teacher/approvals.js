@@ -1,4 +1,5 @@
 import { SLOTS, WEEKDAY_JP } from '../shared/constants.js';
+import { mountInlineConfirm, showInlineNotice } from '../shared/inline-confirm.js';
 import { pad2, daysInYearMonth } from '../shared/date-utils.js';
 import { fbAuth, fbDb, S } from './state.js';
 import { debugLog } from './debug.js';
@@ -289,7 +290,6 @@ async function submitResponseDrafts(){
   const drafts = {...S.responseDrafts};
   const keys = Object.keys(drafts);
   if(keys.length===0) return;
-  if(!window.confirm(buildSubmitConfirmMessage(drafts))) return;
 
   const btn = document.getElementById('submitResponsesBtn');
   if(btn) btn.disabled = true;
@@ -341,7 +341,7 @@ async function submitResponseDrafts(){
   if(btn) btn.disabled = false;
 
   if(errors.length){
-    window.alert(`一部の送信に失敗しました。\n${errors.join('\n')}\n\nFirestoreの設定（キャンセル依頼）を教室長に確認してください。`);
+    showInlineNotice(document.getElementById('pendingBannerCard'), `一部の送信に失敗しました。\n${errors.join('\n')}\n\nFirestoreの設定（キャンセル依頼）を教室長に確認してください。`, { variant: 'warn', clear: false });
   }
 }
 
@@ -383,7 +383,20 @@ function initResponseDraftHandlers(){
     draftAllBtn.addEventListener('click', ()=> draftAllPendingApprovals());
   }
   if(submitBtn){
-    submitBtn.addEventListener('click', ()=> submitResponseDrafts());
+    submitBtn.addEventListener('click', ()=>{
+      const drafts = {...S.responseDrafts};
+      if(Object.keys(drafts).length === 0) return;
+      mountInlineConfirm(document.getElementById('pendingBannerCard'), submitBtn, {
+        message: buildSubmitConfirmMessage(drafts),
+        confirmLabel: '送信する',
+        variant: 'primary',
+        mountSelector: '.pending-banner-col',
+        onConfirm: async ()=>{
+          await submitResponseDrafts();
+          return { ok: true };
+        },
+      });
+    });
   }
 }
 

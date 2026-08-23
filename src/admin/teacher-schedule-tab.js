@@ -7,6 +7,7 @@ import { renderMatrix } from './finance-ui.js';
 import { renderMatching, renderStudentList } from './matching.js';
 import { cycleTeacherState, findTeacherSchedule, getOrCreateDraftSchedule, getDateSlotState, getWeekdayAvailabilityInMonth, gradeLabel, isAvailable, isPreferredDay, isTeacherAvailableOnDate, setDateSlotState } from './schedule-core.js';
 import { saveStudents, saveTeacherScheduleDoc, scheduleSave, scheduleSyncTeacherAssignments, approveCancellationRequest, rejectCancellationRequest } from './students-persistence.js';
+import { mountInlineConfirm, showInlineNotice } from '../shared/inline-confirm.js';
 
 // 講師スケジュール（月次提出）タブ
 // =====================================================================
@@ -113,7 +114,8 @@ function approvalScheduleLine(a){
 function openMatchingForApprovalTicket(a){
   const student = S.students.find(s=> s.name === a.studentName);
   if(!student){
-    window.alert(`${a.studentName}さんのデータが見つかりませんでした。`);
+    const host = document.getElementById('approvalStatusWrap')?.parentElement || document.getElementById('calViewShell');
+    showInlineNotice(host, `${a.studentName}さんのデータが見つかりませんでした。`, { variant: 'warn' });
     return;
   }
   document.dispatchEvent(new CustomEvent('matching:go-student-date', {
@@ -219,12 +221,21 @@ async function renderApprovalStatus(){
     </div>
   </div>`;
 
-  document.getElementById('approvalHistoryClearBtn')?.addEventListener('click', ()=>{
+  document.getElementById('approvalHistoryClearBtn')?.addEventListener('click', (e)=>{
     if(approved.length===0) return;
-    if(!window.confirm('表示中の承認済み履歴を削除します。\nよろしいですか？')) return;
-    approved.forEach(a=> dismissed.add(a.id));
-    saveDismissedApprovalIds(dismissed);
-    renderApprovalStatus();
+    const btn = e.currentTarget;
+    mountInlineConfirm(wrap, btn, {
+      message: '表示中の承認済み履歴を削除します。\nよろしいですか？',
+      confirmLabel: '削除する',
+      variant: 'danger',
+      mountSelector: '.approval-col-head',
+      onConfirm: async ()=>{
+        approved.forEach(a=> dismissed.add(a.id));
+        saveDismissedApprovalIds(dismissed);
+        renderApprovalStatus();
+        return { ok: true };
+      },
+    });
   });
 
   wrap.querySelectorAll('.approval-item-btn[data-approval-id]').forEach(btn=>{
@@ -278,27 +289,36 @@ async function renderCancellationRequests(){
   }).join('');
 
   wrap.querySelectorAll('button[data-action]').forEach(btn=>{
-    btn.addEventListener('click', async ()=>{
+    btn.addEventListener('click', ()=>{
       const req = requests.find(r=>r.id===btn.dataset.id);
       if(!req) return;
       const verb = btn.dataset.action==='approve' ? 'キャンセルを承認' : 'キャンセルを却下';
-      if(!window.confirm(`${req.studentName}さんの${req.day}曜${SLOTS.find(s=>s.id===req.slot)?.label||req.slot+'講'} ${req.subject}について、${verb}します。\nよろしいですか？`)) return;
-      btn.disabled = true;
-      try{
-        if(btn.dataset.action==='approve'){
-          await approveCancellationRequest(req, req.id);
-        }else{
-          await rejectCancellationRequest(req.id);
-        }
-        renderCancellationRequests();
-        renderTeacherScheduleTab();
-        renderMatrix();
-        renderMatching();
-        renderCalendar();
-      }catch(err){
-        btn.disabled = false;
-        window.alert('処理に失敗しました。Firestoreの設定を確認してください。');
-      }
+      mountInlineConfirm(wrap, btn, {
+        message: `${req.studentName}さんの${req.day}曜${SLOTS.find(s=>s.id===req.slot)?.label||req.slot+'講'} ${req.subject}について、${verb}します。\nよろしいですか？`,
+        confirmLabel: btn.dataset.action==='approve' ? '承認する' : '却下する',
+        variant: btn.dataset.action==='approve' ? 'primary' : 'danger',
+        mountSelector: '.change-req-row',
+        onConfirm: async ()=>{
+          btn.disabled = true;
+          try{
+            if(btn.dataset.action==='approve'){
+              await approveCancellationRequest(req, req.id);
+            }else{
+              await rejectCancellationRequest(req.id);
+            }
+            renderCancellationRequests();
+            renderTeacherScheduleTab();
+            renderMatrix();
+            renderMatching();
+            renderCalendar();
+            return { ok: true };
+          }catch(err){
+            btn.disabled = false;
+            console.error(err);
+            return { ok: false, msg: '処理に失敗しました。Firestoreの設定を確認してください。' };
+          }
+        },
+      });
     });
   });
 }

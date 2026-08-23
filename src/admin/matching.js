@@ -11,7 +11,7 @@ import { gradeLabel, isTeacherAvailableOnDate, subjectColor } from './schedule-c
 import { saveStudents, scheduleSave, scheduleSyncTeacherAssignments } from './students-persistence.js';
 import { buildCandidateInfo, confirmAssignment, countCourseConfirmed, findEffectiveAssignment, getPreferredTeachersForCourse } from './teacher-schedule-tab.js';
 import { compareCandidateInfo } from './matching-config.js';
-import { renderTeacherList } from './teachers.js';
+import { showActiveTabNotice } from '../shared/inline-confirm.js';
 import {
   normalizeFormCoursesForSave,
   renderStudentCourseCalendar,
@@ -506,11 +506,11 @@ function findNearestFutureDate(weekday){
 // 未充足コマ一覧・生徒一覧などから、カレンダーの該当生徒・該当日にジャンプする
 function jumpToCalendarForStudent(studentId, courseId){
   const student = S.students.find(s=>s.id===studentId);
-  if(!student){ alert('生徒データが見つかりませんでした（削除された可能性があります）。'); return; }
+  if(!student){ showActiveTabNotice('生徒データが見つかりませんでした（削除された可能性があります）。', { variant: 'warn' }); return; }
   const course = student.courses.find(c=>c.id===courseId);
-  if(!course){ alert('教科データが見つかりませんでした（削除された可能性があります）。'); return; }
+  if(!course){ showActiveTabNotice('教科データが見つかりませんでした（削除された可能性があります）。', { variant: 'warn' }); return; }
   if(!course.desiredSlots || course.desiredSlots.length===0){
-    alert(`${student.name}さんの「${course.subject}」は、希望する曜日・コマがまだ登録されていません。「生徒登録」タブの編集画面から設定してください。`);
+    showActiveTabNotice(`${student.name}さんの「${course.subject}」は、希望する曜日・コマがまだ登録されていません。「生徒登録」タブの編集画面から設定してください。`, { variant: 'warn' });
     return;
   }
   const pending = course.desiredSlots.find(ds=>{
@@ -520,7 +520,7 @@ function jumpToCalendarForStudent(studentId, courseId){
   });
   const target = pending || course.desiredSlots[0];
   const dateStr = findNearestFutureDate(target.day);
-  if(!dateStr){ alert('該当する日付が見つかりませんでした。'); return; }
+  if(!dateStr){ showActiveTabNotice('該当する日付が見つかりませんでした。', { variant: 'warn' }); return; }
   const d = new Date(dateStr+'T00:00:00');
   S.calYear = d.getFullYear();
   S.calMonth = d.getMonth();

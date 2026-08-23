@@ -27,6 +27,7 @@ import {
 import { buildMatchCandidatesHtml } from './match-candidates-html.js';
 import { buildPrefPairActionHtmlForTeacher, buildWaitingSlotCardHtml } from './match-candidate-ui.js';
 import { mountWithdrawConfirm } from './withdraw-pending-ui.js';
+import { showInlineNotice } from '../shared/inline-confirm.js';
 import { analyzePendingMatchSlot } from './match-slot-status.js';
 
 export function getDayDetailTitle(dateStr){
@@ -436,7 +437,7 @@ export function bindDayDetailEvents(container, dateStr, onRefresh){
           const slot = Number(cbtn.dataset.slot);
           const result = confirmMakeup(absence, mDate, slot, teacher);
           if(!result.ok){
-            alert(result.msg);
+            showInlineNotice(container, result.msg, { variant: 'warn' });
             return;
           }
           refresh();
@@ -451,7 +452,7 @@ export function bindDayDetailEvents(container, dateStr, onRefresh){
       const slot = Number(btn.dataset.slot);
       const result = confirmMakeup(absence, date, slot, teacher);
       if(!result.ok){
-        alert(result.msg);
+        showInlineNotice(container, result.msg, { variant: 'warn' });
         return;
       }
       refresh();

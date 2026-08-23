@@ -6,6 +6,7 @@ import { debugLog } from './debug.js';
 import { startClassroomSettingsListener } from './classroom-settings.js';
 import { startScheduleListener,loadMyPendingRequests } from './schedule.js';
 import { loadResponseDrafts } from './response-draft.js';
+import { mountInlineConfirm, showInlineNotice } from '../shared/inline-confirm.js';
 import {
   loadNewAssignments,
   loadPendingCancellationRequests,
@@ -40,13 +41,21 @@ function handleLogin(){
 document.getElementById('loginBtn').addEventListener('click', handleLogin);
 document.getElementById('loginPassword').addEventListener('keydown', (e)=>{ if(e.key==='Enter') handleLogin(); });
 document.getElementById('logoutBtn').addEventListener('click', ()=>{
+  const logoutBtn = document.getElementById('logoutBtn');
   const uid = fbAuth.currentUser ? fbAuth.currentUser.uid : null;
   const draftCount = uid ? Object.keys(loadResponseDrafts(uid)).length : 0;
   if(draftCount > 0){
-    const ok = window.confirm(
-      `まだ教室長に送っていない内容が${draftCount}件あります。\nこの端末に保存されたままログアウトします。\n\nよろしいですか？`
-    );
-    if(!ok) return;
+    mountInlineConfirm(document.getElementById('appHeader'), logoutBtn, {
+      message: `まだ教室長に送っていない内容が${draftCount}件あります。\nこの端末に保存されたままログアウトします。\n\nよろしいですか？`,
+      confirmLabel: 'ログアウトする',
+      variant: 'danger',
+      mountSelector: '.header-account',
+      onConfirm: async ()=>{
+        fbAuth.signOut();
+        return { ok: true };
+      },
+    });
+    return;
   }
   fbAuth.signOut();
 });

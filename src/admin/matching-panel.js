@@ -26,6 +26,7 @@ import {
 import { buildMatchCandidatesHtml } from './match-candidates-html.js';
 import { buildPrefPairActionHtmlForTeacher, buildWaitingSlotCardHtml } from './match-candidate-ui.js';
 import { mountWithdrawConfirm } from './withdraw-pending-ui.js';
+import { mountInlineConfirm, showInlineNotice } from '../shared/inline-confirm.js';
 
 function refreshPrefPairViews(){
   renderStudentList();
@@ -368,7 +369,7 @@ function bindFutureWeeksOffer(root){
     if(!offer) return;
     const result = confirmAssignment(offer.studentId, offer.courseId, offer.subject, offer.day, offer.slot, offer.teacherId, 'manual', { recurring: true, dateStr: offer.dateStr });
     if(!result.ok){
-      alert(result.msg);
+      showInlineNotice(root, result.msg, { variant: 'warn' });
       return;
     }
     scheduleSave();
@@ -525,7 +526,7 @@ function bindConfirmButtons(root){
         { dateStr: btn.dataset.date || null }
       );
       if(!result.ok){
-        alert(result.msg);
+        showInlineNotice(root, result.msg, { variant: 'warn' });
         return;
       }
       scheduleSave();
@@ -735,12 +736,14 @@ function renderMatchingPanelMenu(){
   `;
 
   body.querySelector('#mpBulkAutoBtn')?.addEventListener('click', handlePanelBulkAuto);
-  body.querySelector('#mpBulkCancelAutoBtn')?.addEventListener('click', handlePanelBulkCancelAuto);
-  body.querySelector('#mpBulkCancelBtn')?.addEventListener('click', handlePanelBulkCancel);
+  body.querySelector('#mpBulkCancelAutoBtn')?.addEventListener('click', (e)=> handlePanelBulkCancelAuto(e));
+  body.querySelector('#mpBulkCancelBtn')?.addEventListener('click', (e)=> handlePanelBulkCancel(e));
   bindStudentPickButtons(body);
 }
 
-function handlePanelBulkCancelAuto(){
+function handlePanelBulkCancelAuto(ev){
+  const btn = ev?.currentTarget || document.getElementById('mpBulkCancelAutoBtn');
+  const panel = document.getElementById('matchingPanelBody');
   const resultEl = document.getElementById('mpBulkResult');
   const autoCount = S.assignments.filter(a=> a.source === 'auto').length
     + S.pendingAssignments.filter(a=> a.source === 'auto').length;
@@ -748,11 +751,20 @@ function handlePanelBulkCancelAuto(){
     if(resultEl) resultEl.innerHTML = '<div class="matching-panel-result-msg">自動で組んだコマはありません。</div>';
     return;
   }
-  if(!confirm(`自動で組んだ${autoCount}件を解除しますか？`)) return;
-  const count = bulkCancelAuto();
-  scheduleSave();
-  if(resultEl) resultEl.innerHTML = `<div class="matching-panel-result-msg partial">自動で組んだ${count}件を解除しました。</div>`;
-  afterMatchingChange();
+  if(!btn || !panel) return;
+  mountInlineConfirm(panel, btn, {
+    message: `自動で組んだ${autoCount}件を解除しますか？`,
+    confirmLabel: '解除する',
+    variant: 'danger',
+    mountSelector: '.matching-panel-actions',
+    onConfirm: async ()=>{
+      const count = bulkCancelAuto();
+      scheduleSave();
+      if(resultEl) resultEl.innerHTML = `<div class="matching-panel-result-msg partial">自動で組んだ${count}件を解除しました。</div>`;
+      afterMatchingChange();
+      return { ok: true };
+    },
+  });
 }
 
 function renderStudentPeriodSlots(studentId, scrollToDateStr){
@@ -868,7 +880,9 @@ function handlePanelBulkAuto(){
   afterMatchingChange();
 }
 
-function handlePanelBulkCancel(){
+function handlePanelBulkCancel(ev){
+  const btn = ev?.currentTarget || document.getElementById('mpBulkCancelBtn');
+  const panel = document.getElementById('matchingPanelBody');
   const resultEl = document.getElementById('mpBulkResult');
   const totalCount = S.assignments.length + S.pendingAssignments.length
     + S.absences.length + S.teacherAbsences.length + S.teacherSubstitutions.length;
@@ -876,10 +890,18 @@ function handlePanelBulkCancel(){
     if(resultEl) resultEl.innerHTML = '<div class="matching-panel-result-msg">マッチングデータはありません。</div>';
     return;
   }
-  if(!confirm(`確定・承認待ち・欠席・代講を含む${totalCount}件のデータをすべて削除しますか？\n（生徒・講師・シフトの登録は残ります）`)) return;
-  clearAllMatchingData().then(()=>{
-    if(resultEl) resultEl.innerHTML = '<div class="matching-panel-result-msg partial">マッチングデータをすべて削除しました。</div>';
-    afterMatchingChange();
+  if(!btn || !panel) return;
+  mountInlineConfirm(panel, btn, {
+    message: `確定・承認待ち・欠席・代講を含む${totalCount}件のデータをすべて削除しますか？\n（生徒・講師・シフトの登録は残ります）`,
+    confirmLabel: 'すべて削除',
+    variant: 'danger',
+    mountSelector: '.matching-panel-actions',
+    onConfirm: async ()=>{
+      await clearAllMatchingData();
+      if(resultEl) resultEl.innerHTML = '<div class="matching-panel-result-msg partial">マッチングデータをすべて削除しました。</div>';
+      afterMatchingChange();
+      return { ok: true };
+    },
   });
 }
 
