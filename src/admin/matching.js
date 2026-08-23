@@ -666,11 +666,12 @@ function bindShortageDashboardActions(wrap){
   });
 }
 
-function renderShortageListBlock(label, count, unit, itemsHtml, ariaLabel){
+function renderShortageListBlock(label, count, unit, itemsHtml, ariaLabel, emptyMessage){
+  const scrollHtml = itemsHtml || `<div class="approval-col-empty">${emptyMessage}</div>`;
   return `<div class="approval-detail-well shortage-list-block">
     <div class="approval-col">
       <div class="approval-col-label">${label} <span class="approval-col-num">${count}${unit}</span></div>
-      <div class="approval-scroll" aria-label="${ariaLabel}">${itemsHtml}</div>
+      <div class="approval-scroll" aria-label="${ariaLabel}">${scrollHtml}</div>
     </div>
   </div>`;
 }
@@ -768,31 +769,25 @@ function renderShortageDashboard(){
     return;
   }
 
-  const unassignedHtml = flatItems.length > 0
-    ? renderShortageListBlock(
-      '未確定', unassignedCount, 'コマ',
-      flatItems.map(renderShortageDashboardItem).join(''),
-      '未確定のコマ',
-    )
-    : '';
+  const unassignedHtml = renderShortageListBlock(
+    '未確定', unassignedCount, 'コマ',
+    flatItems.length > 0 ? flatItems.map(renderShortageDashboardItem).join('') : '',
+    '未確定のコマ',
+    '未確定のコマはありません',
+  );
 
-  const draftHtml = draftItems.length > 0
-    ? renderShortageListBlock(
-      '仮決め', draftCount, '件',
-      draftItems.map(renderDraftDashboardItem).join(''),
-      '仮決めのコマ',
-    )
-    : '';
+  const draftHtml = renderShortageListBlock(
+    '仮決め', draftCount, '件',
+    draftItems.length > 0 ? draftItems.map(renderDraftDashboardItem).join('') : '',
+    '仮決めのコマ',
+    '仮決めはありません',
+  );
 
-  const emptyHtml = (!unassignedHtml && !draftHtml)
+  const noteHtml = (unassignedCount === 0 && draftCount === 0)
     ? '<div class="shortage-ok">未確定・仮決めのコマはありません（承認待ちは下の承認バーを確認してください）</div>'
     : '';
 
-  const listsHtml = (unassignedHtml && draftHtml)
-    ? `<div class="shortage-two-col">${unassignedHtml}${draftHtml}</div>`
-    : `${unassignedHtml}${draftHtml}`;
-
-  wrap.innerHTML = `${renderShortageActionsHtml(ym)}${listsHtml}${emptyHtml}`;
+  wrap.innerHTML = `${renderShortageActionsHtml(ym)}<div class="shortage-two-col">${unassignedHtml}${draftHtml}</div>${noteHtml}`;
   bindShortageDashboardActions(wrap);
 
   wrap.querySelectorAll('.approval-item-btn[data-student]').forEach(btn=>{

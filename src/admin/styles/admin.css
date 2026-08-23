@@ -907,7 +907,11 @@
     padding:12px 16px;margin-bottom:12px;
   }
   .cal-status-bar.is-ok{background:var(--success-bg);border-color:var(--success);}
-  .cal-status-bar.is-warn{background:var(--danger-bg);border-color:rgba(179,70,44,.22);}
+  .cal-status-bar.is-warn{
+    background:var(--surface-card);
+    border-color:rgba(179,70,44,.28);
+    border-left:4px solid var(--danger);
+  }
   .cal-status-inner{display:flex;align-items:center;gap:8px;flex-wrap:wrap;}
   button.cal-status-toggle{
     width:100%;display:flex;align-items:center;gap:8px;flex-wrap:wrap;
