@@ -64,10 +64,10 @@
     <div class="cal-view-main">
 
     <div class="cal-status-bar" id="calStatusBar">
-      <div class="cal-status-inner">
-        <div id="shortageSummaryLine" class="cal-status-text">読み込み中…</div>
-        <button type="button" class="btn-text" id="shortageToggleBtn">詳細 ▾</button>
-      </div>
+      <button type="button" class="cal-status-toggle" id="shortageToggleBtn" aria-expanded="false">
+        <span id="shortageSummaryLine" class="cal-status-text">読み込み中…</span>
+        <span class="cal-status-chevron" aria-hidden="true">▾</span>
+      </button>
       <div id="shortageDetailWrap" class="cal-status-detail" style="display:none;">
         <div id="shortageWrap"></div>
       </div>

@@ -391,6 +391,50 @@ function renderMatching(){
   refreshAfterMatchingChange();
 }
 
+// 未充足コマ一覧：次に組むべき日付・コマ（ジャンプ先と同じ基準）
+function findShortageJumpTarget(studentId, course){
+  if(!course.desiredSlots || course.desiredSlots.length===0){
+    return { dateStr: null, slotLabel: null, whenLabel: '希望未登録', sortKey: '9999-12-31' };
+  }
+  let best = null;
+  course.desiredSlots.forEach(ds=>{
+    const dateStr = findNearestFutureDate(ds.day);
+    if(!dateStr) return;
+    const ym = dateStr.slice(0,7);
+    if(findEffectiveAssignment(studentId, course.id, ds.day, ds.slot, ym)) return;
+    const slotDef = SLOTS.find(s=> Number(s.id)===Number(ds.slot));
+    const slotLabel = slotDef ? slotDef.label : `${ds.slot}講`;
+    const d = new Date(`${dateStr}T00:00:00`);
+    const whenLabel = `${d.getMonth()+1}/${d.getDate()}（${WEEKDAY_JP[d.getDay()]}）${slotLabel}`;
+    const candidate = { dateStr, slotLabel, whenLabel, sortKey: dateStr, slot: ds.slot };
+    if(!best || dateStr < best.dateStr || (dateStr === best.dateStr && Number(ds.slot) < Number(best.slot))){
+      best = candidate;
+    }
+  });
+  if(best) return best;
+  const fallback = course.desiredSlots[0];
+  const dateStr = findNearestFutureDate(fallback.day);
+  if(!dateStr){
+    return { dateStr: null, slotLabel: null, whenLabel: '日付なし', sortKey: '9999-12-31' };
+  }
+  const slotDef = SLOTS.find(s=> Number(s.id)===Number(fallback.slot));
+  const slotLabel = slotDef ? slotDef.label : `${fallback.slot}講`;
+  const d = new Date(`${dateStr}T00:00:00`);
+  return {
+    dateStr,
+    slotLabel,
+    whenLabel: `${d.getMonth()+1}/${d.getDate()}（${WEEKDAY_JP[d.getDay()]}）${slotLabel}`,
+    sortKey: dateStr,
+    slot: fallback.slot,
+  };
+}
+
+function compareShortages(a, b){
+  if(a.target.sortKey !== b.target.sortKey) return a.target.sortKey < b.target.sortKey ? -1 : 1;
+  if(a.gap !== b.gap) return b.gap - a.gap;
+  return a.student.name.localeCompare(b.student.name, 'ja');
+}
+
 // 未充足コマ一覧（週の必要コマ数に対して確定が足りていない教科だけを抽出）
 function groupShortagesByStudent(shortages){
   const order = [];
@@ -403,7 +447,7 @@ function groupShortagesByStudent(shortages){
     map.get(sh.student.id).courses.push(sh);
   });
   order.forEach(id=>{
-    map.get(id).courses.sort((a,b)=> b.gap - a.gap);
+    map.get(id).courses.sort(compareShortages);
   });
   return order.map(id=> map.get(id));
 }
@@ -433,7 +477,14 @@ function renderShortageDashboard(){
       const confirmed = countCourseConfirmed(s.id, course.id);
       const need = course.weeklyCount;
       if(confirmed < need){
-        shortages.push({student:s, course, confirmed, need, gap: need-confirmed});
+        shortages.push({
+          student: s,
+          course,
+          confirmed,
+          need,
+          gap: need - confirmed,
+          target: findShortageJumpTarget(s.id, course),
+        });
       }
     });
   });
@@ -451,12 +502,12 @@ function renderShortageDashboard(){
   }
   if(summaryLine){
     const absPart = pendingAbsences>0 ? ` ／ 未振替 ${pendingAbsences}件` : '';
-    summaryLine.textContent = `${shortages.length}件の教科で確定が不足しています · 不足が多い順${absPart}`;
+    summaryLine.textContent = `${shortages.length}件 · 日付が近い順${absPart}`;
   }
   statusBar?.classList.remove('is-ok');
   statusBar?.classList.add('is-warn');
 
-  shortages.sort((a,b)=> b.gap - a.gap);
+  shortages.sort(compareShortages);
 
   const groups = groupShortagesByStudent(shortages);
   let html = '<div class="shortage-well">';
@@ -466,11 +517,16 @@ function renderShortageDashboard(){
     group.courses.forEach(sh=>{
       const c = subjectColor(group.student.level, sh.course.subject);
       const statusCls = sh.gap === 1 ? ' is-mild' : '';
-      coursesHtml += `<div class="shortage-course-row">
+      const jumpLabel = `${sh.student.name} ${sh.course.subject} ${sh.target.whenLabel} あと${sh.gap}`;
+      coursesHtml += `<button type="button" class="shortage-course-row" data-student="${sh.student.id}" data-course="${sh.course.id}" aria-label="${jumpLabel}">
         <span class="sr-subject" style="background:${c.bg};color:${c.text};">${sh.course.subject}</span>
-        <span class="sr-status${statusCls}">週${sh.need} · ${sh.confirmed}確定 · <strong>あと${sh.gap}</strong></span>
-        <button type="button" class="sr-jump" data-student="${sh.student.id}" data-course="${sh.course.id}">候補を確認</button>
-      </div>`;
+        <span class="sr-main">
+          <span class="sr-when">${sh.target.whenLabel}</span>
+          <span class="sr-status${statusCls}">· <strong>あと${sh.gap}</strong></span>
+          <span class="sr-weekly">週${sh.need} · ${sh.confirmed}確定</span>
+        </span>
+        <span class="sr-chevron" aria-hidden="true">›</span>
+      </button>`;
     });
     html += `<div class="shortage-student-card">
       <div class="shortage-student-head">
@@ -483,7 +539,7 @@ function renderShortageDashboard(){
   html += '</div>';
   wrap.innerHTML = html;
 
-  wrap.querySelectorAll('.sr-jump').forEach(btn=>{
+  wrap.querySelectorAll('.shortage-course-row[data-student]').forEach(btn=>{
     btn.addEventListener('click', ()=>{
       jumpToCalendarForStudent(btn.dataset.student, btn.dataset.course);
     });
