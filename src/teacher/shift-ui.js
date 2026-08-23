@@ -156,4 +156,30 @@ async function sendPendingChanges(){
     msg.textContent = 'リクエストの送信に失敗しました。通信状況をご確認ください。';
   }
 }
-export { getMonthEntry, baselineState, effectiveState, buildCellHtml, handleCellClick, updateSendButtonState, sendPendingChanges };
+export { getMonthEntry, render, renderKeepingOverrides, baselineState, effectiveState, buildCellHtml, handleCellClick, updateSendButtonState, sendPendingChanges };
+
+document.getElementById('sendRequestBtn')?.addEventListener('click', sendPendingChanges);
+
+document.getElementById('prevBtn')?.addEventListener('click', ()=>{
+  S.curMonth--; if(S.curMonth < 0){ S.curMonth = 11; S.curYear--; }
+  render();
+});
+document.getElementById('nextBtn')?.addEventListener('click', ()=>{
+  S.curMonth++; if(S.curMonth > 11){ S.curMonth = 0; S.curYear++; }
+  render();
+});
+document.getElementById('todayBtn')?.addEventListener('click', ()=>{
+  const t = new Date(); S.curYear = t.getFullYear(); S.curMonth = t.getMonth();
+  render();
+});
+document.getElementById('submitBtn')?.addEventListener('click', async ()=>{
+  const yearMonth = `${S.curYear}-${pad2(S.curMonth + 1)}`;
+  const entry = getMonthEntry(yearMonth);
+  entry.status = 'submitted';
+  entry.submittedBy = 'teacher';
+  const msg = document.getElementById('formMsg');
+  if(msg) msg.textContent = '提出中…';
+  await saveMonthEntry(yearMonth, entry);
+  if(msg) msg.textContent = '✓ 提出しました。';
+  render();
+});

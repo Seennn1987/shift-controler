@@ -5,6 +5,7 @@ import './classroom-settings.js';
 import './schedule-utils.js';
 import './schedule.js';
 import './approvals.js';
+import './calendar.js';
 import './shift-ui.js';
-import './schedule-unified.js';
+import './init.js';
 import './auth.js';

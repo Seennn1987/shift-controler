@@ -4,7 +4,8 @@ import { pad2, daysInYearMonth } from '../shared/date-utils.js';
 import { fbAuth, fbDb, S } from './state.js';
 import { debugLog } from './debug.js';
 import { getDayStatus } from './day-status.js';
-import { renderScheduleKeepingOverrides } from './schedule-unified.js';
+import { renderMyCalendar } from './calendar.js';
+import { renderKeepingOverrides } from './shift-ui.js';
 import {
   draftKeyForTicket,
   draftKeyForSlot,
@@ -242,7 +243,8 @@ function getDraftForEntry(entry, ticket){
 }
 
 function rerenderSchedule(){
-  renderScheduleKeepingOverrides();
+  renderMyCalendar();
+  renderKeepingOverrides();
 }
 
 function getSlotDraft(dateStr, slotId){
@@ -301,10 +303,25 @@ function countUnrepliedPendingTickets(){
 }
 
 function draftAllPendingApprovals(){
+  let changed = false;
   collectActionablePendingSlots().forEach(({ dateStr, slotId })=>{
     if(getSlotDraft(dateStr, slotId)) return;
-    setDraftForSlot(dateStr, slotId, 'approve');
+    const tickets = getSlotPendingTickets(dateStr, slotId);
+    if(tickets.length === 0) return;
+    const wd = WEEKDAY_JP[new Date(`${dateStr}T00:00:00`).getDay()];
+    const key = draftKeyForSlot(dateStr, slotId);
+    S.responseDrafts[key] = {
+      action: 'approve',
+      dateStr,
+      slotId: Number(slotId),
+      day: wd,
+      ticketIds: tickets.map(t=> t.id),
+      label: `${slotLabelFor(dateStr, slotId)}（${tickets.length}件）`,
+    };
+    changed = true;
   });
+  if(changed) persistDrafts();
+  rerenderSchedule();
 }
 
 function buildSubmitConfirmMessage(drafts){

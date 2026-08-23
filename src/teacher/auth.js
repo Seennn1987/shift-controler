@@ -15,7 +15,8 @@ import {
   startMyAssignmentsListener,
   initResponseDraftHandlers,
 } from './approvals.js';
-import { renderScheduleUnified } from './schedule-unified.js';
+import { renderMyCalendar } from './calendar.js';
+import { render } from './shift-ui.js';
 
 function showLogin(msg){
   document.getElementById('loginScreen').style.display = 'flex';
@@ -115,6 +116,7 @@ async function bootstrap(user){
   S.pendingCancellationRequests = await loadPendingCancellationRequests();
   S.adminCancelledNotices = await loadAdminCancelledNotices();
   reloadDraftsFromStorage();
-  renderScheduleUnified();
+  renderMyCalendar();
+  render();
 }
 export { showLogin, handleLogin, bootstrap };

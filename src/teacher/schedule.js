@@ -3,7 +3,7 @@ import { HOLIDAYS_JP } from '../shared/holidays.js';
 import { pad2, daysInYearMonth, toDateStr } from '../shared/date-utils.js';
 import { fbAuth, fbDb, S } from './state.js';
 import { debugLog } from './debug.js';
-import { renderScheduleKeepingOverrides } from './schedule-unified.js';
+import { renderKeepingOverrides } from './shift-ui.js';
 
 function startScheduleListener(){
   if(S.scheduleTimer) clearInterval(S.scheduleTimer);
@@ -25,7 +25,7 @@ function startScheduleListener(){
       if(!S.scheduleDoc.months) S.scheduleDoc.months = {};
       debugLog(`[teacherSchedules] 取得結果を適用します。表示中の月(${S.curYear}-${pad2(S.curMonth+1)})のサーバー上のdays=${JSON.stringify((S.scheduleDoc.months[`${S.curYear}-${pad2(S.curMonth+1)}`]||{}).days||{})}`);
       // 教室長側の更新もこの場で反映する（未送信の下書きは保持したまま）
-      renderScheduleKeepingOverrides();
+      renderKeepingOverrides();
     }catch(err){
       debugLog(`[teacherSchedules] ★失敗★ code=${err.code} message=${err.message}`);
       console.error('スケジュール読み込みエラー:', err);

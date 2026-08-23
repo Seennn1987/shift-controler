@@ -56,21 +56,42 @@
     </div>
   </div>
 
-  <div class="card">
-    <h2>マイスケジュール</h2>
-    <p class="desc">1か月の出勤可否（×／○／△）と担当授業を、この1画面で確認・入力できます。<br>赤い枠のコマは教室長からの授業依頼です。「受ける／受けられない」を選び、最後に「教室長に送信する」でまとめて送ってください。</p>
-    <div class="month-nav">
-      <button type="button" class="nav-btn" id="schedulePrevBtn">‹</button>
-      <div class="month-title" id="scheduleMonthTitle">2026年8月</div>
-      <button type="button" class="nav-btn" id="scheduleNextBtn">›</button>
-      <button type="button" class="today-btn" id="scheduleTodayBtn">今月</button>
+  <div class="tabs">
+    <button type="button" class="tab-btn active" data-tab="mycal">マイカレンダー</button>
+    <button type="button" class="tab-btn" data-tab="shift">シフト提出</button>
+  </div>
+
+  <div id="tab-mycal" class="tab-view active">
+    <div class="card">
+      <h2>マイカレンダー</h2>
+      <p class="desc">担当授業を日付ごとに確認できます。<br>赤い点線のコマは、教室長からの授業依頼です。<br>「受ける／受けられない」を選び、最後に「教室長に送信する」でまとめて送ってください。</p>
+      <div class="month-nav">
+        <button type="button" class="nav-btn" id="calPrevBtn">‹</button>
+        <div class="month-title" id="calMonthTitle">2026年8月</div>
+        <button type="button" class="nav-btn" id="calNextBtn">›</button>
+        <button type="button" class="today-btn" id="calTodayBtn">今月</button>
+      </div>
+      <div id="myCalWrap"></div>
     </div>
-    <div class="status-bar" id="statusBar"></div>
-    <div class="grid-scroll" id="gridWrap"></div>
-    <div class="form-actions">
-      <button type="button" class="primary" id="submitScheduleBtn">この内容で提出する</button>
-      <button type="button" class="send-request-btn" id="sendRequestBtn" style="display:none;">変更をリクエストする（0件）</button>
-      <span class="form-msg" id="formMsg"></span>
+  </div>
+
+  <div id="tab-shift" class="tab-view">
+    <div class="card">
+      <h2>月次スケジュール</h2>
+      <p class="desc">クリックするたびに「×不可 → ○特に希望 → △対応可能 → ×不可」の順に切り替わります。未提出の月は直接編集できます。提出済み（確定）の月を変更したい場合は、クリックすると教室長に変更リクエストが届きます（自動では反映されません）。</p>
+      <div class="month-nav">
+        <button type="button" class="nav-btn" id="prevBtn">‹</button>
+        <div class="month-title" id="monthTitle">2026年8月</div>
+        <button type="button" class="nav-btn" id="nextBtn">›</button>
+        <button type="button" class="today-btn" id="todayBtn">今月</button>
+      </div>
+      <div class="status-bar" id="statusBar"></div>
+      <div class="grid-scroll" id="gridWrap"></div>
+      <div class="form-actions">
+        <button type="button" class="primary" id="submitBtn">この内容で提出する</button>
+        <button type="button" class="send-request-btn" id="sendRequestBtn" style="display:none;">変更をリクエストする（0件）</button>
+        <span class="form-msg" id="formMsg"></span>
+      </div>
     </div>
   </div>
 </div>
