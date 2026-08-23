@@ -10,7 +10,7 @@ import { saveStudents, saveTeacherScheduleDoc, scheduleSave, scheduleSyncTeacher
 import { mountInlineConfirm, showInlineNotice } from '../shared/inline-confirm.js';
 import {
   buildApprovalAlertRowHtml, buildCalAlertPersonInline,
-  buildCalAlertSubjectTag, buildCalAlertWhenPill, calAlertDateParts,
+  buildCalAlertSubjectTag, buildCalAlertTeacherHead, buildCalAlertWhenPill, calAlertDateParts,
 } from '../shared/cal-alert-row.js';
 
 // 講師スケジュール（月次提出）タブ
@@ -170,7 +170,7 @@ function renderApprovalDashboardItem(a, teacherName, status, { action = false } 
   const rowCls = status==='rejected' ? ' approval-item-rejected' : '';
   const badge = approvalBadgeHtml(status);
   const whenPill = approvalWhenPill(a);
-  const teacherHead = `<span class="cal-alert-row-head">${teacherName}</span>`;
+  const teacherHead = buildCalAlertTeacherHead(teacherName);
   const personInline = buildCalAlertPersonInline(a.studentName, a.studentGrade || '');
   const subjectTag = buildCalAlertSubjectTag(subjectColor, approvalSubjectLevel(a), a.subject);
   const aria = approvalRowAriaLabel(a, teacherName);

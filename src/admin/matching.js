@@ -16,7 +16,7 @@ import { mountInlineConfirm, showActiveTabNotice } from '../shared/inline-confir
 import { dismissAppConfirmDialog, runAppConfirmDialog } from '../shared/app-confirm-dialog.js';
 import {
   buildApprovalAlertRowHtml, buildCalAlertPersonHead, buildCalAlertPersonInline,
-  buildCalAlertSubjectTag, buildCalAlertWhenPill,
+  buildCalAlertSubjectTag, buildCalAlertTeacherHead, buildCalAlertWhenPill,
   buildCalWorkflowSummaryHtml, buildShortageAlertRowHtml, calAlertDateParts,
 } from '../shared/cal-alert-row.js';
 import {
@@ -753,10 +753,10 @@ function renderDraftDashboardItem(entry){
   const gLabel = gradeLabel(student);
   const teacherName = teacher?.name || '不明';
   const autoBadge = assignment.source === 'auto' ? '<span class="auto-badge">自動</span>' : '';
-  const aria = `${md}（${weekday}）${slot.label} ${teacherName} ${student.name}（${gLabel}）${course.subject} 仮決め`;
+  const aria = `${md}(${weekday}) ${slot.label} ${teacherName} ${student.name}（${gLabel}）${course.subject} 仮決め`;
   return buildApprovalAlertRowHtml({
     whenPill: buildCalAlertWhenPill(md, weekday, slot.label),
-    teacherHead: `<span class="cal-alert-row-head">${teacherName}</span>`,
+    teacherHead: buildCalAlertTeacherHead(teacherName),
     personInline: buildCalAlertPersonInline(student.name, gLabel),
     subjectTag: buildCalAlertSubjectTag(subjectColor, student.level, course.subject),
     badgeHtml: autoBadge,
@@ -770,10 +770,10 @@ function renderPendingDashboardItem(entry){
   const { md, weekday } = calAlertDateParts(dateStr, getDayStatus);
   const gLabel = gradeLabel(student);
   const teacherName = teacher?.name || '不明';
-  const aria = `${md}（${weekday}）${slot.label} ${teacherName} ${student.name}（${gLabel}）${course.subject} 承認待ち`;
+  const aria = `${md}(${weekday}) ${slot.label} ${teacherName} ${student.name}（${gLabel}）${course.subject} 承認待ち`;
   return buildApprovalAlertRowHtml({
     whenPill: buildCalAlertWhenPill(md, weekday, slot.label),
-    teacherHead: `<span class="cal-alert-row-head">${teacherName}</span>`,
+    teacherHead: buildCalAlertTeacherHead(teacherName),
     personInline: buildCalAlertPersonInline(student.name, gLabel),
     subjectTag: buildCalAlertSubjectTag(subjectColor, student.level, course.subject),
     dataAttrs: ` data-student="${student.id}" data-date="${dateStr}" aria-label="${aria}"`,

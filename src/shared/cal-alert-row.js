@@ -1,4 +1,6 @@
-/** カレンダー上部アラート行（案C4）— 講師なし・承認待ち共通 */
+/** カレンダー上部アラート行 — 講師なし・仮決め・承認待ち・確定共通 */
+
+import { SUBJECT_ABBR } from './constants.js';
 
 export function calAlertDateParts(dateStr, getDayStatus){
   const status = getDayStatus(dateStr);
@@ -10,8 +12,13 @@ export function calAlertDateParts(dateStr, getDayStatus){
 }
 
 export function buildCalAlertWhenPill(md, weekday, slotLabel){
-  const wd = weekday ? `<span class="cal-alert-when-wd">（${weekday}）</span>` : '';
-  return `<span class="cal-alert-when-pill">${md}${wd} ${slotLabel}</span>`;
+  const wd = weekday ? `<span class="cal-alert-when-wd">(${weekday})</span>` : '';
+  return `<span class="cal-alert-when-text">${md}${wd} ${slotLabel}</span>`;
+}
+
+export function buildCalAlertTeacherHead(fullName){
+  const surname = String(fullName || '').trim().split(/\s+/)[0] || fullName || '不明';
+  return `<span class="cal-alert-row-head">${surname}先生</span>`;
 }
 
 export function buildCalAlertPersonHead(name, grade){
@@ -25,7 +32,8 @@ export function buildCalAlertPersonInline(name, grade){
 
 export function buildCalAlertSubjectTag(subjectColor, level, subject){
   const c = subjectColor(level, subject);
-  return `<span class="sched-student-tag" style="background:${c.bg};color:${c.text};">${subject}</span>`;
+  const label = SUBJECT_ABBR[subject] || subject.slice(0, 1);
+  return `<span class="sched-student-tag cal-alert-subject-tag" style="background:${c.bg};color:${c.text};">${label}</span>`;
 }
 
 export function buildCalAlertRowBody(parts, layout = 'full'){
