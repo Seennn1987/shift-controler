@@ -42,7 +42,8 @@ export function renderTeacherAbsencePanel(container, teacherId, dateStr, onRefre
     let studentRowsHtml = '';
     studentEntries.forEach(e=>{
       const st = S.students.find(s=> s.id === e.studentId);
-      const studentLabel = `${st ? st.name : '?'}（${e.subject}）`;
+      const subjectLabel = e.subjects?.length === 2 ? e.subjects.join('+') : e.subject;
+      const studentLabel = `${st ? st.name : '?'}（${subjectLabel}）`;
       const sub = S.teacherSubstitutions.find(s=>
         s.teacherId === teacherId && s.date === dateStr && s.slot === slotId && s.studentId === e.studentId,
       );

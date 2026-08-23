@@ -4,11 +4,12 @@ import {
   cancelAbsenceRecord,
   cancelMakeup,
   confirmMakeup,
+  findDualMakeupCandidates,
   findMakeupCandidates,
   getEffectiveDayAssignments,
   getStudentDateRows,
   markNoMakeup,
-  recordAbsence,
+  recordStudentSlotAbsence,
 } from './absences.js';
 import { resolveFilterStudent, resolveFilterTeacher } from './cal-filter.js';
 import { getDayStatus, getUnassignedRowsForDate } from './calendar.js';
@@ -152,6 +153,9 @@ export function renderDayDetailPanel(container, dateStr){
       const subjectTag = buildRowSubjectTagHtml(filterStudent, r);
       const isDual = !!r.dualPair;
       const dualAttr = isDual ? ' data-dual="1"' : '';
+      const dualMakeupAttrs = isDual && r.courses?.length === 2
+        ? ` data-dual="1" data-subjects="${r.courses.map(c=> c.subject).join(',')}"`
+        : '';
 
       if(r.isMakeupTarget){
         const teacher = S.teachers.find(t=> t.id === r.absence.makeup.teacherId);
@@ -187,7 +191,7 @@ export function renderDayDetailPanel(container, dateStr){
             <div class="absence-box">
               <span class="cb-label absence-label">欠席（振替なし）</span>
               ${subjectTag}
-              <button class="find-makeup-btn" data-absence="${r.absence.id}" data-student="${filterStudent.id}" data-level="${filterStudent.level}" data-subject="${r.course.subject}" data-date="${dateStr}" data-target="${panelId2}">振替を探す</button>
+              <button class="find-makeup-btn" data-absence="${r.absence.id}" data-student="${filterStudent.id}" data-level="${filterStudent.level}" data-subject="${r.course.subject}" data-date="${dateStr}" data-target="${panelId2}"${dualMakeupAttrs}>振替を探す</button>
               <button class="cancel-absence-btn" data-absence="${r.absence.id}">欠席を取り消す</button>
             </div>
             <div class="makeup-cand-list" id="${panelId2}" style="display:none;"></div>
@@ -199,7 +203,7 @@ export function renderDayDetailPanel(container, dateStr){
             <div class="absence-box">
               <span class="cb-label absence-label">欠席（未対応）</span>
               ${subjectTag}
-              <button class="find-makeup-btn" data-absence="${r.absence.id}" data-student="${filterStudent.id}" data-level="${filterStudent.level}" data-subject="${r.course.subject}" data-date="${dateStr}" data-target="${panelId}">振替を探す</button>
+              <button class="find-makeup-btn" data-absence="${r.absence.id}" data-student="${filterStudent.id}" data-level="${filterStudent.level}" data-subject="${r.course.subject}" data-date="${dateStr}" data-target="${panelId}"${dualMakeupAttrs}>振替を探す</button>
               <button class="no-makeup-btn" data-absence="${r.absence.id}">振替なしで確定</button>
               <button class="cancel-absence-btn" data-absence="${r.absence.id}">欠席を取り消す</button>
             </div>
@@ -455,7 +459,7 @@ export function bindDayDetailEvents(container, dateStr, onRefresh){
 
   container.querySelectorAll('.absent-btn').forEach(btn=>{
     btn.addEventListener('click', ()=>{
-      recordAbsence(btn.dataset.student, btn.dataset.course, btn.dataset.subject, btn.dataset.day, Number(btn.dataset.slot), btn.dataset.date);
+      recordStudentSlotAbsence(btn.dataset.student, btn.dataset.course, btn.dataset.subject, btn.dataset.day, Number(btn.dataset.slot), btn.dataset.date);
       refresh();
     });
   });
@@ -485,7 +489,12 @@ export function bindDayDetailEvents(container, dateStr, onRefresh){
         return;
       }
       const absenceId = btn.dataset.absence;
-      const makeupCands = findMakeupCandidates(student, level, subject, date);
+      const subjects = btn.dataset.dual === '1' && btn.dataset.subjects
+        ? btn.dataset.subjects.split(',')
+        : [subject];
+      const makeupCands = subjects.length === 2
+        ? findDualMakeupCandidates(student, level, subjects, date)
+        : findMakeupCandidates(student, level, subjects[0], date);
       let makeupHtml = '';
       if(makeupCands.length === 0){
         makeupHtml = `<div class="match-none">対応できる振替候補が見つかりませんでした。</div>`;

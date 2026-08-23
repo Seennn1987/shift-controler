@@ -5,7 +5,7 @@ import { firebaseConfig, fbAuth, fbDb, STORAGE_KEY, getSecondaryAuth, S } from '
 import { getDayStatus } from './calendar.js';
 import { getDateSlotState, isTeacherAvailableOnDate } from './schedule-core.js';
 import { assignmentAppliesOnDate, findEffectiveAssignment, isAssignmentEffectiveInMonth, isPreferredSubjectForTeacher, issueAssignmentApproval } from './teacher-schedule-tab.js';
-import { findDualPairAtSlot, resolveDualRowAssignmentState, countSlotAssignmentUnits } from './dual-subject.js';
+import { findDualPairAtSlot, resolveDualRowAssignmentState, countSlotAssignmentUnits, teacherTeachesBoth } from './dual-subject.js';
 
 // ---- 欠席・振替（特定の実日付にのみ影響。曜日パターン自体は変えない） ----
 // {id, studentId, courseId, subject, day, slot, date, status:'pending'|'resolved', makeup:null|{date,slot,teacherId}}
@@ -16,6 +16,56 @@ import { findDualPairAtSlot, resolveDualRowAssignmentState, countSlotAssignmentU
 function findAbsenceFor(studentId, courseId, dateStr, day, slot){
   return S.absences.find(ab=> ab.studentId===studentId && ab.courseId===courseId && ab.date===dateStr && ab.day===day && ab.slot===slot) || null;
 }
+
+function resolveDualGroupIdForSlot(studentId, courseId, day, slot){
+  const student = S.students.find(s=> s.id === studentId);
+  const course = student?.courses.find(c=> c.id === courseId);
+  const ds = course?.desiredSlots.find(d=> d.day === day && Number(d.slot) === Number(slot));
+  return ds?.dualGroupId || null;
+}
+
+function findDualAbsenceSiblings(absence){
+  if(!absence) return [];
+  const student = S.students.find(s=> s.id === absence.studentId);
+  if(!student) return [absence];
+  const dualGroupId = resolveDualGroupIdForSlot(absence.studentId, absence.courseId, absence.day, absence.slot);
+  if(!dualGroupId) return [absence];
+  const dualPair = findDualPairAtSlot(student.courses, absence.day, absence.slot);
+  if(!dualPair) return [absence];
+  const siblings = dualPair.entries
+    .map(({ course })=> findAbsenceFor(student.id, course.id, absence.date, absence.day, absence.slot))
+    .filter(Boolean);
+  return siblings.length ? siblings : [absence];
+}
+
+/** 双教科は片方だけ欠席があってもコマ全体を欠席扱いにする */
+function isAbsentOnDate(studentId, courseId, dateStr, day, slot){
+  if(findAbsenceFor(studentId, courseId, dateStr, day, slot)) return true;
+  const dualGroupId = resolveDualGroupIdForSlot(studentId, courseId, day, slot);
+  if(!dualGroupId) return false;
+  const student = S.students.find(s=> s.id === studentId);
+  if(!student) return false;
+  const dualPair = findDualPairAtSlot(student.courses, day, slot);
+  if(!dualPair) return false;
+  return dualPair.entries.some(({ course })=>
+    findAbsenceFor(studentId, course.id, dateStr, day, slot),
+  );
+}
+
+function ensureDualAbsenceRecords(absence){
+  const student = S.students.find(s=> s.id === absence.studentId);
+  if(!student) return;
+  const dualGroupId = resolveDualGroupIdForSlot(absence.studentId, absence.courseId, absence.day, absence.slot);
+  if(!dualGroupId) return;
+  const dualPair = findDualPairAtSlot(student.courses, absence.day, absence.slot);
+  if(!dualPair) return;
+  dualPair.entries.forEach(({ course })=>{
+    if(!findAbsenceFor(absence.studentId, course.id, absence.date, absence.day, absence.slot)){
+      recordAbsence(absence.studentId, course.id, course.subject, absence.day, absence.slot, absence.date);
+    }
+  });
+}
+
 function recordAbsence(studentId, courseId, subject, day, slot, dateStr){
   if(findAbsenceFor(studentId, courseId, dateStr, day, slot)) return;
   S.absences.push({
@@ -23,20 +73,48 @@ function recordAbsence(studentId, courseId, subject, day, slot, dateStr){
     studentId, courseId, subject, day, slot, date:dateStr, status:'pending', makeup:null
   });
 }
+
+/** 双教科 slot は2教科まとめて欠席登録する */
+function recordStudentSlotAbsence(studentId, courseId, subject, day, slot, dateStr){
+  const student = S.students.find(s=> s.id === studentId);
+  if(!student){
+    recordAbsence(studentId, courseId, subject, day, slot, dateStr);
+    return;
+  }
+  const dualGroupId = resolveDualGroupIdForSlot(studentId, courseId, day, slot);
+  if(dualGroupId){
+    const dualPair = findDualPairAtSlot(student.courses, day, slot);
+    if(dualPair){
+      dualPair.entries.forEach(({ course })=>{
+        recordAbsence(studentId, course.id, course.subject, day, slot, dateStr);
+      });
+      return;
+    }
+  }
+  recordAbsence(studentId, courseId, subject, day, slot, dateStr);
+}
+
 function cancelAbsenceRecord(id){
-  S.absences = S.absences.filter(a=>a.id!==id);
+  const ab = S.absences.find(a=> a.id === id);
+  if(!ab) return;
+  const removeIds = new Set(findDualAbsenceSiblings(ab).map(a=> a.id));
+  S.absences = S.absences.filter(a=> !removeIds.has(a.id));
 }
 function cancelMakeup(id){
-  const ab = S.absences.find(a=>a.id===id);
+  const ab = S.absences.find(a=> a.id === id);
   if(!ab) return;
-  ab.makeup = null;
-  ab.status = 'pending';
+  findDualAbsenceSiblings(ab).forEach(sibling=>{
+    sibling.makeup = null;
+    sibling.status = 'pending';
+  });
 }
 // 振替を探さず、欠席のみで対応を終える（未振替の集計からは外れる）
 function markNoMakeup(id){
-  const ab = S.absences.find(a=>a.id===id);
+  const ab = S.absences.find(a=> a.id === id);
   if(!ab) return;
-  ab.status = 'no-makeup';
+  findDualAbsenceSiblings(ab).forEach(sibling=>{
+    sibling.status = 'no-makeup';
+  });
 }
 
 // ---- 講師の欠勤・代講 ----
@@ -50,9 +128,14 @@ function getTeacherLessonsOnDate(teacherId, dateStr){
   S.assignments.forEach(a=>{
     if(a.teacherId!==teacherId || a.day!==weekday) return;
     if(!isAssignmentEffectiveInMonth(a, yearMonth)) return;
-    if(findAbsenceFor(a.studentId, a.courseId, dateStr, a.day, a.slot)) return; // 既に生徒都合で欠席済みの分は対象外
+    if(isAbsentOnDate(a.studentId, a.courseId, dateStr, a.day, a.slot)) return;
     bySlot[a.slot] = bySlot[a.slot] || [];
-    bySlot[a.slot].push({studentId:a.studentId, courseId:a.courseId, subject:a.subject});
+    const dualGroupId = a.dualGroupId || resolveDualGroupIdForSlot(a.studentId, a.courseId, weekday, a.slot);
+    if(dualGroupId && bySlot[a.slot].some(e=> e.studentId === a.studentId)) return;
+    const subjects = dualGroupId
+      ? (findDualPairAtSlot(S.students.find(s=> s.id === a.studentId)?.courses || [], weekday, a.slot)?.subjects || [a.subject])
+      : [a.subject];
+    bySlot[a.slot].push({studentId:a.studentId, courseId:a.courseId, subject:a.subject, subjects});
   });
   return bySlot;
 }
@@ -87,11 +170,24 @@ function findSubstituteCandidatesForStudent(dateStr, slot, absentTeacherId, stud
   if(status.type!=='open') return [];
   const weekday = status.weekday;
   const dayList = getEffectiveDayAssignments(dateStr);
+  const dualPair = findDualPairAtSlot(student.courses, weekday, slot);
+  const dualSubjects = dualPair?.subjects;
 
   const qualified = S.teachers.filter(t=>{
     if(t.id===absentTeacherId) return false;
-    if(!t.subjects.some(ts=>ts.level===student.level && ts.subject===subject)) return false;
-    const used = dayList.filter(a=>a.teacherId===t.id && a.slot===slot).length;
+    if(dualSubjects?.length === 2){
+      if(!teacherTeachesBoth(t, student.level, dualSubjects[0], dualSubjects[1])) return false;
+    }else if(!t.subjects.some(ts=>ts.level===student.level && ts.subject===subject)){
+      return false;
+    }
+    const used = countSlotAssignmentUnits(
+      dayList.filter(a=> a.teacherId === t.id && a.slot === slot).map(a=>({
+        studentId: a.studentId,
+        day: weekday,
+        slot,
+        dualGroupId: a.dualGroupId || null,
+      })),
+    );
     return used < S.teacherCapacity;
   });
 
@@ -147,8 +243,12 @@ function resolveSlotViaStudentAbsence(teacherId, dateStr, slot, studentEntries){
   const status = getDayStatus(dateStr);
   if(status.type!=='open') return;
   const weekday = status.weekday;
+  const seen = new Set();
   studentEntries.forEach(e=>{
-    recordAbsence(e.studentId, e.courseId, e.subject, weekday, slot, dateStr);
+    const key = `${e.studentId}:${weekday}:${slot}`;
+    if(seen.has(key)) return;
+    seen.add(key);
+    recordStudentSlotAbsence(e.studentId, e.courseId, e.subject, weekday, slot, dateStr);
   });
 }
 
@@ -166,21 +266,31 @@ function countTeacherLoadOnDate(teacherId, dateStr, slot, excludeStudentId){
   if(status.type!=='open') return 0;
   const weekday = status.weekday;
   const yearMonth = dateStr.slice(0,7);
-  let count = 0;
+  const units = [];
   S.assignments.forEach(a=>{
     if(a.teacherId!==teacherId || a.day!==weekday || a.slot!==slot) return;
     if(!isAssignmentEffectiveInMonth(a, yearMonth)) return;
     if(a.studentId===excludeStudentId) return;
-    if(findAbsenceFor(a.studentId, a.courseId, dateStr, a.day, a.slot)) return; // その日欠席なら除外
-    count++;
+    if(isAbsentOnDate(a.studentId, a.courseId, dateStr, a.day, a.slot)) return;
+    units.push({
+      studentId: a.studentId,
+      day: weekday,
+      slot,
+      dualGroupId: a.dualGroupId || resolveDualGroupIdForSlot(a.studentId, a.courseId, weekday, slot),
+    });
   });
   S.absences.forEach(ab=>{
     if(!ab.makeup) return;
     if(ab.makeup.date!==dateStr || ab.makeup.slot!==slot || ab.makeup.teacherId!==teacherId) return;
     if(ab.studentId===excludeStudentId) return;
-    count++;
+    units.push({
+      studentId: ab.studentId,
+      day: weekday,
+      slot,
+      dualGroupId: resolveDualGroupIdForSlot(ab.studentId, ab.courseId, ab.day, ab.slot),
+    });
   });
-  return count;
+  return countSlotAssignmentUnits(units);
 }
 // 指定日・指定コマにおける教室全体の実際の負荷
 function countRoomLoadOnDate(dateStr, slot, excludeStudentId){
@@ -188,21 +298,31 @@ function countRoomLoadOnDate(dateStr, slot, excludeStudentId){
   if(status.type!=='open') return 0;
   const weekday = status.weekday;
   const yearMonth = dateStr.slice(0,7);
-  let count = 0;
+  const units = [];
   S.assignments.forEach(a=>{
     if(a.day!==weekday || a.slot!==slot) return;
     if(!isAssignmentEffectiveInMonth(a, yearMonth)) return;
     if(a.studentId===excludeStudentId) return;
-    if(findAbsenceFor(a.studentId, a.courseId, dateStr, a.day, a.slot)) return;
-    count++;
+    if(isAbsentOnDate(a.studentId, a.courseId, dateStr, a.day, a.slot)) return;
+    units.push({
+      studentId: a.studentId,
+      day: weekday,
+      slot,
+      dualGroupId: a.dualGroupId || resolveDualGroupIdForSlot(a.studentId, a.courseId, weekday, slot),
+    });
   });
   S.absences.forEach(ab=>{
     if(!ab.makeup) return;
     if(ab.makeup.date!==dateStr || ab.makeup.slot!==slot) return;
     if(ab.studentId===excludeStudentId) return;
-    count++;
+    units.push({
+      studentId: ab.studentId,
+      day: weekday,
+      slot,
+      dualGroupId: resolveDualGroupIdForSlot(ab.studentId, ab.courseId, ab.day, ab.slot),
+    });
   });
-  return count;
+  return countSlotAssignmentUnits(units);
 }
 
 // 欠席日より後（いつでも可・当日振替の制限なし）から、対応可能な振替候補を日付順に探す
@@ -233,15 +353,49 @@ function findMakeupCandidates(studentId, level, subject, afterDateStr, limit){
   }
   return results;
 }
+
+function findDualMakeupCandidates(studentId, level, subjects, afterDateStr, limit){
+  const [subjectA, subjectB] = subjects;
+  limit = limit || 6;
+  const results = [];
+  const start = new Date(afterDateStr+'T00:00:00');
+  for(let i=1; i<=45 && results.length<limit; i++){
+    const d = new Date(start);
+    d.setDate(start.getDate()+i);
+    const dateStr = toDateStr(d.getFullYear(), d.getMonth(), d.getDate());
+    const status = getDayStatus(dateStr);
+    if(status.type!=='open') continue;
+    for(const slot of SLOTS){
+      if(results.length>=limit) break;
+      const roomLoad = countRoomLoadOnDate(dateStr, slot.id, studentId);
+      if(roomLoad >= S.roomCapacity) continue;
+      const cands = S.teachers
+        .filter(t=> teacherTeachesBoth(t, level, subjectA, subjectB))
+        .filter(t=> isTeacherAvailableOnDate(t.id, dateStr, slot.id))
+        .map(t=>({teacher:t, used: countTeacherLoadOnDate(t.id, dateStr, slot.id, studentId)}))
+        .filter(c=> c.used < S.teacherCapacity)
+        .sort((a,b)=> a.used-b.used);
+      if(cands.length>0){
+        results.push({date:dateStr, slot, candidates:cands});
+      }
+    }
+  }
+  return results;
+}
+
 function confirmMakeup(absenceId, makeupDate, makeupSlot, teacherId){
   const ab = S.absences.find(a=>a.id===absenceId);
   if(!ab) return {ok:false, msg:'欠席記録が見つかりません。'};
+  ensureDualAbsenceRecords(ab);
+  const siblings = findDualAbsenceSiblings(ab);
   const roomLoad = countRoomLoadOnDate(makeupDate, makeupSlot, ab.studentId);
   if(roomLoad>=S.roomCapacity) return {ok:false, msg:'その日程は教室全体の定員に達しています。'};
   const teacherLoad = countTeacherLoadOnDate(teacherId, makeupDate, makeupSlot, ab.studentId);
   if(teacherLoad>=S.teacherCapacity) return {ok:false, msg:'その講師はその日程の定員に達しています。'};
-  ab.makeup = {date:makeupDate, slot:makeupSlot, teacherId};
-  ab.status = 'resolved';
+  siblings.forEach(sibling=>{
+    sibling.makeup = {date:makeupDate, slot:makeupSlot, teacherId};
+    sibling.status = 'resolved';
+  });
   return {ok:true};
 }
 
@@ -266,7 +420,7 @@ function getEffectiveDayAssignments(dateStr){
   S.assignments.forEach(a=>{
     if(a.day!==weekday) return;
     if(!assignmentAppliesOnDate(a, dateStr)) return;
-    if(findAbsenceFor(a.studentId, a.courseId, dateStr, a.day, a.slot)) return;
+    if(isAbsentOnDate(a.studentId, a.courseId, dateStr, a.day, a.slot)) return;
     // studentId指定ありの代講（この生徒だけ）を優先し、なければ全体向け（studentId:null）の代講を見る
     const sub = S.teacherSubstitutions.find(s=>s.teacherId===a.teacherId && s.date===dateStr && s.slot===a.slot && s.studentId===a.studentId)
       || S.teacherSubstitutions.find(s=>s.teacherId===a.teacherId && s.date===dateStr && s.slot===a.slot && !s.studentId);
@@ -290,7 +444,7 @@ function getEffectiveDayAssignments(dateStr){
   S.draftAssignments.forEach(a=>{
     if(a.day!==weekday) return;
     if(!assignmentAppliesOnDate(a, dateStr)) return;
-    if(findAbsenceFor(a.studentId, a.courseId, dateStr, a.day, a.slot)) return;
+    if(isAbsentOnDate(a.studentId, a.courseId, dateStr, a.day, a.slot)) return;
     list.push(enrichAssignmentEntry({
       studentId:a.studentId, courseId:a.courseId, subject:a.subject, slot:a.slot,
       teacherId:a.teacherId, kind:'normal', source:a.source, draft:true,
@@ -299,7 +453,16 @@ function getEffectiveDayAssignments(dateStr){
   });
   S.absences.forEach(ab=>{
     if(!ab.makeup || ab.makeup.date!==dateStr) return;
-    list.push({studentId:ab.studentId, courseId:ab.courseId, subject:ab.subject, slot:ab.makeup.slot, teacherId:ab.makeup.teacherId, kind:'makeup'});
+    list.push({
+      studentId: ab.studentId,
+      courseId: ab.courseId,
+      subject: ab.subject,
+      day: weekday,
+      slot: ab.makeup.slot,
+      teacherId: ab.makeup.teacherId,
+      kind: 'makeup',
+      dualGroupId: resolveDualGroupIdForSlot(ab.studentId, ab.courseId, ab.day, ab.slot),
+    });
   });
   return list;
 }
@@ -346,8 +509,16 @@ function countTeacherLessonsBefore(teacherId, dateStr){
   let guard = 0;
   while(d < end && guard < 370){
     const ds = toDateStr(d.getFullYear(), d.getMonth(), d.getDate());
+    const weekday = getDayStatus(ds).weekday;
     const list = getEffectiveDayAssignments(ds);
-    count += list.filter(a=>a.teacherId===teacherId).length;
+    count += countSlotAssignmentUnits(
+      list.filter(a=> a.teacherId === teacherId).map(a=>({
+        studentId: a.studentId,
+        day: weekday,
+        slot: a.slot,
+        dualGroupId: a.dualGroupId || null,
+      })),
+    );
     d.setDate(d.getDate()+1);
     guard++;
   }
@@ -377,11 +548,17 @@ function computeDayFinance(dateStr, includeTransport){
   if(includeTransport===undefined) includeTransport = S.finIncludeTransport;
   const status = getDayStatus(dateStr);
   if(status.type!=='open') return {revenue:0, lessonCost:0, transportCost:0, cost:0, ratio:null, lessonCount:0};
-  const list = getEffectiveDayAssignments(dateStr).filter(a=>!a.pending && !a.draft); // 承認待ち・下書きはまだ確定していないため収支に含めない
+  const list = getEffectiveDayAssignments(dateStr).filter(a=> !a.pending && !a.draft);
   if(list.length===0) return {revenue:0, lessonCost:0, transportCost:0, cost:0, ratio:null, lessonCount:0};
 
   let revenue = 0;
+  const seenDual = new Set();
   list.forEach(a=>{
+    if(a.dualGroupId){
+      const key = `${a.studentId}:${a.slot}:${a.dualGroupId}`;
+      if(seenDual.has(key)) return;
+      seenDual.add(key);
+    }
     const student = S.students.find(s=>s.id===a.studentId);
     revenue += student ? (S.tuitionRates[student.level] || 0) : 0;
   });
@@ -408,7 +585,7 @@ function computeDayFinance(dateStr, includeTransport){
 
   const cost = lessonCost + (includeTransport ? transportCost : 0);
   const ratio = revenue>0 ? (cost/revenue*100) : null;
-  return {revenue, lessonCost, transportCost, cost, ratio, lessonCount:list.length};
+  return {revenue, lessonCost, transportCost, cost, ratio, lessonCount: countSlotAssignmentUnits(list)};
 }
 
 // コスト率に応じて、白→赤へ連続的に濃くなる色を返す（3段階の分類はしない。100%以上は最大濃度で頭打ち）
@@ -486,11 +663,31 @@ function getStudentDateRows(student, dateStr){
     if(ab.studentId!==student.id || !ab.makeup || ab.makeup.date!==dateStr) return;
     const slot = SLOTS.find(sl=>sl.id===ab.makeup.slot);
     const course = student.courses.find(c=>c.id===ab.courseId);
-    if(course) rows.push({slot, course, existing:null, absence:ab, isMakeupTarget:true});
+    if(!course) return;
+    const dualGroupId = resolveDualGroupIdForSlot(student.id, ab.courseId, ab.day, ab.slot);
+    if(dualGroupId){
+      const makeupKey = `${ab.makeup.date}:${ab.makeup.slot}:${dualGroupId}`;
+      if(processedDual.has(`makeup:${makeupKey}`)) return;
+      const dualPair = findDualPairAtSlot(student.courses, ab.day, ab.slot);
+      if(dualPair){
+        processedDual.add(`makeup:${makeupKey}`);
+        rows.push({
+          slot,
+          course: dualPair.entries[0].course,
+          courses: dualPair.entries.map(e=> e.course),
+          dualPair,
+          existing: null,
+          absence: ab,
+          isMakeupTarget: true,
+        });
+        return;
+      }
+    }
+    rows.push({slot, course, courses: null, dualPair: null, existing:null, absence:ab, isMakeupTarget:true});
   });
   rows.sort((a,b)=> a.slot.id - b.slot.id);
   return rows;
 }
 
 
-export { findAbsenceFor, recordAbsence, cancelAbsenceRecord, cancelMakeup, markNoMakeup, getTeacherLessonsOnDate, findTeacherAbsence, recordTeacherAbsence, findSubstituteCandidatesForStudent, confirmSubstitute, cancelSubstitute, resolveSlotViaStudentAbsence, cancelTeacherAbsence, countTeacherLoadOnDate, countRoomLoadOnDate, isTeacherAvailableOnDate, findMakeupCandidates, confirmMakeup, getEffectiveDayAssignments, computeTeacherOpenings, countTeacherLessonsBefore, getTeacherRateForDate, computeDayFinance, costRatioColor, getStudentDateRows };
+export { findAbsenceFor, recordAbsence, recordStudentSlotAbsence, cancelAbsenceRecord, cancelMakeup, markNoMakeup, getTeacherLessonsOnDate, findTeacherAbsence, recordTeacherAbsence, findSubstituteCandidatesForStudent, confirmSubstitute, cancelSubstitute, resolveSlotViaStudentAbsence, cancelTeacherAbsence, countTeacherLoadOnDate, countRoomLoadOnDate, isTeacherAvailableOnDate, findMakeupCandidates, findDualMakeupCandidates, confirmMakeup, getEffectiveDayAssignments, computeTeacherOpenings, countTeacherLessonsBefore, getTeacherRateForDate, computeDayFinance, costRatioColor, getStudentDateRows };
