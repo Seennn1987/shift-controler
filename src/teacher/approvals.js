@@ -102,7 +102,30 @@ async function loadPendingCancellationRequests(){
   }
 }
 
-function findPendingTicket(day, slot, subject, studentName, oneTimeDate){
+function teacherHasSubmittedMonth(yearMonth){
+  const entry = S.scheduleDoc?.months?.[yearMonth];
+  return !!(entry && entry.status === 'submitted');
+}
+
+function approvalAppliesOnDate(ticket, dateStr){
+  if(ticket.oneTimeDate) return ticket.oneTimeDate === dateStr;
+  const yearMonth = dateStr.slice(0, 7);
+  if(!teacherHasSubmittedMonth(yearMonth)) return false;
+  const wd = WEEKDAY_JP[new Date(`${dateStr}T00:00:00`).getDay()];
+  if(ticket.day !== wd) return false;
+  return getDayStatus(dateStr).type === 'open';
+}
+
+function entryAppliesOnDate(entry, dateStr){
+  if(entry.oneTimeDate) return entry.oneTimeDate === dateStr;
+  const yearMonth = dateStr.slice(0, 7);
+  if(!teacherHasSubmittedMonth(yearMonth)) return false;
+  const wd = WEEKDAY_JP[new Date(`${dateStr}T00:00:00`).getDay()];
+  if(entry.day !== wd) return false;
+  return getDayStatus(dateStr).type === 'open';
+}
+
+function findPendingTicket(day, slot, subject, studentName, oneTimeDate, dateStr){
   const slotNum = Number(slot);
   return S.newAssignments.find(a=>{
     if(a.day !== day || Number(a.slot) !== slotNum || a.studentName !== studentName) return false;
@@ -110,14 +133,17 @@ function findPendingTicket(day, slot, subject, studentName, oneTimeDate){
     if(a.oneTimeDate && oneTimeDate) return a.oneTimeDate === oneTimeDate;
     if(a.oneTimeDate && !oneTimeDate) return false;
     if(!a.oneTimeDate && oneTimeDate) return true;
+    if(dateStr && !approvalAppliesOnDate(a, dateStr)) return false;
     return true;
   });
 }
 
-function resolveApprovalState(entry){
-  if(entry.approvalStatus === 'pending') return 'pending';
+function resolveApprovalState(entry, dateStr){
+  if(entry.approvalStatus === 'pending'){
+    return dateStr && !entryAppliesOnDate(entry, dateStr) ? 'confirmed' : 'pending';
+  }
   if(entry.approvalStatus === 'confirmed') return 'confirmed';
-  return findPendingTicket(entry.day, entry.slot, entry.subject, entry.studentName, entry.oneTimeDate)
+  return findPendingTicket(entry.day, entry.slot, entry.subject, entry.studentName, entry.oneTimeDate, dateStr)
     ? 'pending'
     : 'confirmed';
 }
@@ -126,9 +152,53 @@ function getSlotPendingTickets(dateStr, slotId){
   const wd = WEEKDAY_JP[new Date(`${dateStr}T00:00:00`).getDay()];
   return S.newAssignments.filter(t=>{
     if(t.day !== wd || Number(t.slot) !== Number(slotId)) return false;
-    if(t.oneTimeDate) return t.oneTimeDate === dateStr;
-    return true;
+    return approvalAppliesOnDate(t, dateStr);
   });
+}
+
+function parseSlotDraftKey(key){
+  if(!key.startsWith('slot:')) return null;
+  const body = key.slice(5);
+  const sep = body.lastIndexOf('|');
+  if(sep <= 0) return null;
+  return { dateStr: body.slice(0, sep), slotId: Number(body.slice(sep + 1)) };
+}
+
+function resolveDraftDisplayDateStr(key, d, ticket){
+  if(d?.dateStr) return d.dateStr;
+  if(d?.oneTimeDate) return d.oneTimeDate;
+  const fromKey = parseSlotDraftKey(key);
+  if(fromKey?.dateStr) return fromKey.dateStr;
+  if(ticket?.oneTimeDate) return ticket.oneTimeDate;
+  if(ticket) return findDraftDateForTicket(ticket);
+  return null;
+}
+
+function findDraftDateForTicket(ticket){
+  if(!ticket || S.curYear == null || S.curMonth == null) return null;
+  const total = daysInYearMonth(`${S.curYear}-${pad2(S.curMonth + 1)}`);
+  for(let d = 1; d <= total; d++){
+    const dateStr = `${S.curYear}-${pad2(S.curMonth + 1)}-${pad2(d)}`;
+    if(getDayStatus(dateStr).type !== 'open') continue;
+    const slotDraft = S.responseDrafts[draftKeyForSlot(dateStr, ticket.slot)];
+    if(!slotDraft) continue;
+    const ids = slotDraft.ticketIds || (slotDraft.ticketId ? [slotDraft.ticketId] : []);
+    if(ids.includes(ticket.id)) return dateStr;
+  }
+  return null;
+}
+
+function normalizeResponseDraft(key, d){
+  const next = { ...d };
+  if(key.startsWith('slot:')){
+    const parsed = parseSlotDraftKey(key);
+    if(parsed?.dateStr) next.dateStr = next.dateStr || parsed.dateStr;
+    if(parsed?.slotId) next.slotId = next.slotId ?? parsed.slotId;
+    if(next.dateStr && !next.day){
+      next.day = WEEKDAY_JP[new Date(`${next.dateStr}T00:00:00`).getDay()];
+    }
+  }
+  return next;
 }
 
 function formatDateWeekdayLabel(dateStr){
@@ -192,25 +262,34 @@ function pruneStaleResponseDrafts(){
   const next = {};
   let changed = false;
   Object.entries(S.responseDrafts).forEach(([key, d])=>{
-    if(d.action === 'approve' || d.action === 'reject'){
+    const draft = normalizeResponseDraft(key, d);
+    if(draft.action === 'approve' || draft.action === 'reject'){
       if(key.startsWith('slot:')){
-        const tickets = getSlotPendingTickets(d.dateStr, d.slotId);
+        const parsed = parseSlotDraftKey(key);
+        const dateStr = draft.dateStr || parsed?.dateStr;
+        const slotId = Number(draft.slotId ?? parsed?.slotId);
+        if(!dateStr || !slotId){
+          changed = true;
+          return;
+        }
+        const tickets = getSlotPendingTickets(dateStr, slotId);
         if(tickets.length === 0){
           changed = true;
           return;
         }
-        next[key] = d;
+        if(draft.dateStr !== d.dateStr || draft.slotId !== d.slotId || draft.day !== d.day) changed = true;
+        next[key] = draft;
         return;
       }
-      const ticket = d.ticketId ? S.newAssignments.find(t=> t.id === d.ticketId) : null;
+      const ticket = draft.ticketId ? S.newAssignments.find(t=> t.id === draft.ticketId) : null;
       if(!ticket){
         changed = true;
         return;
       }
-      next[key] = d;
+      next[key] = draft;
       return;
     }
-    if(d.action === 'cancel'){
+    if(draft.action === 'cancel'){
       const entry = S.myAssignmentEntries.find(e=>
         e.day === d.day &&
         Number(e.slot) === Number(d.slot) &&
@@ -222,7 +301,7 @@ function pruneStaleResponseDrafts(){
         changed = true;
         return;
       }
-      next[key] = d;
+      next[key] = draft;
       return;
     }
     changed = true;
@@ -354,16 +433,23 @@ function buildSubmitConfirmMessage(drafts){
   const rejectLines = [];
   const cancelLines = [];
 
-  Object.values(drafts).forEach(d=>{
+  Object.entries(drafts).forEach(([key, raw])=>{
+    const d = normalizeResponseDraft(key, raw);
     if(d.action === 'approve' || d.action === 'reject'){
       const ticketIds = d.ticketIds?.length ? d.ticketIds : (d.ticketId ? [d.ticketId] : []);
       const tickets = ticketIds.map(id=> S.newAssignments.find(t=> t.id === id)).filter(Boolean);
       const target = d.action === 'approve' ? approveLines : rejectLines;
       if(tickets.length > 0){
-        tickets.forEach(ticket=> target.push(formatTicketDetailLine(d.dateStr, ticket)));
+        tickets.forEach(ticket=>{
+          const displayDate = resolveDraftDisplayDateStr(key, d, ticket);
+          target.push(formatTicketDetailLine(displayDate, ticket));
+        });
         return;
       }
-      target.push(`・${d.label}`);
+      const displayDate = resolveDraftDisplayDateStr(key, d, null);
+      target.push(displayDate
+        ? `・${formatDateWeekdayLabel(displayDate)}${d.label || ''}`
+        : `・${d.label}`);
       return;
     }
     if(d.action === 'cancel'){
@@ -524,6 +610,7 @@ export {
   summarizeDrafts,
   reloadDraftsFromStorage,
   pruneStaleResponseDrafts,
+  entryAppliesOnDate,
   resolveApprovalState,
   collectActionablePendingSlots,
   collectActionablePendingApprovals,

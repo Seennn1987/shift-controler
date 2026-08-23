@@ -20,12 +20,12 @@ import {
   summarizeDrafts,
   pruneStaleResponseDrafts,
   getSlotPendingTickets,
+  entryAppliesOnDate,
 } from './approvals.js';
 
 function getEntriesForDate(dateStr){
-  const wd = WEEKDAY_JP[new Date(`${dateStr}T00:00:00`).getDay()];
   return collapseTeacherCalendarEntries(
-    S.myAssignmentEntries.filter(e=> (e.oneTimeDate ? e.oneTimeDate === dateStr : e.day === wd))
+    S.myAssignmentEntries.filter(e=> entryAppliesOnDate(e, dateStr))
   );
 }
 
@@ -93,9 +93,9 @@ function buildSubjectTagsHtml(entry){
 }
 
 function buildStudentLineHtml(entry, isLast, showCancelInRow, dateStr){
-  const approvalState = resolveApprovalState(entry);
+  const approvalState = resolveApprovalState(entry, dateStr);
   const isPending = approvalState === 'pending';
-  const ticket = isPending ? findPendingTicket(entry.day, entry.slot, entry.subject, entry.studentName, entry.oneTimeDate) : null;
+  const ticket = isPending ? findPendingTicket(entry.day, entry.slot, entry.subject, entry.studentName, entry.oneTimeDate, dateStr) : null;
   if(isPending && !ticket){
     const gradePart = entry.studentGrade ? `（${entry.studentGrade}）` : '';
     return `<div class="mycal-slot-student is-orphan${isLast ? '' : ' has-divider'}">
@@ -151,7 +151,7 @@ function buildPendingHeaderActionsHtml(dateStr, slotId){
 }
 
 function buildConfirmedHeaderActionsHtml(entries, dateStr){
-  const confirmedEntries = entries.filter(e=> resolveApprovalState(e) === 'confirmed');
+  const confirmedEntries = entries.filter(e=> resolveApprovalState(e, dateStr) === 'confirmed');
   if(confirmedEntries.length === 0) return '';
   const cancelHtml = confirmedEntries.length === 1 ? buildCancelActionHtml(confirmedEntries[0], dateStr) : '';
   return `<span class="mycal-confirmed-pill">確定</span>${cancelHtml}`;
@@ -169,11 +169,11 @@ function buildSlotCardHtml(dateStr, slotId, entries){
   const slotLabel = slotDef ? slotDef.label : `${slotId}講`;
   const pending = getSlotPendingTickets(dateStr, slotId).length > 0;
   const draft = getSlotDraft(dateStr, slotId);
-  const hasConfirmed = entries.some(e=> resolveApprovalState(e) === 'confirmed');
+  const hasConfirmed = entries.some(e=> resolveApprovalState(e, dateStr) === 'confirmed');
   const stateClass = pending ? 'is-waiting' : (hasConfirmed || entries.length > 0 ? 'is-confirmed' : '');
   const cls = ['mycal-slot-card', stateClass, draft ? 'has-draft' : ''].filter(Boolean).join(' ');
   const headerActions = buildSlotHeaderActionsHtml(dateStr, slotId, entries);
-  const confirmedCount = entries.filter(e=> resolveApprovalState(e) === 'confirmed').length;
+  const confirmedCount = entries.filter(e=> resolveApprovalState(e, dateStr) === 'confirmed').length;
   const showCancelInRow = confirmedCount > 1;
   const studentsHtml = entries.map((entry, index)=> buildStudentLineHtml(entry, index === entries.length - 1, showCancelInRow, dateStr)).join('');
   const actionsHtml = headerActions ? `<div class="mycal-slot-head-actions">${headerActions}</div>` : '';
