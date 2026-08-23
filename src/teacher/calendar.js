@@ -92,7 +92,7 @@ function buildSubjectTagsHtml(entry){
   return `<span class="sched-student-tag" style="background:${c.bg};color:${c.text};">${entry.subject}</span>`;
 }
 
-function buildStudentLineHtml(entry, isLast){
+function buildStudentLineHtml(entry, isLast, showCancelInRow){
   const approvalState = resolveApprovalState(entry);
   const isPending = approvalState === 'pending';
   const ticket = isPending ? findPendingTicket(entry.day, entry.slot, entry.subject, entry.studentName, entry.oneTimeDate) : null;
@@ -107,10 +107,12 @@ function buildStudentLineHtml(entry, isLast){
 
   const gradePart = entry.studentGrade ? `（${entry.studentGrade}）` : '';
   const assignedBadge = entry.isPreferredPair ? '<span class="pref-pair-assigned-badge">担当生徒</span>' : '';
+  const cancelHtml = (approvalState === 'confirmed' && showCancelInRow) ? buildCancelActionHtml(entry) : '';
   return `<div class="mycal-slot-student${isPending ? ' is-pending' : ''}${isLast ? '' : ' has-divider'}">
     ${buildSubjectTagsHtml(entry)}
     <span class="mycal-slot-student-name"><b>${entry.studentName}</b>${gradePart}</span>
     ${assignedBadge}
+    ${cancelHtml}
   </div>`;
 }
 
@@ -150,7 +152,7 @@ function buildPendingHeaderActionsHtml(dateStr, slotId){
 function buildConfirmedHeaderActionsHtml(entries){
   const confirmedEntries = entries.filter(e=> resolveApprovalState(e) === 'confirmed');
   if(confirmedEntries.length === 0) return '';
-  const cancelHtml = confirmedEntries.map(buildCancelActionHtml).join('');
+  const cancelHtml = confirmedEntries.length === 1 ? buildCancelActionHtml(confirmedEntries[0]) : '';
   return `<span class="mycal-confirmed-pill">確定</span>${cancelHtml}`;
 }
 
@@ -170,7 +172,9 @@ function buildSlotCardHtml(dateStr, slotId, entries){
   const stateClass = pending ? 'is-waiting' : (hasConfirmed || entries.length > 0 ? 'is-confirmed' : '');
   const cls = ['mycal-slot-card', stateClass, draft ? 'has-draft' : ''].filter(Boolean).join(' ');
   const headerActions = buildSlotHeaderActionsHtml(dateStr, slotId, entries);
-  const studentsHtml = entries.map((entry, index)=> buildStudentLineHtml(entry, index === entries.length - 1)).join('');
+  const confirmedCount = entries.filter(e=> resolveApprovalState(e) === 'confirmed').length;
+  const showCancelInRow = confirmedCount > 1;
+  const studentsHtml = entries.map((entry, index)=> buildStudentLineHtml(entry, index === entries.length - 1, showCancelInRow)).join('');
   const actionsHtml = headerActions ? `<div class="mycal-slot-head-actions">${headerActions}</div>` : '';
   return `<div class="${cls}">
     <div class="mycal-slot-head">

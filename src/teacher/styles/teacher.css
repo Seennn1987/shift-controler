@@ -119,6 +119,9 @@
   .mycal-slot-student.has-divider{border-bottom:1px solid var(--border);padding-bottom:var(--space-2);margin-bottom:var(--space-1);}
   .mycal-slot-student.is-pending .mycal-slot-student-name{font-weight:var(--font-weight-bold);}
   .mycal-slot-student-name{font-weight:var(--font-weight-bold);}
+  .mycal-slot-student .mycal-cancel-btn,
+  .mycal-slot-student .mycal-undo-btn,
+  .mycal-slot-student .schedule-cancel-note{margin-left:auto;}
   .sched-student-tag{
     font-size:var(--text-xs);font-weight:var(--font-weight-bold);padding:1px 6px;border-radius:var(--radius-sm);flex-shrink:0;
   }
