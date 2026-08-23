@@ -1,5 +1,5 @@
 import { SLOTS, WEEKDAY_JP } from '../shared/constants.js';
-import { collapseTeacherCalendarEntries } from '../admin/dual-subject.js';
+import { collapseTeacherCalendarEntries, ticketSubjectMatchesEntry, buildDualSubjectTagsHtml } from '../admin/dual-subject.js';
 import { subjectColor } from '../admin/schedule-core.js';
 import { pad2, daysInYearMonth, toDateStr } from '../shared/date-utils.js';
 import { S } from './state.js';
@@ -47,9 +47,49 @@ function levelFromGrade(grade){
   return '中学';
 }
 
-function buildSubjectTagHtml(subject, studentGrade){
-  const c = subjectColor(levelFromGrade(studentGrade), subject);
-  return `<span class="sched-student-tag" style="background:${c.bg};color:${c.text};">${subject}</span>`;
+function ticketCoversEntry(ticket, entry, dateStr){
+  if(entry.day !== ticket.day || Number(entry.slot) !== Number(ticket.slot)) return false;
+  if(entry.studentName !== ticket.studentName) return false;
+  if(!ticketSubjectMatchesEntry(ticket, entry.subject)) return false;
+  if(ticket.oneTimeDate) return entry.oneTimeDate === ticket.oneTimeDate;
+  if(entry.oneTimeDate) return entry.oneTimeDate === dateStr;
+  return true;
+}
+
+function ticketToDisplayEntry(ticket){
+  return {
+    day: ticket.day,
+    slot: ticket.slot,
+    studentName: ticket.studentName,
+    studentGrade: ticket.studentGrade || '',
+    subject: ticket.subject,
+    subjects: ticket.subjects?.length ? ticket.subjects : [ticket.subject],
+    dualGroupId: ticket.dualGroupId || null,
+    isDual: (ticket.subjects?.length || 0) >= 2,
+    oneTimeDate: ticket.oneTimeDate || null,
+    approvalStatus: 'pending',
+    isPreferredPair: false,
+  };
+}
+
+function mergeSlotEntriesWithTickets(dateStr, slotId, entries){
+  const tickets = getSlotPendingTickets(dateStr, slotId);
+  if(tickets.length === 0) return entries;
+  const merged = [...entries];
+  tickets.forEach(ticket=>{
+    if(entries.some(entry=> ticketCoversEntry(ticket, entry, dateStr))) return;
+    merged.push(ticketToDisplayEntry(ticket));
+  });
+  return collapseTeacherCalendarEntries(merged);
+}
+
+function buildSubjectTagsHtml(entry){
+  const level = levelFromGrade(entry.studentGrade);
+  if(entry.subjects?.length >= 2){
+    return buildDualSubjectTagsHtml(level, entry.subjects, subjectColor);
+  }
+  const c = subjectColor(level, entry.subject);
+  return `<span class="sched-student-tag" style="background:${c.bg};color:${c.text};">${entry.subject}</span>`;
 }
 
 function buildStudentLineHtml(entry, isLast){
@@ -59,7 +99,7 @@ function buildStudentLineHtml(entry, isLast){
   if(isPending && !ticket){
     const gradePart = entry.studentGrade ? `（${entry.studentGrade}）` : '';
     return `<div class="mycal-slot-student is-orphan${isLast ? '' : ' has-divider'}">
-      ${buildSubjectTagHtml(entry.subject, entry.studentGrade)}
+      ${buildSubjectTagsHtml(entry)}
       <span class="mycal-slot-student-name"><b>${entry.studentName}</b>${gradePart}</span>
       <span class="mycal-orphan-note">反映待ち</span>
     </div>`;
@@ -68,7 +108,7 @@ function buildStudentLineHtml(entry, isLast){
   const gradePart = entry.studentGrade ? `（${entry.studentGrade}）` : '';
   const assignedBadge = entry.isPreferredPair ? '<span class="pref-pair-assigned-badge">担当生徒</span>' : '';
   return `<div class="mycal-slot-student${isPending ? ' is-pending' : ''}${isLast ? '' : ' has-divider'}">
-    ${buildSubjectTagHtml(entry.subject, entry.studentGrade)}
+    ${buildSubjectTagsHtml(entry)}
     <span class="mycal-slot-student-name"><b>${entry.studentName}</b>${gradePart}</span>
     ${assignedBadge}
   </div>`;
@@ -152,7 +192,7 @@ function buildDayHtml(dateStr, dayNum, wd, isToday, dayStatus){
   const bySlot = groupEntriesBySlot(entries);
   let cardsHtml = '';
   SLOTS.forEach(slot=>{
-    const slotEntries = bySlot.get(slot.id) || [];
+    const slotEntries = mergeSlotEntriesWithTickets(dateStr, slot.id, bySlot.get(slot.id) || []);
     if(slotEntries.length === 0 && getSlotPendingTickets(dateStr, slot.id).length === 0) return;
     cardsHtml += buildSlotCardHtml(dateStr, slot.id, slotEntries);
   });

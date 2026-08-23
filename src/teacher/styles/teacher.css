@@ -122,6 +122,9 @@
   .sched-student-tag{
     font-size:var(--text-xs);font-weight:var(--font-weight-bold);padding:1px 6px;border-radius:var(--radius-sm);flex-shrink:0;
   }
+  .sched-dual-abbr-tags{
+    display:inline-flex;flex-wrap:nowrap;align-items:center;gap:2px;flex-shrink:0;
+  }
   .pref-pair-assigned-badge{
     font-size:var(--text-xs);font-weight:var(--font-weight-bold);padding:2px 7px;border-radius:var(--radius-sm);flex-shrink:0;
     background:var(--green-100);color:var(--green-900);border:1px solid var(--green-600);
