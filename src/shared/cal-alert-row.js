@@ -32,14 +32,13 @@ export function buildCalAlertRowBody(parts){
   return `<div class="cal-alert-row-body">${parts.join('')}</div>`;
 }
 
-export function buildShortageAlertRowHtml({ whenPill, personHead, subjectTag, badgeHtml, dataAttrs = '' }){
+export function buildShortageAlertRowHtml({ whenPill, personHead, subjectTag, badgeHtml = '', dataAttrs = '' }){
   return `<button type="button" class="approval-item approval-item-btn cal-alert-row-c4"${dataAttrs}>
-    ${buildCalAlertRowBody([whenPill, personHead, subjectTag])}
-    ${badgeHtml}
+    ${buildCalAlertRowBody([whenPill, personHead, subjectTag])}${badgeHtml}
   </button>`;
 }
 
-export function buildApprovalAlertRowHtml({ whenPill, teacherHead, personInline, subjectTag, badgeHtml, rowCls = '', dataAttrs = '', tag = 'button' }){
+export function buildApprovalAlertRowHtml({ whenPill, teacherHead, personInline, subjectTag, badgeHtml = '', rowCls = '', dataAttrs = '', tag = 'button' }){
   const cls = `approval-item cal-alert-row-c4${rowCls}${tag === 'button' ? ' approval-item-btn' : ''}`;
   const inner = `${buildCalAlertRowBody([whenPill, teacherHead, personInline, subjectTag])}${badgeHtml}`;
   if(tag === 'button'){
