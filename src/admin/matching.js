@@ -407,6 +407,22 @@ function collectUpcomingUnassignedByDate(){
   return groups;
 }
 
+function groupUnassignedRowsByStudent(rows){
+  const order = [];
+  const map = new Map();
+  rows.forEach(row=>{
+    if(!map.has(row.student.id)){
+      map.set(row.student.id, { student: row.student, slots: [] });
+      order.push(row.student.id);
+    }
+    map.get(row.student.id).slots.push(row);
+  });
+  order.forEach(id=>{
+    map.get(id).slots.sort((a, b)=> a.slot.id - b.slot.id || a.course.subject.localeCompare(b.course.subject, 'ja'));
+  });
+  return order.map(id=> map.get(id));
+}
+
 function formatShortageDateLabel(dateStr){
   const status = getDayStatus(dateStr);
   const d = new Date(`${dateStr}T00:00:00`);
@@ -454,21 +470,30 @@ function renderShortageDashboard(){
 
   let html = '<div class="shortage-well">';
   dateGroups.forEach(group=>{
+    const studentBlocks = groupUnassignedRowsByStudent(group.rows);
     html += `<div class="shortage-date-group">
       <div class="shortage-date-head">${formatShortageDateLabel(group.dateStr)}</div>`;
-    group.rows.forEach(row=>{
-      const { student, course, slot } = row;
-      const c = subjectColor(student.level, course.subject);
-      const gLabel = gradeLabel(student);
-      const jumpLabel = `${formatShortageDateLabel(group.dateStr)} ${slot.label} ${student.name} ${course.subject} 未確定`;
-      html += `<button type="button" class="shortage-slot-row" data-student="${student.id}" data-date="${group.dateStr}" aria-label="${jumpLabel}">
-        <span class="sr-slot">${slot.label}</span>
-        <span class="sr-student">${student.name}</span>
-        <span class="sr-grade">${gLabel}</span>
-        <span class="sr-subject" style="background:${c.bg};color:${c.text};">${course.subject}</span>
-        <span class="mp-slot-badge pending">未確定</span>
-        <span class="sr-chevron" aria-hidden="true">›</span>
-      </button>`;
+    studentBlocks.forEach(block=>{
+      const gLabel = gradeLabel(block.student);
+      const slotCount = block.slots.length;
+      const countNote = slotCount > 1 ? `<span class="shortage-student-count">未確定${slotCount}コマ</span>` : '';
+      html += `<div class="shortage-student-block">
+        <div class="shortage-student-head">
+          <span class="sr-name">${block.student.name}</span>
+          <span class="sr-grade">${gLabel}</span>
+          ${countNote}
+        </div>`;
+      block.slots.forEach(row=>{
+        const { course, slot } = row;
+        const c = subjectColor(block.student.level, course.subject);
+        const jumpLabel = `${formatShortageDateLabel(group.dateStr)} ${block.student.name} ${slot.label} ${course.subject}`;
+        html += `<button type="button" class="shortage-slot-row" data-student="${block.student.id}" data-date="${group.dateStr}" aria-label="${jumpLabel}">
+          <span class="sr-slot">${slot.label}</span>
+          <span class="sr-subject" style="background:${c.bg};color:${c.text};">${course.subject}</span>
+          <span class="sr-chevron" aria-hidden="true">›</span>
+        </button>`;
+      });
+      html += '</div>';
     });
     html += '</div>';
   });
