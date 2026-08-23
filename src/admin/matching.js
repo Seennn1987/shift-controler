@@ -10,7 +10,7 @@ import { renderCalendarWeek, switchCalMode, switchView } from './finance-ui.js';
 import { gradeLabel, isTeacherAvailableOnDate, subjectColor } from './schedule-core.js';
 import { saveStudents, scheduleSave, scheduleSyncTeacherAssignments } from './students-persistence.js';
 import { assignmentAppliesOnDate, buildCandidateInfo, confirmAssignment, countAssignmentsInMonth, cancelAllDrafts, cancelDraftAuto, findEffectiveAssignment, getActiveYearMonth, getPreferredTeachersForCourse, isAssignmentEffectiveInMonth, sendDraftAssignments, teacherHasSubmittedMonth } from './teacher-schedule-tab.js';
-import { compareCandidateInfo, getMatchingPriority, MATCHING_FACTOR_META } from './matching-config.js';
+import { compareCandidateInfo, getMatchingPriority } from './matching-config.js';
 import { showActiveTabNotice } from '../shared/inline-confirm.js';
 import { dismissAppConfirmDialog, runAppConfirmDialog } from '../shared/app-confirm-dialog.js';
 import {
@@ -496,20 +496,13 @@ function buildMatchingPriorityExtraHtml(){
   const enabled = getMatchingPriority().filter(item=> item.enabled);
   if(enabled.length === 0){
     return `<div class="app-confirm-priority">
-      <div class="app-confirm-priority-label">いまの優先順位（設定どおり）</div>
-      <p class="app-confirm-body" style="margin:0;">有効な条件がありません。設定で見直してください。</p>
-      <button type="button" class="app-confirm-settings-link" id="appConfirmSettingsLink">設定で優先順位を変更</button>
+      <p class="app-confirm-body" style="margin:0;">有効な条件がありません。「設定で変更」から見直してください。</p>
+      <button type="button" class="app-confirm-settings-link" id="appConfirmSettingsLink">設定で変更</button>
     </div>`;
   }
-  const items = enabled.map((item, idx)=>{
-    const meta = MATCHING_FACTOR_META[item.id];
-    const label = meta?.label || item.id;
-    return `<li>${idx + 1}. ${label}</li>`;
-  }).join('');
   return `<div class="app-confirm-priority">
-    <div class="app-confirm-priority-label">いまの優先順位（設定どおり）</div>
-    <ol class="app-confirm-priority-list">${items}</ol>
-    <button type="button" class="app-confirm-settings-link" id="appConfirmSettingsLink">設定で優先順位を変更</button>
+    <p class="app-confirm-body" style="margin:0;">担当の決め方は設定のとおりです。</p>
+    <button type="button" class="app-confirm-settings-link" id="appConfirmSettingsLink">設定で変更</button>
   </div>`;
 }
 
@@ -542,13 +535,15 @@ function bindShortageDashboardActions(wrap){
       return;
     }
     const unassignedCount = collectUpcomingUnassignedFlat().length;
+    if(unassignedCount === 0){
+      if(resultEl) resultEl.textContent = '未確定のコマはありません。';
+      return;
+    }
     const result = await runAppConfirmDialog({
-      title: '全コマを自動で組みますか？',
-      message: unassignedCount > 0
-        ? `この月の未確定コマ（${unassignedCount}コマ）に、条件に合う講師を仮決めします。\n講師にはまだ送られません。送信は「講師にスケジュールを送信」から行います。`
-        : '未確定コマはありませんが、自動で組み直す場合も同じ操作です。\n講師にはまだ送られません。',
+      title: '未確定のコマを、自動で担当者まで決めますか？',
+      message: `この月の未確定 ${unassignedCount}コマに講師を割り当て、「仮決め」一覧に入れます。\n講師への依頼は、このあと「講師にスケジュールを送信」から行います。`,
       extraHtml: buildMatchingPriorityExtraHtml(),
-      confirmLabel: '仮決めする',
+      confirmLabel: '自動で決める',
       variant: 'primary',
     }, async ()=>{
       const { filled, skipped, total } = bulkAutoAssign();
@@ -559,7 +554,7 @@ function bindShortageDashboardActions(wrap){
       }else if(filled === 0){
         if(resultEl) resultEl.textContent = `対応できる講師が見つからず、${skipped}件とも自動で組めませんでした。`;
       }else if(skipped === 0){
-        if(resultEl) resultEl.textContent = `✓ 未確定だった${filled}件を仮決めしました。「講師にスケジュールを送信」で依頼できます。`;
+        if(resultEl) resultEl.textContent = `✓ 未確定だった${filled}件を仮決めしました。「講師にスケジュールを送信」から依頼できます。`;
       }else{
         if(resultEl) resultEl.textContent = `${filled}件を仮決めしました。${skipped}件は未確定のままです。`;
       }
@@ -580,9 +575,9 @@ function bindShortageDashboardActions(wrap){
         .filter(t=> t && !t.loginUid)
         .map(t=> t.name),
     )];
-    let sendMessage = `仮決め ${draftCount}件を講師に送信します。\n講師が承認するまで承認待ちになります。`;
+    let sendMessage = `仮決め ${draftCount}件を講師に依頼します。\n講師がOKするまで承認待ち（講師の返事待ち）です。`;
     if(noLoginTeachers.length > 0){
-      sendMessage += `\n\n※ ${noLoginTeachers.join('、')}先生はログイン未発行のため送信されません（仮決めのまま残します）。「講師管理」でアカウントを発行してください。`;
+      sendMessage += `\n\n${noLoginTeachers.join('、')} はまだログインできないため、依頼できません。「講師管理」でログインを用意してください。`;
     }
     const result = await runAppConfirmDialog({
       title: '講師にスケジュールを送信しますか？',
@@ -596,11 +591,11 @@ function bindShortageDashboardActions(wrap){
       refreshAfterMatchingChange();
       if(resultEl){
         if(sent === 0 && skippedNoLogin > 0){
-          resultEl.textContent = `送信できませんでした。${skippedNames.join('、')}先生のログインを「講師管理」で発行してください。`;
+          resultEl.textContent = `送れませんでした。${skippedNames.join('、')} のログインを「講師管理」で用意してください。`;
         }else if(skippedNoLogin > 0){
-          resultEl.textContent = `✓ ${sent}件を送信しました（承認待ち）。${skippedNoLogin}件はログイン未発行のため仮決めのままです（${skippedNames.join('、')}）。`;
+          resultEl.textContent = `✓ ${sent}件を依頼しました。${skippedNames.join('、')} 分はログインがないため仮決めのままです。`;
         }else{
-          resultEl.textContent = `✓ ${sent}件を講師に送信しました（承認待ち）。`;
+          resultEl.textContent = `✓ ${sent}件を講師に依頼しました（講師の返事待ち）。`;
         }
       }
       return { ok: true };
@@ -617,15 +612,15 @@ function bindShortageDashboardActions(wrap){
     }
     const flatAutoSlots = collectUpcomingDraftsFlat().filter(e=> e.assignment.source === 'auto').length;
     const result = await runAppConfirmDialog({
-      title: '自動で組んだ仮決めを解除しますか？',
-      message: `この月の自動仮決め ${flatAutoSlots}コマ（${autoCount}件）を解除します。\n手動の仮決め・送信済み・確定済みには触れません。`,
+      title: '自動で決めた仮決めを解除しますか？',
+      message: `この月の自動マッチング ${flatAutoSlots}件を取り消し、未確定に戻します。\n自分で決めた仮決めはそのままです。`,
       confirmLabel: '解除する',
       variant: 'danger',
     }, async ()=>{
       const count = cancelUpcomingAutoDrafts();
       scheduleSave();
       refreshAfterMatchingChange();
-      if(resultEl) resultEl.textContent = `自動で組んだ仮決め ${count}件を解除しました。`;
+      if(resultEl) resultEl.textContent = `自動で決めた仮決め ${count}件を解除しました。`;
       return { ok: true };
     });
     if(result && result.msg && resultEl) resultEl.textContent = result.msg;
@@ -634,19 +629,19 @@ function bindShortageDashboardActions(wrap){
   wrap.querySelector('#shortageCancelDraftsBtn')?.addEventListener('click', async ()=>{
     const draftCount = S.draftAssignments.length;
     if(draftCount === 0){
-      if(resultEl) resultEl.textContent = '依頼前の仮決めはありません。';
+      if(resultEl) resultEl.textContent = '仮決めはありません。';
       return;
     }
     const result = await runAppConfirmDialog({
-      title: '依頼前の仮決めをすべて解除しますか？',
-      message: `仮決め ${draftCount}件（自動・手動とも）をすべて解除します。\n送信済み・確定済みには触れません。`,
+      title: '仮決めをすべて解除しますか？',
+      message: `${draftCount}件の仮決めを取り消し、未確定に戻します。\nすでに講師に送った分はそのままです。`,
       confirmLabel: 'すべて解除',
       variant: 'danger',
     }, async ()=>{
       const count = cancelAllDrafts();
       scheduleSave();
       refreshAfterMatchingChange();
-      if(resultEl) resultEl.textContent = `依頼前の仮決め ${count}件を解除しました。`;
+      if(resultEl) resultEl.textContent = `仮決め ${count}件を解除しました。`;
       return { ok: true };
     });
     if(result && result.msg && resultEl) resultEl.textContent = result.msg;
@@ -664,7 +659,7 @@ function renderShortageActionsHtml(ym){
     </div>
     <div class="shortage-actions-row">
       <button type="button" class="ghost mp-action" id="shortageCancelAutoBtn">自動マッチングで解除</button>
-      <button type="button" class="ghost mp-action danger-ghost" id="shortageCancelDraftsBtn">依頼前をすべて解除</button>
+      <button type="button" class="ghost mp-action danger-ghost" id="shortageCancelDraftsBtn">仮決めをすべて解除</button>
     </div>
     <div id="shortageActionResult" class="shortage-action-result" aria-live="polite"></div>
   </div>`;
