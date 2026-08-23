@@ -174,6 +174,22 @@ function renderApprovalDashboardItem(a, teacherName, status, { action = false } 
   });
 }
 
+function renderApprovalListBlock({ label, count, unit, scrollHtml, ariaLabel, emptyMessage, headActions = '', footnote = '', labelMuted = false }){
+  const inner = scrollHtml || `<div class="shortage-panel-empty">${emptyMessage}</div>`;
+  const headCls = headActions ? 'shortage-panel-head shortage-panel-head-split' : 'shortage-panel-head';
+  const labelCls = `shortage-panel-label${labelMuted ? ' is-muted' : ''}`;
+  const headRight = headActions
+    || `<span class="shortage-panel-count"><span class="shortage-panel-num">${count}</span>${unit}</span>`;
+  return `<section class="shortage-panel">
+    <div class="${headCls}">
+      <span class="${labelCls}">${label}</span>
+      ${headRight}
+    </div>
+    <div class="shortage-panel-scroll approval-scroll" aria-label="${ariaLabel}">${inner}</div>
+    ${footnote ? `<div class="shortage-panel-footnote">${footnote}</div>` : ''}
+  </section>`;
+}
+
 async function renderApprovalStatus(){
   const bar = document.getElementById('approvalStatusBar');
   const wrap = document.getElementById('approvalStatusWrap');
@@ -210,44 +226,45 @@ async function renderApprovalStatus(){
     .slice(0, APPROVAL_RECENT_LIMIT);
 
   const actionItems = [...rejected, ...pending];
-  const leftHtml = [
-    ...rejected.map(a=>{
-      const teacher = S.teachers.find(t=>t.id===a.teacherId);
-      return renderApprovalDashboardItem(a, teacher ? teacher.name : '(削除された講師)', 'rejected', { action: true });
-    }),
-    ...(pending.length
-      ? pending.map(a=>{
-          const teacher = S.teachers.find(t=>t.id===a.teacherId);
-          return renderApprovalDashboardItem(a, teacher ? teacher.name : '(削除された講師)', 'pending', { action: true });
-        })
-      : ['<div class="approval-col-empty">承認待ちはありません</div>']),
-  ].join('');
+  const leftLabel = rejected.length > 0 && pending.length === 0 ? '断り' : '承認待ち';
+  const leftCount = actionItems.length;
+  const leftScrollHtml = actionItems.length
+    ? actionItems.map(a=>{
+        const teacher = S.teachers.find(t=>t.id===a.teacherId);
+        const status = a.status === 'rejected' ? 'rejected' : 'pending';
+        return renderApprovalDashboardItem(a, teacher ? teacher.name : '(削除された講師)', status, { action: true });
+      }).join('')
+    : '';
 
-  const approvedHtml = approved.length
+  const approvedScrollHtml = approved.length
     ? approved.map(a=>{
         const teacher = S.teachers.find(t=>t.id===a.teacherId);
         return renderApprovalDashboardItem(a, teacher ? teacher.name : '(削除された講師)', 'approved');
       }).join('')
-    : '<div class="approval-col-empty">承認済みの履歴はありません</div>';
+    : '';
 
-  wrap.innerHTML = `<div class="approval-detail-well">
-    <div class="approval-two-col">
-      <div class="approval-col approval-col-pending">
-        <div class="approval-col-label">要対応 <span class="approval-col-num">${actionCount}件</span></div>
-        <div class="approval-scroll" aria-label="承認待ちと断られた授業">${leftHtml}</div>
-      </div>
-      <div class="approval-col approval-col-done">
-        <div class="approval-col-head">
-          <div class="approval-col-label is-muted">承認済み（直近）</div>
-          <button type="button" class="approval-history-clear-btn" id="approvalHistoryClearBtn">履歴削除</button>
-        </div>
-        <div class="approval-scroll" aria-label="承認済みの履歴">
-          <div class="approval-approved-list">${approvedHtml}</div>
-        </div>
-        <div class="approval-col-footnote">※ 古い確定は表示しません</div>
-      </div>
-    </div>
-  </div>`;
+  const leftPanel = renderApprovalListBlock({
+    label: leftLabel,
+    count: leftCount,
+    unit: '件',
+    scrollHtml: leftScrollHtml,
+    ariaLabel: '承認待ちと断られた授業',
+    emptyMessage: '承認待ちはありません',
+  });
+
+  const rightPanel = renderApprovalListBlock({
+    label: '承認済み（直近）',
+    count: approved.length,
+    unit: '件',
+    scrollHtml: approvedScrollHtml,
+    ariaLabel: '承認済みの履歴',
+    emptyMessage: '承認済みの履歴はありません',
+    labelMuted: true,
+    headActions: '<button type="button" class="approval-history-clear-btn" id="approvalHistoryClearBtn">履歴削除</button>',
+    footnote: '※ 古い確定は表示しません',
+  });
+
+  wrap.innerHTML = `<div class="shortage-two-col approval-two-col">${leftPanel}${rightPanel}</div>`;
 
   document.getElementById('approvalHistoryClearBtn')?.addEventListener('click', (e)=>{
     if(approved.length===0) return;
@@ -256,7 +273,7 @@ async function renderApprovalStatus(){
       message: '表示中の承認済み履歴を削除します。\nよろしいですか？',
       confirmLabel: '削除する',
       variant: 'danger',
-      mountSelector: '.approval-col-head',
+      mountSelector: '.shortage-panel-head-split',
       onConfirm: async ()=>{
         approved.forEach(a=> dismissed.add(a.id));
         saveDismissedApprovalIds(dismissed);
