@@ -37,11 +37,11 @@
 body.app-confirm-open{overflow:hidden;}
 .app-confirm-card{
   position:relative;
-  width:100%;max-width:440px;
+  width:min(560px, calc(100vw - 40px));
   background:var(--surface-card);
   border-radius:var(--radius-xl);
   box-shadow:0 12px 40px rgba(0,0,0,.18);
-  padding:24px 22px 20px;
+  padding:24px 28px 20px;
 }
 .app-confirm-close{
   position:absolute;top:10px;right:10px;
@@ -52,11 +52,12 @@ body.app-confirm-open{overflow:hidden;}
 .app-confirm-close:focus-visible{outline:2px solid var(--brand-500);outline-offset:2px;}
 .app-confirm-title{
   font-size:var(--text-xl);font-weight:700;color:var(--ink);
-  margin:0 32px 12px 0;line-height:var(--leading-snug);
+  margin:0 36px 12px 0;line-height:var(--leading-snug);
+  text-wrap:balance;
 }
 .app-confirm-body{
   font-size:var(--text-base);line-height:var(--leading-relaxed);color:var(--ink-soft);
-  margin:0 0 16px;
+  margin:0 0 16px;text-wrap:pretty;
 }
 .app-confirm-extra{margin-bottom:16px;}
 .app-confirm-flow{
@@ -69,10 +70,10 @@ body.app-confirm-open{overflow:hidden;}
 }
 .app-confirm-flow-label:first-child{margin-top:0;}
 .app-confirm-flow-list{
-  margin:0;padding-left:1.2em;
+  margin:0;padding-left:1.25em;
   font-size:var(--text-md);color:var(--ink);line-height:1.55;
 }
-.app-confirm-flow-list li{margin:2px 0;}
+.app-confirm-flow-list li{margin:2px 0;text-wrap:pretty;}
 .app-confirm-priority{
   padding:12px 14px;border-radius:var(--radius-lg);
   background:var(--surface-muted);border:1px solid var(--border);
