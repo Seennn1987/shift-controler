@@ -32,18 +32,6 @@ const COMBOBOX_DEFAULTS = {
     resetLabel: '教科で絞り込み（すべて表示）',
     searchPlaceholder: '教科名で検索…',
   },
-  absenceQuickStudent: {
-    showResetOption: true,
-    emptyLabel: '生徒を選択…',
-    resetLabel: '生徒を選択…',
-    searchPlaceholder: '名前・読み仮名で検索…',
-  },
-  teacherAbsenceQuickTeacher: {
-    showResetOption: true,
-    emptyLabel: '講師を選択…',
-    resetLabel: '講師を選択…',
-    searchPlaceholder: '名前・読み仮名で検索…',
-  },
   teacherListFilter: {
     ...FILTER_COMBO_OPTS,
     emptyLabel: 'すべて表示',
@@ -99,26 +87,6 @@ export function refreshSubjectFilterCombobox(){
   });
 }
 
-export function refreshAbsenceStudentCombobox(){
-  initSearchComboboxes();
-  const cur = document.getElementById('absenceQuickStudent')?.value || '';
-  refreshSearchCombobox('absenceQuickStudent', {
-    ...COMBOBOX_DEFAULTS.absenceQuickStudent,
-    groups: studentComboboxGroups(S.students),
-    value: cur,
-  });
-}
-
-export function refreshAbsenceTeacherCombobox(){
-  initSearchComboboxes();
-  const cur = document.getElementById('teacherAbsenceQuickTeacher')?.value || '';
-  refreshSearchCombobox('teacherAbsenceQuickTeacher', {
-    ...COMBOBOX_DEFAULTS.teacherAbsenceQuickTeacher,
-    groups: teacherComboboxGroups(S.teachers),
-    value: cur,
-  });
-}
-
 export function refreshTeacherListFilterCombobox(){
   initSearchComboboxes();
   const cur = document.getElementById('teacherListFilter')?.value || '';
@@ -146,8 +114,6 @@ export function refreshStudentListFilterCombobox(){
 export function refreshAllPersonComboboxes(){
   refreshCalFilterCombobox();
   refreshSubjectFilterCombobox();
-  refreshAbsenceStudentCombobox();
-  refreshAbsenceTeacherCombobox();
   refreshTeacherListFilterCombobox();
   refreshStudentListFilterCombobox();
 }
@@ -155,4 +121,4 @@ export function refreshAllPersonComboboxes(){
 // 後方互換
 export const refreshCalFilterOptions = refreshCalFilterCombobox;
 
-export { setCalFilterStudent, clearCalFilter, setCalFilterFromSelect } from './cal-filter.js';
+export { setCalFilterStudent, setCalFilterTeacher, clearCalFilter, setCalFilterFromSelect } from './cal-filter.js';

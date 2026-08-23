@@ -4,10 +4,10 @@ import { pad2, daysInYearMonth, toDateStr, getTodayStr } from '../shared/date-ut
 import { firebaseConfig, fbAuth, fbDb, STORAGE_KEY, getSecondaryAuth, S } from './state.js';
 import { renderCalendar, syncMonthChange, refreshCalToolbarSecondary } from './calendar.js';
 import { registerCalFilterUiSync, setCalFilterFromSelect } from './cal-filter.js';
-import { initSearchComboboxes, refreshAbsenceStudentCombobox, refreshAbsenceTeacherCombobox, refreshAllPersonComboboxes } from './filter-ui.js';
+import { initSearchComboboxes, refreshAllPersonComboboxes } from './filter-ui.js';
 import { setSearchComboboxValue } from './search-combobox.js';
 import { getWeekMonday, renderCalendarWeek, renderFinance, renderLegend, renderMatrix, switchCalMode, switchView, toggleCalMode } from './finance-ui.js';
-import { buildStudentLevelArea, handleStudentSave, jumpToCalendarForDate, renderFormCourses, renderMatching, renderStudentList, renderTeacherAbsencePanel, resetStudentForm } from './matching.js';
+import { buildStudentLevelArea, handleStudentSave, renderFormCourses, renderMatching, renderStudentList, resetStudentForm } from './matching.js';
 import { initMatchingPanel } from './matching-panel.js';
 import { addRaiseRow, buildBaseAvailArea, getOrCreateDraftSchedule, gradeLabel } from './schedule-core.js';
 import { buildClosedDayArea, handleClosureSave, handleTermSave, initMatchingPrioritySettings, renderClosedDaySettings, renderClosureList, renderMatchingPrioritySettings, renderTermList, resetClosureForm, resetTermForm } from './settings.js';
@@ -31,77 +31,6 @@ function syncWeekAxisTabs(){
     descEl.textContent = 'マスの中身を講師ごとの箱にし、各箱に担当している生徒を表示します。未確定のコマは別枠で表示されます。';
   }
   refreshCalToolbarSecondary();
-}
-
-function closeCalActionPanels(){
-  const studentDropdown = document.getElementById('studentAbsenceDropdown');
-  const teacherDropdown = document.getElementById('teacherAbsenceDropdown');
-  const studentPanel = document.getElementById('studentAbsenceQuickPanel');
-  const teacherPanel = document.getElementById('teacherAbsenceQuickPanel');
-  const studentBtn = document.getElementById('studentAbsenceActionBtn');
-  const teacherBtn = document.getElementById('teacherAbsenceActionBtn');
-  if(studentPanel) studentPanel.hidden = true;
-  if(teacherPanel) teacherPanel.hidden = true;
-  studentDropdown?.classList.remove('is-open');
-  teacherDropdown?.classList.remove('is-open');
-  studentBtn?.classList.remove('is-active');
-  teacherBtn?.classList.remove('is-active');
-  studentBtn?.setAttribute('aria-expanded', 'false');
-  teacherBtn?.setAttribute('aria-expanded', 'false');
-}
-
-function toggleAbsenceDropdown(kind){
-  const isStudent = kind === 'student';
-  const dropdown = document.getElementById(isStudent ? 'studentAbsenceDropdown' : 'teacherAbsenceDropdown');
-  const panel = document.getElementById(isStudent ? 'studentAbsenceQuickPanel' : 'teacherAbsenceQuickPanel');
-  const btn = document.getElementById(isStudent ? 'studentAbsenceActionBtn' : 'teacherAbsenceActionBtn');
-  const otherKind = isStudent ? 'teacher' : 'student';
-  const otherDropdown = document.getElementById(isStudent ? 'teacherAbsenceDropdown' : 'studentAbsenceDropdown');
-  const otherPanel = document.getElementById(isStudent ? 'teacherAbsenceQuickPanel' : 'studentAbsenceQuickPanel');
-  const otherBtn = document.getElementById(isStudent ? 'teacherAbsenceActionBtn' : 'studentAbsenceActionBtn');
-  if(!dropdown || !panel || !btn) return;
-
-  const willOpen = panel.hidden;
-  if(otherPanel) otherPanel.hidden = true;
-  otherDropdown?.classList.remove('is-open');
-  otherBtn?.classList.remove('is-active');
-  otherBtn?.setAttribute('aria-expanded', 'false');
-
-  if(willOpen){
-    if(isStudent) populateStudentAbsenceQuickPanel();
-    else populateTeacherAbsenceQuickPanel();
-    panel.hidden = false;
-    dropdown.classList.add('is-open');
-    btn.classList.add('is-active');
-    btn.setAttribute('aria-expanded', 'true');
-  }else{
-    panel.hidden = true;
-    dropdown.classList.remove('is-open');
-    btn.classList.remove('is-active');
-    btn.setAttribute('aria-expanded', 'false');
-  }
-}
-
-function populateStudentAbsenceQuickPanel(){
-  refreshAbsenceStudentCombobox();
-  const dateInput = document.getElementById('absenceQuickDate');
-  if(dateInput && !dateInput.value){
-    const t = new Date();
-    dateInput.value = toDateStr(t.getFullYear(), t.getMonth(), t.getDate());
-  }
-  const msg = document.getElementById('absenceQuickMsg');
-  if(msg) msg.textContent = '';
-}
-
-function populateTeacherAbsenceQuickPanel(){
-  refreshAbsenceTeacherCombobox();
-  const dateInput = document.getElementById('teacherAbsenceQuickDate');
-  if(dateInput && !dateInput.value){
-    const t = new Date();
-    dateInput.value = toDateStr(t.getFullYear(), t.getMonth(), t.getDate());
-  }
-  const msg = document.getElementById('teacherAbsenceQuickMsg');
-  if(msg) msg.textContent = '';
 }
 
 // ---------- init ----------
@@ -466,36 +395,7 @@ async function init(){
     btn.setAttribute('aria-expanded', isOpen ? 'false' : 'true');
     if(chevron) chevron.textContent = isOpen ? '▾' : '▴';
   });
-  document.getElementById('studentAbsenceActionBtn').addEventListener('click', (e)=>{
-    e.stopPropagation();
-    toggleAbsenceDropdown('student');
-  });
-  document.getElementById('absenceQuickOpenBtn').addEventListener('click', ()=>{
-    const msg = document.getElementById('absenceQuickMsg');
-    const studentId = document.getElementById('absenceQuickStudent').value;
-    const dateStr = document.getElementById('absenceQuickDate').value;
-    if(!studentId){ msg.textContent = '生徒を選択してください。'; return; }
-    if(!dateStr){ msg.textContent = '日付を選択してください。'; return; }
-    closeCalActionPanels();
-    jumpToCalendarForDate(studentId, dateStr);
-  });
-  document.getElementById('teacherAbsenceActionBtn').addEventListener('click', (e)=>{
-    e.stopPropagation();
-    toggleAbsenceDropdown('teacher');
-  });
-  document.getElementById('teacherAbsenceQuickOpenBtn').addEventListener('click', ()=>{
-    const msg = document.getElementById('teacherAbsenceQuickMsg');
-    const teacherId = document.getElementById('teacherAbsenceQuickTeacher').value;
-    const dateStr = document.getElementById('teacherAbsenceQuickDate').value;
-    if(!teacherId){ msg.textContent = '講師を選択してください。'; return; }
-    if(!dateStr){ msg.textContent = '日付を選択してください。'; return; }
-    closeCalActionPanels();
-    renderTeacherAbsencePanel(teacherId, dateStr);
-  });
   initMatchingPanel();
-  document.addEventListener('click', (e)=>{
-    if(!e.target.closest('.cal-action-dropdown')) closeCalActionPanels();
-  });
 
   await loadTeachers();
   await loadStudents();

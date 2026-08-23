@@ -83,51 +83,6 @@
       </div>
     </div>
 
-    <div class="cal-action-zone card">
-      <div class="cal-zone-label">操作</div>
-      <div class="cal-action-bar">
-        <button type="button" class="btn-primary" id="openMatchingPanelBtn">コマを組む</button>
-        <div class="cal-action-dropdown" id="studentAbsenceDropdown">
-          <button type="button" class="btn-secondary cal-action-menu-btn" id="studentAbsenceActionBtn" aria-expanded="false">生徒都合の変更 ▾</button>
-          <div id="studentAbsenceQuickPanel" class="cal-action-menu" hidden>
-            <p class="cal-action-panel-desc">確定した授業について、欠席・振替・変更を行います。</p>
-            <div class="absence-quick-form">
-              <div class="absence-quick-row">
-                <label for="absenceQuickStudent-trigger">生徒</label>
-                <select id="absenceQuickStudent"><option value="">生徒を選択…</option></select>
-              </div>
-              <div class="absence-quick-row">
-                <label for="absenceQuickDate">日付</label>
-                <input type="date" id="absenceQuickDate">
-              </div>
-              <button type="button" class="btn-primary" id="absenceQuickOpenBtn">この内容で開く</button>
-              <span class="form-msg" id="absenceQuickMsg"></span>
-            </div>
-          </div>
-        </div>
-        <div class="cal-action-dropdown" id="teacherAbsenceDropdown">
-          <button type="button" class="btn-secondary cal-action-menu-btn" id="teacherAbsenceActionBtn" aria-expanded="false">講師都合の変更 ▾</button>
-          <div id="teacherAbsenceQuickPanel" class="cal-action-menu" hidden>
-            <p class="cal-action-panel-desc">確定した授業について、講師の欠勤・代講を行います。</p>
-            <div class="absence-quick-form">
-              <div class="absence-quick-row">
-                <label for="teacherAbsenceQuickTeacher-trigger">講師</label>
-                <select id="teacherAbsenceQuickTeacher"><option value="">講師を選択…</option></select>
-              </div>
-              <div class="absence-quick-row">
-                <label for="teacherAbsenceQuickDate">日付</label>
-                <input type="date" id="teacherAbsenceQuickDate">
-              </div>
-              <button type="button" class="btn-primary" id="teacherAbsenceQuickOpenBtn">この内容で開く</button>
-              <span class="form-msg" id="teacherAbsenceQuickMsg"></span>
-            </div>
-          </div>
-        </div>
-      </div>
-      <p class="cal-action-hint">日付をクリックしても、右のパネルから同じ操作ができます。</p>
-      <div id="teacherAbsencePanel" style="display:none;"></div>
-    </div>
-
     <div id="calMatchingMain">
 
     <div class="card cal-card">
@@ -140,6 +95,9 @@
           <button type="button" class="cal-nav-btn" id="calNextBtn" aria-label="次へ">›</button>
         </div>
         <button type="button" class="cal-today-btn" id="calTodayBtn">今月</button>
+        <div class="cal-toolbar-actions">
+          <button type="button" class="btn-primary" id="openMatchingPanelBtn">コマを組む</button>
+        </div>
       </div>
 
       <div class="cal-filter-bar">

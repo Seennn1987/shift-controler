@@ -37,23 +37,6 @@ function monthHasSubmittedTeachers(yearMonth){
   return S.teachers.some(t=> teacherHasSubmittedMonth(t.id, yearMonth));
 }
 
-function closeCalActionPanels(){
-  const studentDropdown = document.getElementById('studentAbsenceDropdown');
-  const teacherDropdown = document.getElementById('teacherAbsenceDropdown');
-  const studentPanel = document.getElementById('studentAbsenceQuickPanel');
-  const teacherPanel = document.getElementById('teacherAbsenceQuickPanel');
-  const studentBtn = document.getElementById('studentAbsenceActionBtn');
-  const teacherBtn = document.getElementById('teacherAbsenceActionBtn');
-  if(studentPanel) studentPanel.hidden = true;
-  if(teacherPanel) teacherPanel.hidden = true;
-  studentDropdown?.classList.remove('is-open');
-  teacherDropdown?.classList.remove('is-open');
-  studentBtn?.classList.remove('is-active');
-  teacherBtn?.classList.remove('is-active');
-  studentBtn?.setAttribute('aria-expanded', 'false');
-  teacherBtn?.setAttribute('aria-expanded', 'false');
-}
-
 function hideCalDetailCard(){
   const card = document.getElementById('calDetailCard');
   if(card){
@@ -179,7 +162,6 @@ function showMatchingStudentAtDate(studentId, dateStr){
   S.matchingPanelOpen = true;
   switchView('calendar');
   switchCalMode('month');
-  closeCalActionPanels();
 
   if(dateStr){
     syncCalMonthToDate(dateStr);
@@ -677,7 +659,6 @@ function openMatchingPanel(){
   S.matchingPanelSlot = null;
   S.matchingReturnToStudentId = null;
   S.calendarDrawerView = 'matching-menu';
-  closeCalActionPanels();
   applyPanelLayout();
   switchView('calendar');
   switchCalMode('month');

@@ -12,8 +12,9 @@ import {
 } from './absences.js';
 import { resolveFilterStudent, resolveFilterTeacher } from './cal-filter.js';
 import { getDayStatus, getUnassignedRowsForDate } from './calendar.js';
-import { jumpToCalendarForDate, renderMatching } from './matching.js';
+import { jumpToCalendarForDate, jumpToCalendarForTeacher, renderMatching, renderShortageDashboard } from './matching.js';
 import { gradeLabel, subjectColor, teacherHonorific } from './schedule-core.js';
+import { renderTeacherAbsencePanel } from './teacher-absence-panel.js';
 import {
   cancelAssignment,
   countRoomSlotOnDate,
@@ -230,35 +231,7 @@ export function renderDayDetailPanel(container, dateStr){
   }
 
   if(filterTeacher){
-    const list = getEffectiveDayAssignments(dateStr).filter(a=> a.teacherId === filterTeacher.id);
-    if(list.length === 0){
-      container.innerHTML = `<div class="cal-empty-day">${teacherHonorific(filterTeacher)}は、この日に担当授業がありません。</div>`;
-      return;
-    }
-
-    let html = `<div class="cal-day-note">${teacherHonorific(filterTeacher)}の担当授業を表示しています。</div>`;
-    SLOTS.forEach(slot=>{
-      const slotList = list.filter(a=> a.slot === slot.id);
-      if(slotList.length === 0) return;
-      const used = countTeacherSlotOnDate(filterTeacher.id, dateStr, slot.id, null);
-      html += `<div class="match-slot"><div class="ms-slot-label">${slot.label}（${slot.time}）<span style="font-weight:400;color:var(--ink-soft);"> ／ 定員 ${used}/${S.teacherCapacity}</span></div>`;
-      slotList.forEach(a=>{
-        const student = S.students.find(s=> s.id === a.studentId);
-        const studentName = student ? student.name : '(削除された生徒)';
-        const gLabel = student ? gradeLabel(student) : '';
-        const level = student ? student.level : '';
-        const c = level ? subjectColor(level, a.subject) : {bg:'#eee', text:'#333'};
-        const autoBadge = a.source === 'auto' ? '<span class="auto-badge">自動</span>' : '';
-        const makeupBadge = a.kind === 'makeup' ? '<span class="auto-badge" style="background:#fff;color:var(--ink);border:1px dashed var(--ink);">振替</span>' : '';
-        html += `<div class="confirmed-box">
-          <span class="cb-label">確定${autoBadge}${makeupBadge}</span>
-          <span class="sched-student-tag" style="background:${c.bg};color:${c.text};">${a.subject}</span>
-          <span class="cb-teacher">${studentName}<span class="grade-tag">${gLabel}</span></span>
-        </div>`;
-      });
-      html += '</div>';
-    });
-    container.innerHTML = html;
+    container.innerHTML = `<div class="cal-day-note">${teacherHonorific(filterTeacher)}のこの日の担当授業について、欠勤・代講の対応ができます。</div><div class="teacher-absence-root"></div>`;
     return;
   }
 
@@ -310,7 +283,10 @@ export function renderDayDetailPanel(container, dateStr){
           </div>`;
         });
         html += `<div class="sched-teacher-box">
-          <div class="sched-teacher-name">${teacherHonorific(teacher)}<span class="sched-cap">（${entries.length}/${S.teacherCapacity}）</span></div>
+          <div class="sched-teacher-head-row">
+            <div class="sched-teacher-name">${teacherHonorific(teacher)}<span class="sched-cap">（${entries.length}/${S.teacherCapacity}）</span></div>
+            <button type="button" class="handle-teacher-absence-btn" data-teacher="${teacherId}" data-date="${dateStr}">欠勤・代講の対応</button>
+          </div>
           ${studentsHtml}
         </div>`;
       });
@@ -330,7 +306,17 @@ export function bindDayDetailEvents(container, dateStr, onRefresh){
 
   function refresh(){
     renderMatching();
+    renderShortageDashboard();
     onRefresh(dateStr);
+  }
+
+  const filterTeacher = resolveFilterTeacher();
+  if(filterTeacher){
+    const root = container.querySelector('.teacher-absence-root');
+    if(root){
+      renderTeacherAbsencePanel(root, filterTeacher.id, dateStr, refresh);
+    }
+    return;
   }
 
   container.querySelectorAll('.day-detail-go-month').forEach(btn=>{
@@ -490,6 +476,12 @@ export function bindDayDetailEvents(container, dateStr, onRefresh){
   container.querySelectorAll('.handle-absence-btn').forEach(btn=>{
     btn.addEventListener('click', ()=>{
       jumpToCalendarForDate(btn.dataset.student, btn.dataset.date);
+    });
+  });
+
+  container.querySelectorAll('.handle-teacher-absence-btn').forEach(btn=>{
+    btn.addEventListener('click', ()=>{
+      jumpToCalendarForTeacher(btn.dataset.teacher, btn.dataset.date);
     });
   });
 }

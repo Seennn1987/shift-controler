@@ -29,6 +29,12 @@ export function setCalFilterStudent(studentId){
   syncCalFilterUi();
 }
 
+export function setCalFilterTeacher(teacherId){
+  S.calFilterTeacherId = teacherId || '';
+  S.calFilterStudentId = '';
+  syncCalFilterUi();
+}
+
 export function clearCalFilter(){
   S.calFilterStudentId = '';
   S.calFilterTeacherId = '';

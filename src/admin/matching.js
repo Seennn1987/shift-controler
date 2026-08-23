@@ -2,9 +2,9 @@ import { DAYS, SLOTS, WEEKDAY_JP, WEEK_FULL, LEVELS_ORDER } from '../shared/cons
 import { HOLIDAYS_JP } from '../shared/holidays.js';
 import { pad2, daysInYearMonth, toDateStr, getTodayStr } from '../shared/date-utils.js';
 import { firebaseConfig, fbAuth, fbDb, STORAGE_KEY, getSecondaryAuth, S } from './state.js';
-import { cancelSubstitute, cancelTeacherAbsence, confirmSubstitute, findAbsenceFor, findSubstituteCandidatesForStudent, findTeacherAbsence, getTeacherLessonsOnDate, recordTeacherAbsence, resolveSlotViaStudentAbsence } from './absences.js';
+import { findAbsenceFor } from './absences.js';
 import { getDayStatus, getUnassignedRowsForDate, renderCalendar } from './calendar.js';
-import { refreshCalFilterOptions, setCalFilterStudent, refreshAllPersonComboboxes } from './filter-ui.js';
+import { refreshCalFilterOptions, setCalFilterStudent, setCalFilterTeacher, refreshAllPersonComboboxes } from './filter-ui.js';
 import { sortByNameKana } from '../shared/person-sort.js';
 import { renderCalendarWeek, switchCalMode, switchView } from './finance-ui.js';
 import { gradeLabel, isTeacherAvailableOnDate, subjectColor } from './schedule-core.js';
@@ -559,140 +559,23 @@ function jumpToCalendarForDate(studentId, dateStr){
   window.scrollTo({top:0, behavior:'smooth'});
 }
 
-// ---- 講師の欠勤・代講パネル ----
-function renderTeacherAbsencePanel(teacherId, dateStr){
-  const panel = document.getElementById('teacherAbsencePanel');
-  const teacher = S.teachers.find(t=>t.id===teacherId);
-  if(!panel || !teacher) return;
-  panel.style.display = '';
+function jumpToCalendarForTeacher(teacherId, dateStr){
+  const teacher = S.teachers.find(t=> t.id === teacherId);
+  if(!teacher || !dateStr) return;
+  const d = new Date(`${dateStr}T00:00:00`);
+  S.calYear = d.getFullYear();
+  S.calMonth = d.getMonth();
+  setCalFilterTeacher(teacherId);
+  S.calSelectedDate = dateStr;
 
-  const lessonsBySlot = getTeacherLessonsOnDate(teacherId, dateStr);
-  const slotIds = Object.keys(lessonsBySlot).map(Number).sort((a,b)=>a-b);
-  const ta = findTeacherAbsence(teacherId, dateStr);
-
-  if(slotIds.length===0){
-    panel.innerHTML = `<div class="card">
-      <h2>${teacher.name}先生の欠勤対応（${dateStr}）</h2>
-      <p class="desc">この日、${teacher.name}先生に確定している授業はありません。</p>
-      <button type="button" class="ghost" id="closeTeacherAbsenceBtn">閉じる</button>
-    </div>`;
-    document.getElementById('closeTeacherAbsenceBtn').addEventListener('click', ()=>{ panel.style.display='none'; panel.innerHTML=''; });
-    return;
-  }
-
-  let rowsHtml = '';
-  slotIds.forEach(slotId=>{
-    const slot = SLOTS.find(s=>s.id===slotId);
-    const studentEntries = lessonsBySlot[slotId];
-    const isMarked = ta && ta.slots.includes(slotId);
-
-    let studentRowsHtml = '';
-    studentEntries.forEach(e=>{
-      const st = S.students.find(s=>s.id===e.studentId);
-      const studentLabel = `${st?st.name:'?'}（${e.subject}）`;
-      const sub = S.teacherSubstitutions.find(s=>s.teacherId===teacherId && s.date===dateStr && s.slot===slotId && s.studentId===e.studentId);
-      let stStatusHtml = '';
-      if(sub){
-        const subTeacher = S.teachers.find(t=>t.id===sub.substituteTeacherId);
-        stStatusHtml = `<span class="ta-resolved-inline">代講：${subTeacher?subTeacher.name:'?'}先生 <button type="button" class="cancel-absence-btn" data-cancel-sub="${slotId}" data-cancel-student="${e.studentId}">取り消す</button></span>`;
-      }
-      studentRowsHtml += `<div class="ta-student-row" data-slot="${slotId}" data-student="${e.studentId}" data-subject="${e.subject}">
-        <span class="ta-student-label">${studentLabel}</span>
-        ${!sub ? `<button type="button" class="ghost ta-find-sub-btn" data-slot="${slotId}" data-student="${e.studentId}" data-subject="${e.subject}">代講を探す</button>` : ''}
-        ${stStatusHtml}
-        <div class="ta-cand-area" id="taCand-${slotId}-${e.studentId}" style="display:none;"></div>
-      </div>`;
-    });
-
-    rowsHtml += `<div class="ta-slot-row">
-      <label class="ta-slot-check">
-        <input type="checkbox" class="ta-slot-checkbox" data-slot="${slotId}" ${isMarked?'checked disabled':''}>
-        <span><b>${slot.label}（${slot.time}）</b></span>
-      </label>
-      ${studentRowsHtml}
-      ${isMarked ? `<div class="ta-resolved">この枠は欠勤対応済みです</div>` : ''}
-    </div>`;
-  });
-
-  panel.innerHTML = `<div class="card">
-    <h2>${teacher.name}先生の欠勤対応（${dateStr}）</h2>
-    <p class="desc">1コマに複数の生徒がいる場合は、生徒ごとに個別に代講を探せます（同じ先生でも別の先生でも構いません）。見つからない場合は「代講せず欠席にする」から、その生徒だけ既存の振替フローに乗せられます。</p>
-    <label class="chip" style="display:inline-flex;margin-bottom:10px;">
-      <input type="checkbox" id="taAllSlotsCheckbox">
-      <span>全コマ欠勤にする</span>
-    </label>
-    ${rowsHtml}
-    <button type="button" class="ghost" id="closeTeacherAbsenceBtn">閉じる</button>
-  </div>`;
-
-  document.getElementById('closeTeacherAbsenceBtn').addEventListener('click', ()=>{ panel.style.display='none'; panel.innerHTML=''; });
-
-  document.getElementById('taAllSlotsCheckbox').addEventListener('change', (e)=>{
-    panel.querySelectorAll('.ta-slot-checkbox:not(:disabled)').forEach(cb=>{ cb.checked = e.target.checked; });
-  });
-
-  panel.querySelectorAll('.ta-find-sub-btn').forEach(btn=>{
-    btn.addEventListener('click', ()=>{
-      const slotId = Number(btn.dataset.slot);
-      const studentId = btn.dataset.student;
-      const subject = btn.dataset.subject;
-      const candArea = document.getElementById(`taCand-${slotId}-${studentId}`);
-      const isOpen = candArea.style.display !== 'none';
-      if(isOpen){ candArea.style.display = 'none'; return; }
-
-      const candidates = findSubstituteCandidatesForStudent(dateStr, slotId, teacherId, studentId, subject);
-      let html = '';
-      if(candidates.length===0){
-        html = `<div class="match-none">対応できる代講候補が見つかりませんでした。</div>
-          <button type="button" class="no-makeup-btn" data-fallback-slot="${slotId}" data-fallback-student="${studentId}">代講せず欠席にする</button>`;
-      }else{
-        candidates.forEach(c=>{
-          html += `<div class="match-cand">
-            <span>${c.name}先生</span>
-            <button type="button" class="confirm-makeup-btn" data-confirm-sub="${slotId}" data-confirm-student="${studentId}" data-sub-teacher="${c.id}">この先生に代講してもらう</button>
-          </div>`;
-        });
-        html += `<button type="button" class="no-makeup-btn" data-fallback-slot="${slotId}" data-fallback-student="${studentId}" style="margin-top:6px;">代講せず欠席にする</button>`;
-      }
-      candArea.innerHTML = html;
-      candArea.style.display = 'block';
-
-      candArea.querySelectorAll('[data-confirm-sub]').forEach(cbtn=>{
-        cbtn.addEventListener('click', ()=>{
-          const s = Number(cbtn.dataset.confirmSub);
-          const sid = cbtn.dataset.confirmStudent;
-          confirmSubstitute(teacherId, dateStr, s, cbtn.dataset.subTeacher, sid);
-          recordTeacherAbsence(teacherId, dateStr, [s]);
-          renderMatching();
-          renderTeacherAbsencePanel(teacherId, dateStr);
-        });
-      });
-      candArea.querySelectorAll('[data-fallback-slot]').forEach(fbtn=>{
-        fbtn.addEventListener('click', ()=>{
-          const s = Number(fbtn.dataset.fallbackSlot);
-          const sid = fbtn.dataset.fallbackStudent;
-          const entry = lessonsBySlot[s].find(e=>e.studentId===sid);
-          if(entry) resolveSlotViaStudentAbsence(teacherId, dateStr, s, [entry]);
-          recordTeacherAbsence(teacherId, dateStr, [s]);
-          renderMatching();
-          renderTeacherAbsencePanel(teacherId, dateStr);
-        });
-      });
-    });
-  });
-
-  panel.querySelectorAll('[data-cancel-sub]').forEach(btn=>{
-    btn.addEventListener('click', ()=>{
-      const slotId = Number(btn.dataset.cancelSub);
-      const studentId = btn.dataset.cancelStudent;
-      cancelSubstitute(teacherId, dateStr, slotId, studentId);
-      if(ta){ ta.slots = ta.slots.filter(s=>s!==slotId); if(ta.slots.length===0) cancelTeacherAbsence(ta.id); }
-      renderMatching();
-      renderTeacherAbsencePanel(teacherId, dateStr);
-    });
-  });
+  switchView('calendar');
+  switchCalMode('month');
+  refreshCalFilterOptions();
+  renderCalendar();
+  document.dispatchEvent(new CustomEvent('calendar:show-day', { detail: { dateStr } }));
+  window.scrollTo({top:0, behavior:'smooth'});
 }
 
 // =====================================================================
 
-export { bulkAutoAssign, bulkCancelAuto, buildStudentLevelArea, getSelectedStudentLevel, genCourseId, renderFormCourses, resetStudentForm, fillStudentFormForEdit, handleStudentSave, renderStudentList, deleteStudent, renderMatching, refreshAfterMatchingChange, renderShortageDashboard, findNearestFutureDate, jumpToCalendarForStudent, jumpToCalendarForDate, renderTeacherAbsencePanel };
+export { bulkAutoAssign, bulkCancelAuto, buildStudentLevelArea, getSelectedStudentLevel, genCourseId, renderFormCourses, resetStudentForm, fillStudentFormForEdit, handleStudentSave, renderStudentList, deleteStudent, renderMatching, refreshAfterMatchingChange, renderShortageDashboard, findNearestFutureDate, jumpToCalendarForStudent, jumpToCalendarForDate, jumpToCalendarForTeacher };
