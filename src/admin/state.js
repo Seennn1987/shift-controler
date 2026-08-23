@@ -18,6 +18,7 @@ export const S = {
   studentDataReady: false,
   assignments: [],
   pendingAssignments: [],
+  draftAssignments: [],
   roomCapacity: 12,
   teacherCapacity: 2,
   tuitionRates: {'小学':2900, '中学':3900, '高校':5200},

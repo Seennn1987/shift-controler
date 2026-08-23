@@ -454,6 +454,7 @@ async function saveAppState(){
     students: S.students,
     assignments: S.assignments,
     pendingAssignments: S.pendingAssignments,
+    draftAssignments: S.draftAssignments,
     absences: S.absences,
     teacherAbsences: S.teacherAbsences,
     teacherSubstitutions: S.teacherSubstitutions,
@@ -488,6 +489,7 @@ async function loadAppStateFromFirestore(){
     S.students = d.students || [];
     S.assignments = d.assignments || [];
     S.pendingAssignments = d.pendingAssignments || [];
+    S.draftAssignments = d.draftAssignments || [];
     S.absences = d.absences || [];
     S.teacherAbsences = d.teacherAbsences || [];
     S.teacherSubstitutions = d.teacherSubstitutions || [];
@@ -508,6 +510,7 @@ async function loadAppStateFromFirestore(){
     S.students = [];
     S.assignments = [];
     S.pendingAssignments = [];
+    S.draftAssignments = [];
     S.absences = [];
     S.teacherAbsences = [];
     S.teacherSubstitutions = [];
@@ -529,6 +532,7 @@ async function loadAppStateFromFirestore(){
   if(typeof localStorage !== 'undefined' && localStorage.getItem(MATCHING_RESET_KEY) !== 'done'){
     S.assignments = [];
     S.pendingAssignments = [];
+    S.draftAssignments = [];
     localStorage.setItem(MATCHING_RESET_KEY, 'done');
     matchingWasCleared = true;
     await saveAppState();
@@ -611,6 +615,7 @@ async function deleteAdminMatchingFirestore(adminUid){
 function clearMatchingStateInMemory(){
   S.assignments = [];
   S.pendingAssignments = [];
+  S.draftAssignments = [];
   S.absences = [];
   S.teacherAbsences = [];
   S.teacherSubstitutions = [];

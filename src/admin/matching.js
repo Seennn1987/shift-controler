@@ -9,9 +9,9 @@ import { sortByNameKana } from '../shared/person-sort.js';
 import { renderCalendarWeek, switchCalMode, switchView } from './finance-ui.js';
 import { gradeLabel, isTeacherAvailableOnDate, subjectColor } from './schedule-core.js';
 import { saveStudents, scheduleSave, scheduleSyncTeacherAssignments } from './students-persistence.js';
-import { buildCandidateInfo, confirmAssignment, countCourseConfirmed, findEffectiveAssignment, getActiveYearMonth, getPreferredTeachersForCourse } from './teacher-schedule-tab.js';
+import { buildCandidateInfo, confirmAssignment, countAssignmentsInMonth, cancelAllDrafts, cancelDraftAuto, findEffectiveAssignment, getActiveYearMonth, getPreferredTeachersForCourse, sendDraftAssignments, teacherHasSubmittedMonth } from './teacher-schedule-tab.js';
 import { compareCandidateInfo } from './matching-config.js';
-import { showActiveTabNotice } from '../shared/inline-confirm.js';
+import { showActiveTabNotice, mountInlineConfirm } from '../shared/inline-confirm.js';
 import {
   buildCalAlertPersonHead, buildCalAlertSubjectTag, buildCalAlertWhenPill,
   buildShortageAlertRowHtml, calAlertDateParts,
@@ -88,13 +88,9 @@ function bulkAutoAssign(){
   return { filled, skipped, total: pending.length };
 }
 
-// 自動確定（source==='auto'）分だけをまとめて解除する（講師確認待ちも含む）
+// 下書きのうち source==='auto' だけをまとめて解除する（送信済み・確定済みには触れない）
 function bulkCancelAuto(){
-  const count = S.assignments.filter(a=> a.source === 'auto').length
-    + S.pendingAssignments.filter(a=> a.source === 'auto').length;
-  S.assignments = S.assignments.filter(a=> a.source !== 'auto');
-  S.pendingAssignments = S.pendingAssignments.filter(a=> a.source !== 'auto');
-  return count;
+  return cancelDraftAuto();
 }
 
 
@@ -425,6 +421,142 @@ function shortageRowAriaLabel(dateStr, slot, student, course){
   return `${md}（${weekday}）${slot.label} ${student.name}（${gLabel}）${course.subject}`;
 }
 
+function monthHasSubmittedTeachers(yearMonth){
+  return S.teachers.some(t=> teacherHasSubmittedMonth(t.id, yearMonth));
+}
+
+function expandShortageBar(){
+  const detail = document.getElementById('shortageDetailWrap');
+  const btn = document.getElementById('shortageToggleBtn');
+  if(!detail || !btn) return;
+  detail.style.display = 'block';
+  btn.setAttribute('aria-expanded', 'true');
+  const chevron = btn.querySelector('.cal-status-chevron');
+  if(chevron) chevron.textContent = '▴';
+}
+
+function buildShortageSummaryLine({ draftCount, unassignedCount, pendingCount, pendingAbsences }){
+  const parts = [];
+  if(draftCount > 0) parts.push(`下書き ${draftCount}件`);
+  if(unassignedCount > 0) parts.push(`未確定 ${unassignedCount}コマ`);
+  if(pendingCount > 0) parts.push(`承認待ち ${pendingCount}件`);
+  if(pendingAbsences > 0) parts.push(`未振替 ${pendingAbsences}件`);
+  return parts.join(' ／ ') || '✓ すべて確定です';
+}
+
+function bindShortageDashboardActions(wrap){
+  const ym = getActiveYearMonth();
+  const monthSubmitted = monthHasSubmittedTeachers(ym);
+  const resultEl = wrap.querySelector('#shortageActionResult');
+
+  wrap.querySelector('#shortageBulkAutoBtn')?.addEventListener('click', ()=>{
+    if(!monthSubmitted){
+      if(resultEl) resultEl.textContent = 'この月は講師のシフト提出がないため、自動で組めません。';
+      return;
+    }
+    const { filled, skipped, total } = bulkAutoAssign();
+    scheduleSave();
+    refreshAfterMatchingChange();
+    if(total === 0){
+      if(resultEl) resultEl.textContent = '未確定のコマはありません。';
+    }else if(filled === 0){
+      if(resultEl) resultEl.textContent = `対応できる講師が見つからず、${skipped}件とも自動で組めませんでした。`;
+    }else if(skipped === 0){
+      if(resultEl) resultEl.textContent = `✓ 未確定だった${filled}件を下書き保存しました。「講師にスケジュールを送信」で依頼できます。`;
+    }else{
+      if(resultEl) resultEl.textContent = `${filled}件を下書き保存しました。${skipped}件は未確定のままです。`;
+    }
+  });
+
+  wrap.querySelector('#shortageSendBtn')?.addEventListener('click', (ev)=>{
+    const btn = ev.currentTarget;
+    const draftCount = S.draftAssignments.length;
+    if(draftCount === 0){
+      if(resultEl) resultEl.textContent = '送信する下書きがありません。';
+      return;
+    }
+    mountInlineConfirm(wrap, btn, {
+      message: `下書き${draftCount}件を講師に送信しますか？`,
+      confirmLabel: '送信する',
+      mountSelector: '.shortage-actions',
+      onConfirm: async ()=>{
+        const { sent, confirmed, pending } = await sendDraftAssignments();
+        scheduleSave();
+        scheduleSyncTeacherAssignments();
+        refreshAfterMatchingChange();
+        if(resultEl){
+          const parts = [`${sent}件を送信しました`];
+          if(confirmed > 0) parts.push(`確定 ${confirmed}件`);
+          if(pending > 0) parts.push(`承認待ち ${pending}件`);
+          resultEl.textContent = `✓ ${parts.join(' ／ ')}`;
+        }
+        return { ok: true };
+      },
+    });
+  });
+
+  wrap.querySelector('#shortageCancelAutoBtn')?.addEventListener('click', (ev)=>{
+    const btn = ev.currentTarget;
+    const autoCount = S.draftAssignments.filter(a=> a.source === 'auto').length;
+    if(autoCount === 0){
+      if(resultEl) resultEl.textContent = '自動で組んだ下書きはありません。';
+      return;
+    }
+    mountInlineConfirm(wrap, btn, {
+      message: `自動で組んだ下書き${autoCount}件を解除しますか？`,
+      confirmLabel: '解除する',
+      variant: 'danger',
+      mountSelector: '.shortage-actions',
+      onConfirm: async ()=>{
+        const count = cancelDraftAuto();
+        scheduleSave();
+        refreshAfterMatchingChange();
+        if(resultEl) resultEl.textContent = `自動で組んだ下書き${count}件を解除しました。`;
+        return { ok: true };
+      },
+    });
+  });
+
+  wrap.querySelector('#shortageCancelDraftsBtn')?.addEventListener('click', (ev)=>{
+    const btn = ev.currentTarget;
+    const draftCount = S.draftAssignments.length;
+    if(draftCount === 0){
+      if(resultEl) resultEl.textContent = '依頼前の下書きはありません。';
+      return;
+    }
+    mountInlineConfirm(wrap, btn, {
+      message: `依頼前の下書き${draftCount}件をすべて解除しますか？`,
+      confirmLabel: 'すべて解除',
+      variant: 'danger',
+      mountSelector: '.shortage-actions',
+      onConfirm: async ()=>{
+        const count = cancelAllDrafts();
+        scheduleSave();
+        refreshAfterMatchingChange();
+        if(resultEl) resultEl.textContent = `依頼前の下書き${count}件を解除しました。`;
+        return { ok: true };
+      },
+    });
+  });
+}
+
+function renderShortageActionsHtml(ym){
+  const monthSubmitted = monthHasSubmittedTeachers(ym);
+  const monthLabel = ym ? `${Number(ym.slice(5))}月` : 'この月';
+  return `<div class="shortage-actions">
+    ${!monthSubmitted && ym ? `<div class="shortage-actions-warn">${monthLabel}は講師のシフト提出がまだないため、自動で組めません。</div>` : ''}
+    <div class="shortage-actions-row">
+      <button type="button" class="ghost mp-action" id="shortageBulkAutoBtn" ${!monthSubmitted ? 'disabled' : ''}>全コマを自動で組む</button>
+      <button type="button" class="primary mp-action" id="shortageSendBtn">講師にスケジュールを送信</button>
+    </div>
+    <div class="shortage-actions-row">
+      <button type="button" class="ghost mp-action" id="shortageCancelAutoBtn">自動マッチングで解除</button>
+      <button type="button" class="ghost mp-action danger-ghost" id="shortageCancelDraftsBtn">依頼前をすべて解除</button>
+    </div>
+    <div id="shortageActionResult" class="shortage-action-result" aria-live="polite"></div>
+  </div>`;
+}
+
 function renderShortageDashboardItem(entry){
   const { dateStr, row } = entry;
   const { student, course, slot } = row;
@@ -459,35 +591,44 @@ function renderShortageDashboard(){
     return;
   }
 
+  const ym = getActiveYearMonth();
   const flatItems = collectUpcomingUnassignedFlat();
-  const pendingAbsences = S.absences.filter(a=>a.status==='pending').length;
-  const totalSlots = flatItems.length;
+  const pendingAbsences = S.absences.filter(a=> a.status === 'pending').length;
+  const draftCount = countAssignmentsInMonth(S.draftAssignments, ym);
+  const pendingCount = countAssignmentsInMonth(S.pendingAssignments, ym);
+  const unassignedCount = flatItems.length;
+  const hasWork = unassignedCount > 0 || draftCount > 0 || pendingCount > 0 || pendingAbsences > 0;
 
-  if(totalSlots===0){
-    wrap.innerHTML = '<div class="shortage-ok">✓ この月の未確定コマはありません</div>';
-    if(summaryLine){
-      summaryLine.textContent = pendingAbsences>0 ? `✓ 未確定なし／未振替 ${pendingAbsences}件` : '✓ すべて確定です';
-    }
-    statusBar?.classList.toggle('is-warn', pendingAbsences>0);
-    statusBar?.classList.toggle('is-ok', pendingAbsences===0);
+  if(summaryLine){
+    summaryLine.textContent = buildShortageSummaryLine({
+      draftCount,
+      unassignedCount,
+      pendingCount,
+      pendingAbsences,
+    });
+  }
+  statusBar?.classList.toggle('is-warn', hasWork);
+  statusBar?.classList.toggle('is-ok', !hasWork);
+
+  if(!hasWork){
+    wrap.innerHTML = `${renderShortageActionsHtml(ym)}<div class="shortage-ok">✓ この月の未確定コマはありません</div>`;
+    bindShortageDashboardActions(wrap);
     return;
   }
-  if(summaryLine){
-    const absPart = pendingAbsences>0 ? ` ／ 未振替 ${pendingAbsences}件` : '';
-    summaryLine.textContent = `${totalSlots}コマ未確定 · 日付が近い順${absPart}`;
-  }
-  statusBar?.classList.remove('is-ok');
-  statusBar?.classList.add('is-warn');
 
-  const listHtml = flatItems.map(renderShortageDashboardItem).join('');
-  wrap.innerHTML = `<div class="approval-detail-well">
-    <div class="cal-alert-list-shell">
-      <div class="approval-col">
-        <div class="approval-col-label">要対応 <span class="approval-col-num">${totalSlots}コマ</span></div>
-        <div class="approval-scroll" aria-label="未確定のコマ">${listHtml}</div>
-      </div>
-    </div>
-  </div>`;
+  const listHtml = flatItems.length > 0
+    ? `<div class="approval-detail-well">
+        <div class="cal-alert-list-shell">
+          <div class="approval-col">
+            <div class="approval-col-label">未確定 <span class="approval-col-num">${unassignedCount}コマ</span></div>
+            <div class="approval-scroll" aria-label="未確定のコマ">${flatItems.map(renderShortageDashboardItem).join('')}</div>
+          </div>
+        </div>
+      </div>`
+    : '<div class="shortage-ok">未確定のコマはありません（下書き・承認待ちは上のボタンで操作できます）</div>';
+
+  wrap.innerHTML = `${renderShortageActionsHtml(ym)}${listHtml}`;
+  bindShortageDashboardActions(wrap);
 
   wrap.querySelectorAll('.approval-item-btn[data-student]').forEach(btn=>{
     btn.addEventListener('click', ()=>{
@@ -578,4 +719,4 @@ function jumpToCalendarForTeacher(teacherId, dateStr){
 
 // =====================================================================
 
-export { bulkAutoAssign, bulkCancelAuto, buildStudentLevelArea, getSelectedStudentLevel, genCourseId, renderFormCourses, resetStudentForm, fillStudentFormForEdit, handleStudentSave, renderStudentList, deleteStudent, renderMatching, refreshAfterMatchingChange, renderShortageDashboard, findNearestFutureDate, jumpToCalendarForStudent, jumpToCalendarForDate, jumpToCalendarForTeacher };
+export { bulkAutoAssign, bulkCancelAuto, buildStudentLevelArea, getSelectedStudentLevel, genCourseId, renderFormCourses, resetStudentForm, fillStudentFormForEdit, handleStudentSave, renderStudentList, deleteStudent, renderMatching, refreshAfterMatchingChange, renderShortageDashboard, expandShortageBar, findNearestFutureDate, jumpToCalendarForStudent, jumpToCalendarForDate, jumpToCalendarForTeacher };

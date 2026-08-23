@@ -266,6 +266,12 @@ function getEffectiveDayAssignments(dateStr){
     if(!assignmentAppliesOnDate(a, dateStr)) return;
     list.push({studentId:a.studentId, courseId:a.courseId, subject:a.subject, slot:a.slot, teacherId:a.teacherId, kind:'normal', source:a.source, pending:true});
   });
+  S.draftAssignments.forEach(a=>{
+    if(a.day!==weekday) return;
+    if(!assignmentAppliesOnDate(a, dateStr)) return;
+    if(findAbsenceFor(a.studentId, a.courseId, dateStr, a.day, a.slot)) return;
+    list.push({studentId:a.studentId, courseId:a.courseId, subject:a.subject, slot:a.slot, teacherId:a.teacherId, kind:'normal', source:a.source, draft:true});
+  });
   S.absences.forEach(ab=>{
     if(!ab.makeup || ab.makeup.date!==dateStr) return;
     list.push({studentId:ab.studentId, courseId:ab.courseId, subject:ab.subject, slot:ab.makeup.slot, teacherId:ab.makeup.teacherId, kind:'makeup'});
@@ -339,7 +345,7 @@ function computeDayFinance(dateStr, includeTransport){
   if(includeTransport===undefined) includeTransport = S.finIncludeTransport;
   const status = getDayStatus(dateStr);
   if(status.type!=='open') return {revenue:0, lessonCost:0, transportCost:0, cost:0, ratio:null, lessonCount:0};
-  const list = getEffectiveDayAssignments(dateStr).filter(a=>!a.pending); // 承認待ちはまだ確定していないため収支に含めない
+  const list = getEffectiveDayAssignments(dateStr).filter(a=>!a.pending && !a.draft); // 承認待ち・下書きはまだ確定していないため収支に含めない
   if(list.length===0) return {revenue:0, lessonCost:0, transportCost:0, cost:0, ratio:null, lessonCount:0};
 
   let revenue = 0;
@@ -399,7 +405,8 @@ function getStudentDateRows(student, dateStr){
       const eff = findEffectiveAssignment(student.id, course.id, ds.day, ds.slot, yearMonth, dateStr);
       let existing = eff ? eff.entry : null;
       let isPending = eff ? eff.isPending : false;
-      rows.push({slot, course, existing, absence, isMakeupTarget:false, isPending});
+      let isDraft = eff ? eff.isDraft : false;
+      rows.push({slot, course, existing, absence, isMakeupTarget:false, isPending, isDraft});
     });
   });
   S.absences.forEach(ab=>{

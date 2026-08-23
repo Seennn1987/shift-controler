@@ -26,7 +26,7 @@ import {
   getActiveYearMonth,
 } from './teacher-schedule-tab.js';
 import { buildMatchCandidatesHtml } from './match-candidates-html.js';
-import { buildPrefPairActionHtmlForTeacher, buildWaitingSlotCardHtml } from './match-candidate-ui.js';
+import { buildPrefPairActionHtmlForTeacher, buildDraftSlotCardHtml, buildWaitingSlotCardHtml } from './match-candidate-ui.js';
 import { mountWithdrawConfirm } from './withdraw-pending-ui.js';
 import { showInlineNotice } from '../shared/inline-confirm.js';
 import { analyzePendingMatchSlot } from './match-slot-status.js';
@@ -82,7 +82,7 @@ export function renderDayDetailPanel(container, dateStr){
       return;
     }
 
-    let html = `<div class="cal-day-note">${filterStudent.name}さんの希望曜日パターン（＋振替）から、この日の状況を表示しています。ここから直接、講師に依頼・欠席登録・振替の操作ができます。</div>`;
+    let html = `<div class="cal-day-note">${filterStudent.name}さんの希望曜日パターン（＋振替）から、この日の状況を表示しています。講師を選ぶと下書き保存されます。「講師にスケジュールを送信」で依頼できます。</div>`;
     html += `<button type="button" class="ghost mp-action day-detail-go-month" data-student-id="${filterStudent.id}">${filterStudent.name}さんの月間一覧へ</button>`;
 
     rows.forEach(r=>{
@@ -148,7 +148,24 @@ export function renderDayDetailPanel(container, dateStr){
         const teacher = S.teachers.find(t=> t.id === r.existing.teacherId);
         const used = teacher ? countTeacherSlotOnDate(teacher.id, dateStr, r.slot.id, null) : 0;
         const autoBadge = r.existing.source === 'auto' ? '<span class="auto-badge">自動</span>' : '';
-        if(r.isPending){
+        if(r.isDraft){
+          const roomUsed = countRoomSlotOnDate(dateStr, r.slot.id, null);
+          const subjectTag = `<span class="sched-student-tag" style="background:${c.bg};color:${c.text};">${r.course.subject}</span>`;
+          html += buildDraftSlotCardHtml({
+            slotLabel: r.slot.label,
+            slotTime: r.slot.time,
+            roomUsed,
+            roomCapacity: S.roomCapacity,
+            subjectTagHtml: subjectTag,
+            teacherName: teacher?.name || '不明',
+            studentId: filterStudent.id,
+            courseId: r.course.id,
+            weekday,
+            slotId: r.slot.id,
+            dateStr,
+            autoBadge,
+          });
+        }else if(r.isPending){
           const roomUsed = countRoomSlotOnDate(dateStr, r.slot.id, null);
           const subjectTag = `<span class="sched-student-tag" style="background:${c.bg};color:${c.text};">${r.course.subject}</span>`;
           html += buildWaitingSlotCardHtml({
@@ -334,7 +351,14 @@ export function bindDayDetailEvents(container, dateStr, onRefresh){
     });
   });
 
-  container.querySelectorAll('.mp-change-teacher-btn').forEach(btn=>{
+  container.querySelectorAll('.cancel-draft-btn').forEach(btn=>{
+    btn.addEventListener('click', ()=>{
+      cancelAssignment(btn.dataset.student, btn.dataset.course, btn.dataset.day, Number(btn.dataset.slot));
+      refresh();
+    });
+  });
+
+  container.querySelectorAll('.mp-change-teacher-btn:not(.cancel-draft-btn)').forEach(btn=>{
     btn.addEventListener('click', ()=>{
       mountWithdrawConfirm(container, btn, {
         teacherName: (()=>{

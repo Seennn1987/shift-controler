@@ -4,14 +4,16 @@ import { S } from './state.js';
 import { getStudentDateRows } from './absences.js';
 import { getDayStatus, renderCalendar } from './calendar.js';
 import { refreshCalFilterOptions, clearCalFilter, setCalFilterStudent } from './filter-ui.js';
-import { bulkAutoAssign, bulkCancelAuto, fillStudentFormForEdit, renderMatching, renderShortageDashboard, renderStudentList } from './matching.js';
+import { resolveFilterStudent } from './cal-filter.js';
+import { expandShortageBar, fillStudentFormForEdit, renderMatching, renderShortageDashboard, renderStudentList } from './matching.js';
 import { renderTeacherList } from './teachers.js';
 import { switchCalMode, switchView, renderCalendarWeek } from './finance-ui.js';
 import { getDateSlotState, gradeLabel, subjectColor, teacherHonorific } from './schedule-core.js';
-import { clearAllMatchingData, scheduleSave, scheduleSyncTeacherAssignments } from './students-persistence.js';
+import { scheduleSave, scheduleSyncTeacherAssignments } from './students-persistence.js';
 import { bindDayDetailEvents, getDayDetailTitle, renderDayDetailPanel } from './day-detail-panel.js';
 import {
   addPreferredPair,
+  cancelAssignment,
   confirmAssignment,
   countRoomSlot,
   countRoomSlotOnDate,
@@ -20,21 +22,16 @@ import {
   findEffectiveAssignment,
   isPreferredPair,
   removePreferredPairFor,
-  teacherHasSubmittedMonth,
   withdrawPendingAssignment,
 } from './teacher-schedule-tab.js';
 import { buildMatchCandidatesHtml } from './match-candidates-html.js';
-import { buildPrefPairActionHtmlForTeacher, buildWaitingSlotCardHtml } from './match-candidate-ui.js';
+import { buildDraftSlotCardHtml, buildPrefPairActionHtmlForTeacher, buildWaitingSlotCardHtml } from './match-candidate-ui.js';
 import { mountWithdrawConfirm } from './withdraw-pending-ui.js';
 import { mountInlineConfirm, showInlineNotice } from '../shared/inline-confirm.js';
 
 function refreshPrefPairViews(){
   renderStudentList();
   renderTeacherList();
-}
-
-function monthHasSubmittedTeachers(yearMonth){
-  return S.teachers.some(t=> teacherHasSubmittedMonth(t.id, yearMonth));
 }
 
 function hideCalDetailCard(){
@@ -133,8 +130,7 @@ function renderDrawerContent(){
     updateDrawerHeader();
     return;
   }
-  renderMatchingPanelMenu();
-  updateDrawerHeader();
+  closeMatchingPanel();
 }
 
 function showDayDetail(dateStr){
@@ -184,14 +180,6 @@ function showMatchingStudentAtDate(studentId, dateStr){
   renderCalendar();
   scrollCalendarIntoView();
   renderDrawerContent();
-}
-
-function showMatchingMenuView(){
-  S.calendarDrawerView = 'matching-menu';
-  S.matchingPanelStudentId = null;
-  S.matchingPanelSlot = null;
-  renderDrawerContent();
-  renderMatchingDesiredBar();
 }
 
 function getActiveYearMonth(){
@@ -395,26 +383,13 @@ function refreshPostAssignView(){
   }
 }
 
-function bindStudentPickButtons(root){
-  root.querySelectorAll('.matching-student-btn').forEach(btn=>{
-    btn.addEventListener('click', ()=> selectPanelStudent(btn.dataset.studentId));
-  });
-}
-
 function bindBackToMenu(root){
   root.querySelector('#mpBackToMenu')?.addEventListener('click', ()=>{
-    S.matchingPanelStudentId = null;
-    S.matchingPanelSlot = null;
     matchingPanelFlashMsg = null;
     matchingPanelFutureOffer = null;
     matchingPanelPrefPairOffer = null;
     matchingPanelRenderedPeriodKey = '';
-    clearCalFilter();
-    S.calSelectedDate = null;
-    refreshCalFilterOptions();
-    showMatchingMenuView();
-    renderCalendar();
-    hideCalDetailCard();
+    closeMatchingPanel();
   });
 }
 
@@ -425,8 +400,11 @@ function buildCandidatesHtml(student, courseId, subject, day, slot, dateStr){
   });
 }
 
-function buildAssignmentFlashMessage({slotLabel, subject, teacherName, pending}){
+function buildAssignmentFlashMessage({slotLabel, subject, teacherName, draft, pending}){
   const detail = `${slotLabel || ''}（${subject}）`;
+  if(draft){
+    return `✓ ${detail}を${teacherName}先生で下書き保存しました。「講師にスケジュールを送信」で依頼できます。`;
+  }
   if(pending){
     return `✓ ${detail}を${teacherName}先生に依頼しました（承認待ち）。`;
   }
@@ -471,7 +449,15 @@ function resolvePendingTeacherName(btn, dateStr){
 }
 
 function bindChangeTeacherButtons(root){
-  root.querySelectorAll('.mp-change-teacher-btn').forEach(btn=>{
+  root.querySelectorAll('.cancel-draft-btn').forEach(btn=>{
+    btn.addEventListener('click', ()=>{
+      cancelAssignment(btn.dataset.student, btn.dataset.course, btn.dataset.day, Number(btn.dataset.slot));
+      scheduleSave();
+      matchingPanelFlashMsg = '下書きを解除しました。別の講師を選んでください。';
+      afterMatchingChange(btn.dataset.date || null);
+    });
+  });
+  root.querySelectorAll('.mp-change-teacher-btn:not(.cancel-draft-btn)').forEach(btn=>{
     btn.addEventListener('click', ()=>{
       mountWithdrawConfirm(root, btn, {
         teacherName: resolvePendingTeacherName(btn, btn.dataset.date || null),
@@ -527,6 +513,7 @@ function bindConfirmButtons(root){
         slotLabel: slotDef?.label || '',
         subject: ctx.subject,
         teacherName: ctx.teacherName,
+        draft: result.draft,
         pending: result.pending,
       });
       const future = countFutureWeeksForTeacher(ctx.teacherId, ctx.day, ctx.slot, ctx.dateStr);
@@ -595,6 +582,24 @@ function buildMatchingSlotCard(r, student, dateStr, weekday){
 
   if(r.existing){
     const teacher = S.teachers.find(t=> t.id === r.existing.teacherId);
+    const autoBadge = r.existing.source === 'auto' ? '<span class="auto-badge">自動</span>' : '';
+    if(r.isDraft){
+      const subjectTag = `<span class="sched-student-tag" style="background:${c.bg};color:${c.text};">${r.course.subject}</span>`;
+      return buildDraftSlotCardHtml({
+        slotLabel: r.slot.label,
+        slotTime: r.slot.time,
+        roomUsed,
+        roomCapacity: S.roomCapacity,
+        subjectTagHtml: subjectTag,
+        teacherName: teacher?.name || '不明',
+        studentId: student.id,
+        courseId: r.course.id,
+        weekday,
+        slotId: r.slot.id,
+        dateStr,
+        autoBadge,
+      });
+    }
     if(r.isPending){
       const subjectTag = `<span class="sched-student-tag" style="background:${c.bg};color:${c.text};">${r.course.subject}</span>`;
       return buildWaitingSlotCardHtml({
@@ -654,18 +659,30 @@ function scrollCalendarIntoView(){
 }
 
 function openMatchingPanel(){
-  S.matchingPanelOpen = true;
-  S.matchingPanelStudentId = null;
-  S.matchingPanelSlot = null;
-  S.matchingReturnToStudentId = null;
-  S.calendarDrawerView = 'matching-menu';
-  applyPanelLayout();
   switchView('calendar');
   switchCalMode('month');
-  renderDrawerContent();
-  renderMatchingDesiredBar();
-  renderCalendar();
-  hideCalDetailCard();
+
+  const filterStudent = resolveFilterStudent();
+  if(filterStudent){
+    showMatchingStudentView(filterStudent.id);
+    scrollCalendarIntoView();
+    return;
+  }
+
+  if(S.calSelectedDate){
+    S.matchingPanelOpen = true;
+    applyPanelLayout();
+    showDayDetail(S.calSelectedDate);
+    renderCalendar();
+    hideCalDetailCard();
+    scrollCalendarIntoView();
+    return;
+  }
+
+  S.matchingPanelOpen = false;
+  applyPanelLayout();
+  expandShortageBar();
+  renderShortageDashboard();
   scrollCalendarIntoView();
 }
 
@@ -678,74 +695,6 @@ function closeMatchingPanel(){
   applyPanelLayout();
   renderMatchingDesiredBar();
   renderCalendar();
-}
-
-function renderMatchingPanelMenu(){
-  const body = document.getElementById('matchingPanelBody');
-  if(!body || !S.matchingPanelOpen) return;
-  if(S.calendarDrawerView !== 'matching-menu' || S.matchingPanelStudentId) return;
-
-  const ym = S.referenceYearMonth || '';
-  const monthLabel = ym ? `${Number(ym.slice(5))}月` : 'この月';
-  const monthSubmitted = ym ? monthHasSubmittedTeachers(ym) : false;
-
-  body.innerHTML = `
-    <p class="matching-panel-intro">左のカレンダーで日程を、右のパネルで講師を決めます。</p>
-    ${!monthSubmitted && ym ? `<div class="matching-panel-warn">${monthLabel}は講師のシフト提出がまだないため、自動で組めません。</div>` : ''}
-    <div class="matching-panel-section-label">一括</div>
-    <div class="matching-panel-actions">
-      <button type="button" class="primary mp-action" id="mpBulkAutoBtn" ${!monthSubmitted?'disabled':''}>全コマを自動で組む</button>
-    </div>
-    <div class="matching-panel-section-label">取り消し</div>
-    <div class="matching-panel-actions">
-      <button type="button" class="ghost mp-action" id="mpBulkCancelAutoBtn">自動で組んだ分だけ解除</button>
-      <button type="button" class="ghost mp-action danger-ghost" id="mpBulkCancelBtn">すべての組みを解除</button>
-    </div>
-    <div class="matching-panel-divider">または</div>
-    <div class="matching-panel-label">生徒名を選択</div>
-    <div class="matching-student-list">
-      ${S.students.length === 0
-        ? '<p class="matching-panel-hint">生徒が登録されていません。</p>'
-        : S.students.map(s=>`
-          <button type="button" class="matching-student-btn" data-student-id="${s.id}">
-            <span class="matching-student-btn-name">${s.name}</span>
-            <span class="matching-student-btn-grade">${gradeLabel(s)}</span>
-          </button>
-        `).join('')}
-    </div>
-    <div id="mpBulkResult" class="matching-panel-result"></div>
-  `;
-
-  body.querySelector('#mpBulkAutoBtn')?.addEventListener('click', handlePanelBulkAuto);
-  body.querySelector('#mpBulkCancelAutoBtn')?.addEventListener('click', (e)=> handlePanelBulkCancelAuto(e));
-  body.querySelector('#mpBulkCancelBtn')?.addEventListener('click', (e)=> handlePanelBulkCancel(e));
-  bindStudentPickButtons(body);
-}
-
-function handlePanelBulkCancelAuto(ev){
-  const btn = ev?.currentTarget || document.getElementById('mpBulkCancelAutoBtn');
-  const panel = document.getElementById('matchingPanelBody');
-  const resultEl = document.getElementById('mpBulkResult');
-  const autoCount = S.assignments.filter(a=> a.source === 'auto').length
-    + S.pendingAssignments.filter(a=> a.source === 'auto').length;
-  if(autoCount === 0){
-    if(resultEl) resultEl.innerHTML = '<div class="matching-panel-result-msg">自動で組んだコマはありません。</div>';
-    return;
-  }
-  if(!btn || !panel) return;
-  mountInlineConfirm(panel, btn, {
-    message: `自動で組んだ${autoCount}件を解除しますか？`,
-    confirmLabel: '解除する',
-    variant: 'danger',
-    mountSelector: '.matching-panel-actions',
-    onConfirm: async ()=>{
-      const count = bulkCancelAuto();
-      scheduleSave();
-      if(resultEl) resultEl.innerHTML = `<div class="matching-panel-result-msg partial">自動で組んだ${count}件を解除しました。</div>`;
-      afterMatchingChange();
-      return { ok: true };
-    },
-  });
 }
 
 function renderStudentPeriodSlots(studentId, scrollToDateStr){
@@ -792,7 +741,7 @@ function renderStudentPeriodSlots(studentId, scrollToDateStr){
   const periodLabel = S.calMode === 'week' ? '今週' : `${Number(getActiveYearMonth().slice(5))}月`;
 
   body.innerHTML = `
-    <button type="button" class="ghost mp-back-btn" id="mpBackToMenu">← メニューに戻る</button>
+    <button type="button" class="ghost mp-back-btn" id="mpBackToMenu">← 閉じる</button>
     <div class="matching-panel-student-head">
       <div class="matching-panel-student-name">${student.name}さん</div>
       <div class="matching-panel-student-grade">${gradeLabel(student)}</div>
@@ -841,51 +790,6 @@ function selectPanelStudent(studentId){
   renderDrawerContent();
 }
 
-function handlePanelBulkAuto(){
-  const resultEl = document.getElementById('mpBulkResult');
-  const ym = S.referenceYearMonth;
-  if(!monthHasSubmittedTeachers(ym)){
-    if(resultEl) resultEl.innerHTML = '<div class="matching-panel-result-msg warn">この月は講師のシフト提出がないため、自動で組めません。</div>';
-    return;
-  }
-  const {filled, skipped, total} = bulkAutoAssign();
-  if(total===0){
-    if(resultEl) resultEl.innerHTML = '<div class="matching-panel-result-msg">未確定のコマはありません。</div>';
-  }else if(filled===0){
-    if(resultEl) resultEl.innerHTML = `<div class="matching-panel-result-msg warn">対応できる講師が見つからず、${skipped}件とも自動で講師を決められませんでした。</div>`;
-  }else if(skipped===0){
-    if(resultEl) resultEl.innerHTML = `<div class="matching-panel-result-msg ok">✓ 未確定だった${filled}件すべて講師を決めました。</div>`;
-  }else{
-    if(resultEl) resultEl.innerHTML = `<div class="matching-panel-result-msg partial">${filled}件の講師を決めました。${skipped}件は未確定のままです。</div>`;
-  }
-  afterMatchingChange();
-}
-
-function handlePanelBulkCancel(ev){
-  const btn = ev?.currentTarget || document.getElementById('mpBulkCancelBtn');
-  const panel = document.getElementById('matchingPanelBody');
-  const resultEl = document.getElementById('mpBulkResult');
-  const totalCount = S.assignments.length + S.pendingAssignments.length
-    + S.absences.length + S.teacherAbsences.length + S.teacherSubstitutions.length;
-  if(totalCount === 0){
-    if(resultEl) resultEl.innerHTML = '<div class="matching-panel-result-msg">マッチングデータはありません。</div>';
-    return;
-  }
-  if(!btn || !panel) return;
-  mountInlineConfirm(panel, btn, {
-    message: `確定・承認待ち・欠席・代講を含む${totalCount}件のデータをすべて削除しますか？\n（生徒・講師・シフトの登録は残ります）`,
-    confirmLabel: 'すべて削除',
-    variant: 'danger',
-    mountSelector: '.matching-panel-actions',
-    onConfirm: async ()=>{
-      await clearAllMatchingData();
-      if(resultEl) resultEl.innerHTML = '<div class="matching-panel-result-msg partial">マッチングデータをすべて削除しました。</div>';
-      afterMatchingChange();
-      return { ok: true };
-    },
-  });
-}
-
 function afterMatchingChange(scrollToDateStr){
   if(scrollToDateStr) S.calSelectedDate = scrollToDateStr;
   matchingPanelRenderedPeriodKey = '';
@@ -899,9 +803,6 @@ function afterMatchingChange(scrollToDateStr){
     updateDrawerHeader(S.calSelectedDate);
   }else if(S.calendarDrawerView === 'matching-student' && S.matchingPanelStudentId){
     renderStudentPeriodSlots(S.matchingPanelStudentId, S.calSelectedDate);
-    updateDrawerHeader();
-  }else if(S.calendarDrawerView === 'matching-menu'){
-    renderMatchingPanelMenu();
     updateDrawerHeader();
   }
 }
@@ -947,8 +848,16 @@ function renderMatchingDesiredBar(){
       let status = 'pending';
       let label = '未確定';
       if(eff){
-        status = eff.isPending ? 'waiting' : 'done';
-        label = eff.isPending ? '承認待ち' : '確定';
+        if(eff.isDraft){
+          status = 'draft';
+          label = '下書き';
+        }else if(eff.isPending){
+          status = 'waiting';
+          label = '承認待ち';
+        }else{
+          status = 'done';
+          label = '確定';
+        }
       }
       const active = !!(S.calSelectedDate &&
         getDayStatus(S.calSelectedDate).weekday === ds.day);
@@ -1038,4 +947,4 @@ function initMatchingPanel(){
   });
 }
 
-export { initMatchingPanel, openMatchingPanel, closeMatchingPanel, renderMatchingDesiredBar, renderMatchingPanelMenu, showDayDetail };
+export { initMatchingPanel, openMatchingPanel, closeMatchingPanel, renderMatchingDesiredBar, showDayDetail };

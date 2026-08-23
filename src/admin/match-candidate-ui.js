@@ -74,6 +74,45 @@ export function renderMatchCandidateList(candidates, opts){
   return html;
 }
 
+export function buildDraftSlotCardHtml({
+  slotLabel,
+  slotTime,
+  roomUsed,
+  roomCapacity,
+  subjectTagHtml,
+  teacherName,
+  studentId,
+  courseId,
+  weekday,
+  slotId,
+  dateStr,
+  autoBadge = '',
+}){
+  const name = teacherName || '不明';
+  return `<div class="match-slot mp-slot-card mp-slot-waiting">
+    <div class="ms-slot-label">${slotLabel}（${slotTime}）<span class="mp-slot-meta">教室 ${roomUsed}/${roomCapacity}</span></div>
+    <div class="mp-slot-subject">${subjectTagHtml}<span class="mp-slot-badge pending">下書き</span>${autoBadge}</div>
+    <div class="match-slot-rows">
+      <div class="match-cand-row">
+        <span class="match-cand-rank">—</span>
+        <div class="match-cand-main">
+          <div class="match-cand-head">
+            <span class="match-cand-name">${name}</span>
+            <div class="match-cand-actions">
+              <button type="button" class="mp-change-teacher-btn cancel-draft-btn"
+                data-student="${escapeAttr(studentId)}"
+                data-course="${escapeAttr(courseId)}"
+                data-day="${escapeAttr(weekday)}"
+                data-slot="${slotId}"
+                data-date="${escapeAttr(dateStr)}">別の講師を選ぶ</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>`;
+}
+
 export function buildWaitingSlotCardHtml({
   slotLabel,
   slotTime,
