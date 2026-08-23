@@ -1,0 +1,278 @@
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  font-family: var(--font-family);
+  background: var(--surface-page);
+  color: var(--ink);
+  font-size: var(--text-md);
+  line-height: var(--leading-normal);
+}
+
+.preview-header {
+  background: var(--brand-900);
+  color: var(--text-on-brand);
+  padding: 28px 20px;
+}
+
+.preview-header-inner { max-width: 1120px; margin: 0 auto; }
+.preview-header h1 { margin: 0; font-size: var(--text-2xl); font-weight: var(--font-weight-black); }
+.preview-header p {
+  margin: 8px 0 0;
+  font-size: var(--text-md);
+  color: rgba(255, 255, 255, 0.78);
+  line-height: var(--leading-relaxed);
+}
+.preview-url { margin-top: 10px !important; }
+.preview-url a { color: #93C5FD; }
+
+.preview-main { max-width: 1120px; margin: 0 auto; padding: 32px 20px 64px; }
+section { margin-bottom: 44px; }
+h2 { margin: 0 0 8px; font-size: var(--text-lg); font-weight: var(--font-weight-black); }
+.section-desc {
+  margin: 0 0 16px;
+  font-size: var(--text-md);
+  color: var(--ink-soft);
+  line-height: var(--leading-relaxed);
+}
+
+.eval-grid { display: grid; gap: 10px; margin-bottom: 14px; }
+.eval-row {
+  display: grid;
+  grid-template-columns: 100px 1fr;
+  gap: 12px;
+  padding: 10px 12px;
+  background: var(--surface-card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  font-size: var(--text-md);
+  line-height: var(--leading-relaxed);
+}
+.eval-row strong { color: var(--ink-soft); font-size: var(--text-sm); }
+
+.recommend-box {
+  background: var(--brand-50);
+  border: 1px solid var(--pending-border);
+  border-radius: var(--radius-lg);
+  padding: 14px 16px;
+  font-size: var(--text-md);
+  line-height: var(--leading-relaxed);
+}
+.recommend-box strong { color: var(--brand-600); }
+
+.variant-grid { display: grid; gap: 20px; }
+
+.variant-card {
+  border: 1px solid var(--border);
+  border-radius: var(--radius-xl);
+  overflow: hidden;
+  background: var(--surface-card);
+}
+.variant-card.is-rec .variant-head { background: var(--brand-50); color: var(--brand-600); }
+.variant-head {
+  padding: 8px 14px;
+  font-size: var(--text-sm);
+  font-weight: var(--font-weight-black);
+  background: var(--surface-muted);
+  border-bottom: 1px solid var(--border);
+}
+.variant-body { padding: 14px 16px; }
+
+.mock-zone {
+  background: var(--surface-page);
+  border: 1px dashed var(--border);
+  border-radius: var(--radius-lg);
+  padding: 12px 14px;
+}
+
+/* ---- 本番ボタン型（プレビュー用コピー） ---- */
+button.primary {
+  background: linear-gradient(180deg, var(--brand-500), var(--brand-600));
+  color: var(--text-on-brand);
+  border: none;
+  min-height: 40px;
+  min-width: 120px;
+  padding: 0 22px;
+  border-radius: var(--radius-lg);
+  font-family: inherit;
+  font-weight: 700;
+  font-size: var(--text-base);
+  cursor: pointer;
+}
+button.ghost {
+  background: var(--surface-card);
+  color: var(--ink);
+  border: 1px solid var(--border);
+  min-height: 40px;
+  padding: 0 18px;
+  border-radius: var(--radius-lg);
+  font-family: inherit;
+  font-size: var(--text-base);
+  font-weight: 700;
+  cursor: pointer;
+}
+button.danger-ghost {
+  background: var(--surface-card);
+  color: var(--danger);
+  border: 1px solid var(--danger);
+  min-height: 40px;
+  padding: 0 18px;
+  border-radius: var(--radius-lg);
+  font-family: inherit;
+  font-size: var(--text-base);
+  font-weight: 700;
+  cursor: pointer;
+}
+button.btn-text {
+  border: none;
+  background: transparent;
+  color: var(--danger);
+  font-family: inherit;
+  font-size: var(--text-sm);
+  font-weight: 700;
+  padding: 8px 10px;
+  border-radius: var(--radius-md);
+  cursor: pointer;
+  min-height: 32px;
+}
+button.btn-text:hover { background: var(--danger-bg); }
+
+/* 公開中 */
+.actions-current .shortage-actions-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+.actions-current .shortage-action-btn {
+  width: 100%;
+  min-height: 40px;
+  padding: 8px 10px;
+  font-family: inherit;
+  white-space: normal;
+  line-height: 1.35;
+}
+
+/* 案A — 段階+内容幅（おすすめ） */
+.actions-a .actions-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+.actions-a .actions-row + .actions-row { margin-top: 8px; }
+.actions-a .actions-row-label {
+  flex: 0 0 100%;
+  font-size: var(--text-xs);
+  font-weight: 700;
+  color: var(--ink-soft);
+  margin-bottom: -2px;
+}
+.actions-a button { width: auto; flex: 0 0 auto; }
+
+/* 案B — 1行ツールバー */
+.actions-b .actions-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+.actions-b button { width: auto; flex: 0 0 auto; }
+.actions-b .actions-sep {
+  width: 1px;
+  height: 24px;
+  background: var(--border);
+  flex-shrink: 0;
+}
+
+/* 案C — 実行/取り消しグループ */
+.actions-c .actions-groups {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: flex-start;
+}
+.actions-c .actions-group {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+  padding: 8px 10px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  background: var(--surface-card);
+}
+.actions-c .actions-group.is-danger {
+  background: var(--surface-muted);
+  border-style: dashed;
+}
+.actions-c .actions-group-label {
+  font-size: var(--text-xs);
+  font-weight: 700;
+  color: var(--ink-soft);
+  flex: 0 0 100%;
+  margin-bottom: 2px;
+}
+.actions-c button { width: auto; }
+
+/* 案D — 主1 + 副3同型 */
+.actions-d .actions-primary-row { margin-bottom: 8px; }
+.actions-d .actions-secondary-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.actions-d button.ghost.is-danger-text {
+  color: var(--danger);
+  border-color: var(--border);
+}
+.actions-d button { width: auto; }
+
+/* フロー参考 */
+.mock-flow {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 10px;
+  margin-bottom: 12px;
+  padding-bottom: 12px;
+  border-bottom: 1px dashed var(--border);
+  font-size: var(--text-sm);
+}
+.mock-flow-kpi { font-weight: 700; color: var(--ink-soft); }
+.mock-flow-kpi span { color: var(--ink); font-weight: 900; }
+
+.pros-cons-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px;
+}
+@media (max-width: 820px) { .pros-cons-grid { grid-template-columns: 1fr; } }
+
+.pros-cons-card {
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+  background: var(--surface-card);
+}
+.pros-cons-card.is-rec .pros-cons-head { background: var(--brand-50); color: var(--brand-600); }
+.pros-cons-head {
+  padding: 8px 12px;
+  font-size: var(--text-sm);
+  font-weight: var(--font-weight-black);
+  background: var(--surface-muted);
+  border-bottom: 1px solid var(--border);
+}
+.pros-cons-body { padding: 12px; font-size: var(--text-md); line-height: var(--leading-relaxed); }
+.pros-cons-body h4 { margin: 0 0 6px; font-size: var(--text-sm); color: var(--ink-soft); }
+.pros-cons-body ul { margin: 0 0 10px; padding-left: 1.2em; }
+.pros-cons-body ul:last-child { margin-bottom: 0; }
+
+.mobile-frame {
+  width: 375px;
+  max-width: 100%;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-xl);
+  overflow: hidden;
+  background: var(--surface-card);
+}
+.mobile-frame .variant-body { padding: 10px; }

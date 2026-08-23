@@ -723,11 +723,12 @@ function renderShortageActionsHtml(ym){
   const monthLabel = ym ? `${Number(ym.slice(5))}月` : 'この月';
   return `<div class="shortage-actions">
     ${!monthSubmitted && ym ? `<div class="shortage-actions-warn">${monthLabel}は講師のシフト提出がまだないため、自動で組めません。</div>` : ''}
-    <div class="shortage-actions-grid">
+    <div class="shortage-actions-toolbar">
       <button type="button" class="ghost mp-action shortage-action-btn" id="shortageBulkAutoBtn" ${!monthSubmitted ? 'disabled' : ''}>全コマを自動で組む</button>
       <button type="button" class="primary mp-action shortage-action-btn" id="shortageSendBtn">講師にスケジュールを送信</button>
-      <button type="button" class="danger-ghost mp-action shortage-action-btn" id="shortageCancelAutoBtn">自動マッチングで解除</button>
-      <button type="button" class="danger-ghost mp-action shortage-action-btn" id="shortageCancelDraftsBtn">仮決めをすべて解除</button>
+      <span class="shortage-actions-sep" aria-hidden="true"></span>
+      <button type="button" class="btn-text mp-action shortage-action-btn shortage-action-btn--danger" id="shortageCancelAutoBtn">自動マッチングで解除</button>
+      <button type="button" class="btn-text mp-action shortage-action-btn shortage-action-btn--danger" id="shortageCancelDraftsBtn">仮決めをすべて解除</button>
     </div>
     <div id="shortageActionResult" class="shortage-action-result" aria-live="polite"></div>
   </div>`;
