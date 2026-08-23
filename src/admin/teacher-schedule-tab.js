@@ -201,8 +201,8 @@ async function renderApprovalStatus(){
   bar.classList.add('is-warn');
   bar.classList.remove('is-ok');
 
-  const summaryChips = [{ kind: 'pending', text: `承認待ち ${pending.length}件（講師の返事待ち）` }];
-  if(rejected.length > 0) summaryChips.push({ kind: 'rejected', text: `断り ${rejected.length}件` });
+  const summaryChips = [{ kind: 'pending', label: '承認待ち', count: pending.length, unit: '件', note: '講師の返事待ち' }];
+  if(rejected.length > 0) summaryChips.push({ kind: 'rejected', label: '断り', count: rejected.length, unit: '件' });
   summaryLine.innerHTML = buildCalStatusSummaryHtml(summaryChips);
 
   const approved = list

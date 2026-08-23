@@ -25,11 +25,11 @@ function syncWeekAxisTabs(){
   const descEl = document.getElementById('calWeekDesc');
   if(!descEl) return;
   if(S.weekAxis === 'student'){
-    descEl.textContent = 'マスの中身を生徒ごとの箱にし、各箱に担当講師を表示します。未確定のコマもここに表示されます。';
+    descEl.textContent = 'マスの中身を生徒ごとの箱にし、各箱に担当講師を表示します。講師なしのコマもここに表示されます。';
   }else if(S.weekAxis === 'openings'){
     descEl.textContent = '各マスの上段に教科別の空き人数を表示します。講師名の下に教科タグを出したい場合は、右のチェックをオンにしてください。';
   }else{
-    descEl.textContent = 'マスの中身を講師ごとの箱にし、各箱に担当している生徒を表示します。未確定のコマは別枠で表示されます。';
+    descEl.textContent = 'マスの中身を講師ごとの箱にし、各箱に担当している生徒を表示します。講師なしのコマは別枠で表示されます。';
   }
   refreshCalToolbarSecondary();
 }

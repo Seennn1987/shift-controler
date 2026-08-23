@@ -58,7 +58,7 @@ function buildUnassignedSlotHtml(row, dateStr, weekday){
       <span class="sched-student-tag" style="background:${c.bg};color:${c.text};">${course.subject}</span>
       <span>${student.name}さん</span>
       <span class="grade-tag">${gradeLabel(student)}</span>
-      <span class="mp-slot-badge pending">未確定</span>
+      <span class="mp-slot-badge pending">講師なし</span>
     </div>
     ${candHtml}
   </div>`;
@@ -265,7 +265,7 @@ export function renderDayDetailPanel(container, dateStr){
     return;
   }
 
-  let html = `<div class="cal-day-note">確定した授業と、未確定の希望コマを表示しています。未確定のコマから講師を決められます。</div>`;
+  let html = `<div class="cal-day-note">確定した授業と、講師が決まっていない希望コマを表示しています。講師なしのコマから講師を決められます。</div>`;
   SLOTS.forEach(slot=>{
     const slotList = list.filter(a=> a.slot === slot.id);
     const slotUnassigned = unassigned.filter(r=> r.slot.id === slot.id);

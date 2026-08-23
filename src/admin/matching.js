@@ -265,7 +265,7 @@ function getStudentListStatus(student){
     return { kind:'no-slots', label:'希望未設定', priority:0, pendingSlots:0, totalSlots:0 };
   }
   if(pendingSlots > 0){
-    return { kind:'pending', label:`未確定 ${pendingSlots}`, priority:1, pendingSlots, totalSlots };
+    return { kind:'pending', label:`講師なし ${pendingSlots}`, priority:1, pendingSlots, totalSlots };
   }
   return { kind:'done', label:'確定済み', priority:2, pendingSlots:0, totalSlots };
 }
@@ -470,10 +470,10 @@ function expandShortageBar(){
 
 function buildShortageSummaryLine({ draftCount, unassignedCount, pendingCount, pendingAbsences }){
   const chips = [];
-  if(draftCount > 0) chips.push({ kind: 'tentative', text: `仮決め ${draftCount}件` });
-  if(unassignedCount > 0) chips.push({ kind: 'unassigned', text: `未確定 ${unassignedCount}コマ` });
-  if(pendingCount > 0) chips.push({ kind: 'pending', text: `承認待ち ${pendingCount}件` });
-  if(pendingAbsences > 0) chips.push({ kind: 'absence', text: `未振替 ${pendingAbsences}件` });
+  if(draftCount > 0) chips.push({ kind: 'tentative', label: '仮決め', count: draftCount, unit: '件' });
+  if(unassignedCount > 0) chips.push({ kind: 'unassigned', label: '講師なし', count: unassignedCount, unit: 'コマ' });
+  if(pendingCount > 0) chips.push({ kind: 'pending', label: '承認待ち', count: pendingCount, unit: '件' });
+  if(pendingAbsences > 0) chips.push({ kind: 'absence', label: '未振替', count: pendingAbsences, unit: '件' });
   return buildCalStatusSummaryHtml(chips);
 }
 
@@ -514,7 +514,7 @@ function buildMatchingAlgorithmExtraHtml(){
   return `<div class="app-confirm-algorithm">
     <div class="app-confirm-algorithm-label">自動マッチングの決め方</div>
     <ol class="app-confirm-algorithm-steps">
-      <li>未確定コマのうち、対応できる講師が<strong>少ないコマ</strong>から順に埋めます。</li>
+      <li>講師が決まっていないコマのうち、対応できる講師が<strong>少ないコマ</strong>から順に埋めます。</li>
       <li>各コマでは、シフト提出済み・その日そのコマに対応可・教科・学年が合い・定員に空きがある講師だけを候補にします。</li>
       <li>候補の中から、次の優先順位で1人を選び、「仮決め」に入れます（講師への依頼はまだ出ません）。</li>
     </ol>
@@ -554,12 +554,12 @@ function bindShortageDashboardActions(wrap){
     }
     const unassignedCount = collectUpcomingUnassignedFlat().length;
     if(unassignedCount === 0){
-      if(resultEl) resultEl.textContent = '未確定のコマはありません。';
+      if(resultEl) resultEl.textContent = '講師が決まっていないコマはありません。';
       return;
     }
     const result = await runAppConfirmDialog({
       title: '全コマを自動で組みますか？',
-      message: `未確定 ${unassignedCount}コマを、次のルールで講師を割り当てます。`,
+      message: `講師なし ${unassignedCount}コマを、次のルールで講師を割り当てます。`,
       extraHtml: buildMatchingAlgorithmExtraHtml(),
       confirmLabel: '自動で決める',
       variant: 'primary',
@@ -568,13 +568,13 @@ function bindShortageDashboardActions(wrap){
       scheduleSave();
       refreshAfterMatchingChange();
       if(total === 0){
-        if(resultEl) resultEl.textContent = '未確定のコマはありません。';
+        if(resultEl) resultEl.textContent = '講師が決まっていないコマはありません。';
       }else if(filled === 0){
         if(resultEl) resultEl.textContent = `対応できる講師が見つからず、${skipped}件とも自動で組めませんでした。`;
       }else if(skipped === 0){
-        if(resultEl) resultEl.textContent = `✓ 未確定だった${filled}件を仮決めしました。「講師にスケジュールを送信」から依頼できます。`;
+        if(resultEl) resultEl.textContent = `✓ 講師なしだった${filled}件を仮決めしました。「講師にスケジュールを送信」から依頼できます。`;
       }else{
-        if(resultEl) resultEl.textContent = `${filled}件を仮決めしました。${skipped}件は未確定のままです。`;
+        if(resultEl) resultEl.textContent = `${filled}件を仮決めしました。${skipped}件は講師なしのままです。`;
       }
       return { ok: true };
     });
@@ -631,7 +631,7 @@ function bindShortageDashboardActions(wrap){
     const flatAutoSlots = collectUpcomingDraftsFlat().filter(e=> e.assignment.source === 'auto').length;
     const result = await runAppConfirmDialog({
       title: '自動で決めた仮決めを解除しますか？',
-      message: `この月の自動マッチング ${flatAutoSlots}件を取り消し、未確定に戻します。\n自分で決めた仮決めはそのままです。`,
+      message: `この月の自動マッチング ${flatAutoSlots}件を取り消し、講師なしに戻します。\n自分で決めた仮決めはそのままです。`,
       confirmLabel: '解除する',
       variant: 'danger',
     }, async ()=>{
@@ -652,7 +652,7 @@ function bindShortageDashboardActions(wrap){
     }
     const result = await runAppConfirmDialog({
       title: '仮決めをすべて解除しますか？',
-      message: `${draftCount}件の仮決めを取り消し、未確定に戻します。\nすでに講師に送った分はそのままです。`,
+      message: `${draftCount}件の仮決めを取り消し、講師なしに戻します。\nすでに講師に送った分はそのままです。`,
       confirmLabel: 'すべて解除',
       variant: 'danger',
     }, async ()=>{
@@ -667,13 +667,14 @@ function bindShortageDashboardActions(wrap){
 }
 
 function renderShortageListBlock(label, count, unit, itemsHtml, ariaLabel, emptyMessage){
-  const scrollHtml = itemsHtml || `<div class="approval-col-empty">${emptyMessage}</div>`;
-  return `<div class="approval-detail-well shortage-list-block">
-    <div class="approval-col">
-      <div class="approval-col-label">${label} <span class="approval-col-num">${count}${unit}</span></div>
-      <div class="approval-scroll" aria-label="${ariaLabel}">${scrollHtml}</div>
+  const scrollHtml = itemsHtml || `<div class="shortage-panel-empty">${emptyMessage}</div>`;
+  return `<section class="shortage-panel">
+    <div class="shortage-panel-head">
+      <span class="shortage-panel-label">${label}</span>
+      <span class="shortage-panel-count"><span class="shortage-panel-num">${count}</span>${unit}</span>
     </div>
-  </div>`;
+    <div class="shortage-panel-scroll approval-scroll" aria-label="${ariaLabel}">${scrollHtml}</div>
+  </section>`;
 }
 
 function renderShortageActionsHtml(ym){
@@ -701,7 +702,7 @@ function renderShortageDashboardItem(entry){
     whenPill: buildCalAlertWhenPill(md, weekday, slot.label),
     personHead: buildCalAlertPersonHead(student.name, gLabel),
     subjectTag: buildCalAlertSubjectTag(subjectColor, student.level, course.subject),
-    badgeHtml: '<span class="approval-badge pending">未確定</span>',
+    badgeHtml: '<span class="approval-badge pending">講師なし</span>',
     dataAttrs: ` data-student="${student.id}" data-date="${dateStr}" aria-label="${aria}"`,
   });
 }
@@ -736,7 +737,7 @@ function renderShortageDashboard(){
     return;
   }
   if(S.students.length===0){
-    wrap.innerHTML = '<div class="empty-state">生徒が登録されると、未確定のコマが日付順で表示されます。</div>';
+    wrap.innerHTML = '<div class="empty-state">生徒が登録されると、講師が決まっていないコマが日付順で表示されます。</div>';
     if(summaryLine) summaryLine.textContent = 'まだ生徒が登録されていません';
     statusBar?.classList.remove('is-warn');
     statusBar?.classList.add('is-ok');
@@ -764,16 +765,16 @@ function renderShortageDashboard(){
   statusBar?.classList.toggle('is-ok', !hasWork);
 
   if(!hasWork){
-    wrap.innerHTML = `${renderShortageActionsHtml(ym)}<div class="shortage-ok">✓ この月の未確定コマはありません</div>`;
+    wrap.innerHTML = `${renderShortageActionsHtml(ym)}<div class="shortage-ok">✓ 講師が決まっていないコマはありません</div>`;
     bindShortageDashboardActions(wrap);
     return;
   }
 
   const unassignedHtml = renderShortageListBlock(
-    '未確定', unassignedCount, 'コマ',
+    '講師なし', unassignedCount, 'コマ',
     flatItems.length > 0 ? flatItems.map(renderShortageDashboardItem).join('') : '',
-    '未確定のコマ',
-    '未確定のコマはありません',
+    '講師が決まっていないコマ',
+    '講師が決まっていないコマはありません',
   );
 
   const draftHtml = renderShortageListBlock(
@@ -784,7 +785,7 @@ function renderShortageDashboard(){
   );
 
   const noteHtml = (unassignedCount === 0 && draftCount === 0)
-    ? '<div class="shortage-ok">未確定・仮決めのコマはありません（承認待ちは下の承認バーを確認してください）</div>'
+    ? '<div class="shortage-ok">講師なし・仮決めのコマはありません（承認待ちは下の承認バーを確認してください）</div>'
     : '';
 
   wrap.innerHTML = `${renderShortageActionsHtml(ym)}<div class="shortage-two-col">${unassignedHtml}${draftHtml}</div>${noteHtml}`;

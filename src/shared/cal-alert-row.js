@@ -1,4 +1,4 @@
-/** カレンダー上部アラート行（案C4）— 未確定・承認待ち共通 */
+/** カレンダー上部アラート行（案C4）— 講師なし・承認待ち共通 */
 
 export function calAlertDateParts(dateStr, getDayStatus){
   const status = getDayStatus(dateStr);
@@ -48,10 +48,21 @@ export function buildApprovalAlertRowHtml({ whenPill, teacherHead, personInline,
   return `<div class="${cls}">${inner}</div>`;
 }
 
-/** カレンダー上部ステータスバーの見出し（件数バッジ） */
+/** カレンダー上部ステータスバーの見出し（要対応＋件数KPI） */
 export function buildCalStatusSummaryHtml(chips, okLabel = '✓ すべて確定です'){
   if(!chips.length){
-    return `<span class="cal-status-chip is-ok">${okLabel}</span>`;
+    return `<span class="cal-status-kpi is-ok"><span class="cal-status-kpi-label">${okLabel}</span></span>`;
   }
-  return chips.map(chip=> `<span class="cal-status-chip is-${chip.kind}">${chip.text}</span>`).join('');
+  const items = chips.map(chip=>{
+    const label = chip.label || '';
+    const count = chip.count ?? '';
+    const unit = chip.unit || '';
+    const note = chip.note ? `<span class="cal-status-kpi-note">${chip.note}</span>` : '';
+    return `<span class="cal-status-kpi is-${chip.kind}">
+      <span class="cal-status-kpi-label">${label}</span>
+      <span class="cal-status-kpi-value"><span class="cal-status-kpi-num">${count}</span><span class="cal-status-kpi-unit">${unit}</span></span>
+      ${note}
+    </span>`;
+  }).join('');
+  return `<span class="cal-status-kpi-lead">要対応</span><span class="cal-status-kpi-group">${items}</span>`;
 }

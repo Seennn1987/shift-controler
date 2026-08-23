@@ -203,7 +203,7 @@ export function collectPendingSlotSummary(yearMonth){
 
 export function renderMatchSlotSummaryBar(summary){
   if(summary.total === 0){
-    return '<div class="match-slot-summary-bar is-all-done">未確定の希望コマはありません。</div>';
+    return '<div class="match-slot-summary-bar is-all-done">講師が決まっていない希望コマはありません。</div>';
   }
   return `<div class="match-slot-summary-bar">
     <span class="match-slot-summary-item"><span class="match-status-badge is-priority">1人コマあり</span> ${summary.priority}件</span>

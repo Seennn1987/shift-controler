@@ -695,7 +695,25 @@
   .shortage-two-col{
     display:grid;grid-template-columns:1fr 1fr;gap:8px;min-width:0;
   }
-  .shortage-list-block .approval-col{min-height:200px;}
+  .shortage-panel{
+    display:flex;flex-direction:column;min-width:0;
+    background:var(--surface-card);border:1px solid var(--border);border-radius:var(--radius-xl);
+    overflow:hidden;
+  }
+  .shortage-panel-head{
+    display:flex;align-items:baseline;justify-content:space-between;gap:8px;
+    padding:10px 12px;border-bottom:1px solid var(--border);background:var(--surface-muted);
+  }
+  .shortage-panel-label{font-size:var(--text-sm);font-weight:800;color:var(--ink);}
+  .shortage-panel-count{
+    display:inline-flex;align-items:baseline;gap:2px;white-space:nowrap;
+    font-size:var(--text-xs);font-weight:700;color:var(--ink-soft);
+  }
+  .shortage-panel-num{font-size:var(--text-xl);font-weight:900;color:var(--ink);letter-spacing:-.02em;}
+  .shortage-panel-scroll{max-height:280px;overflow:auto;padding:8px;}
+  .shortage-panel-empty{
+    padding:16px 12px;font-size:var(--text-sm);font-weight:600;color:var(--ink-soft);text-align:center;
+  }
   @media (max-width:640px){
     .shortage-actions-grid,
     .shortage-two-col{grid-template-columns:1fr;}
@@ -920,6 +938,7 @@
   }
   button.cal-status-toggle:hover{background:var(--brand-50);}
   button.cal-status-toggle:active{background:var(--brand-100);}
+  button.cal-status-toggle:focus:not(:focus-visible){outline:none;}
   button.cal-status-toggle:focus-visible{outline:2px solid var(--brand-500);outline-offset:2px;}
   button.cal-status-toggle .cal-status-chevron{
     flex-shrink:0;font-size:var(--text-sm);font-weight:700;color:var(--ink-soft);margin-left:auto;
@@ -927,9 +946,31 @@
   }
   button.cal-status-toggle:hover .cal-status-chevron{color:var(--brand-600);}
   .cal-status-text{
-    display:flex;flex-wrap:wrap;align-items:center;gap:6px;
+    display:flex;flex-wrap:wrap;align-items:center;gap:8px 12px;
     font-size:var(--text-md);font-weight:700;color:var(--ink);flex:1;min-width:140px;
   }
+  .cal-status-kpi-lead{
+    font-size:var(--text-xs);font-weight:800;color:var(--danger);letter-spacing:.04em;
+    padding:2px 8px;border-radius:var(--radius-pill);background:var(--danger-bg);white-space:nowrap;
+  }
+  .cal-status-kpi-group{display:flex;flex-wrap:wrap;align-items:center;gap:8px 14px;}
+  .cal-status-kpi{
+    display:inline-flex;align-items:baseline;flex-wrap:wrap;gap:4px 6px;
+    line-height:1.2;
+  }
+  .cal-status-kpi-label{font-size:var(--text-sm);font-weight:700;color:var(--ink-soft);}
+  .cal-status-kpi-value{display:inline-flex;align-items:baseline;gap:2px;}
+  .cal-status-kpi-num{font-size:var(--text-xl);font-weight:900;color:var(--ink);letter-spacing:-.02em;}
+  .cal-status-kpi-unit{font-size:var(--text-xs);font-weight:700;color:var(--ink-soft);}
+  .cal-status-kpi-note{
+    flex-basis:100%;font-size:var(--text-xs);font-weight:600;color:var(--ink-soft);margin-top:2px;
+  }
+  .cal-status-kpi.is-tentative .cal-status-kpi-num{color:var(--warning-ink);}
+  .cal-status-kpi.is-unassigned .cal-status-kpi-num{color:var(--pending-ink);}
+  .cal-status-kpi.is-pending .cal-status-kpi-num{color:var(--ink);}
+  .cal-status-kpi.is-absence .cal-status-kpi-num,
+  .cal-status-kpi.is-rejected .cal-status-kpi-num{color:var(--danger);}
+  .cal-status-kpi.is-ok .cal-status-kpi-label{color:var(--green-800);}
   .cal-status-chip{
     display:inline-flex;align-items:center;
     font-size:var(--text-xs);font-weight:700;padding:3px 10px;border-radius:var(--radius-pill);

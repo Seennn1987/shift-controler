@@ -631,7 +631,7 @@ function buildMatchingSlotCard(r, student, dateStr, weekday){
 
   return `<div class="match-slot matching-pick-slot mp-slot-card">
     <div class="ms-slot-label">${r.slot.label}（${r.slot.time}）<span class="mp-slot-meta">教室 ${roomUsed}/${S.roomCapacity}</span></div>
-    <div class="mp-slot-subject"><span class="sched-student-tag" style="background:${c.bg};color:${c.text};">${r.course.subject}</span><span class="mp-slot-badge pending">未確定</span></div>
+    <div class="mp-slot-subject"><span class="sched-student-tag" style="background:${c.bg};color:${c.text};">${r.course.subject}</span><span class="mp-slot-badge pending">講師なし</span></div>
     <div class="matching-panel-cand-list">${buildCandidatesHtml(student, r.course.id, r.course.subject, weekday, r.slot.id, dateStr)}</div>
   </div>`;
 }
@@ -747,7 +747,7 @@ function renderStudentPeriodSlots(studentId, scrollToDateStr){
       <div class="matching-panel-student-grade">${gradeLabel(student)}</div>
     </div>
     ${buildPostAssignBannersHtml()}
-    <p class="matching-panel-hint">${periodLabel}のコマ一覧（${dayCount}日分）${totalPending > 0 ? ` — 未確定 <strong>${totalPending}コマ</strong>` : ''}</p>
+    <p class="matching-panel-hint">${periodLabel}のコマ一覧（${dayCount}日分）${totalPending > 0 ? ` — 講師なし <strong>${totalPending}コマ</strong>` : ''}</p>
     ${daySectionsHtml
       ? `<div class="matching-panel-period-list">${daySectionsHtml}</div>`
       : `<p class="matching-panel-hint">この期間に表示できるコマがありません。</p>`}
@@ -846,7 +846,7 @@ function renderMatchingDesiredBar(){
       const eff = findEffectiveAssignment(student.id, course.id, ds.day, ds.slot, ym);
       const c = subjectColor(student.level, course.subject);
       let status = 'pending';
-      let label = '未確定';
+      let label = '講師なし';
       if(eff){
         if(eff.isDraft){
           status = 'draft';

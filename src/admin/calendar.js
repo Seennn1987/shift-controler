@@ -71,7 +71,7 @@ function studentRowToCalLine(r, student){
     const teacher = S.teachers.find(t=>t.id===r.existing.teacherId);
     return {text:`${subAbbr}:${teacher?shortName(teacher.name):'?'}`, cls:'confirmed', bg:sc.bg, color:sc.text};
   }
-  return {text:`${subAbbr}:未確定`, cls:'pending'};
+  return {text:`${subAbbr}:講師なし`, cls:'pending'};
 }
 
 function calLineToHtml(l){
