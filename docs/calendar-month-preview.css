@@ -1603,3 +1603,159 @@ h2 {
   font-size: 11px;
   color: var(--preview-ink-faint);
 }
+
+/* ===== v6d 公開後：表記・切れ目修正 ===== */
+.week-v6d-fix-block {
+  background: var(--preview-card);
+  border: 2px solid var(--preview-brand);
+  border-radius: 14px;
+  padding: 22px 20px 28px;
+  margin-bottom: 48px;
+}
+
+.week-v6d-fix-block h2 { color: var(--preview-brand-deep); }
+
+.week-v6d-label-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 10px;
+}
+
+@media (max-width: 900px) {
+  .week-v6d-label-grid { grid-template-columns: 1fr 1fr; }
+}
+
+.week-v6d-label-panel {
+  border: 1px solid var(--preview-border);
+  border-radius: 10px;
+  overflow: hidden;
+  min-width: 0;
+}
+
+.week-v6d-label-head {
+  font-size: 10px;
+  font-weight: 900;
+  text-align: center;
+  padding: 7px 6px;
+  border-bottom: 1px solid var(--preview-border);
+  background: var(--preview-surface-subtle);
+}
+
+.week-v6d-label-head.is-rec { background: #EEF6EB; color: #2D5016; }
+
+.week-v6d-label-body { padding: 6px; }
+
+.week-v6d-label-note {
+  font-size: 10px;
+  color: var(--preview-ink-soft);
+  line-height: 1.45;
+  padding: 6px 8px 8px;
+  border-top: 1px dashed var(--preview-border);
+}
+
+/* マス土台（v6d） */
+.week-v6d-well {
+  background: #E8EBF0;
+  border-radius: 6px;
+  min-height: 108px;
+  position: relative;
+}
+
+.week-v6d-stack {
+  padding: 6px;
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
+.week-v6d-card {
+  background: var(--preview-card);
+  border: 1px solid rgba(212, 216, 221, 0.85);
+  border-radius: 8px;
+  padding: 7px 8px;
+  box-shadow: 0 2px 4px rgba(51, 51, 51, 0.08);
+}
+
+/* --- 人数ラベル variants --- */
+.week-v6d-count-bar {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--preview-ink);
+  padding: 5px 8px 4px;
+  border-bottom: 1px solid var(--preview-border);
+  background: rgba(255, 255, 255, 0.65);
+}
+
+.week-v6d-count-bar.no-line { border-bottom: none; padding-bottom: 2px; }
+
+.week-v6d-count-inline {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--preview-ink-soft);
+  padding: 6px 8px 2px;
+}
+
+.week-v6d-count-badge {
+  position: absolute;
+  top: 5px;
+  right: 6px;
+  font-size: 10px;
+  font-weight: 900;
+  padding: 2px 7px;
+  border-radius: 999px;
+  background: var(--preview-card);
+  border: 1px solid var(--preview-border);
+  color: var(--preview-ink);
+  box-shadow: 0 1px 2px rgba(51, 51, 51, 0.08);
+}
+
+.week-v6d-count-badge.is-rec {
+  background: var(--preview-brand-deep);
+  color: #fff;
+  border-color: var(--preview-brand-deep);
+}
+
+.week-v6d-stack.has-badge { padding-top: 24px; }
+
+/* --- コマ行の切れ目 mock --- */
+.week-v6d-slot-stack { border: 1px solid var(--preview-border); border-radius: 8px; overflow: hidden; }
+
+.week-v6d-slot-row {
+  background: #E8EBF0;
+  border-top: 1px solid var(--preview-border);
+}
+
+.week-v6d-slot-row:first-child { border-top: none; }
+
+.week-v6d-slot-row.is-strong-next { border-top: 2px solid #15803D; }
+
+.week-v6d-slot-label {
+  font-size: 10px;
+  font-weight: 900;
+  color: var(--preview-ink-soft);
+  padding: 4px 8px;
+  background: rgba(255, 255, 255, 0.5);
+  border-bottom: 1px solid rgba(0, 0, 0, 0.05);
+}
+
+.week-v6d-slot-row .week-v6d-well {
+  border-radius: 0;
+  min-height: 88px;
+}
+
+.week-v6d-annotate-diagram {
+  margin-top: 10px;
+  font-size: 11px;
+  line-height: 1.65;
+  color: var(--preview-ink-soft);
+}
+
+.week-v6d-annotate-diagram .bad-line {
+  color: #9B1C1C;
+  font-weight: 700;
+}
+
+.week-v6d-annotate-diagram .good-line {
+  color: #2D5016;
+  font-weight: 700;
+}

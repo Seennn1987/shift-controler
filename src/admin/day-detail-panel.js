@@ -17,6 +17,7 @@ import { gradeLabel, subjectColor, teacherHonorific } from './schedule-core.js';
 import { renderTeacherAbsencePanel } from './teacher-absence-panel.js';
 import {
   cancelAssignment,
+  cancelDualAssignment,
   countRoomSlotOnDate,
   countTeacherSlotOnDate,
   findAlternativeSlots,
@@ -25,11 +26,30 @@ import {
   findEffectiveAssignment,
   getActiveYearMonth,
 } from './teacher-schedule-tab.js';
-import { buildMatchCandidatesHtml } from './match-candidates-html.js';
+import { buildDualMatchCandidatesHtml, buildMatchCandidatesHtml } from './match-candidates-html.js';
 import { buildPrefPairActionHtmlForTeacher, buildDraftSlotCardHtml, buildWaitingSlotCardHtml } from './match-candidate-ui.js';
 import { mountWithdrawConfirm } from './withdraw-pending-ui.js';
 import { showInlineNotice } from '../shared/inline-confirm.js';
 import { analyzePendingMatchSlot } from './match-slot-status.js';
+import { buildDualSubjectTagsHtml, findDualPairForStudent } from './dual-subject.js';
+
+function buildRowSubjectTagHtml(student, r){
+  if(r.dualPair && r.courses?.length === 2){
+    return buildDualSubjectTagsHtml(student.level, r.courses.map(c=> c.subject), subjectColor);
+  }
+  const c = subjectColor(student.level, r.course.subject);
+  return `<span class="sched-student-tag" style="background:${c.bg};color:${c.text};">${r.course.subject}</span>`;
+}
+
+function cancelRowDraftOrAssignment(btn){
+  if(btn.dataset.dual === '1'){
+    const student = S.students.find(s=> s.id === btn.dataset.student);
+    const dualPair = findDualPairForStudent(student, btn.dataset.day, Number(btn.dataset.slot));
+    if(dualPair) cancelDualAssignment(btn.dataset.student, dualPair, btn.dataset.day, Number(btn.dataset.slot));
+    return;
+  }
+  cancelAssignment(btn.dataset.student, btn.dataset.course, btn.dataset.day, Number(btn.dataset.slot));
+}
 
 export function getDayDetailTitle(dateStr){
   const status = getDayStatus(dateStr);
@@ -46,16 +66,26 @@ export function getDayDetailTitle(dateStr){
 }
 
 function buildUnassignedSlotHtml(row, dateStr, weekday){
-  const { student, course, slot } = row;
-  const c = subjectColor(student.level, course.subject);
-  const candHtml = buildMatchCandidatesHtml(
-    student, course.id, course.subject, weekday, slot.id, dateStr,
-    { btnClass: 'confirm-btn mp-confirm-btn', showConfirm: true },
-  ) || `<div class="match-none">対応できる講師がいません</div>`;
+  const { student, course, slot, dualPair } = row;
+  const subjectTag = dualPair
+    ? buildDualSubjectTagsHtml(student.level, row.courses.map(c=> c.subject), subjectColor)
+    : (()=>{
+      const c = subjectColor(student.level, course.subject);
+      return `<span class="sched-student-tag" style="background:${c.bg};color:${c.text};">${course.subject}</span>`;
+    })();
+  const candHtml = (dualPair
+    ? buildDualMatchCandidatesHtml(student, dualPair, weekday, slot.id, dateStr, {
+      btnClass: 'confirm-btn mp-confirm-btn',
+      showConfirm: true,
+    })
+    : buildMatchCandidatesHtml(
+      student, course.id, course.subject, weekday, slot.id, dateStr,
+      { btnClass: 'confirm-btn mp-confirm-btn', showConfirm: true },
+    )) || `<div class="match-none">対応できる講師がいません</div>`;
 
   return `<div class="day-detail-unassigned">
     <div class="day-detail-unassigned-head">
-      <span class="sched-student-tag" style="background:${c.bg};color:${c.text};">${course.subject}</span>
+      ${subjectTag}
       <span>${student.name}さん</span>
       <span class="grade-tag">${gradeLabel(student)}</span>
       <span class="mp-slot-badge pending">講師なし</span>
@@ -86,7 +116,9 @@ export function renderDayDetailPanel(container, dateStr){
     html += `<button type="button" class="ghost mp-action day-detail-go-month" data-student-id="${filterStudent.id}">${filterStudent.name}さんの月間一覧へ</button>`;
 
     rows.forEach(r=>{
-      const c = subjectColor(filterStudent.level, r.course.subject);
+      const subjectTag = buildRowSubjectTagHtml(filterStudent, r);
+      const isDual = !!r.dualPair;
+      const dualAttr = isDual ? ' data-dual="1"' : '';
 
       if(r.isMakeupTarget){
         const teacher = S.teachers.find(t=> t.id === r.absence.makeup.teacherId);
@@ -94,7 +126,7 @@ export function renderDayDetailPanel(container, dateStr){
           <div class="ms-slot-label">${r.slot.label}（${r.slot.time}）</div>
           <div class="confirmed-box makeup-box">
             <span class="cb-label makeup-label">振替授業</span>
-            <span class="sched-student-tag" style="background:${c.bg};color:${c.text};">${r.course.subject}</span>
+            ${subjectTag}
             <span class="cb-teacher">講師：${teacherHonorific(teacher)}</span>
             <button class="cancel-makeup-btn" data-absence="${r.absence.id}">振替を取り消す</button>
           </div>
@@ -110,7 +142,7 @@ export function renderDayDetailPanel(container, dateStr){
             <div class="ms-slot-label">${r.slot.label}（${r.slot.time}）</div>
             <div class="absence-box">
               <span class="cb-label absence-label">欠席</span>
-              <span class="sched-student-tag" style="background:${c.bg};color:${c.text};">${r.course.subject}</span>
+              ${subjectTag}
               <span class="cb-teacher">振替先：${mDate.getMonth() + 1}/${mDate.getDate()}（${teacher ? teacher.name : '?'}）</span>
               <button class="cancel-absence-btn" data-absence="${r.absence.id}">欠席を取り消す</button>
             </div>
@@ -121,7 +153,7 @@ export function renderDayDetailPanel(container, dateStr){
             <div class="ms-slot-label">${r.slot.label}（${r.slot.time}）</div>
             <div class="absence-box">
               <span class="cb-label absence-label">欠席（振替なし）</span>
-              <span class="sched-student-tag" style="background:${c.bg};color:${c.text};">${r.course.subject}</span>
+              ${subjectTag}
               <button class="find-makeup-btn" data-absence="${r.absence.id}" data-student="${filterStudent.id}" data-level="${filterStudent.level}" data-subject="${r.course.subject}" data-date="${dateStr}" data-target="${panelId2}">振替を探す</button>
               <button class="cancel-absence-btn" data-absence="${r.absence.id}">欠席を取り消す</button>
             </div>
@@ -133,7 +165,7 @@ export function renderDayDetailPanel(container, dateStr){
             <div class="ms-slot-label">${r.slot.label}（${r.slot.time}）</div>
             <div class="absence-box">
               <span class="cb-label absence-label">欠席（未対応）</span>
-              <span class="sched-student-tag" style="background:${c.bg};color:${c.text};">${r.course.subject}</span>
+              ${subjectTag}
               <button class="find-makeup-btn" data-absence="${r.absence.id}" data-student="${filterStudent.id}" data-level="${filterStudent.level}" data-subject="${r.course.subject}" data-date="${dateStr}" data-target="${panelId}">振替を探す</button>
               <button class="no-makeup-btn" data-absence="${r.absence.id}">振替なしで確定</button>
               <button class="cancel-absence-btn" data-absence="${r.absence.id}">欠席を取り消す</button>
@@ -150,7 +182,6 @@ export function renderDayDetailPanel(container, dateStr){
         const autoBadge = r.existing.source === 'auto' ? '<span class="auto-badge">自動</span>' : '';
         if(r.isDraft){
           const roomUsed = countRoomSlotOnDate(dateStr, r.slot.id, null);
-          const subjectTag = `<span class="sched-student-tag" style="background:${c.bg};color:${c.text};">${r.course.subject}</span>`;
           html += buildDraftSlotCardHtml({
             slotLabel: r.slot.label,
             slotTime: r.slot.time,
@@ -164,10 +195,10 @@ export function renderDayDetailPanel(container, dateStr){
             slotId: r.slot.id,
             dateStr,
             autoBadge,
+            dual: isDual,
           });
         }else if(r.isPending){
           const roomUsed = countRoomSlotOnDate(dateStr, r.slot.id, null);
-          const subjectTag = `<span class="sched-student-tag" style="background:${c.bg};color:${c.text};">${r.course.subject}</span>`;
           html += buildWaitingSlotCardHtml({
             slotLabel: r.slot.label,
             slotTime: r.slot.time,
@@ -180,6 +211,7 @@ export function renderDayDetailPanel(container, dateStr){
             weekday,
             slotId: r.slot.id,
             dateStr,
+            dual: isDual,
           });
         }else{
           const prefHtml = buildPrefPairActionHtmlForTeacher(filterStudent.id, r.course.id, r.existing.teacherId);
@@ -187,12 +219,12 @@ export function renderDayDetailPanel(container, dateStr){
             <div class="ms-slot-label">${r.slot.label}（${r.slot.time}）</div>
             <div class="confirmed-box">
               <span class="cb-label">確定${autoBadge}</span>
-              <span class="sched-student-tag" style="background:${c.bg};color:${c.text};">${r.course.subject}</span>
+              ${subjectTag}
               <span class="cb-teacher">講師：${teacherHonorific(teacher)}</span>
               <span class="cb-cap">（定員 ${used}/${S.teacherCapacity}）</span>
               <div class="confirmed-box-actions">${prefHtml}
-                <button class="absent-btn" data-student="${filterStudent.id}" data-course="${r.course.id}" data-subject="${r.course.subject}" data-day="${weekday}" data-slot="${r.slot.id}" data-date="${dateStr}">欠席にする</button>
-                <button class="unconfirm-btn" data-student="${filterStudent.id}" data-course="${r.course.id}" data-day="${weekday}" data-slot="${r.slot.id}">確定を解除</button>
+                <button class="absent-btn" data-student="${filterStudent.id}" data-course="${r.course.id}" data-subject="${r.course.subject}" data-day="${weekday}" data-slot="${r.slot.id}" data-date="${dateStr}"${dualAttr}>欠席にする</button>
+                <button class="unconfirm-btn" data-student="${filterStudent.id}" data-course="${r.course.id}" data-day="${weekday}" data-slot="${r.slot.id}"${dualAttr}>確定を解除</button>
               </div>
             </div>
           </div>`;
@@ -207,13 +239,17 @@ export function renderDayDetailPanel(container, dateStr){
         }
 
         const roomUsed = countRoomSlotOnDate(dateStr, r.slot.id, null);
-        const slotAnalysis = analyzePendingMatchSlot(filterStudent, r.course, weekday, r.slot.id, detailYearMonth, dateStr);
-
-        let candHtml = buildMatchCandidatesHtml(
-          filterStudent, r.course.id, r.course.subject, weekday, r.slot.id, dateStr,
-          { btnClass: 'confirm-btn mp-confirm-btn', showConfirm: true },
-        );
+        let candHtml = isDual
+          ? buildDualMatchCandidatesHtml(filterStudent, r.dualPair, weekday, r.slot.id, dateStr, {
+            btnClass: 'confirm-btn mp-confirm-btn',
+            showConfirm: true,
+          })
+          : buildMatchCandidatesHtml(
+            filterStudent, r.course.id, r.course.subject, weekday, r.slot.id, dateStr,
+            { btnClass: 'confirm-btn mp-confirm-btn', showConfirm: true },
+          );
         if(!candHtml){
+          const slotAnalysis = analyzePendingMatchSlot(filterStudent, r.course, weekday, r.slot.id, detailYearMonth, dateStr);
           const alternatives = findAlternativeSlots(filterStudent.level, r.course.subject, r.course.desiredSlots);
           candHtml = `<div class="match-none">${slotAnalysis.label}：${slotAnalysis.detailLines?.[0] || `対応できる講師がいません（${weekday}曜${r.slot.label}は希望通りには組めません）`}</div>`;
           if(alternatives.length === 0){
@@ -237,7 +273,7 @@ export function renderDayDetailPanel(container, dateStr){
 
         html += `<div class="match-slot">
           <div class="ms-slot-label">${r.slot.label}（${r.slot.time}）<span style="font-weight:400;color:var(--ink-soft);"> ／ 教室 ${roomUsed}/${S.roomCapacity}</span></div>
-          <div style="margin-bottom:6px;"><span class="sched-student-tag" style="background:${c.bg};color:${c.text};">${r.course.subject}</span></div>
+          <div style="margin-bottom:6px;">${subjectTag}</div>
           ${candHtml}
         </div>`;
       }
@@ -346,14 +382,14 @@ export function bindDayDetailEvents(container, dateStr, onRefresh){
 
   container.querySelectorAll('.unconfirm-btn').forEach(btn=>{
     btn.addEventListener('click', ()=>{
-      cancelAssignment(btn.dataset.student, btn.dataset.course, btn.dataset.day, Number(btn.dataset.slot));
+      cancelRowDraftOrAssignment(btn);
       refresh();
     });
   });
 
   container.querySelectorAll('.cancel-draft-btn').forEach(btn=>{
     btn.addEventListener('click', ()=>{
-      cancelAssignment(btn.dataset.student, btn.dataset.course, btn.dataset.day, Number(btn.dataset.slot));
+      cancelRowDraftOrAssignment(btn);
       refresh();
     });
   });

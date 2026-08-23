@@ -1589,6 +1589,38 @@
   .scc-slot-filled-btn{flex-direction:column;gap:4px;padding:6px 4px!important;height:auto!important;min-height:48px;}
   .scc-subject-name{font-size:var(--text-xs);font-weight:700;padding:3px 8px;border-radius:var(--radius-sm);}
   .scc-cell-badge{font-size:10px;padding:2px 6px;line-height:1.3;white-space:nowrap;}
+  .scc-dual-tags{display:flex;flex-wrap:wrap;align-items:center;justify-content:center;gap:2px 4px;}
+  .scc-dual-plus{font-size:10px;font-weight:700;color:var(--ink-soft);padding:0 1px;}
+  .scc-dual-mode-label{font-size:10px;font-weight:700;color:var(--ink-soft);}
+  .student-course-popover-dual{max-width:min(22rem,calc(100vw - 16px));}
+  .student-course-popover .scp-section-label{font-size:var(--text-xs);font-weight:700;color:var(--ink-soft);margin:0 0 6px;text-transform:none;}
+  .student-course-popover .scp-subjects-compact{max-height:9rem;overflow:auto;}
+  .student-course-popover .scp-dual-details{margin-top:10px;border-top:1px solid var(--border);padding-top:8px;}
+  .student-course-popover .scp-dual-summary{
+    font-size:var(--text-xs);font-weight:700;color:var(--ink-soft);cursor:pointer;list-style:none;
+  }
+  .student-course-popover .scp-dual-summary::-webkit-details-marker{display:none;}
+  .student-course-popover .scp-dual-details[open] .scp-dual-summary{color:var(--green-800);margin-bottom:8px;}
+  .student-course-popover .scp-dual-divider{
+    font-size:var(--text-xs);font-weight:700;color:var(--green-800);margin:12px 0 8px;padding-top:10px;
+    border-top:1px solid var(--border);
+  }
+  .student-course-popover .scp-dual-row{display:flex;flex-direction:column;gap:6px;margin-bottom:8px;}
+  .student-course-popover .scp-dual-label{font-size:var(--text-xs);font-weight:700;color:var(--ink-soft);}
+  .student-course-popover .scp-dual-chips{display:flex;flex-wrap:wrap;gap:6px;}
+  .student-course-popover .scp-dual-chip{
+    border:1px solid var(--border);background:var(--surface-card);color:var(--ink);
+    font-family:inherit;font-size:var(--text-xs);font-weight:700;padding:4px 10px;border-radius:var(--radius-sm);
+    cursor:pointer;background:var(--chip-bg, var(--surface-card));color:var(--chip-fg, var(--ink));
+  }
+  .student-course-popover .scp-dual-chip:hover{border-color:var(--brand-500);}
+  .student-course-popover .scp-dual-chip.is-selected-a,
+  .student-course-popover .scp-dual-chip.is-selected-b{
+    box-shadow:0 0 0 2px var(--brand-400);border-color:var(--brand-600);
+  }
+  .student-course-popover .scp-dual-status{min-height:1.5rem;margin-bottom:8px;}
+  .student-course-popover .scp-dual-hint-text{font-size:var(--text-xs);color:var(--ink-soft);}
+  .student-course-popover .scp-dual-save{width:100%;justify-content:center;}
 
   /* マッチングコマ状態バッジ */
   .match-slot-status-row{margin:6px 0 10px;}

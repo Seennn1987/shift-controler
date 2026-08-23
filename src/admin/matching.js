@@ -10,7 +10,8 @@ import { renderCalendarWeek, switchCalMode, switchView } from './finance-ui.js';
 import { gradeLabel, isTeacherAvailableOnDate, subjectColor } from './schedule-core.js';
 import { saveStudents, scheduleSave, scheduleSyncTeacherAssignments } from './students-persistence.js';
 import { renderTeacherList } from './teachers.js';
-import { assignmentAppliesOnDate, approvalAppliesInMonth, buildCandidateInfo, confirmAssignment, cancelAllDrafts, cancelDraftAuto, findEffectiveAssignment, getActiveYearMonth, getPreferredTeachersForCourse, isAssignmentEffectiveInMonth, loadAssignmentApprovals, loadDismissedApprovalIds, openMatchingForApprovalTicket, renderApprovalDashboardItem, saveDismissedApprovalIds, sendDraftAssignments, teacherHasSubmittedMonth } from './teacher-schedule-tab.js';
+import { assignmentAppliesOnDate, approvalAppliesInMonth, buildCandidateInfo, confirmAssignment, confirmDualAssignment, cancelAllDrafts, cancelDraftAuto, findEffectiveAssignment, getActiveYearMonth, getPreferredTeachersForCourse, isAssignmentEffectiveInMonth, loadAssignmentApprovals, loadDismissedApprovalIds, openMatchingForApprovalTicket, renderApprovalDashboardItem, saveDismissedApprovalIds, sendDraftAssignments, teacherHasSubmittedMonth } from './teacher-schedule-tab.js';
+import { findDualPairAtSlot, teacherTeachesBoth } from './dual-subject.js';
 import { compareCandidateInfo, getMatchingPriority, MATCHING_FACTOR_META } from './matching-config.js';
 import { mountInlineConfirm, showActiveTabNotice } from '../shared/inline-confirm.js';
 import { dismissAppConfirmDialog, runAppConfirmDialog } from '../shared/app-confirm-dialog.js';
@@ -39,10 +40,37 @@ function bulkAutoAssign(){
     const weekday = status.weekday;
 
     S.students.forEach(s=>{
+      const processedDual = new Set();
       s.courses.forEach(course=>{
         course.desiredSlots.forEach(ds=>{
           if(ds.day !== weekday) return;
           if(S.regularClosedDays.includes(ds.day)) return;
+          if(ds.dualGroupId){
+            const dualKey = `${ds.day}:${ds.slot}:${ds.dualGroupId}`;
+            if(processedDual.has(dualKey)) return;
+            const dualPair = findDualPairAtSlot(s.courses, ds.day, ds.slot);
+            if(!dualPair) return;
+            processedDual.add(dualKey);
+            const hasAbsence = dualPair.entries.some(({ course: co })=>
+              findAbsenceFor(s.id, co.id, dateStr, ds.day, ds.slot));
+            if(hasAbsence) return;
+            if(dualPair.entries.every(({ course: co })=>
+              findEffectiveAssignment(s.id, co.id, ds.day, ds.slot, ym, dateStr))) return;
+
+            const [subjectA, subjectB] = dualPair.subjects;
+            const candidateCount = S.teachers
+              .filter(t=> isTeacherAvailableOnDate(t.id, dateStr, ds.slot) &&
+                teacherTeachesBoth(t, s.level, subjectA, subjectB))
+              .map(t=> buildCandidateInfo(s.id, dualPair.entries[0].course.id, s.level, subjectA, ds.day, ds.slot, t, dateStr))
+              .filter(c=> !c.full).length;
+
+            pending.push({
+              dateStr, studentId: s.id, dual: true, dualPair,
+              day: ds.day, slot: ds.slot, candidateCount,
+              subjects: dualPair.subjects,
+            });
+            return;
+          }
           if(findAbsenceFor(s.id, course.id, dateStr, ds.day, ds.slot)) return;
           if(findEffectiveAssignment(s.id, course.id, ds.day, ds.slot, ym, dateStr)) return;
 
@@ -66,25 +94,48 @@ function bulkAutoAssign(){
   let filled = 0, skipped = 0;
   pending.forEach(p=>{
     if(p.candidateCount === 0){ skipped++; return; }
-    if(findEffectiveAssignment(p.studentId, p.courseId, p.day, p.slot, ym, p.dateStr)){ skipped++; return; }
-    if(findAbsenceFor(p.studentId, p.courseId, p.dateStr, p.day, p.slot)){ skipped++; return; }
+    if(p.dual){
+      if(p.dualPair.entries.some(({ course })=>
+        findEffectiveAssignment(p.studentId, course.id, p.day, p.slot, ym, p.dateStr))){ skipped++; return; }
+      if(p.dualPair.entries.some(({ course })=>
+        findAbsenceFor(p.studentId, course.id, p.dateStr, p.day, p.slot))){ skipped++; return; }
+    }else{
+      if(findEffectiveAssignment(p.studentId, p.courseId, p.day, p.slot, ym, p.dateStr)){ skipped++; return; }
+      if(findAbsenceFor(p.studentId, p.courseId, p.dateStr, p.day, p.slot)){ skipped++; return; }
+    }
 
     const student = S.students.find(s=> s.id === p.studentId);
     if(!student){ skipped++; return; }
 
-    const candidates = S.teachers
-      .filter(t=> isTeacherAvailableOnDate(t.id, p.dateStr, p.slot) &&
-        t.subjects.some(ts=> ts.level === student.level && ts.subject === p.subject))
-      .map(t=> buildCandidateInfo(p.studentId, p.courseId, student.level, p.subject, p.day, p.slot, t, p.dateStr))
-      .filter(c=> !c.full)
-      .sort(compareCandidateInfo);
+    let candidates;
+    if(p.dual){
+      const [subjectA, subjectB] = p.subjects;
+      candidates = S.teachers
+        .filter(t=> isTeacherAvailableOnDate(t.id, p.dateStr, p.slot) &&
+          teacherTeachesBoth(t, student.level, subjectA, subjectB))
+        .map(t=> buildCandidateInfo(p.studentId, p.dualPair.entries[0].course.id, student.level, subjectA, p.day, p.slot, t, p.dateStr))
+        .filter(c=> !c.full)
+        .sort(compareCandidateInfo);
+    }else{
+      candidates = S.teachers
+        .filter(t=> isTeacherAvailableOnDate(t.id, p.dateStr, p.slot) &&
+          t.subjects.some(ts=> ts.level === student.level && ts.subject === p.subject))
+        .map(t=> buildCandidateInfo(p.studentId, p.courseId, student.level, p.subject, p.day, p.slot, t, p.dateStr))
+        .filter(c=> !c.full)
+        .sort(compareCandidateInfo);
+    }
 
     if(candidates.length === 0){ skipped++; return; }
 
-    const result = confirmAssignment(
-      p.studentId, p.courseId, p.subject, p.day, p.slot,
-      candidates[0].teacher.id, 'auto', { dateStr: p.dateStr },
-    );
+    const result = p.dual
+      ? confirmDualAssignment(
+        p.studentId, p.dualPair, p.day, p.slot,
+        candidates[0].teacher.id, 'auto', { dateStr: p.dateStr },
+      )
+      : confirmAssignment(
+        p.studentId, p.courseId, p.subject, p.day, p.slot,
+        candidates[0].teacher.id, 'auto', { dateStr: p.dateStr },
+      );
     if(result.ok) filled++; else skipped++;
   });
 

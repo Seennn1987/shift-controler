@@ -12,11 +12,30 @@
   <header class="preview-header">
     <div class="preview-header-inner">
       <h1>カレンダー UI プレビュー</h1>
-      <p>先頭に<strong>週間 v6 修正案（4パターン）</strong>。v5 公開後のフィードバックを反映。下に過去の v5/v4 比較あり。</p>
+      <p>先頭に<strong>v6d 公開後の修正</strong>（「教室2人」の表記・4講/5講の切れ目）。その下に v6 案比較など。</p>
     </div>
   </header>
 
   <main class="preview-main">
+    <section class="week-v6d-fix-block" id="weekV6dFixSection">
+      <h2>v6d 公開後フィードバック → 表記・切れ目の修正案</h2>
+      <p class="section-desc">いまは<strong>「教室 2人」</strong>＋その下の区切り線。表記が不自然・横線が<strong>4講/5講の切れ目</strong>と混ざる、との指摘への回答です。</p>
+      <div id="weekV6dFixSummary" class="v4-summary"></div>
+      <div id="weekV6dFixRecommend" class="week-v6-recommend"></div>
+
+      <h3 class="sub-heading">① 「教室 2人」の表記 — 4案</h3>
+      <p class="section-desc">「教室」は場所、「2人/2名」は人数で<strong>言葉がくっついていて違和感</strong>が出やすい。同じマス（2人・未決あり）で比較。</p>
+      <div id="weekV6dLabelCompare" class="week-v6d-label-grid"></div>
+
+      <h3 class="sub-heading">② 区切り線の問題 — ヘッダー下の線 vs 4講/5講</h3>
+      <p class="section-desc">マス内の横線は<strong>コマの境界線</strong>に見える。人数ラベル下の線は<strong>やめる</strong>方向が正しい。</p>
+      <div id="weekV6dSepCompare" class="column-compare"></div>
+
+      <h3 class="sub-heading">③ 4講と5講の切れ目をはっきり — 表側の線</h3>
+      <p class="section-desc">切れ目は<strong>行と行の間（表の罫線）</strong>で示す。左＝いま / 右＝おすすめ（コマ行を太線＋ヘッダー下線なし）。</p>
+      <div id="weekV6dSlotRowCompare" class="column-compare"></div>
+    </section>
+
     <section class="week-v6-block" id="weekV6Section">
       <h2>v5 公開後フィードバック → 週間 v6 案（4パターン）</h2>
       <p class="section-desc">v5（枠なしリスト）は<strong>より分かりづらい</strong>との指摘。表の線と生徒情報の差は、<strong>生徒ボックスを浮かせる</strong>方向で再設計します。</p>

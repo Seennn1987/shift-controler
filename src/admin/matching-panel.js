@@ -14,7 +14,9 @@ import { bindDayDetailEvents, getDayDetailTitle, renderDayDetailPanel } from './
 import {
   addPreferredPair,
   cancelAssignment,
+  cancelDualAssignment,
   confirmAssignment,
+  confirmDualAssignment,
   countRoomSlot,
   countRoomSlotOnDate,
   countTeacherSlot,
@@ -24,8 +26,9 @@ import {
   removePreferredPairFor,
   withdrawPendingAssignment,
 } from './teacher-schedule-tab.js';
-import { buildMatchCandidatesHtml } from './match-candidates-html.js';
+import { buildDualMatchCandidatesHtml, buildMatchCandidatesHtml } from './match-candidates-html.js';
 import { buildDraftSlotCardHtml, buildPrefPairActionHtmlForTeacher, buildWaitingSlotCardHtml } from './match-candidate-ui.js';
+import { buildDualSubjectTagsHtml, findDualPairForStudent } from './dual-subject.js';
 import { mountWithdrawConfirm } from './withdraw-pending-ui.js';
 import { mountInlineConfirm, showInlineNotice } from '../shared/inline-confirm.js';
 
@@ -393,11 +396,35 @@ function bindBackToMenu(root){
   });
 }
 
-function buildCandidatesHtml(student, courseId, subject, day, slot, dateStr){
-  return buildMatchCandidatesHtml(student, courseId, subject, day, slot, dateStr, {
+function buildCandidatesHtml(student, r, weekday, dateStr){
+  if(r.dualPair){
+    return buildDualMatchCandidatesHtml(student, r.dualPair, weekday, r.slot.id, dateStr, {
+      btnClass: 'confirm-btn mp-confirm-btn',
+      showConfirm: true,
+    });
+  }
+  return buildMatchCandidatesHtml(student, r.course.id, r.course.subject, weekday, r.slot.id, dateStr, {
     btnClass: 'confirm-btn mp-confirm-btn',
     showConfirm: true,
   });
+}
+
+function buildRowSubjectTagHtml(student, r){
+  if(r.dualPair && r.courses?.length === 2){
+    return buildDualSubjectTagsHtml(student.level, r.courses.map(c=> c.subject), subjectColor);
+  }
+  const c = subjectColor(student.level, r.course.subject);
+  return `<span class="sched-student-tag" style="background:${c.bg};color:${c.text};">${r.course.subject}</span>`;
+}
+
+function cancelRowDraftOrAssignment(btn){
+  if(btn.dataset.dual === '1'){
+    const student = S.students.find(s=> s.id === btn.dataset.student);
+    const dualPair = findDualPairForStudent(student, btn.dataset.day, Number(btn.dataset.slot));
+    if(dualPair) cancelDualAssignment(btn.dataset.student, dualPair, btn.dataset.day, Number(btn.dataset.slot));
+    return;
+  }
+  cancelAssignment(btn.dataset.student, btn.dataset.course, btn.dataset.day, Number(btn.dataset.slot));
 }
 
 function buildAssignmentFlashMessage({slotLabel, subject, teacherName, draft, pending}){
@@ -451,7 +478,7 @@ function resolvePendingTeacherName(btn, dateStr){
 function bindChangeTeacherButtons(root){
   root.querySelectorAll('.cancel-draft-btn').forEach(btn=>{
     btn.addEventListener('click', ()=>{
-      cancelAssignment(btn.dataset.student, btn.dataset.course, btn.dataset.day, Number(btn.dataset.slot));
+      cancelRowDraftOrAssignment(btn);
       scheduleSave();
       matchingPanelFlashMsg = '下書きを解除しました。別の講師を選んでください。';
       afterMatchingChange(btn.dataset.date || null);
@@ -483,26 +510,46 @@ function bindConfirmButtons(root){
   root.querySelectorAll('.mp-confirm-btn').forEach(btn=>{
     btn.addEventListener('click', ()=>{
       const teacher = S.teachers.find(t=> t.id === btn.dataset.teacher);
-      const result = confirmAssignment(
-        btn.dataset.student,
-        btn.dataset.course,
-        btn.dataset.subject,
-        btn.dataset.day,
-        Number(btn.dataset.slot),
-        btn.dataset.teacher,
-        'manual',
-        { dateStr: btn.dataset.date || null }
-      );
+      let result;
+      if(btn.dataset.dual === '1'){
+        const student = S.students.find(s=> s.id === btn.dataset.student);
+        const dualPair = findDualPairForStudent(student, btn.dataset.day, Number(btn.dataset.slot));
+        if(!dualPair){
+          showInlineNotice(root, '2教科の登録が見つかりません。', { variant: 'warn' });
+          return;
+        }
+        result = confirmDualAssignment(
+          btn.dataset.student,
+          dualPair,
+          btn.dataset.day,
+          Number(btn.dataset.slot),
+          btn.dataset.teacher,
+          'manual',
+          { dateStr: btn.dataset.date || null },
+        );
+      }else{
+        result = confirmAssignment(
+          btn.dataset.student,
+          btn.dataset.course,
+          btn.dataset.subject,
+          btn.dataset.day,
+          Number(btn.dataset.slot),
+          btn.dataset.teacher,
+          'manual',
+          { dateStr: btn.dataset.date || null },
+        );
+      }
       if(!result.ok){
         showInlineNotice(root, result.msg, { variant: 'warn' });
         return;
       }
       scheduleSave();
       const slotDef = SLOTS.find(s=> s.id === Number(btn.dataset.slot));
+      const subjectLabel = result.subjects?.join('・') || btn.dataset.subject;
       const ctx = {
         studentId: btn.dataset.student,
         courseId: btn.dataset.course,
-        subject: btn.dataset.subject,
+        subject: subjectLabel,
         day: btn.dataset.day,
         slot: Number(btn.dataset.slot),
         teacherId: btn.dataset.teacher,
@@ -511,7 +558,7 @@ function bindConfirmButtons(root){
       };
       matchingPanelFlashMsg = buildAssignmentFlashMessage({
         slotLabel: slotDef?.label || '',
-        subject: ctx.subject,
+        subject: subjectLabel,
         teacherName: ctx.teacherName,
         draft: result.draft,
         pending: result.pending,
@@ -553,9 +600,10 @@ function countFutureWeeksForTeacher(teacherId, day, slot, fromDateStr){
 }
 
 function buildMatchingSlotCard(r, student, dateStr, weekday){
-  const c = subjectColor(student.level, r.course.subject);
+  const subjectTag = buildRowSubjectTagHtml(student, r);
   const detailYearMonth = dateStr.slice(0, 7);
   const roomUsed = countRoomSlotOnDate(dateStr, r.slot.id, null);
+  const isDual = !!r.dualPair;
 
   if(r.isMakeupTarget){
     const teacher = S.teachers.find(t=> t.id === r.absence.makeup.teacherId);
@@ -563,7 +611,7 @@ function buildMatchingSlotCard(r, student, dateStr, weekday){
       <div class="ms-slot-label">${r.slot.label}（${r.slot.time}）</div>
       <div class="confirmed-box makeup-box">
         <span class="cb-label makeup-label">振替授業</span>
-        <span class="sched-student-tag" style="background:${c.bg};color:${c.text};">${r.course.subject}</span>
+        ${subjectTag}
         <span class="cb-teacher">講師：${teacherHonorific(teacher)}</span>
       </div>
     </div>`;
@@ -574,7 +622,7 @@ function buildMatchingSlotCard(r, student, dateStr, weekday){
       <div class="ms-slot-label">${r.slot.label}（${r.slot.time}）</div>
       <div class="absence-box">
         <span class="cb-label absence-label">欠席</span>
-        <span class="sched-student-tag" style="background:${c.bg};color:${c.text};">${r.course.subject}</span>
+        ${subjectTag}
         <span class="mp-slot-note">欠席・振替の操作はマッチング終了後、日付詳細から行えます</span>
       </div>
     </div>`;
@@ -584,7 +632,6 @@ function buildMatchingSlotCard(r, student, dateStr, weekday){
     const teacher = S.teachers.find(t=> t.id === r.existing.teacherId);
     const autoBadge = r.existing.source === 'auto' ? '<span class="auto-badge">自動</span>' : '';
     if(r.isDraft){
-      const subjectTag = `<span class="sched-student-tag" style="background:${c.bg};color:${c.text};">${r.course.subject}</span>`;
       return buildDraftSlotCardHtml({
         slotLabel: r.slot.label,
         slotTime: r.slot.time,
@@ -598,10 +645,10 @@ function buildMatchingSlotCard(r, student, dateStr, weekday){
         slotId: r.slot.id,
         dateStr,
         autoBadge,
+        dual: isDual,
       });
     }
     if(r.isPending){
-      const subjectTag = `<span class="sched-student-tag" style="background:${c.bg};color:${c.text};">${r.course.subject}</span>`;
       return buildWaitingSlotCardHtml({
         slotLabel: r.slot.label,
         slotTime: r.slot.time,
@@ -614,6 +661,7 @@ function buildMatchingSlotCard(r, student, dateStr, weekday){
         weekday,
         slotId: r.slot.id,
         dateStr,
+        dual: isDual,
       });
     }
     const used = teacher ? countTeacherSlotOnDate(teacher.id, dateStr, r.slot.id, null) : 0;
@@ -622,7 +670,7 @@ function buildMatchingSlotCard(r, student, dateStr, weekday){
       <div class="ms-slot-label">${r.slot.label}（${r.slot.time}）</div>
       <div class="confirmed-box">
         <span class="cb-label">確定</span>
-        <span class="sched-student-tag" style="background:${c.bg};color:${c.text};">${r.course.subject}</span>
+        ${subjectTag}
         <span class="cb-teacher">講師：${teacherHonorific(teacher)}（${used}/${S.teacherCapacity}）</span>
         <div class="confirmed-box-actions">${prefHtml}</div>
       </div>
@@ -631,8 +679,8 @@ function buildMatchingSlotCard(r, student, dateStr, weekday){
 
   return `<div class="match-slot matching-pick-slot mp-slot-card">
     <div class="ms-slot-label">${r.slot.label}（${r.slot.time}）<span class="mp-slot-meta">教室 ${roomUsed}/${S.roomCapacity}</span></div>
-    <div class="mp-slot-subject"><span class="sched-student-tag" style="background:${c.bg};color:${c.text};">${r.course.subject}</span><span class="mp-slot-badge pending">講師なし</span></div>
-    <div class="matching-panel-cand-list">${buildCandidatesHtml(student, r.course.id, r.course.subject, weekday, r.slot.id, dateStr)}</div>
+    <div class="mp-slot-subject">${subjectTag}<span class="mp-slot-badge pending">講師なし</span></div>
+    <div class="matching-panel-cand-list">${buildCandidatesHtml(student, r, weekday, dateStr)}</div>
   </div>`;
 }
 

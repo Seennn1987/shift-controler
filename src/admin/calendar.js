@@ -10,6 +10,7 @@ import { getWeekMonday, renderCalendarWeek, renderMatrix } from './finance-ui.js
 import { renderMatching } from './matching.js';
 import { subjectColor } from './schedule-core.js';
 import { findEffectiveAssignment, renderApprovalStatus, renderTeacherScheduleTab } from './teacher-schedule-tab.js';
+import { findDualPairAtSlot } from './dual-subject.js';
 
 // カレンダー（トップページ・TimeTree風シンプルUI）
 // =====================================================================
@@ -128,9 +129,25 @@ function countUnassignedDesiredForSlot(dateStr, slotId){
   const yearMonth = dateStr.slice(0, 7);
   let count = 0;
   S.students.forEach(student=>{
+    const processedDual = new Set();
     student.courses.forEach(course=>{
       course.desiredSlots.forEach(ds=>{
         if(ds.day !== weekday || ds.slot !== slotId) return;
+        if(ds.dualGroupId){
+          const dualKey = `${student.id}:${ds.day}:${ds.slot}:${ds.dualGroupId}`;
+          if(processedDual.has(dualKey)) return;
+          const dualPair = findDualPairAtSlot(student.courses, ds.day, ds.slot);
+          if(!dualPair) return;
+          processedDual.add(dualKey);
+          const hasAbsence = dualPair.entries.some(({ course: co })=>
+            findAbsenceFor(student.id, co.id, dateStr, ds.day, ds.slot));
+          if(hasAbsence) return;
+          const allAssigned = dualPair.entries.every(({ course: co })=>
+            findEffectiveAssignment(student.id, co.id, ds.day, ds.slot, yearMonth, dateStr));
+          if(allAssigned) return;
+          count++;
+          return;
+        }
         if(findAbsenceFor(student.id, course.id, dateStr, ds.day, ds.slot)) return;
         if(findEffectiveAssignment(student.id, course.id, ds.day, ds.slot, yearMonth, dateStr)) return;
         count++;
@@ -147,14 +164,39 @@ function getUnassignedRowsForDate(dateStr){
   const yearMonth = dateStr.slice(0, 7);
   const rows = [];
   S.students.forEach(student=>{
+    const processedDual = new Set();
     student.courses.forEach(course=>{
       course.desiredSlots.forEach(ds=>{
         if(ds.day !== weekday) return;
+        if(ds.dualGroupId){
+          const dualKey = `${student.id}:${ds.day}:${ds.slot}:${ds.dualGroupId}`;
+          if(processedDual.has(dualKey)) return;
+          const dualPair = findDualPairAtSlot(student.courses, ds.day, ds.slot);
+          if(!dualPair) return;
+          processedDual.add(dualKey);
+          const hasAbsence = dualPair.entries.some(({ course: co })=>
+            findAbsenceFor(student.id, co.id, dateStr, ds.day, ds.slot));
+          if(hasAbsence) return;
+          const allAssigned = dualPair.entries.every(({ course: co })=>
+            findEffectiveAssignment(student.id, co.id, ds.day, ds.slot, yearMonth, dateStr));
+          if(allAssigned) return;
+          const slot = SLOTS.find(sl=> sl.id === ds.slot);
+          if(!slot) return;
+          rows.push({
+            student,
+            course: dualPair.entries[0].course,
+            courses: dualPair.entries.map(e=> e.course),
+            dualPair,
+            slot,
+            weekday,
+          });
+          return;
+        }
         if(findAbsenceFor(student.id, course.id, dateStr, ds.day, ds.slot)) return;
         if(findEffectiveAssignment(student.id, course.id, ds.day, ds.slot, yearMonth, dateStr)) return;
         const slot = SLOTS.find(sl=> sl.id === ds.slot);
         if(!slot) return;
-        rows.push({ student, course, slot, weekday });
+        rows.push({ student, course, courses: null, dualPair: null, slot, weekday });
       });
     });
   });

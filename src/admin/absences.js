@@ -5,6 +5,7 @@ import { firebaseConfig, fbAuth, fbDb, STORAGE_KEY, getSecondaryAuth, S } from '
 import { getDayStatus } from './calendar.js';
 import { getDateSlotState, isTeacherAvailableOnDate } from './schedule-core.js';
 import { assignmentAppliesOnDate, findEffectiveAssignment, isAssignmentEffectiveInMonth, isPreferredSubjectForTeacher, issueAssignmentApproval } from './teacher-schedule-tab.js';
+import { findDualPairAtSlot, resolveDualRowAssignmentState } from './dual-subject.js';
 
 // ---- 欠席・振替（特定の実日付にのみ影響。曜日パターン自体は変えない） ----
 // {id, studentId, courseId, subject, day, slot, date, status:'pending'|'resolved', makeup:null|{date,slot,teacherId}}
@@ -396,17 +397,58 @@ function getStudentDateRows(student, dateStr){
   const status = getDayStatus(dateStr);
   const weekday = status.weekday;
   const rows = [];
+  const processedDual = new Set();
+  const yearMonth = dateStr.slice(0, 7);
+
   student.courses.forEach(course=>{
     course.desiredSlots.forEach(ds=>{
-      if(ds.day!==weekday) return;
-      const slot = SLOTS.find(sl=>sl.id===ds.slot);
+      if(ds.day !== weekday) return;
+      const slot = SLOTS.find(sl=> sl.id === ds.slot);
+      if(!slot) return;
+
+      if(ds.dualGroupId){
+        const dualKey = `${ds.day}:${ds.slot}:${ds.dualGroupId}`;
+        if(processedDual.has(dualKey)) return;
+        const dualPair = findDualPairAtSlot(student.courses, ds.day, ds.slot);
+        if(!dualPair) return;
+        processedDual.add(dualKey);
+
+        const absence = dualPair.entries
+          .map(({ course: co })=> findAbsenceFor(student.id, co.id, dateStr, ds.day, ds.slot))
+          .find(Boolean) || null;
+        const state = resolveDualRowAssignmentState(
+          student, dualPair, ds.day, ds.slot, yearMonth, dateStr, findEffectiveAssignment,
+        );
+        rows.push({
+          slot,
+          course: dualPair.entries[0].course,
+          courses: dualPair.entries.map(e=> e.course),
+          dualPair,
+          existing: state.existing,
+          absence,
+          isMakeupTarget: false,
+          isPending: state.isPending,
+          isDraft: state.isDraft,
+        });
+        return;
+      }
+
       const absence = findAbsenceFor(student.id, course.id, dateStr, ds.day, ds.slot);
-      const yearMonth = dateStr.slice(0,7);
       const eff = findEffectiveAssignment(student.id, course.id, ds.day, ds.slot, yearMonth, dateStr);
-      let existing = eff ? eff.entry : null;
-      let isPending = eff ? eff.isPending : false;
-      let isDraft = eff ? eff.isDraft : false;
-      rows.push({slot, course, existing, absence, isMakeupTarget:false, isPending, isDraft});
+      const existing = eff ? eff.entry : null;
+      const isPending = eff ? eff.isPending : false;
+      const isDraft = eff ? eff.isDraft : false;
+      rows.push({
+        slot,
+        course,
+        courses: null,
+        dualPair: null,
+        existing,
+        absence,
+        isMakeupTarget: false,
+        isPending,
+        isDraft,
+      });
     });
   });
   S.absences.forEach(ab=>{

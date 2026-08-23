@@ -12,6 +12,7 @@ import {
   buildApprovalAlertRowHtml, buildCalAlertPersonInline,
   buildCalAlertSubjectTag, buildCalAlertTeacherHead, buildCalAlertWhenPill, calAlertDateParts,
 } from '../shared/cal-alert-row.js';
+import { countSlotAssignmentUnits, findDualPairAtSlot } from './dual-subject.js';
 
 // 講師スケジュール（月次提出）タブ
 // =====================================================================
@@ -554,18 +555,20 @@ function assignmentAppliesOnDate(a, dateStr){
 
 function countTeacherSlotOnDate(teacherId, dateStr, slot, excludeStudentId){
   const all = S.assignments.concat(S.pendingAssignments, S.draftAssignments);
-  return all.filter(a=>
-    a.teacherId===teacherId && Number(a.slot)===Number(slot) &&
-    a.studentId!==excludeStudentId && assignmentAppliesOnDate(a, dateStr)
-  ).length;
+  const matched = all.filter(a=>
+    a.teacherId === teacherId && Number(a.slot) === Number(slot) &&
+    a.studentId !== excludeStudentId && assignmentAppliesOnDate(a, dateStr)
+  );
+  return countSlotAssignmentUnits(matched);
 }
 
 function countRoomSlotOnDate(dateStr, slot, excludeStudentId){
   const all = S.assignments.concat(S.pendingAssignments, S.draftAssignments);
-  return all.filter(a=>
-    Number(a.slot)===Number(slot) && a.studentId!==excludeStudentId &&
+  const matched = all.filter(a=>
+    Number(a.slot) === Number(slot) && a.studentId !== excludeStudentId &&
     assignmentAppliesOnDate(a, dateStr)
-  ).length;
+  );
+  return countSlotAssignmentUnits(matched);
 }
 
 function removeSlotAssignmentsOnDate(studentId, courseId, day, slot, dateStr){
@@ -625,19 +628,21 @@ function countCourseConfirmed(studentId, courseId, yearMonth){
 }
 function countTeacherSlot(teacherId, day, slot, excludeStudentId, yearMonth){
   const ym = getActiveYearMonth(yearMonth);
-  const all = S.assignments.concat(S.pendingAssignments, S.draftAssignments); // 定員は確定・承認待ち・下書きすべてでふさがる
-  return all.filter(a=>
-    a.teacherId===teacherId && a.day===day && a.slot===slot && a.studentId!==excludeStudentId &&
+  const all = S.assignments.concat(S.pendingAssignments, S.draftAssignments);
+  const matched = all.filter(a=>
+    a.teacherId === teacherId && a.day === day && a.slot === slot && a.studentId !== excludeStudentId &&
     isAssignmentEffectiveInMonth(a, ym)
-  ).length;
+  );
+  return countSlotAssignmentUnits(matched);
 }
 function countRoomSlot(day, slot, excludeStudentId, yearMonth){
   const ym = getActiveYearMonth(yearMonth);
   const all = S.assignments.concat(S.pendingAssignments, S.draftAssignments);
-  return all.filter(a=>
-    a.day===day && a.slot===slot && a.studentId!==excludeStudentId &&
+  const matched = all.filter(a=>
+    a.day === day && a.slot === slot && a.studentId !== excludeStudentId &&
     isAssignmentEffectiveInMonth(a, ym)
-  ).length;
+  );
+  return countSlotAssignmentUnits(matched);
 }
 
 // 提出済みシフトの「希望コマ」のうち、授業が入っているコマ数を月単位で数える
@@ -664,21 +669,28 @@ function computeTeacherShiftFill(teacherId, yearMonth){
 }
 
 // 講師専用ページで承認してもらうためのチケットを発行する（ログイン未発行の講師には発行しない）
-async function issueAssignmentApproval(studentId, courseId, subject, day, slot, teacherId, oneTimeDate){
+async function issueAssignmentApproval(studentId, courseId, subject, day, slot, teacherId, oneTimeDate, approvalOpts){
+  approvalOpts = approvalOpts || {};
   const teacher = S.teachers.find(t=>t.id===teacherId);
   if(!teacher || !teacher.loginUid) return false;
   const student = S.students.find(s=>s.id===studentId);
   if(!student) return;
   try{
+    const subjects = approvalOpts.subjects || null;
     const payload = {
       adminUid: fbAuth.currentUser.uid,
       teacherId, teacherLoginUid: teacher.loginUid,
       studentName: student.name, studentGrade: gradeLabel(student),
-      subject, day, slot,
+      subject: subjects?.length === 2 ? subjects.join('・') : subject,
+      day, slot,
       status: 'pending',
       createdAt: firebase.firestore.FieldValue.serverTimestamp(),
     };
-    if(oneTimeDate) payload.oneTimeDate = oneTimeDate; // 指定日のみの代講の場合、その日付を明記する
+    if(subjects?.length === 2){
+      payload.subjects = subjects;
+      payload.dualGroupId = approvalOpts.dualGroupId || null;
+    }
+    if(oneTimeDate) payload.oneTimeDate = oneTimeDate;
     await fbDb.collection('assignmentApprovals').add(payload);
     return true;
   }catch(err){
@@ -732,6 +744,72 @@ function confirmAssignment(studentId, courseId, subject, day, slot, teacherId, s
   S.draftAssignments.push(entry);
   return {ok:true, draft:true, pending:false};
 }
+
+function confirmDualAssignment(studentId, dualPair, day, slot, teacherId, source, opts){
+  source = source || 'manual';
+  opts = opts || {};
+  const dateStr = opts.dateStr || null;
+  const teacher = S.teachers.find(t=> t.id === teacherId);
+  if(!teacher) return { ok: false, msg: '講師が見つかりません。' };
+  const student = S.students.find(s=> s.id === studentId);
+  if(!student) return { ok: false, msg: '生徒が見つかりません。' };
+  const courses = dualPair.entries.map(e=> e.course);
+  if(courses.length !== 2) return { ok: false, msg: '2教科の登録が見つかりません。' };
+
+  for(const course of courses){
+    if(!teacher.subjects.some(ts=> ts.level === student.level && ts.subject === course.subject)){
+      return { ok: false, msg: `${teacher.name}先生は${course.subject}と${courses.find(c=> c.id !== course.id)?.subject || 'もう1教科'}の両方を教えられません。` };
+    }
+  }
+
+  if(dateStr){
+    if(!isTeacherAvailableOnDate(teacherId, dateStr, slot)){
+      return { ok: false, msg: `${teacher.name}先生はこの日のシフト未登録です。` };
+    }
+    const teacherUsed = countTeacherSlotOnDate(teacherId, dateStr, slot, studentId);
+    if(teacherUsed >= S.teacherCapacity){
+      const slotLabel = SLOTS.find(s=> s.id === slot)?.label || `${slot}講`;
+      return { ok: false, msg: `${teacher.name}先生は${dateStr} ${slotLabel}の定員（${S.teacherCapacity}人）に達しています。` };
+    }
+    const roomUsed = countRoomSlotOnDate(dateStr, slot, studentId);
+    if(roomUsed >= S.roomCapacity){
+      const slotLabel = SLOTS.find(s=> s.id === slot)?.label || `${slot}講`;
+      return { ok: false, msg: `${dateStr} ${slotLabel}は教室全体の定員（${S.roomCapacity}人）に達しています。` };
+    }
+    courses.forEach(course=>{
+      removeSlotAssignmentsOnDate(studentId, course.id, day, slot, dateStr);
+    });
+  }else{
+    const teacherUsed = countTeacherSlot(teacherId, day, slot, studentId);
+    if(teacherUsed >= S.teacherCapacity){
+      return { ok: false, msg: `${teacher.name}先生は${day}曜${SLOTS.find(s=> s.id === slot).label}の定員（${S.teacherCapacity}人）に達しています。` };
+    }
+    const roomUsed = countRoomSlot(day, slot, studentId);
+    if(roomUsed >= S.roomCapacity){
+      return { ok: false, msg: `${day}曜${SLOTS.find(s=> s.id === slot).label}は教室全体の定員（${S.roomCapacity}人）に達しています。` };
+    }
+    courses.forEach(course=>{
+      removeAllSlotAssignments(studentId, course.id, day, slot);
+    });
+  }
+
+  const dualGroupId = dualPair.dualGroupId;
+  courses.forEach(course=>{
+    const entry = {
+      id: 'asg-' + Date.now() + '-' + Math.random().toString(36).slice(2, 6),
+      studentId, courseId: course.id, subject: course.subject, day, slot, teacherId, source, dualGroupId,
+    };
+    if(dateStr) entry.oneTimeDate = dateStr;
+    S.draftAssignments.push(entry);
+  });
+  return { ok: true, draft: true, pending: false, dual: true, subjects: courses.map(c=> c.subject) };
+}
+
+function cancelDualAssignment(studentId, dualPair, day, slot){
+  dualPair.entries.forEach(({ course })=>{
+    cancelAssignment(studentId, course.id, day, slot);
+  });
+}
 function cancelAssignment(studentId, courseId, day, slot){
   S.assignments = S.assignments.filter(a=>!(a.studentId===studentId && a.courseId===courseId && a.day===day && a.slot===slot));
   S.pendingAssignments = S.pendingAssignments.filter(a=>!(a.studentId===studentId && a.courseId===courseId && a.day===day && a.slot===slot));
@@ -765,6 +843,7 @@ async function sendDraftAssignments(){
   let skippedNoLogin = 0;
   const noLoginTeachers = new Set();
   const keptDrafts = [];
+  const issuedDual = new Set();
   for(const entry of drafts){
     const teacher = S.teachers.find(t=> t.id === entry.teacherId);
     if(!teacher?.loginUid){
@@ -774,10 +853,28 @@ async function sendDraftAssignments(){
       continue;
     }
     S.pendingAssignments.push(entry);
-    await issueAssignmentApproval(
-      entry.studentId, entry.courseId, entry.subject, entry.day, entry.slot,
-      entry.teacherId, entry.oneTimeDate || null,
-    );
+    if(entry.dualGroupId){
+      const groupKey = `${entry.studentId}:${entry.day}:${entry.slot}:${entry.dualGroupId}`;
+      if(!issuedDual.has(groupKey)){
+        const siblings = drafts.filter(d=>
+          d.dualGroupId === entry.dualGroupId &&
+          d.studentId === entry.studentId &&
+          d.day === entry.day &&
+          Number(d.slot) === Number(entry.slot)
+        );
+        await issueAssignmentApproval(
+          entry.studentId, entry.courseId, entry.subject, entry.day, entry.slot,
+          entry.teacherId, entry.oneTimeDate || null,
+          { subjects: siblings.map(d=> d.subject), dualGroupId: entry.dualGroupId },
+        );
+        issuedDual.add(groupKey);
+      }
+    }else{
+      await issueAssignmentApproval(
+        entry.studentId, entry.courseId, entry.subject, entry.day, entry.slot,
+        entry.teacherId, entry.oneTimeDate || null,
+      );
+    }
     pending++;
   }
   S.draftAssignments.push(...keptDrafts);
@@ -792,12 +889,20 @@ async function sendDraftAssignments(){
 async function revokePendingApprovalTicket(student, course, day, slot, oneTimeDate){
   const user = fbAuth.currentUser;
   if(!user) return;
+  const subjectLabel = course.subjects?.length === 2
+    ? course.subjects.join('・')
+    : course.subject;
   const updates = [];
   const snap = await fbDb.collection('assignmentApprovals').where('adminUid','==', user.uid).get();
   snap.forEach(doc=>{
     const a = doc.data();
     if(a.status !== 'pending') return;
-    if(a.studentName !== student.name || a.subject !== course.subject) return;
+    if(a.studentName !== student.name) return;
+    if(a.subjects?.length === 2){
+      if(!course.subjects || a.subject !== subjectLabel) return;
+    }else if(a.subject !== subjectLabel){
+      return;
+    }
     if(a.day !== day || Number(a.slot) !== Number(slot)) return;
     if(oneTimeDate){
       if(a.oneTimeDate !== oneTimeDate) return;
@@ -828,9 +933,16 @@ async function withdrawPendingAssignment(studentId, courseId, day, slot, dateStr
   }
   const teacher = S.teachers.find(t=> t.id === eff.entry.teacherId);
   const oneTimeDate = eff.entry.oneTimeDate || null;
-  cancelAssignment(studentId, courseId, day, slot);
+  const dualPair = findDualPairAtSlot(student.courses || [], day, slot);
+  const isDual = dualPair && dualPair.entries.some(e=> e.course.id === courseId);
+  if(isDual){
+    cancelDualAssignment(studentId, dualPair, day, slot);
+  }else{
+    cancelAssignment(studentId, courseId, day, slot);
+  }
   try{
-    await revokePendingApprovalTicket(student, course, day, slot, oneTimeDate);
+    const subjects = isDual ? dualPair.subjects : [course.subject];
+    await revokePendingApprovalTicket(student, { subject: subjects.join('・'), subjects }, day, slot, oneTimeDate);
   }catch(err){
     console.error('承認依頼取り消しエラー:', err);
     return { ok: false, msg: '依頼の取り消しに失敗しました。' };
@@ -873,4 +985,4 @@ async function replaceDesiredSlot(studentId, courseId, oldDay, oldSlot, newDay, 
 }
 
 
-export { loadPendingChangeRequests, loadAssignmentApprovals, loadDismissedApprovalIds, saveDismissedApprovalIds, approvalAppliesInMonth, openMatchingForApprovalTicket, renderApprovalDashboardItem, renderApprovalStatus, renderChangeRequests, renderTeacherScheduleTab, openTeacherScheduleEditor, renderTeacherScheduleGrid, isPreferredPair, getPreferredTeachersForCourse, getPreferredPairsForTeacher, addPreferredPair, removePreferredPair, removePreferredPairFor, isPreferredSubjectForTeacher, teacherWorksOtherSlotOnWeekday, countTeacherCourseSlotCoverage, buildCandidateInfo, findAssignment, getActiveYearMonth, teacherHasSubmittedMonth, isAssignmentEffectiveInMonth, assignmentAppliesOnDate, findEffectiveAssignment, countCourseConfirmed, countTeacherSlot, countTeacherSlotOnDate, countRoomSlot, countRoomSlotOnDate, issueAssignmentApproval, confirmAssignment, cancelAssignment, cancelDraftAuto, cancelAllDrafts, sendDraftAssignments, countAssignmentsInMonth, withdrawPendingAssignment, findAlternativeSlots, replaceDesiredSlot };
+export { loadPendingChangeRequests, loadAssignmentApprovals, loadDismissedApprovalIds, saveDismissedApprovalIds, approvalAppliesInMonth, openMatchingForApprovalTicket, renderApprovalDashboardItem, renderApprovalStatus, renderChangeRequests, renderTeacherScheduleTab, openTeacherScheduleEditor, renderTeacherScheduleGrid, isPreferredPair, getPreferredTeachersForCourse, getPreferredPairsForTeacher, addPreferredPair, removePreferredPair, removePreferredPairFor, isPreferredSubjectForTeacher, teacherWorksOtherSlotOnWeekday, countTeacherCourseSlotCoverage, buildCandidateInfo, findAssignment, getActiveYearMonth, teacherHasSubmittedMonth, isAssignmentEffectiveInMonth, assignmentAppliesOnDate, findEffectiveAssignment, countCourseConfirmed, countTeacherSlot, countTeacherSlotOnDate, countRoomSlot, countRoomSlotOnDate, issueAssignmentApproval, confirmAssignment, confirmDualAssignment, cancelAssignment, cancelDualAssignment, cancelDraftAuto, cancelAllDrafts, sendDraftAssignments, countAssignmentsInMonth, withdrawPendingAssignment, findAlternativeSlots, replaceDesiredSlot };

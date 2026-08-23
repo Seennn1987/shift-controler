@@ -31,6 +31,8 @@ export function renderMatchCandidateList(candidates, opts){
     showConfirm = true,
     showPrefPairAction = true,
     showPrefPairSetAction = false,
+    dual = false,
+    subjects = null,
   } = opts;
 
   if(roomFull){
@@ -58,6 +60,7 @@ export function renderMatchCandidateList(candidates, opts){
         data-day="${escapeAttr(day)}"
         data-slot="${slot}"
         data-teacher="${escapeAttr(cand.teacher.id)}"
+        ${dual ? 'data-dual="1"' : ''}
         ${dateStr ? `data-date="${escapeAttr(dateStr)}"` : ''}>この講師に依頼</button>` : '';
     html += `<div class="match-cand-row">
       <span class="match-cand-rank">${idx + 1}</span>
@@ -87,8 +90,10 @@ export function buildDraftSlotCardHtml({
   slotId,
   dateStr,
   autoBadge = '',
+  dual = false,
 }){
   const name = teacherName || '不明';
+  const dualAttr = dual ? ' data-dual="1"' : '';
   return `<div class="match-slot mp-slot-card mp-slot-waiting">
     <div class="ms-slot-label">${slotLabel}（${slotTime}）<span class="mp-slot-meta">教室 ${roomUsed}/${roomCapacity}</span></div>
     <div class="mp-slot-subject">${subjectTagHtml}<span class="mp-slot-badge tentative">仮決め</span>${autoBadge}</div>
@@ -104,7 +109,7 @@ export function buildDraftSlotCardHtml({
                 data-course="${escapeAttr(courseId)}"
                 data-day="${escapeAttr(weekday)}"
                 data-slot="${slotId}"
-                data-date="${escapeAttr(dateStr)}">別の講師を選ぶ</button>
+                data-date="${escapeAttr(dateStr)}"${dualAttr}>別の講師を選ぶ</button>
             </div>
           </div>
         </div>
@@ -125,8 +130,10 @@ export function buildWaitingSlotCardHtml({
   weekday,
   slotId,
   dateStr,
+  dual = false,
 }){
   const name = teacherName || '不明';
+  const dualAttr = dual ? ' data-dual="1"' : '';
   return `<div class="match-slot mp-slot-card mp-slot-waiting">
     <div class="ms-slot-label">${slotLabel}（${slotTime}）<span class="mp-slot-meta">教室 ${roomUsed}/${roomCapacity}</span></div>
     <div class="mp-slot-subject">${subjectTagHtml}<span class="mp-slot-badge waiting">承認待ち</span></div>
@@ -142,7 +149,7 @@ export function buildWaitingSlotCardHtml({
                 data-course="${escapeAttr(courseId)}"
                 data-day="${escapeAttr(weekday)}"
                 data-slot="${slotId}"
-                data-date="${escapeAttr(dateStr)}">別の講師を選ぶ</button>
+                data-date="${escapeAttr(dateStr)}"${dualAttr}>別の講師を選ぶ</button>
             </div>
           </div>
         </div>

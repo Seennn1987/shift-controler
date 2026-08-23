@@ -1038,6 +1038,145 @@ function renderWeekV6GridTable(contentFn) {
   return `<table class="week-grid-table week-v6-table"><thead><tr><th>4講</th>${headers}</tr></thead><tbody><tr><th>14:50〜</th>${cells}</tr></tbody></table>`;
 }
 
+/* ===== v6d 公開後：表記・切れ目 ===== */
+const WEEK_V6D_FIX_SUMMARY = 'いまの <strong>「教室 2人」</strong> は、場所（教室）と人数がくっついて不自然に聞こえやすい（「教室2名」と覚えてしまう方もいる）。また人数行の<strong>下線</strong>は、表の横罫線と同じ太さ・色で、<strong>4講と5講の境界</strong>と混同される。';
+
+const WEEK_V6D_LABEL_SAMPLES = [
+  {
+    id: 'now',
+    title: '現状',
+    rec: false,
+    note: '「教室＋人数」が硬い。下線で横線がもう1本増える',
+    renderCount(count) {
+      return `<div class="week-v6d-count-bar">教室 ${count}人</div>`;
+    },
+  },
+  {
+    id: 'student',
+    title: '案1 生徒2名',
+    rec: false,
+    note: '誰の人数か明確。下線なし',
+    renderCount(count) {
+      return `<div class="week-v6d-count-bar no-line">生徒${count}名</div>`;
+    },
+  },
+  {
+    id: 'badge',
+    title: '案2 ★2名バッジ',
+    rec: true,
+    note: '短く自然。ヘッダー帯ごと不要',
+    renderCount(count) {
+      return `<span class="week-v6d-count-badge is-rec">${count}名</span>`;
+    },
+    badge: true,
+  },
+  {
+    id: 'items',
+    title: '案3 予定2件',
+    rec: false,
+    note: '件数として読める。やや事務的',
+    renderCount(count) {
+      return `<div class="week-v6d-count-inline">予定${count}件</div>`;
+    },
+  },
+];
+
+const WEEK_V6D_SAMPLE_DAY = {
+  roomCount: 2,
+  lessons: [
+    { subject: '国語', student: 'テスト はなこ', grade: '小4', teacher: '三田', pending: false },
+    { subject: '算数', student: 'テスト 太郎', grade: '小5', teacher: null, pending: true },
+  ],
+};
+
+function renderWeekV6dCards(day) {
+  return day.lessons.map(l => `<div class="week-v6d-card">${renderWeekV6LessonBody(l)}</div>`).join('');
+}
+
+function renderWeekV6dLabelCell(sample, labelDef) {
+  const badgeCls = labelDef.badge ? ' has-badge' : '';
+  const countHtml = labelDef.renderCount(sample.roomCount);
+  return `<div class="week-v6d-well">${countHtml}<div class="week-v6d-stack${badgeCls}">${renderWeekV6dCards(sample)}</div></div>`;
+}
+
+function renderWeekV6dSlotRow(slotLabel, day, opts = {}) {
+  const { countBar = true, strongTop = false } = opts;
+  const rowCls = ['week-v6d-slot-row', strongTop ? 'is-strong-next' : ''].filter(Boolean).join(' ');
+  const countHtml = countBar
+    ? `<div class="week-v6d-count-bar">教室 ${day.roomCount}人</div>`
+    : `<span class="week-v6d-count-badge is-rec">${day.roomCount}名</span>`;
+  const stackCls = countBar ? '' : ' has-badge';
+  return `<div class="${rowCls}">
+    <div class="week-v6d-slot-label">${slotLabel}</div>
+    <div class="week-v6d-well">${countHtml}<div class="week-v6d-stack${stackCls}">${renderWeekV6dCards(day)}</div></div>
+  </div>`;
+}
+
+function renderWeekV6dFixSection() {
+  document.getElementById('weekV6dFixSummary').innerHTML = WEEK_V6D_FIX_SUMMARY;
+  document.getElementById('weekV6dFixRecommend').innerHTML = `
+    <strong>AIのおすすめ（セット）</strong><br>
+    ① 表記 → <strong>右上の「2名」バッジ</strong>（「教室」は外す）<br>
+    ② 区切り → 人数ラベルの<strong>下線はやめる</strong>（白帯ヘッダーも不要）<br>
+    ③ 4講/5講 → <strong>表の行と行の間</strong>を太めの線（いまの4講行頭の2px緑線を全コマ行に）
+  `;
+
+  document.getElementById('weekV6dLabelCompare').innerHTML = WEEK_V6D_LABEL_SAMPLES.map(s => `
+    <div class="week-v6d-label-panel">
+      <div class="week-v6d-label-head${s.rec ? ' is-rec' : ''}">${s.title}</div>
+      <div class="week-v6d-label-body">${renderWeekV6dLabelCell(WEEK_V6D_SAMPLE_DAY, s)}</div>
+      <div class="week-v6d-label-note">${s.note}</div>
+    </div>
+  `).join('');
+
+  document.getElementById('weekV6dSepCompare').innerHTML = `
+    <div class="compare-panel">
+      <div class="compare-panel-head v3b-now">いま — 「教室2人」の下に横線</div>
+      <div class="compare-panel-body">
+        ${renderWeekV6dLabelCell(WEEK_V6D_SAMPLE_DAY, WEEK_V6D_LABEL_SAMPLES[0])}
+        <div class="week-v6d-annotate-diagram">
+          <span class="bad-line">問題：</span>この横線が、すぐ下の4講/5講の表罫線と<strong>同じ見た目</strong> → 「どこがコマの切れ目？」が分からない
+        </div>
+      </div>
+    </div>
+    <div class="compare-panel">
+      <div class="compare-panel-head v4">おすすめ — 2名バッジ・下線なし</div>
+      <div class="compare-panel-body">
+        ${renderWeekV6dLabelCell(WEEK_V6D_SAMPLE_DAY, WEEK_V6D_LABEL_SAMPLES[2])}
+        <div class="week-v6d-annotate-diagram">
+          <span class="good-line">改善：</span>マス内に横線を増やさない。人数は小さなバッジだけ。生徒カードの<strong>上の余白</strong>でヘッダー役を兼ねる
+        </div>
+      </div>
+    </div>
+  `;
+
+  const day4 = WEEK_V6D_SAMPLE_DAY;
+  const day5 = { roomCount: 1, lessons: [{ subject: '国語', student: 'テスト はなこ', grade: '小4', teacher: '三田', pending: false }] };
+
+  document.getElementById('weekV6dSlotRowCompare').innerHTML = `
+    <div class="compare-panel">
+      <div class="compare-panel-head v3b-now">いま — 細い横線が重なる</div>
+      <div class="compare-panel-body">
+        <div class="week-v6d-slot-stack">
+          ${renderWeekV6dSlotRow('4講 14:50〜16:20', day4, { countBar: true })}
+          ${renderWeekV6dSlotRow('5講 16:40〜18:10', day5, { countBar: true, strongTop: false })}
+        </div>
+        <div class="week-v6d-annotate-diagram">4講マス下の線 ＋ 表の線 ＋ 5講ヘッダー下の線 → <strong>3本</strong>が近い位置に並ぶ</div>
+      </div>
+    </div>
+    <div class="compare-panel">
+      <div class="compare-panel-head v4">おすすめ — コマ行だけ太線</div>
+      <div class="compare-panel-body">
+        <div class="week-v6d-slot-stack">
+          ${renderWeekV6dSlotRow('4講 14:50〜16:20', day4, { countBar: false })}
+          ${renderWeekV6dSlotRow('5講 16:40〜18:10', day5, { countBar: false, strongTop: true })}
+        </div>
+        <div class="week-v6d-annotate-diagram"><span class="good-line">4講と5講の間だけ太線</span>（表側）。マス内はバッジ＋カードのみ</div>
+      </div>
+    </div>
+  `;
+}
+
 function renderWeekV6Section() {
   document.getElementById('weekV6Summary').innerHTML = WEEK_V6_SUMMARY;
   document.getElementById('weekV6Recommend').innerHTML = `
@@ -1302,6 +1441,7 @@ function renderV4PlanSection() {
 
 document.getElementById('principleList').innerHTML = PRINCIPLES.map(p => `<li>${p}</li>`).join('');
 document.getElementById('weekPrincipleList').innerHTML = WEEK_PRINCIPLES.map(p => `<li>${p}</li>`).join('');
+renderWeekV6dFixSection();
 renderWeekV6Section();
 renderWeekV5Section();
 renderV4PlanSection();

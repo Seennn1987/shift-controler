@@ -1,0 +1,32 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>小学生・90分2教科 生徒登録プレビュー</title>
+  <link rel="stylesheet" href="student-dual-subject-preview.css">
+</head>
+<body>
+  <header class="preview-header">
+    <h1>小学生・生徒登録プレビュー（1教科メイン）</h1>
+    <p>通常は <strong>1教科・90分</strong>。必要な生徒だけ <strong>2教科（45分×2）</strong> を選びます。</p>
+  </header>
+  <main class="preview-main">
+    <section class="preview-block">
+      <h2>週カレンダー（デモ）</h2>
+      <p class="preview-note">「＋」をクリック → まず <strong>1教科</strong> を選ぶ通常操作。2教科が必要なときだけ、折りたたみの「2教科で登録」を開きます。</p>
+      <div id="calendarDemo" class="demo-grid-wrap"></div>
+      <div id="summaryDemo" class="tag-row"></div>
+    </section>
+    <section class="preview-block">
+      <h2>確定したルール（計画書 §8）</h2>
+      <ul class="preview-note">
+        <li>売上・講師給：<strong>1コマ分</strong>（2教科でも1回）</li>
+        <li>欠席：<strong>コマ全体</strong>／振替：<strong>2教科セット</strong></li>
+        <li>マッチング（Phase 2）：<strong>両方教えられる講師のみ</strong></li>
+      </ul>
+    </section>
+  </main>
+  <script src="student-dual-subject-preview.js"></script>
+</body>
+</html>
