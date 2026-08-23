@@ -1,0 +1,64 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ピタコマ 週間カレンダー UI プレビュー v2</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Zen+Kaku+Gothic+New:wght@400;500;700;900&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="../src/shared/styles/variables.css">
+  <link rel="stylesheet" href="calendar-week-preview.css">
+</head>
+<body>
+  <header class="preview-header">
+    <div class="preview-header-inner">
+      <h1>週間カレンダー UI プレビュー v2</h1>
+      <p>フィードバック（学年・バッジの多さ・自動バッジ）を踏まえ、<strong>3つの修正案</strong>を比較します。おすすめは<strong>案R1</strong>です。</p>
+      <p class="preview-url">URL: <a href="http://localhost:5173/docs/calendar-week-preview.html">http://localhost:5173/docs/calendar-week-preview.html</a></p>
+    </div>
+  </header>
+
+  <main class="preview-main">
+    <section class="intro-block">
+      <h2>指摘の整理</h2>
+      <div id="issueList" class="issue-list"></div>
+      <div id="recommendBox" class="recommend-box"></div>
+    </section>
+
+    <section class="compare-block">
+      <h2>① 修正案 3パターン — 同じ4状態で比較</h2>
+      <p class="section-desc">木曜4講・4人分。マス幅150px相当。左から案R1（おすすめ）→ R2 → R3。</p>
+      <div id="revisionCompare" class="revision-grid"></div>
+    </section>
+
+    <section class="compare-block">
+      <h2>② 自動バッジ — 要否の整理</h2>
+      <div id="autoAnalysis" class="analysis-box"></div>
+    </section>
+
+    <section class="compare-block">
+      <h2>③ 学年の見せ方 — 位置と表記</h2>
+      <div id="gradeCompare" class="grade-compare-grid"></div>
+    </section>
+
+    <section class="compare-block">
+      <h2>④ 案R1 — 1週間グリッド</h2>
+      <p class="section-desc">採用候補。自動バッジなし・学年は名前直後・状態バッジは2行目右端のみ。</p>
+      <div id="weekGridR1" class="week-grid-wrap"></div>
+    </section>
+
+    <section class="compare-block">
+      <h2>⑤ 各案の長所・短所</h2>
+      <div id="prosCons" class="pros-cons-grid"></div>
+    </section>
+
+    <section class="compare-block is-archived">
+      <h2>【参考】v1 改善案（却下理由付き）</h2>
+      <p class="section-desc">前回案。学年が右端独立・自動バッジあり・バッジ3つ並び。</p>
+      <div id="v1Compare" class="card-compare-grid"></div>
+    </section>
+  </main>
+
+  <script src="calendar-week-preview.js"></script>
+</body>
+</html>

@@ -274,27 +274,33 @@ function buildTeacherAxisCell(list){
   return boxesHtml;
 }
 
-// 週間カレンダー：生徒カード（2行・未決は講師行のみ）
-function buildWeekLessonCard({ subject, subjectStyle, studentName, gradeLabel, teacher, isPending, isDraft = false, isWaiting = false, autoBadge = '', makeupBadge = '' }){
-  let teacherHtml;
-  if(isPending){
-    teacherHtml = '<span class="sched-card-meta-value is-pending">未決</span>';
-  }else if(isDraft){
-    teacherHtml = `<span class="sched-card-meta-value is-draft">${teacherHonorific(teacher)}（仮）</span>`;
-  }else if(isWaiting){
-    teacherHtml = `<span class="sched-card-meta-value is-waiting">${teacherHonorific(teacher)}（承認待ち）</span>`;
-  }else{
-    teacherHtml = `<span class="sched-card-meta-value">${teacherHonorific(teacher)}</span>`;
-  }
+function buildWeekFlowBadge(isPending, isDraft, isWaiting){
+  if(isPending) return '<span class="cal-status-chip is-unassigned">講師なし</span>';
+  if(isDraft) return '<span class="cal-status-chip is-tentative-outline">仮決め</span>';
+  if(isWaiting) return '<span class="cal-status-chip is-waiting">承認待ち</span>';
+  return '';
+}
+
+// 週間カレンダー：生徒カード（案R1 — 学年は名前直後・状態バッジは2行目右端・自動バッジなし）
+function buildWeekLessonCard({ subject, subjectStyle, studentName, gradeLabel, teacher, isPending, isDraft = false, isWaiting = false, makeupBadge = '' }){
+  const subjectAbbr = SUBJECT_ABBR[subject] || subject.slice(0, 1);
+  const gradeHtml = gradeLabel ? `<span class="grade-tag">${gradeLabel}</span>` : '';
+  const flowBadge = buildWeekFlowBadge(isPending, isDraft, isWaiting);
+  const teacherText = isPending
+    ? '<span class="sched-card-meta-value is-pending">—</span>'
+    : `<span class="sched-card-meta-value">${teacherHonorific(teacher)}</span>`;
+  const statusCol = flowBadge
+    ? `<span class="sched-card-status">${flowBadge}</span>`
+    : '<span class="sched-card-status"></span>';
   return `<div class="sched-lesson-card">
-    <div class="sched-card-row1">
-      <span class="sched-student-tag" style="background:${subjectStyle.bg};color:${subjectStyle.text};">${subject}</span>
-      <span class="sched-card-name">${studentName}</span>
-      <span class="sched-card-grade">${gradeLabel}</span>${autoBadge}${makeupBadge}
+    <div class="sched-card-row1 sched-card-row1--inline">
+      <span class="sched-student-tag" style="background:${subjectStyle.bg};color:${subjectStyle.text};">${subjectAbbr}</span>
+      <span class="sched-card-name-line">${studentName}${gradeHtml}${makeupBadge}</span>
     </div>
-    <div class="sched-card-row2">
+    <div class="sched-card-row2 sched-card-row2--grid">
       <span class="sched-card-meta-label">講師</span>
-      ${teacherHtml}
+      ${teacherText}
+      ${statusCol}
     </div>
   </div>`;
 }
@@ -308,7 +314,6 @@ function buildStudentAxisCell(list){
     const level = student ? student.level : '';
     const c = level ? subjectColor(level, a.subject) : {bg:'#eee', text:'#333'};
     const teacher = S.teachers.find(t=>t.id===a.teacherId);
-    const autoBadge = a.source==='auto' ? '<span class="auto-badge">\u81ea\u52d5</span>' : '';
     const makeupBadge = a.kind==='makeup' ? '<span class="auto-badge" style="background:#fff;color:var(--ink);border:1px dashed var(--ink);">\u632f\u66ff</span>' : '';
     return buildWeekLessonCard({
       subject: a.subject,
@@ -319,7 +324,6 @@ function buildStudentAxisCell(list){
       isPending: false,
       isDraft: !!a.draft,
       isWaiting: !!a.pending,
-      autoBadge,
       makeupBadge,
     });
   }).join('');
