@@ -44,15 +44,15 @@ export function summarizeDrafts(drafts){
     else if(d.action === 'cancel') cancel++;
   });
   const parts = [];
-  if(approve) parts.push(`受ける${approve}件`);
-  if(reject) parts.push(`受けられない${reject}件`);
+  if(approve) parts.push(`承認${approve}件`);
+  if(reject) parts.push(`辞退${reject}件`);
   if(cancel) parts.push(`キャンセル依頼${cancel}件`);
   return parts.join('・') || '';
 }
 
 export function actionLabel(action){
-  if(action === 'approve') return '受ける';
-  if(action === 'reject') return '受けられない';
+  if(action === 'approve') return '承認';
+  if(action === 'reject') return '辞退';
   if(action === 'cancel') return 'キャンセルを依頼';
   return action;
 }

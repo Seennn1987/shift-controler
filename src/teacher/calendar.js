@@ -1,5 +1,6 @@
 import { SLOTS, WEEKDAY_JP } from '../shared/constants.js';
 import { collapseTeacherCalendarEntries } from '../admin/dual-subject.js';
+import { subjectColor } from '../admin/schedule-core.js';
 import { pad2, daysInYearMonth, toDateStr } from '../shared/date-utils.js';
 import { S } from './state.js';
 import { getDayStatus } from './day-status.js';
@@ -38,63 +39,86 @@ function groupEntriesBySlot(entries){
   return map;
 }
 
-function buildStudentLineHtml(entry){
+function levelFromGrade(grade){
+  if(!grade) return '中学';
+  if(grade.startsWith('小')) return '小学';
+  if(grade.startsWith('中')) return '中学';
+  if(grade.startsWith('高')) return '高校';
+  return '中学';
+}
+
+function buildSubjectTagHtml(subject, studentGrade){
+  const c = subjectColor(levelFromGrade(studentGrade), subject);
+  return `<span class="sched-student-tag" style="background:${c.bg};color:${c.text};">${subject}</span>`;
+}
+
+function buildStudentLineHtml(entry, isLast){
   const approvalState = resolveApprovalState(entry);
-  const pendingCancel = findPendingCancellation(entry);
-  const cancelKey = draftKeyForCancel(entry);
-  const cancelDraft = S.responseDrafts[cancelKey];
-  let badges = '';
-  if(approvalState === 'confirmed') badges += '<span class="mycal-status-badge is-confirmed">確定</span>';
-  if(entry.isPreferredPair) badges += '<span class="mycal-status-badge is-assigned">担当生徒</span>';
-
-  let cancelHtml = '';
-  if(approvalState === 'confirmed'){
-    if(pendingCancel){
-      cancelHtml = '<span class="schedule-cancel-note">キャンセル待ち</span>';
-    }else if(cancelDraft){
-      cancelHtml = `<button type="button" class="mycal-undo-btn" data-draft-key="${cancelKey}">取り消す</button>`;
-    }else{
-      const payload = encodeURIComponent(JSON.stringify({
-        day: entry.day, slot: entry.slot, subject: entry.subject,
-        studentName: entry.studentName, studentGrade: entry.studentGrade || '',
-        oneTimeDate: entry.oneTimeDate || null,
-      }));
-      cancelHtml = `<button type="button" class="mycal-cancel-btn schedule-cancel-btn" data-cancel-entry="${payload}">キャンセルを依頼</button>`;
-    }
-  }
-
   const isPending = approvalState === 'pending';
   const ticket = isPending ? findPendingTicket(entry.day, entry.slot, entry.subject, entry.studentName, entry.oneTimeDate) : null;
   if(isPending && !ticket){
-    return `<div class="mycal-slot-student is-pending"><span><b>${entry.studentName}</b>（${entry.studentGrade || ''}） ${entry.subject}</span><span class="mycal-orphan-note">反映待ち</span></div>`;
+    const gradePart = entry.studentGrade ? `（${entry.studentGrade}）` : '';
+    return `<div class="mycal-slot-student is-orphan${isLast ? '' : ' has-divider'}">
+      ${buildSubjectTagHtml(entry.subject, entry.studentGrade)}
+      <span class="mycal-slot-student-name"><b>${entry.studentName}</b>${gradePart}</span>
+      <span class="mycal-orphan-note">反映待ち</span>
+    </div>`;
   }
 
-  return `<div class="mycal-slot-student${approvalState === 'confirmed' ? ' is-confirmed' : ''}${isPending ? ' is-pending' : ''}">
-    <span class="mycal-slot-student-text"><b>${entry.studentName}</b>（${entry.studentGrade || ''}） ${entry.subject}</span>
-    <span class="mycal-slot-student-meta">${badges}${cancelHtml}</span>
+  const gradePart = entry.studentGrade ? `（${entry.studentGrade}）` : '';
+  const assignedBadge = entry.isPreferredPair ? '<span class="pref-pair-assigned-badge">担当生徒</span>' : '';
+  return `<div class="mycal-slot-student${isPending ? ' is-pending' : ''}${isLast ? '' : ' has-divider'}">
+    ${buildSubjectTagHtml(entry.subject, entry.studentGrade)}
+    <span class="mycal-slot-student-name"><b>${entry.studentName}</b>${gradePart}</span>
+    ${assignedBadge}
   </div>`;
 }
 
-function buildSlotActionsHtml(dateStr, slotId){
-  if(getSlotPendingTickets(dateStr, slotId).length === 0) return '';
+function buildCancelActionHtml(entry){
+  const pendingCancel = findPendingCancellation(entry);
+  const cancelKey = draftKeyForCancel(entry);
+  const cancelDraft = S.responseDrafts[cancelKey];
+  if(pendingCancel){
+    return '<span class="schedule-cancel-note">キャンセル待ち</span>';
+  }
+  if(cancelDraft){
+    return `<button type="button" class="mycal-undo-btn" data-draft-key="${cancelKey}">取り消す</button>`;
+  }
+  const payload = encodeURIComponent(JSON.stringify({
+    day: entry.day, slot: entry.slot, subject: entry.subject,
+    studentName: entry.studentName, studentGrade: entry.studentGrade || '',
+    oneTimeDate: entry.oneTimeDate || null,
+  }));
+  return `<button type="button" class="mycal-cancel-btn schedule-cancel-btn" data-cancel-entry="${payload}">キャンセルを依頼</button>`;
+}
+
+function buildPendingHeaderActionsHtml(dateStr, slotId){
   const draft = getSlotDraft(dateStr, slotId);
   const slotKey = draftKeyForSlot(dateStr, slotId);
   if(draft){
     if(draft.action === 'approve'){
-      return `<div class="mycal-slot-actions">
-        <button type="button" class="mycal-approve-btn is-done" disabled>受ける（選択済）</button>
-        <button type="button" class="mycal-undo-btn" data-draft-key="${slotKey}">取り消す</button>
-      </div>`;
+      return `<span class="mycal-draft-label">承認（選択済）</span>
+        <button type="button" class="mycal-undo-btn" data-draft-key="${slotKey}">取り消す</button>`;
     }
-    return `<div class="mycal-slot-actions">
-      <button type="button" class="mycal-decline-btn is-selected" disabled>受けられない（選択済）</button>
-      <button type="button" class="mycal-undo-btn" data-draft-key="${slotKey}">取り消す</button>
-    </div>`;
+    return `<span class="mycal-draft-label">辞退（選択済）</span>
+      <button type="button" class="mycal-undo-btn" data-draft-key="${slotKey}">取り消す</button>`;
   }
-  return `<div class="mycal-slot-actions">
-    <button type="button" class="mycal-approve-btn" data-slot-date="${dateStr}" data-slot-id="${slotId}">受ける</button>
-    <button type="button" class="mycal-decline-btn" data-slot-date="${dateStr}" data-slot-id="${slotId}">受けられない</button>
-  </div>`;
+  return `<button type="button" class="mycal-approve-btn" data-slot-date="${dateStr}" data-slot-id="${slotId}">承認</button>
+    <button type="button" class="mycal-decline-btn" data-slot-date="${dateStr}" data-slot-id="${slotId}">辞退</button>`;
+}
+
+function buildConfirmedHeaderActionsHtml(entries){
+  const confirmedEntries = entries.filter(e=> resolveApprovalState(e) === 'confirmed');
+  if(confirmedEntries.length === 0) return '';
+  const cancelHtml = confirmedEntries.map(buildCancelActionHtml).join('');
+  return `<span class="mycal-confirmed-pill">確定</span>${cancelHtml}`;
+}
+
+function buildSlotHeaderActionsHtml(dateStr, slotId, entries){
+  if(getSlotPendingTickets(dateStr, slotId).length > 0){
+    return buildPendingHeaderActionsHtml(dateStr, slotId);
+  }
+  return buildConfirmedHeaderActionsHtml(entries);
 }
 
 function buildSlotCardHtml(dateStr, slotId, entries){
@@ -102,13 +126,17 @@ function buildSlotCardHtml(dateStr, slotId, entries){
   const slotLabel = slotDef ? slotDef.label : `${slotId}講`;
   const pending = getSlotPendingTickets(dateStr, slotId).length > 0;
   const draft = getSlotDraft(dateStr, slotId);
-  const cls = ['mycal-slot-card', pending ? 'is-pending' : '', draft ? 'has-draft' : ''].filter(Boolean).join(' ');
-  const studentsHtml = entries.map(buildStudentLineHtml).join('');
-  const actionsHtml = buildSlotActionsHtml(dateStr, slotId);
+  const hasConfirmed = entries.some(e=> resolveApprovalState(e) === 'confirmed');
+  const stateClass = pending ? 'is-waiting' : (hasConfirmed || entries.length > 0 ? 'is-confirmed' : '');
+  const cls = ['mycal-slot-card', stateClass, draft ? 'has-draft' : ''].filter(Boolean).join(' ');
+  const headerActions = buildSlotHeaderActionsHtml(dateStr, slotId, entries);
+  const studentsHtml = entries.map((entry, index)=> buildStudentLineHtml(entry, index === entries.length - 1)).join('');
   return `<div class="${cls}">
-    <div class="mycal-slot-head"><span class="mycal-slot-tag">${slotLabel}</span></div>
-    <div class="mycal-slot-students">${studentsHtml}</div>
-    ${actionsHtml}
+    <div class="mycal-slot-head">
+      <span class="mycal-slot-label">${slotLabel}</span>
+      <div class="mycal-slot-head-actions">${headerActions}</div>
+    </div>
+    ${studentsHtml ? `<div class="mycal-slot-students">${studentsHtml}</div>` : ''}
   </div>`;
 }
 
@@ -194,7 +222,7 @@ function updateBanner(){
 
   if(draftAllBtn){
     draftAllBtn.style.display = unreplied > 0 ? '' : 'none';
-    draftAllBtn.textContent = `残り${unreplied}コマをすべて受ける`;
+    draftAllBtn.textContent = `残り${unreplied}コマをすべて承認`;
   }
   if(submitBtn){
     submitBtn.style.display = draftCount > 0 ? '' : 'none';
