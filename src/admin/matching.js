@@ -407,20 +407,30 @@ function collectUpcomingUnassignedByDate(){
   return groups;
 }
 
-function groupUnassignedRowsByStudent(rows){
-  const order = [];
-  const map = new Map();
-  rows.forEach(row=>{
-    if(!map.has(row.student.id)){
-      map.set(row.student.id, { student: row.student, slots: [] });
-      order.push(row.student.id);
-    }
-    map.get(row.student.id).slots.push(row);
+function collectUpcomingUnassignedFlat(){
+  const flat = [];
+  collectUpcomingUnassignedByDate().forEach(group=>{
+    group.rows.forEach(row=> flat.push({ dateStr: group.dateStr, row }));
   });
-  order.forEach(id=>{
-    map.get(id).slots.sort((a, b)=> a.slot.id - b.slot.id || a.course.subject.localeCompare(b.course.subject, 'ja'));
-  });
-  return order.map(id=> map.get(id));
+  return flat;
+}
+
+function shortageScheduleLine(dateStr, slot, student, course){
+  const gLabel = gradeLabel(student);
+  return `${formatShortageDateLabel(dateStr)}${slot.label} · ${course.subject}（${gLabel}）`;
+}
+
+function renderShortageDashboardItem(entry){
+  const { dateStr, row } = entry;
+  const { student, course, slot } = row;
+  const detail = shortageScheduleLine(dateStr, slot, student, course);
+  return `<button type="button" class="approval-item approval-item-btn" data-student="${student.id}" data-date="${dateStr}" aria-label="${student.name} ${detail}">
+    <div class="approval-item-main">
+      <span class="approval-item-teacher">${student.name}</span>
+      <span class="approval-item-detail">${detail}</span>
+    </div>
+    <span class="approval-badge pending">未確定</span>
+  </button>`;
 }
 
 function formatShortageDateLabel(dateStr){
@@ -448,9 +458,9 @@ function renderShortageDashboard(){
     return;
   }
 
-  const dateGroups = collectUpcomingUnassignedByDate();
+  const flatItems = collectUpcomingUnassignedFlat();
   const pendingAbsences = S.absences.filter(a=>a.status==='pending').length;
-  const totalSlots = dateGroups.reduce((sum, g)=> sum + g.rows.length, 0);
+  const totalSlots = flatItems.length;
 
   if(totalSlots===0){
     wrap.innerHTML = '<div class="shortage-ok">✓ この月の未確定コマはありません</div>';
@@ -468,36 +478,15 @@ function renderShortageDashboard(){
   statusBar?.classList.remove('is-ok');
   statusBar?.classList.add('is-warn');
 
-  let html = '<div class="shortage-well">';
-  dateGroups.forEach(group=>{
-    const studentBlocks = groupUnassignedRowsByStudent(group.rows);
-    html += `<div class="shortage-date-group">
-      <div class="shortage-date-head">${formatShortageDateLabel(group.dateStr)}</div>`;
-    studentBlocks.forEach(block=>{
-      const gLabel = gradeLabel(block.student);
-      html += `<div class="shortage-student-block">
-        <div class="shortage-student-head">
-          <span class="sr-name">${block.student.name}</span>
-          <span class="sr-grade">${gLabel}</span>
-        </div>`;
-      block.slots.forEach(row=>{
-        const { course, slot } = row;
-        const c = subjectColor(block.student.level, course.subject);
-        const jumpLabel = `${formatShortageDateLabel(group.dateStr)} ${block.student.name} ${slot.label} ${course.subject}`;
-        html += `<button type="button" class="shortage-slot-row" data-student="${block.student.id}" data-date="${group.dateStr}" aria-label="${jumpLabel}">
-          <span class="sr-slot">${slot.label}</span>
-          <span class="sr-subject" style="background:${c.bg};color:${c.text};">${course.subject}</span>
-          <span class="sr-chevron" aria-hidden="true">›</span>
-        </button>`;
-      });
-      html += '</div>';
-    });
-    html += '</div>';
-  });
-  html += '</div>';
-  wrap.innerHTML = html;
+  const listHtml = flatItems.map(renderShortageDashboardItem).join('');
+  wrap.innerHTML = `<div class="approval-detail-well">
+    <div class="approval-col shortage-list-col">
+      <div class="approval-col-label">要対応 <span class="approval-col-num">${totalSlots}コマ</span></div>
+      <div class="approval-scroll" aria-label="未確定のコマ">${listHtml}</div>
+    </div>
+  </div>`;
 
-  wrap.querySelectorAll('.shortage-slot-row[data-student]').forEach(btn=>{
+  wrap.querySelectorAll('.approval-item-btn[data-student]').forEach(btn=>{
     btn.addEventListener('click', ()=>{
       jumpToCalendarForDate(btn.dataset.student, btn.dataset.date);
     });
