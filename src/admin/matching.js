@@ -16,7 +16,7 @@ import { dismissAppConfirmDialog, runAppConfirmDialog } from '../shared/app-conf
 import {
   buildApprovalAlertRowHtml, buildCalAlertPersonHead, buildCalAlertPersonInline,
   buildCalAlertSubjectTag, buildCalAlertWhenPill,
-  buildShortageAlertRowHtml, calAlertDateParts,
+  buildCalStatusSummaryHtml, buildShortageAlertRowHtml, calAlertDateParts,
 } from '../shared/cal-alert-row.js';
 import {
   normalizeFormCoursesForSave,
@@ -469,12 +469,12 @@ function expandShortageBar(){
 }
 
 function buildShortageSummaryLine({ draftCount, unassignedCount, pendingCount, pendingAbsences }){
-  const parts = [];
-  if(draftCount > 0) parts.push(`仮決め ${draftCount}件`);
-  if(unassignedCount > 0) parts.push(`未確定 ${unassignedCount}コマ`);
-  if(pendingCount > 0) parts.push(`承認待ち ${pendingCount}件`);
-  if(pendingAbsences > 0) parts.push(`未振替 ${pendingAbsences}件`);
-  return parts.join(' ／ ') || '✓ すべて確定です';
+  const chips = [];
+  if(draftCount > 0) chips.push({ kind: 'tentative', text: `仮決め ${draftCount}件` });
+  if(unassignedCount > 0) chips.push({ kind: 'unassigned', text: `未確定 ${unassignedCount}コマ` });
+  if(pendingCount > 0) chips.push({ kind: 'pending', text: `承認待ち ${pendingCount}件` });
+  if(pendingAbsences > 0) chips.push({ kind: 'absence', text: `未振替 ${pendingAbsences}件` });
+  return buildCalStatusSummaryHtml(chips);
 }
 
 function getUpcomingAutoDraftIds(){
@@ -753,7 +753,7 @@ function renderShortageDashboard(){
   const hasWork = unassignedCount > 0 || draftCount > 0 || pendingCount > 0 || pendingAbsences > 0;
 
   if(summaryLine){
-    summaryLine.textContent = buildShortageSummaryLine({
+    summaryLine.innerHTML = buildShortageSummaryLine({
       draftCount,
       unassignedCount,
       pendingCount,

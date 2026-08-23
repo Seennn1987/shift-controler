@@ -47,3 +47,11 @@ export function buildApprovalAlertRowHtml({ whenPill, teacherHead, personInline,
   }
   return `<div class="${cls}">${inner}</div>`;
 }
+
+/** カレンダー上部ステータスバーの見出し（件数バッジ） */
+export function buildCalStatusSummaryHtml(chips, okLabel = '✓ すべて確定です'){
+  if(!chips.length){
+    return `<span class="cal-status-chip is-ok">${okLabel}</span>`;
+  }
+  return chips.map(chip=> `<span class="cal-status-chip is-${chip.kind}">${chip.text}</span>`).join('');
+}

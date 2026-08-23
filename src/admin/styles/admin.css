@@ -906,26 +906,41 @@
     background:var(--surface-card);border:1px solid var(--border);border-radius:var(--radius-xl);
     padding:12px 16px;margin-bottom:12px;
   }
-  .cal-status-bar.is-ok{background:var(--success-bg);border-color:var(--success);}
+  .cal-status-bar.is-ok,
   .cal-status-bar.is-warn{
     background:var(--surface-card);
-    border-color:rgba(179,70,44,.28);
-    border-left:4px solid var(--danger);
+    border-color:var(--border);
   }
   .cal-status-inner{display:flex;align-items:center;gap:8px;flex-wrap:wrap;}
   button.cal-status-toggle{
     width:100%;display:flex;align-items:center;gap:8px;flex-wrap:wrap;
-    padding:0;border:none;background:transparent;font-family:inherit;text-align:left;cursor:pointer;
+    padding:6px 8px;margin:-6px -8px;border:none;background:transparent;
+    font-family:inherit;text-align:left;cursor:pointer;border-radius:var(--radius-lg);
+    transition:background .15s ease;
   }
-  button.cal-status-toggle:focus-visible{outline:2px solid var(--brand-500);outline-offset:2px;border-radius:var(--radius-md);}
+  button.cal-status-toggle:hover{background:var(--brand-50);}
+  button.cal-status-toggle:active{background:var(--brand-100);}
+  button.cal-status-toggle:focus-visible{outline:2px solid var(--brand-500);outline-offset:2px;}
   button.cal-status-toggle .cal-status-chevron{
     flex-shrink:0;font-size:var(--text-sm);font-weight:700;color:var(--ink-soft);margin-left:auto;
+    transition:color .15s ease;
   }
-  .cal-status-bar.is-warn button.cal-status-toggle .cal-status-chevron{color:var(--danger);}
+  button.cal-status-toggle:hover .cal-status-chevron{color:var(--brand-600);}
   .cal-status-text{
-    font-size:var(--text-md);font-weight:700;color:var(--green-800);flex:1;min-width:140px;
+    display:flex;flex-wrap:wrap;align-items:center;gap:6px;
+    font-size:var(--text-md);font-weight:700;color:var(--ink);flex:1;min-width:140px;
   }
-  .cal-status-bar.is-warn .cal-status-text{color:var(--danger);}
+  .cal-status-chip{
+    display:inline-flex;align-items:center;
+    font-size:var(--text-xs);font-weight:700;padding:3px 10px;border-radius:var(--radius-pill);
+    white-space:nowrap;line-height:1.35;
+  }
+  .cal-status-chip.is-tentative{background:var(--warning-bg);color:var(--warning-ink);border:1px solid var(--warning-ink);}
+  .cal-status-chip.is-pending{border:1px dashed var(--ink-soft);color:var(--ink-soft);background:var(--surface-card);}
+  .cal-status-chip.is-unassigned{border:1px dashed var(--pending-border);color:var(--pending-ink);background:var(--surface-card);}
+  .cal-status-chip.is-absence{background:var(--danger-bg);color:var(--danger);border:1px solid rgba(179,70,44,.25);}
+  .cal-status-chip.is-rejected{background:var(--danger-bg);color:var(--danger);border:1px solid var(--danger);}
+  .cal-status-chip.is-ok{background:var(--green-100);color:var(--green-800);border:1px solid var(--success);}
   .cal-status-detail{margin-top:10px;padding-top:10px;border-top:1px dashed var(--border);}
 
   .cal-action-zone{padding:14px 16px 12px;margin-bottom:12px;position:relative;}

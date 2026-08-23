@@ -10,7 +10,7 @@ import { saveStudents, saveTeacherScheduleDoc, scheduleSave, scheduleSyncTeacher
 import { mountInlineConfirm, showInlineNotice } from '../shared/inline-confirm.js';
 import {
   buildApprovalAlertRowHtml, buildCalAlertPersonInline,
-  buildCalAlertSubjectTag, buildCalAlertWhenPill, calAlertDateParts,
+  buildCalAlertSubjectTag, buildCalAlertWhenPill, buildCalStatusSummaryHtml, calAlertDateParts,
 } from '../shared/cal-alert-row.js';
 
 // 講師スケジュール（月次提出）タブ
@@ -201,9 +201,9 @@ async function renderApprovalStatus(){
   bar.classList.add('is-warn');
   bar.classList.remove('is-ok');
 
-  const summaryParts = [`承認待ち ${pending.length}件（講師の返事待ち）`];
-  if(rejected.length>0) summaryParts.push(`断り ${rejected.length}件`);
-  summaryLine.textContent = summaryParts.join(' · ');
+  const summaryChips = [{ kind: 'pending', text: `承認待ち ${pending.length}件（講師の返事待ち）` }];
+  if(rejected.length > 0) summaryChips.push({ kind: 'rejected', text: `断り ${rejected.length}件` });
+  summaryLine.innerHTML = buildCalStatusSummaryHtml(summaryChips);
 
   const approved = list
     .filter(a=> a.status==='approved' && !dismissed.has(a.id))
