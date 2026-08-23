@@ -665,13 +665,13 @@
   }
   .cal-alert-row-c4 .cal-alert-row-body > *{white-space:nowrap;flex-shrink:0;}
   .cal-alert-row-c4 .cal-alert-row-body--full > .cal-alert-row-head{
-    width:2.85rem;min-width:0;overflow:hidden;text-overflow:ellipsis;
+    flex-shrink:0;
   }
   .cal-alert-row-c4 .cal-alert-row-body--full > .cal-alert-person-inline{
-    flex:1 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis;
+    flex:0 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis;
   }
   .cal-alert-row-c4 .cal-alert-row-body--person > .cal-alert-row-head{
-    flex:1 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis;
+    flex:0 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis;
   }
   .cal-alert-row-c4 .approval-badge,
   .cal-alert-row-c4 > .auto-badge{margin-left:auto;flex-shrink:0;}
