@@ -48,7 +48,30 @@ export function buildApprovalAlertRowHtml({ whenPill, teacherHead, personInline,
   return `<div class="${cls}">${inner}</div>`;
 }
 
-/** カレンダー上部ステータスバーの見出し（要対応＋件数KPI） */
+/** カレンダー上部ステータスバーの見出し（4段フロー＋件数KPI） */
+function renderCalStatusKpiChip(chip){
+  const count = chip.count ?? 0;
+  const zeroCls = Number(count) === 0 ? ' is-zero' : '';
+  return `<span class="cal-status-kpi is-${chip.kind}${zeroCls}">
+    <span class="cal-status-kpi-label">${chip.label || ''}</span>
+    <span class="cal-status-kpi-value"><span class="cal-status-kpi-num">${count}</span><span class="cal-status-kpi-unit">${chip.unit || ''}</span></span>
+  </span>`;
+}
+
+export function buildCalWorkflowSummaryHtml(stages, extras = []){
+  const flowParts = stages.map((chip, idx)=>{
+    const arrow = idx < stages.length - 1
+      ? '<span class="cal-status-flow-arrow" aria-hidden="true">→</span>'
+      : '';
+    return `${renderCalStatusKpiChip(chip)}${arrow}`;
+  }).join('');
+  const extrasHtml = extras.length
+    ? `<span class="cal-status-kpi-extras">${extras.map(renderCalStatusKpiChip).join('')}</span>`
+    : '';
+  return `<span class="cal-status-flow">${flowParts}</span>${extrasHtml}`;
+}
+
+/** @deprecated 要対応バッジ型。フロー表示は buildCalWorkflowSummaryHtml を使う */
 export function buildCalStatusSummaryHtml(chips, okLabel = '✓ すべて確定です'){
   if(!chips.length){
     return `<span class="cal-status-kpi is-ok"><span class="cal-status-kpi-label">${okLabel}</span></span>`;

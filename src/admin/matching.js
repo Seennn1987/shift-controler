@@ -16,7 +16,7 @@ import { dismissAppConfirmDialog, runAppConfirmDialog } from '../shared/app-conf
 import {
   buildApprovalAlertRowHtml, buildCalAlertPersonHead, buildCalAlertPersonInline,
   buildCalAlertSubjectTag, buildCalAlertWhenPill,
-  buildCalStatusSummaryHtml, buildShortageAlertRowHtml, calAlertDateParts,
+  buildCalStatusSummaryHtml, buildCalWorkflowSummaryHtml, buildShortageAlertRowHtml, calAlertDateParts,
 } from '../shared/cal-alert-row.js';
 import {
   normalizeFormCoursesForSave,
@@ -499,14 +499,17 @@ function expandShortageBar(){
   if(chevron) chevron.textContent = '▴';
 }
 
-function buildShortageSummaryLine({ draftCount, unassignedCount, pendingCount, rejectedCount, pendingAbsences }){
-  const chips = [];
-  if(unassignedCount > 0) chips.push({ kind: 'unassigned', label: '講師なし', count: unassignedCount, unit: 'コマ' });
-  if(draftCount > 0) chips.push({ kind: 'tentative', label: '仮決め', count: draftCount, unit: '件' });
-  if(pendingCount > 0) chips.push({ kind: 'pending', label: '承認待ち', count: pendingCount, unit: '件', note: '講師の返事待ち' });
-  if(rejectedCount > 0) chips.push({ kind: 'rejected', label: '断り', count: rejectedCount, unit: '件' });
-  if(pendingAbsences > 0) chips.push({ kind: 'absence', label: '未振替', count: pendingAbsences, unit: '件' });
-  return buildCalStatusSummaryHtml(chips);
+function buildShortageSummaryLine({ draftCount, unassignedCount, pendingCount, rejectedCount, pendingAbsences, confirmedCount }){
+  const pendingActionCount = pendingCount + rejectedCount;
+  const extras = pendingAbsences > 0
+    ? [{ kind: 'absence', label: '未振替', count: pendingAbsences, unit: '件' }]
+    : [];
+  return buildCalWorkflowSummaryHtml([
+    { kind: 'unassigned', label: '講師なし', count: unassignedCount, unit: 'コマ' },
+    { kind: 'tentative', label: '仮決め', count: draftCount, unit: '件' },
+    { kind: 'pending', label: '承認待ち', count: pendingActionCount, unit: '件' },
+    { kind: 'confirmed', label: '確定', count: confirmedCount, unit: '件' },
+  ], extras);
 }
 
 function getUpcomingAutoDraftIds(){
@@ -739,7 +742,6 @@ function renderShortageDashboardItem(entry){
     whenPill: buildCalAlertWhenPill(md, weekday, slot.label),
     personHead: buildCalAlertPersonHead(student.name, gLabel),
     subjectTag: buildCalAlertSubjectTag(subjectColor, student.level, course.subject),
-    badgeHtml: '<span class="approval-badge pending">講師なし</span>',
     dataAttrs: ` data-student="${student.id}" data-date="${dateStr}" aria-label="${aria}"`,
   });
 }
@@ -756,7 +758,6 @@ function renderDraftDashboardItem(entry){
     teacherHead: `<span class="cal-alert-row-head">${teacherName}${autoBadge}</span>`,
     personInline: buildCalAlertPersonInline(student.name, gLabel),
     subjectTag: buildCalAlertSubjectTag(subjectColor, student.level, course.subject),
-    badgeHtml: '<span class="approval-badge tentative">仮決め</span>',
     dataAttrs: ` data-student="${student.id}" data-date="${dateStr}" aria-label="${aria}"`,
     tag: 'button',
   });
@@ -773,7 +774,6 @@ function renderPendingDashboardItem(entry){
     teacherHead: `<span class="cal-alert-row-head">${teacherName}</span>`,
     personInline: buildCalAlertPersonInline(student.name, gLabel),
     subjectTag: buildCalAlertSubjectTag(subjectColor, student.level, course.subject),
-    badgeHtml: '<span class="approval-badge pending">承認待ち</span>',
     dataAttrs: ` data-student="${student.id}" data-date="${dateStr}" aria-label="${aria}"`,
     tag: 'button',
   });
@@ -792,7 +792,16 @@ async function renderShortageDashboard(){
   }
   if(S.students.length===0){
     wrap.innerHTML = '<div class="empty-state">生徒が登録されると、講師が決まっていないコマが日付順で表示されます。</div>';
-    if(summaryLine) summaryLine.textContent = 'まだ生徒が登録されていません';
+    if(summaryLine){
+      summaryLine.innerHTML = buildShortageSummaryLine({
+        draftCount: 0,
+        unassignedCount: 0,
+        pendingCount: 0,
+        rejectedCount: 0,
+        pendingAbsences: 0,
+        confirmedCount: 0,
+      });
+    }
     statusBar?.classList.remove('is-warn');
     statusBar?.classList.add('is-ok');
     return;
@@ -824,6 +833,7 @@ async function renderShortageDashboard(){
       pendingCount,
       rejectedCount,
       pendingAbsences,
+      confirmedCount: approvedRecent.length,
     });
   }
   statusBar?.classList.toggle('is-warn', hasWork);

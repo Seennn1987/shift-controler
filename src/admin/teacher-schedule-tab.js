@@ -163,10 +163,7 @@ function approvalBadgeHtml(status){
   if(status==='rejected'){
     return '<span class="approval-badge rejected">講師が断りました</span>';
   }
-  if(status==='approved'){
-    return '<span class="approval-badge approved">確定</span>';
-  }
-  return '<span class="approval-badge pending">承認待ち</span>';
+  return '';
 }
 
 function renderApprovalDashboardItem(a, teacherName, status, { action = false } = {}){
