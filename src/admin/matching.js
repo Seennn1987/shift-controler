@@ -574,21 +574,34 @@ function bindShortageDashboardActions(wrap){
       if(resultEl) resultEl.textContent = '送信する仮決めがありません。';
       return;
     }
+    const noLoginTeachers = [...new Set(
+      S.draftAssignments
+        .map(a=> S.teachers.find(t=> t.id === a.teacherId))
+        .filter(t=> t && !t.loginUid)
+        .map(t=> t.name),
+    )];
+    let sendMessage = `仮決め ${draftCount}件を講師に送信します。\n講師が承認するまで承認待ちになります。`;
+    if(noLoginTeachers.length > 0){
+      sendMessage += `\n\n※ ${noLoginTeachers.join('、')}先生はログイン未発行のため送信されません（仮決めのまま残します）。「講師管理」でアカウントを発行してください。`;
+    }
     const result = await runAppConfirmDialog({
       title: '講師にスケジュールを送信しますか？',
-      message: `仮決め ${draftCount}件を講師に送信します。\nログインありの講師は承認待ち、ログインなしの講師は確定になります。`,
+      message: sendMessage,
       confirmLabel: '送信する',
       variant: 'primary',
     }, async ()=>{
-      const { sent, confirmed, pending } = await sendDraftAssignments();
+      const { sent, skippedNoLogin, noLoginTeachers: skippedNames } = await sendDraftAssignments();
       scheduleSave();
       scheduleSyncTeacherAssignments();
       refreshAfterMatchingChange();
       if(resultEl){
-        const parts = [`${sent}件を送信しました`];
-        if(confirmed > 0) parts.push(`確定 ${confirmed}件`);
-        if(pending > 0) parts.push(`承認待ち ${pending}件`);
-        resultEl.textContent = `✓ ${parts.join(' ／ ')}`;
+        if(sent === 0 && skippedNoLogin > 0){
+          resultEl.textContent = `送信できませんでした。${skippedNames.join('、')}先生のログインを「講師管理」で発行してください。`;
+        }else if(skippedNoLogin > 0){
+          resultEl.textContent = `✓ ${sent}件を送信しました（承認待ち）。${skippedNoLogin}件はログイン未発行のため仮決めのままです（${skippedNames.join('、')}）。`;
+        }else{
+          resultEl.textContent = `✓ ${sent}件を講師に送信しました（承認待ち）。`;
+        }
       }
       return { ok: true };
     });

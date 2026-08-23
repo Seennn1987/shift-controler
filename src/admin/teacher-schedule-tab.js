@@ -747,11 +747,10 @@ function computeTeacherShiftFill(teacherId, yearMonth){
   return { hope, lesson, submitted: true };
 }
 
-// 新しく確定した授業を、講師専用ページで承認してもらうためのチケットを発行する
-// （講師がログインアカウントを持っている場合のみ。持っていない講師には何もしない）
+// 講師専用ページで承認してもらうためのチケットを発行する（ログイン未発行の講師には発行しない）
 async function issueAssignmentApproval(studentId, courseId, subject, day, slot, teacherId, oneTimeDate){
   const teacher = S.teachers.find(t=>t.id===teacherId);
-  if(!teacher || !teacher.loginUid) return;
+  if(!teacher || !teacher.loginUid) return false;
   const student = S.students.find(s=>s.id===studentId);
   if(!student) return;
   try{
@@ -765,14 +764,14 @@ async function issueAssignmentApproval(studentId, courseId, subject, day, slot, 
     };
     if(oneTimeDate) payload.oneTimeDate = oneTimeDate; // 指定日のみの代講の場合、その日付を明記する
     await fbDb.collection('assignmentApprovals').add(payload);
+    return true;
   }catch(err){
     console.error('承認チケット発行エラー:', err);
+    return false;
   }
 }
 
-// 教室長がマッチングを確定した時点では、まだ「承認待ち」扱いにする。
-// 講師にログインアカウントが無い場合は、承認という概念がそもそも無いため、即座に確定させる。
-// opts.dateStr … その日だけの担当（oneTimeDate）。opts.recurring … 提出済みシフトがある日すべて（曜日繰り返し）
+// 教室長が選んだ担当は、まず仮決めとして保存する（送信後に講師承認）
 function confirmAssignment(studentId, courseId, subject, day, slot, teacherId, source, opts){
   source = source || 'manual';
   opts = opts || {};
@@ -843,26 +842,35 @@ function cancelAllDrafts(){
 async function sendDraftAssignments(){
   const drafts = [...S.draftAssignments];
   if(drafts.length === 0){
-    return { sent: 0, confirmed: 0, pending: 0 };
+    return { sent: 0, pending: 0, skippedNoLogin: 0, noLoginTeachers: [] };
   }
   S.draftAssignments = [];
-  let confirmed = 0;
   let pending = 0;
+  let skippedNoLogin = 0;
+  const noLoginTeachers = new Set();
+  const keptDrafts = [];
   for(const entry of drafts){
     const teacher = S.teachers.find(t=> t.id === entry.teacherId);
-    if(teacher?.loginUid){
-      S.pendingAssignments.push(entry);
-      await issueAssignmentApproval(
-        entry.studentId, entry.courseId, entry.subject, entry.day, entry.slot,
-        entry.teacherId, entry.oneTimeDate || null,
-      );
-      pending++;
-    }else{
-      S.assignments.push(entry);
-      confirmed++;
+    if(!teacher?.loginUid){
+      skippedNoLogin++;
+      if(teacher) noLoginTeachers.add(teacher.name);
+      keptDrafts.push(entry);
+      continue;
     }
+    S.pendingAssignments.push(entry);
+    await issueAssignmentApproval(
+      entry.studentId, entry.courseId, entry.subject, entry.day, entry.slot,
+      entry.teacherId, entry.oneTimeDate || null,
+    );
+    pending++;
   }
-  return { sent: drafts.length, confirmed, pending };
+  S.draftAssignments.push(...keptDrafts);
+  return {
+    sent: pending,
+    pending,
+    skippedNoLogin,
+    noLoginTeachers: [...noLoginTeachers],
+  };
 }
 
 async function revokePendingApprovalTicket(student, course, day, slot, oneTimeDate){
