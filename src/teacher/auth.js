@@ -16,7 +16,6 @@ import {
   initResponseDraftHandlers,
 } from './approvals.js';
 import { renderMyCalendar } from './calendar.js';
-import { render } from './shift-ui.js';
 
 function showLogin(msg){
   document.getElementById('loginScreen').style.display = 'flex';
@@ -117,6 +116,5 @@ async function bootstrap(user){
   S.adminCancelledNotices = await loadAdminCancelledNotices();
   reloadDraftsFromStorage();
   renderMyCalendar();
-  render();
 }
 export { showLogin, handleLogin, bootstrap };

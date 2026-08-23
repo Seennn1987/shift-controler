@@ -5,7 +5,6 @@ import { fbAuth, fbDb, S } from './state.js';
 import { debugLog } from './debug.js';
 import { getDayStatus } from './day-status.js';
 import { renderMyCalendar } from './calendar.js';
-import { renderKeepingOverrides } from './shift-ui.js';
 import {
   draftKeyForTicket,
   draftKeyForSlot,
@@ -354,7 +353,6 @@ function getDraftForEntry(entry, ticket){
 
 function rerenderSchedule(){
   renderMyCalendar();
-  renderKeepingOverrides();
 }
 
 function getSlotDraft(dateStr, slotId){

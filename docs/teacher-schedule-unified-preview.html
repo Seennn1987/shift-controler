@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ピタコマ マイスケジュール統合プレビュー（5パターン）</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Zen+Kaku+Gothic+New:wght@400;500;700;900&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="teacher-schedule-unified-preview.css">
+</head>
+<body>
+  <header class="preview-header">
+    <div class="preview-header-inner">
+      <h1>マイスケジュール統合 — ○△× 5パターン</h1>
+      <p>空コマの右側中央に ×／○／△。青＝選択、グレー＝未選択。タップで操作できます。</p>
+    </div>
+  </header>
+
+  <main class="preview-main">
+    <section>
+      <h2>共通ルール</h2>
+      <div id="ruleBox" class="rule-box"></div>
+    </section>
+
+    <section>
+      <h2>操作デモ</h2>
+      <p class="section-desc">「未提出／提出済」を切り替え、各パターンで ○△× を押してみてください。提出済みでは 7講 を変えると「未送信」→「変更をリクエスト」が有効になります。</p>
+      <div class="preview-controls">
+        <button type="button" class="preview-toggle is-active" data-month-mode="draft">未提出の月</button>
+        <button type="button" class="preview-toggle" data-month-mode="submitted">提出済みの月</button>
+      </div>
+      <div id="flashMsg" class="recommend-box" style="display:none;margin-bottom:14px;"></div>
+      <div id="evalRecommend" class="recommend-box"></div>
+    </section>
+
+    <section>
+      <h2>パターン比較 S1〜S5</h2>
+      <div id="patternTabs" class="pattern-tabs"></div>
+      <div id="patternPanels"></div>
+    </section>
+
+    <section>
+      <h2>各パターンの長所・短所</h2>
+      <div id="prosGrid" class="pros-grid"></div>
+    </section>
+  </main>
+
+  <script src="teacher-schedule-unified-preview.js"></script>
+</body>
+</html>

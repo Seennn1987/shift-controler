@@ -22,6 +22,17 @@ import {
   getSlotPendingTickets,
   entryAppliesOnDate,
 } from './approvals.js';
+import {
+  getMonthEntry,
+  buildShiftPickGroupHtml,
+  handleShiftPickSelect,
+  hasLocalShiftChange,
+  updateShiftStatusBar,
+  updateShiftFormState,
+  clearShiftLocalOverrides,
+  submitShiftMonth,
+  sendPendingChanges,
+} from './shift-ui.js';
 
 function getEntriesForDate(dateStr){
   return collapseTeacherCalendarEntries(
@@ -164,9 +175,29 @@ function buildSlotHeaderActionsHtml(dateStr, slotId, entries){
   return buildConfirmedHeaderActionsHtml(entries, dateStr);
 }
 
+function slotHasLessonContent(dateStr, slotId, entries){
+  if(getSlotPendingTickets(dateStr, slotId).length > 0) return true;
+  return entries.length > 0;
+}
+
 function buildSlotCardHtml(dateStr, slotId, entries){
   const slotDef = SLOTS.find(s=> Number(s.id) === Number(slotId));
   const slotLabel = slotDef ? slotDef.label : `${slotId}講`;
+  const yearMonth = dateStr.slice(0, 7);
+  const monthEntry = getMonthEntry(yearMonth);
+
+  if(!slotHasLessonContent(dateStr, slotId, entries)){
+    const localDirty = hasLocalShiftChange(dateStr, slotId);
+    const cls = ['mycal-slot-card', 'is-empty-shift', localDirty ? 'has-local-shift' : ''].filter(Boolean).join(' ');
+    const badge = localDirty ? '<span class="local-shift-badge">未送信</span>' : '';
+    return `<div class="${cls}">
+      <div class="mycal-slot-head">
+        <span class="mycal-slot-label">${slotLabel}${badge}</span>
+        ${buildShiftPickGroupHtml(dateStr, slotId, monthEntry)}
+      </div>
+    </div>`;
+  }
+
   const pending = getSlotPendingTickets(dateStr, slotId).length > 0;
   const draft = getSlotDraft(dateStr, slotId);
   const hasConfirmed = entries.some(e=> resolveApprovalState(e, dateStr) === 'confirmed');
@@ -272,6 +303,12 @@ function updateBanner(){
 }
 
 function bindCalendarActions(wrap){
+  wrap.querySelectorAll('.shift-pick-btn[data-shift-date]').forEach(btn=>{
+    btn.addEventListener('click', async ()=>{
+      const result = await handleShiftPickSelect(btn.dataset.shiftDate, btn.dataset.shiftSlot, btn.dataset.priority);
+      if(result.rerender) renderMyCalendar();
+    });
+  });
   wrap.querySelectorAll('.mycal-approve-btn[data-slot-date]').forEach(btn=>{
     btn.addEventListener('click', ()=> setDraftForSlot(btn.dataset.slotDate, Number(btn.dataset.slotId), 'approve'));
   });
@@ -322,33 +359,44 @@ function renderMyCalendar(){
   wrap.innerHTML = html;
   bindCalendarActions(wrap);
   bindNoticeDismiss();
+  updateShiftStatusBar();
+  updateShiftFormState();
 }
 
 function bindCalendarNav(){
   if(bindCalendarNav._bound) return;
   bindCalendarNav._bound = true;
   document.getElementById('calPrevBtn')?.addEventListener('click', ()=>{
+    clearShiftLocalOverrides();
     S.curMonth--; if(S.curMonth < 0){ S.curMonth = 11; S.curYear--; }
     renderMyCalendar();
-    syncShiftMonthTitle();
   });
   document.getElementById('calNextBtn')?.addEventListener('click', ()=>{
+    clearShiftLocalOverrides();
     S.curMonth++; if(S.curMonth > 11){ S.curMonth = 0; S.curYear++; }
     renderMyCalendar();
-    syncShiftMonthTitle();
   });
   document.getElementById('calTodayBtn')?.addEventListener('click', ()=>{
+    clearShiftLocalOverrides();
     const t = new Date(); S.curYear = t.getFullYear(); S.curMonth = t.getMonth();
     renderMyCalendar();
-    syncShiftMonthTitle();
   });
-}
-
-function syncShiftMonthTitle(){
-  const el = document.getElementById('monthTitle');
-  if(el) el.textContent = `${S.curYear}年${S.curMonth + 1}月`;
 }
 
 bindCalendarNav();
+
+function bindShiftFormActions(){
+  if(bindShiftFormActions._bound) return;
+  bindShiftFormActions._bound = true;
+  document.getElementById('submitShiftBtn')?.addEventListener('click', async ()=>{
+    await submitShiftMonth();
+    renderMyCalendar();
+  });
+  document.getElementById('sendRequestBtn')?.addEventListener('click', async ()=>{
+    await sendPendingChanges();
+    renderMyCalendar();
+  });
+}
+bindShiftFormActions();
 
 export { renderMyCalendar, updateBanner };

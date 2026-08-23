@@ -50,48 +50,27 @@
       <p class="pending-banner-line pending-banner-draft" id="pendingBannerDraft" style="display:none;"></p>
       <div id="pendingBannerNotices" class="pending-banner-notices" style="display:none;"></div>
       <div class="pending-banner-actions">
-        <button type="button" class="ghost draft-approve-all-btn" id="draftApproveAllBtn" style="display:none;">残りをすべて受ける</button>
+        <button type="button" class="ghost draft-approve-all-btn" id="draftApproveAllBtn" style="display:none;">残りをすべて承認</button>
         <button type="button" class="primary" id="submitResponsesBtn" style="display:none;">教室長に送信する</button>
       </div>
     </div>
   </div>
 
-  <div class="tabs">
-    <button type="button" class="tab-btn active" data-tab="mycal">マイカレンダー</button>
-    <button type="button" class="tab-btn" data-tab="shift">シフト提出</button>
-  </div>
-
-  <div id="tab-mycal" class="tab-view active">
-    <div class="card">
-      <h2>マイカレンダー</h2>
-      <p class="desc">担当授業を日付ごとに確認できます。<br>青枠のコマは、教室長からの授業依頼です。<br>「承認／辞退」を選び、最後に「教室長に送信する」でまとめて送ってください。</p>
-      <div class="month-nav">
-        <button type="button" class="nav-btn" id="calPrevBtn">‹</button>
-        <div class="month-title" id="calMonthTitle">2026年8月</div>
-        <button type="button" class="nav-btn" id="calNextBtn">›</button>
-        <button type="button" class="today-btn" id="calTodayBtn">今月</button>
-      </div>
-      <div id="myCalWrap"></div>
+  <div class="card">
+    <h2>マイスケジュール</h2>
+    <p class="desc">担当授業の確認と、空きコマのシフト提出がこの1画面でできます。<br>青枠のコマは教室長からの授業依頼です。「承認／辞退」を選び、上部の「教室長に送信する」でまとめて送ってください。<br>授業のないコマでは ×不可・△可能・○優先 を選び、下の「シフトを提出する」でまとめて送れます。</p>
+    <div class="month-nav">
+      <button type="button" class="nav-btn" id="calPrevBtn">‹</button>
+      <div class="month-title" id="calMonthTitle">2026年8月</div>
+      <button type="button" class="nav-btn" id="calNextBtn">›</button>
+      <button type="button" class="today-btn" id="calTodayBtn">今月</button>
     </div>
-  </div>
-
-  <div id="tab-shift" class="tab-view">
-    <div class="card">
-      <h2>月次スケジュール</h2>
-      <p class="desc">クリックするたびに「×不可 → ○特に希望 → △対応可能 → ×不可」の順に切り替わります。未提出の月は直接編集できます。提出済み（確定）の月を変更したい場合は、クリックすると教室長に変更リクエストが届きます（自動では反映されません）。</p>
-      <div class="month-nav">
-        <button type="button" class="nav-btn" id="prevBtn">‹</button>
-        <div class="month-title" id="monthTitle">2026年8月</div>
-        <button type="button" class="nav-btn" id="nextBtn">›</button>
-        <button type="button" class="today-btn" id="todayBtn">今月</button>
-      </div>
-      <div class="status-bar" id="statusBar"></div>
-      <div class="grid-scroll" id="gridWrap"></div>
-      <div class="form-actions">
-        <button type="button" class="primary" id="submitBtn">この内容で提出する</button>
-        <button type="button" class="send-request-btn" id="sendRequestBtn" style="display:none;">変更をリクエストする（0件）</button>
-        <span class="form-msg" id="formMsg"></span>
-      </div>
+    <div class="status-bar" id="shiftStatusBar"></div>
+    <div id="myCalWrap"></div>
+    <div class="form-actions">
+      <button type="button" class="primary" id="submitShiftBtn">この内容でシフトを提出する</button>
+      <button type="button" class="send-request-btn" id="sendRequestBtn" style="display:none;">変更をリクエストする（0件）</button>
+      <span class="form-msg" id="formMsg"></span>
     </div>
   </div>
 </div>
