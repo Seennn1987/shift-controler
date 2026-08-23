@@ -10,7 +10,7 @@ import { renderCalendarWeek, switchCalMode, switchView } from './finance-ui.js';
 import { gradeLabel, isTeacherAvailableOnDate, subjectColor } from './schedule-core.js';
 import { saveStudents, scheduleSave, scheduleSyncTeacherAssignments } from './students-persistence.js';
 import { assignmentAppliesOnDate, buildCandidateInfo, confirmAssignment, countAssignmentsInMonth, cancelAllDrafts, cancelDraftAuto, findEffectiveAssignment, getActiveYearMonth, getPreferredTeachersForCourse, isAssignmentEffectiveInMonth, sendDraftAssignments, teacherHasSubmittedMonth } from './teacher-schedule-tab.js';
-import { compareCandidateInfo, getMatchingPriority } from './matching-config.js';
+import { compareCandidateInfo, getMatchingPriority, MATCHING_FACTOR_META } from './matching-config.js';
 import { showActiveTabNotice } from '../shared/inline-confirm.js';
 import { dismissAppConfirmDialog, runAppConfirmDialog } from '../shared/app-confirm-dialog.js';
 import {
@@ -492,27 +492,34 @@ function cancelUpcomingAutoDrafts(){
   return count;
 }
 
-function buildConfirmFlowExtraHtml(sections){
-  if(!sections.length) return '';
-  return `<div class="app-confirm-flow">${sections.map(sec=>{
-    const label = sec.label
-      ? `<div class="app-confirm-flow-label">${sec.label}</div>`
-      : '';
-    const items = sec.items.map(text=> `<li>${text}</li>`).join('');
-    return `${label}<ol class="app-confirm-flow-list">${items}</ol>`;
-  }).join('')}</div>`;
-}
-
-function buildMatchingPriorityExtraHtml(){
-  const enabled = getMatchingPriority().filter(item=> item.enabled);
+function buildMatchingAlgorithmExtraHtml(){
+  const priority = getMatchingPriority();
+  const enabled = priority.filter(item=> item.enabled);
   if(enabled.length === 0){
-    return `<div class="app-confirm-priority">
-      <p class="app-confirm-body" style="margin:0;">有効な条件がありません。「設定で変更」から見直してください。</p>
+    return `<div class="app-confirm-algorithm">
+      <div class="app-confirm-algorithm-label">自動マッチングの決め方</div>
+      <p class="app-confirm-algorithm-empty">有効な条件がありません。「設定で変更」から見直してください。</p>
       <button type="button" class="app-confirm-settings-link" id="appConfirmSettingsLink">設定で変更</button>
     </div>`;
   }
-  return `<div class="app-confirm-priority">
-    <p class="app-confirm-body" style="margin:0;">担当の決め方は設定のとおりです。</p>
+  const pickItems = enabled.map((item, idx)=>{
+    const meta = MATCHING_FACTOR_META[item.id];
+    const title = meta?.title || meta?.label || item.id;
+    const desc = meta?.description || '';
+    return `<li class="app-confirm-algorithm-pick">
+      <span class="app-confirm-algorithm-pick-title">${idx + 1}. ${title}</span>
+      ${desc ? `<span class="app-confirm-algorithm-pick-desc">${desc}</span>` : ''}
+    </li>`;
+  }).join('');
+  return `<div class="app-confirm-algorithm">
+    <div class="app-confirm-algorithm-label">自動マッチングの決め方</div>
+    <ol class="app-confirm-algorithm-steps">
+      <li>未確定コマのうち、対応できる講師が<strong>少ないコマ</strong>から順に埋めます。</li>
+      <li>各コマでは、シフト提出済み・その日そのコマに対応可・教科・学年が合い・定員に空きがある講師だけを候補にします。</li>
+      <li>候補の中から、次の優先順位で1人を選び、「仮決め」に入れます（講師への依頼はまだ出ません）。</li>
+    </ol>
+    <div class="app-confirm-algorithm-picks-label">講師を選ぶ優先順位</div>
+    <ol class="app-confirm-algorithm-picks">${pickItems}</ol>
     <button type="button" class="app-confirm-settings-link" id="appConfirmSettingsLink">設定で変更</button>
   </div>`;
 }
@@ -552,24 +559,8 @@ function bindShortageDashboardActions(wrap){
     }
     const result = await runAppConfirmDialog({
       title: '全コマを自動で組みますか？',
-      message: `未確定 ${unassignedCount}コマについて、次の流れになります。`,
-      extraHtml: buildConfirmFlowExtraHtml([
-        {
-          label: 'この操作で',
-          items: [
-            'シフトと条件から講師を割り当てる',
-            '「仮決め」一覧に入る（講師の画面にはまだ出ない）',
-          ],
-        },
-        {
-          label: 'このあと（別のボタン）',
-          items: [
-            '「講師にスケジュールを送信」で依頼する',
-            '講師がOKするまで承認待ち',
-            'OK後、確定としてカレンダーに載る',
-          ],
-        },
-      ]) + buildMatchingPriorityExtraHtml(),
+      message: `未確定 ${unassignedCount}コマを、次のルールで講師を割り当てます。`,
+      extraHtml: buildMatchingAlgorithmExtraHtml(),
       confirmLabel: '自動で決める',
       variant: 'primary',
     }, async ()=>{
@@ -602,29 +593,13 @@ function bindShortageDashboardActions(wrap){
         .filter(t=> t && !t.loginUid)
         .map(t=> t.name),
     )];
-    let sendMessage = `仮決め ${draftCount}件について、次の流れになります。`;
-    let sendExtra = buildConfirmFlowExtraHtml([
-      {
-        label: 'この操作で',
-        items: [
-          '仮決め → 講師の画面に届く',
-          '「承認待ち（講師の返事待ち）」になる',
-        ],
-      },
-      {
-        label: 'このあと',
-        items: [
-          '講師がOK → 確定（カレンダーに反映）',
-        ],
-      },
-    ]);
+    let sendMessage = `仮決め ${draftCount}件を講師に依頼します。\n講師がOKするまで承認待ち（講師の返事待ち）です。`;
     if(noLoginTeachers.length > 0){
       sendMessage += `\n\n${noLoginTeachers.join('、')} はまだログインできないため、依頼できません。「講師管理」でログインを用意してください。`;
     }
     const result = await runAppConfirmDialog({
       title: '講師にスケジュールを送信しますか？',
       message: sendMessage,
-      extraHtml: sendExtra,
       confirmLabel: '送信する',
       variant: 'primary',
     }, async ()=>{
@@ -656,20 +631,7 @@ function bindShortageDashboardActions(wrap){
     const flatAutoSlots = collectUpcomingDraftsFlat().filter(e=> e.assignment.source === 'auto').length;
     const result = await runAppConfirmDialog({
       title: '自動で決めた仮決めを解除しますか？',
-      message: `自動マッチング ${flatAutoSlots}件について、次の流れになります。`,
-      extraHtml: buildConfirmFlowExtraHtml([
-        {
-          label: 'この操作で',
-          items: ['仮決め → 未確定に戻る'],
-        },
-        {
-          label: '変わらないもの',
-          items: [
-            '自分で決めた仮決め',
-            'すでに講師に送った分',
-          ],
-        },
-      ]),
+      message: `この月の自動マッチング ${flatAutoSlots}件を取り消し、未確定に戻します。\n自分で決めた仮決めはそのままです。`,
       confirmLabel: '解除する',
       variant: 'danger',
     }, async ()=>{
@@ -690,17 +652,7 @@ function bindShortageDashboardActions(wrap){
     }
     const result = await runAppConfirmDialog({
       title: '仮決めをすべて解除しますか？',
-      message: `仮決め ${draftCount}件について、次の流れになります。`,
-      extraHtml: buildConfirmFlowExtraHtml([
-        {
-          label: 'この操作で',
-          items: ['仮決め → すべて未確定に戻る'],
-        },
-        {
-          label: '変わらないもの',
-          items: ['すでに講師に送った分（承認待ち）'],
-        },
-      ]),
+      message: `${draftCount}件の仮決めを取り消し、未確定に戻します。\nすでに講師に送った分はそのままです。`,
       confirmLabel: 'すべて解除',
       variant: 'danger',
     }, async ()=>{
