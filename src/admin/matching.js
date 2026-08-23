@@ -492,6 +492,17 @@ function cancelUpcomingAutoDrafts(){
   return count;
 }
 
+function buildConfirmFlowExtraHtml(sections){
+  if(!sections.length) return '';
+  return `<div class="app-confirm-flow">${sections.map(sec=>{
+    const label = sec.label
+      ? `<div class="app-confirm-flow-label">${sec.label}</div>`
+      : '';
+    const items = sec.items.map(text=> `<li>${text}</li>`).join('');
+    return `${label}<ol class="app-confirm-flow-list">${items}</ol>`;
+  }).join('')}</div>`;
+}
+
 function buildMatchingPriorityExtraHtml(){
   const enabled = getMatchingPriority().filter(item=> item.enabled);
   if(enabled.length === 0){
@@ -540,9 +551,25 @@ function bindShortageDashboardActions(wrap){
       return;
     }
     const result = await runAppConfirmDialog({
-      title: '未確定のコマを、自動で担当者まで決めますか？',
-      message: `この月の未確定 ${unassignedCount}コマに講師を割り当て、「仮決め」一覧に入れます。\n講師への依頼は、このあと「講師にスケジュールを送信」から行います。`,
-      extraHtml: buildMatchingPriorityExtraHtml(),
+      title: '全コマを自動で組みますか？',
+      message: `未確定 ${unassignedCount}コマについて、次の流れになります。`,
+      extraHtml: buildConfirmFlowExtraHtml([
+        {
+          label: 'この操作で',
+          items: [
+            'シフトと条件から講師を割り当てる',
+            '「仮決め」一覧に入る（講師の画面にはまだ出ない）',
+          ],
+        },
+        {
+          label: 'このあと（別のボタン）',
+          items: [
+            '「講師にスケジュールを送信」で依頼する',
+            '講師がOKするまで承認待ち',
+            'OK後、確定としてカレンダーに載る',
+          ],
+        },
+      ]) + buildMatchingPriorityExtraHtml(),
       confirmLabel: '自動で決める',
       variant: 'primary',
     }, async ()=>{
@@ -575,13 +602,29 @@ function bindShortageDashboardActions(wrap){
         .filter(t=> t && !t.loginUid)
         .map(t=> t.name),
     )];
-    let sendMessage = `仮決め ${draftCount}件を講師に依頼します。\n講師がOKするまで承認待ち（講師の返事待ち）です。`;
+    let sendMessage = `仮決め ${draftCount}件について、次の流れになります。`;
+    let sendExtra = buildConfirmFlowExtraHtml([
+      {
+        label: 'この操作で',
+        items: [
+          '仮決め → 講師の画面に届く',
+          '「承認待ち（講師の返事待ち）」になる',
+        ],
+      },
+      {
+        label: 'このあと',
+        items: [
+          '講師がOK → 確定（カレンダーに反映）',
+        ],
+      },
+    ]);
     if(noLoginTeachers.length > 0){
       sendMessage += `\n\n${noLoginTeachers.join('、')} はまだログインできないため、依頼できません。「講師管理」でログインを用意してください。`;
     }
     const result = await runAppConfirmDialog({
       title: '講師にスケジュールを送信しますか？',
       message: sendMessage,
+      extraHtml: sendExtra,
       confirmLabel: '送信する',
       variant: 'primary',
     }, async ()=>{
@@ -613,7 +656,20 @@ function bindShortageDashboardActions(wrap){
     const flatAutoSlots = collectUpcomingDraftsFlat().filter(e=> e.assignment.source === 'auto').length;
     const result = await runAppConfirmDialog({
       title: '自動で決めた仮決めを解除しますか？',
-      message: `この月の自動マッチング ${flatAutoSlots}件を取り消し、未確定に戻します。\n自分で決めた仮決めはそのままです。`,
+      message: `自動マッチング ${flatAutoSlots}件について、次の流れになります。`,
+      extraHtml: buildConfirmFlowExtraHtml([
+        {
+          label: 'この操作で',
+          items: ['仮決め → 未確定に戻る'],
+        },
+        {
+          label: '変わらないもの',
+          items: [
+            '自分で決めた仮決め',
+            'すでに講師に送った分',
+          ],
+        },
+      ]),
       confirmLabel: '解除する',
       variant: 'danger',
     }, async ()=>{
@@ -634,7 +690,17 @@ function bindShortageDashboardActions(wrap){
     }
     const result = await runAppConfirmDialog({
       title: '仮決めをすべて解除しますか？',
-      message: `${draftCount}件の仮決めを取り消し、未確定に戻します。\nすでに講師に送った分はそのままです。`,
+      message: `仮決め ${draftCount}件について、次の流れになります。`,
+      extraHtml: buildConfirmFlowExtraHtml([
+        {
+          label: 'この操作で',
+          items: ['仮決め → すべて未確定に戻る'],
+        },
+        {
+          label: '変わらないもの',
+          items: ['すでに講師に送った分（承認待ち）'],
+        },
+      ]),
       confirmLabel: 'すべて解除',
       variant: 'danger',
     }, async ()=>{
