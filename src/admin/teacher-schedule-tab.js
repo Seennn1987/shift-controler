@@ -4,13 +4,13 @@ import { pad2, daysInYearMonth, toDateStr, getTodayStr } from '../shared/date-ut
 import { firebaseConfig, fbAuth, fbDb, STORAGE_KEY, getSecondaryAuth, S } from './state.js';
 import { findCustomClosure, getDayStatus, renderCalendar } from './calendar.js';
 import { renderMatrix } from './finance-ui.js';
-import { renderMatching, renderStudentList } from './matching.js';
+import { renderMatching, renderShortageDashboard, renderStudentList } from './matching.js';
 import { cycleTeacherState, findTeacherSchedule, getOrCreateDraftSchedule, getDateSlotState, getWeekdayAvailabilityInMonth, gradeLabel, isAvailable, isPreferredDay, isTeacherAvailableOnDate, setDateSlotState, subjectColor } from './schedule-core.js';
 import { saveStudents, saveTeacherScheduleDoc, scheduleSave, scheduleSyncTeacherAssignments, approveCancellationRequest, rejectCancellationRequest } from './students-persistence.js';
 import { mountInlineConfirm, showInlineNotice } from '../shared/inline-confirm.js';
 import {
   buildApprovalAlertRowHtml, buildCalAlertPersonInline,
-  buildCalAlertSubjectTag, buildCalAlertWhenPill, buildCalStatusSummaryHtml, calAlertDateParts,
+  buildCalAlertSubjectTag, buildCalAlertWhenPill, calAlertDateParts,
 } from '../shared/cal-alert-row.js';
 
 // 講師スケジュール（月次提出）タブ
@@ -132,10 +132,25 @@ function approvalSubjectLevel(a){
   return student?.level || '中学';
 }
 
+function approvalAppliesInMonth(ticket, yearMonth){
+  const ym = getActiveYearMonth(yearMonth);
+  if(ticket.oneTimeDate) return ticket.oneTimeDate.startsWith(ym);
+  if(!teacherHasSubmittedMonth(ticket.teacherId, ym)) return false;
+  const total = daysInYearMonth(ym);
+  for(let d = 1; d <= total; d++){
+    const dateStr = `${ym}-${pad2(d)}`;
+    const status = getDayStatus(dateStr);
+    if(status.weekday !== ticket.day) continue;
+    if(status.type !== 'open') continue;
+    return true;
+  }
+  return false;
+}
+
 function openMatchingForApprovalTicket(a){
   const student = S.students.find(s=> s.name === a.studentName);
   if(!student){
-    const host = document.getElementById('approvalStatusWrap')?.parentElement || document.getElementById('calViewShell');
+    const host = document.getElementById('shortageWrap')?.parentElement || document.getElementById('calViewShell');
     showInlineNotice(host, `${a.studentName}さんのデータが見つかりませんでした。`, { variant: 'warn' });
     return;
   }
@@ -174,121 +189,8 @@ function renderApprovalDashboardItem(a, teacherName, status, { action = false } 
   });
 }
 
-function renderApprovalListBlock({ label, count, unit, scrollHtml, ariaLabel, emptyMessage, headActions = '', footnote = '', labelMuted = false }){
-  const inner = scrollHtml || `<div class="shortage-panel-empty">${emptyMessage}</div>`;
-  const headCls = headActions ? 'shortage-panel-head shortage-panel-head-split' : 'shortage-panel-head';
-  const labelCls = `shortage-panel-label${labelMuted ? ' is-muted' : ''}`;
-  const headRight = headActions
-    || `<span class="shortage-panel-count"><span class="shortage-panel-num">${count}</span>${unit}</span>`;
-  return `<section class="shortage-panel">
-    <div class="${headCls}">
-      <span class="${labelCls}">${label}</span>
-      ${headRight}
-    </div>
-    <div class="shortage-panel-scroll approval-scroll" aria-label="${ariaLabel}">${inner}</div>
-    ${footnote ? `<div class="shortage-panel-footnote">${footnote}</div>` : ''}
-  </section>`;
-}
-
 async function renderApprovalStatus(){
-  const bar = document.getElementById('approvalStatusBar');
-  const wrap = document.getElementById('approvalStatusWrap');
-  const summaryLine = document.getElementById('approvalSummaryLine');
-  if(!bar || !wrap || !summaryLine) return;
-
-  if(!S.dataReady || !S.studentDataReady){
-    bar.style.display = 'none';
-    return;
-  }
-
-  const list = await loadAssignmentApprovals();
-  const dismissed = loadDismissedApprovalIds();
-  const pending = list.filter(a=> a.status==='pending');
-  const rejected = list.filter(a=> a.status==='rejected' && !a.handled);
-  const actionCount = pending.length + rejected.length;
-
-  if(actionCount===0){
-    bar.style.display = 'none';
-    wrap.innerHTML = '';
-    return;
-  }
-
-  bar.style.display = '';
-  bar.classList.add('is-warn');
-  bar.classList.remove('is-ok');
-
-  const summaryChips = [{ kind: 'pending', label: '承認待ち', count: pending.length, unit: '件', note: '講師の返事待ち' }];
-  if(rejected.length > 0) summaryChips.push({ kind: 'rejected', label: '断り', count: rejected.length, unit: '件' });
-  summaryLine.innerHTML = buildCalStatusSummaryHtml(summaryChips);
-
-  const approved = list
-    .filter(a=> a.status==='approved' && !dismissed.has(a.id))
-    .slice(0, APPROVAL_RECENT_LIMIT);
-
-  const actionItems = [...rejected, ...pending];
-  const leftLabel = rejected.length > 0 && pending.length === 0 ? '断り' : '承認待ち';
-  const leftCount = actionItems.length;
-  const leftScrollHtml = actionItems.length
-    ? actionItems.map(a=>{
-        const teacher = S.teachers.find(t=>t.id===a.teacherId);
-        const status = a.status === 'rejected' ? 'rejected' : 'pending';
-        return renderApprovalDashboardItem(a, teacher ? teacher.name : '(削除された講師)', status, { action: true });
-      }).join('')
-    : '';
-
-  const approvedScrollHtml = approved.length
-    ? approved.map(a=>{
-        const teacher = S.teachers.find(t=>t.id===a.teacherId);
-        return renderApprovalDashboardItem(a, teacher ? teacher.name : '(削除された講師)', 'approved');
-      }).join('')
-    : '';
-
-  const leftPanel = renderApprovalListBlock({
-    label: leftLabel,
-    count: leftCount,
-    unit: '件',
-    scrollHtml: leftScrollHtml,
-    ariaLabel: '承認待ちと断られた授業',
-    emptyMessage: '承認待ちはありません',
-  });
-
-  const rightPanel = renderApprovalListBlock({
-    label: '承認済み（直近）',
-    count: approved.length,
-    unit: '件',
-    scrollHtml: approvedScrollHtml,
-    ariaLabel: '承認済みの履歴',
-    emptyMessage: '承認済みの履歴はありません',
-    labelMuted: true,
-    headActions: '<button type="button" class="approval-history-clear-btn" id="approvalHistoryClearBtn">履歴削除</button>',
-    footnote: '※ 古い確定は表示しません',
-  });
-
-  wrap.innerHTML = `<div class="shortage-two-col approval-two-col">${leftPanel}${rightPanel}</div>`;
-
-  document.getElementById('approvalHistoryClearBtn')?.addEventListener('click', (e)=>{
-    if(approved.length===0) return;
-    const btn = e.currentTarget;
-    mountInlineConfirm(wrap, btn, {
-      message: '表示中の承認済み履歴を削除します。\nよろしいですか？',
-      confirmLabel: '削除する',
-      variant: 'danger',
-      mountSelector: '.shortage-panel-head-split',
-      onConfirm: async ()=>{
-        approved.forEach(a=> dismissed.add(a.id));
-        saveDismissedApprovalIds(dismissed);
-        renderApprovalStatus();
-        return { ok: true };
-      },
-    });
-  });
-
-  wrap.querySelectorAll('.approval-item-btn[data-approval-id]').forEach(btn=>{
-    btn.addEventListener('click', ()=>{
-      const ticket = actionItems.find(a=> a.id === btn.dataset.approvalId);
-      if(ticket) openMatchingForApprovalTicket(ticket);
-    });
-  });
+  await renderShortageDashboard();
 }
 
 async function loadPendingCancellationRequests(){
@@ -974,4 +876,4 @@ async function replaceDesiredSlot(studentId, courseId, oldDay, oldSlot, newDay, 
 }
 
 
-export { loadPendingChangeRequests, loadAssignmentApprovals, renderApprovalStatus, renderChangeRequests, renderTeacherScheduleTab, openTeacherScheduleEditor, renderTeacherScheduleGrid, isPreferredPair, getPreferredTeachersForCourse, getPreferredPairsForTeacher, addPreferredPair, removePreferredPair, removePreferredPairFor, isPreferredSubjectForTeacher, teacherWorksOtherSlotOnWeekday, countTeacherCourseSlotCoverage, buildCandidateInfo, findAssignment, getActiveYearMonth, teacherHasSubmittedMonth, isAssignmentEffectiveInMonth, assignmentAppliesOnDate, findEffectiveAssignment, countCourseConfirmed, countTeacherSlot, countTeacherSlotOnDate, countRoomSlot, countRoomSlotOnDate, issueAssignmentApproval, confirmAssignment, cancelAssignment, cancelDraftAuto, cancelAllDrafts, sendDraftAssignments, countAssignmentsInMonth, withdrawPendingAssignment, findAlternativeSlots, replaceDesiredSlot };
+export { loadPendingChangeRequests, loadAssignmentApprovals, loadDismissedApprovalIds, saveDismissedApprovalIds, approvalAppliesInMonth, openMatchingForApprovalTicket, renderApprovalDashboardItem, renderApprovalStatus, renderChangeRequests, renderTeacherScheduleTab, openTeacherScheduleEditor, renderTeacherScheduleGrid, isPreferredPair, getPreferredTeachersForCourse, getPreferredPairsForTeacher, addPreferredPair, removePreferredPair, removePreferredPairFor, isPreferredSubjectForTeacher, teacherWorksOtherSlotOnWeekday, countTeacherCourseSlotCoverage, buildCandidateInfo, findAssignment, getActiveYearMonth, teacherHasSubmittedMonth, isAssignmentEffectiveInMonth, assignmentAppliesOnDate, findEffectiveAssignment, countCourseConfirmed, countTeacherSlot, countTeacherSlotOnDate, countRoomSlot, countRoomSlotOnDate, issueAssignmentApproval, confirmAssignment, cancelAssignment, cancelDraftAuto, cancelAllDrafts, sendDraftAssignments, countAssignmentsInMonth, withdrawPendingAssignment, findAlternativeSlots, replaceDesiredSlot };

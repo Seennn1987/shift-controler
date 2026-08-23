@@ -9,9 +9,9 @@ import { sortByNameKana } from '../shared/person-sort.js';
 import { renderCalendarWeek, switchCalMode, switchView } from './finance-ui.js';
 import { gradeLabel, isTeacherAvailableOnDate, subjectColor } from './schedule-core.js';
 import { saveStudents, scheduleSave, scheduleSyncTeacherAssignments } from './students-persistence.js';
-import { assignmentAppliesOnDate, buildCandidateInfo, confirmAssignment, countAssignmentsInMonth, cancelAllDrafts, cancelDraftAuto, findEffectiveAssignment, getActiveYearMonth, getPreferredTeachersForCourse, isAssignmentEffectiveInMonth, sendDraftAssignments, teacherHasSubmittedMonth } from './teacher-schedule-tab.js';
+import { assignmentAppliesOnDate, approvalAppliesInMonth, buildCandidateInfo, confirmAssignment, cancelAllDrafts, cancelDraftAuto, findEffectiveAssignment, getActiveYearMonth, getPreferredTeachersForCourse, isAssignmentEffectiveInMonth, loadAssignmentApprovals, loadDismissedApprovalIds, openMatchingForApprovalTicket, renderApprovalDashboardItem, saveDismissedApprovalIds, sendDraftAssignments, teacherHasSubmittedMonth } from './teacher-schedule-tab.js';
 import { compareCandidateInfo, getMatchingPriority, MATCHING_FACTOR_META } from './matching-config.js';
-import { showActiveTabNotice } from '../shared/inline-confirm.js';
+import { mountInlineConfirm, showActiveTabNotice } from '../shared/inline-confirm.js';
 import { dismissAppConfirmDialog, runAppConfirmDialog } from '../shared/app-confirm-dialog.js';
 import {
   buildApprovalAlertRowHtml, buildCalAlertPersonHead, buildCalAlertPersonInline,
@@ -448,6 +448,37 @@ function collectUpcomingDraftsFlat(){
   return flat;
 }
 
+function collectUpcomingPendingFlat(){
+  const ym = getActiveYearMonth();
+  const today = getTodayStr();
+  const flat = [];
+  const days = daysInYearMonth(ym);
+  for(let d = 1; d <= days; d++){
+    const dateStr = `${ym}-${pad2(d)}`;
+    if(dateStr < today) continue;
+    if(getDayStatus(dateStr).type !== 'open') continue;
+    S.pendingAssignments.forEach(a=>{
+      if(!isAssignmentEffectiveInMonth(a, ym)) return;
+      if(!assignmentAppliesOnDate(a, dateStr)) return;
+      if(findAbsenceFor(a.studentId, a.courseId, dateStr, a.day, a.slot)) return;
+      const student = S.students.find(s=> s.id === a.studentId);
+      if(!student) return;
+      const course = student.courses.find(c=> c.id === a.courseId);
+      if(!course) return;
+      const slot = SLOTS.find(sl=> sl.id === a.slot);
+      if(!slot) return;
+      const teacher = S.teachers.find(t=> t.id === a.teacherId);
+      flat.push({ dateStr, student, course, slot, teacher, assignment: a });
+    });
+  }
+  flat.sort((a, b)=>
+    a.dateStr.localeCompare(b.dateStr)
+    || a.slot.id - b.slot.id
+    || a.student.name.localeCompare(b.student.name, 'ja'),
+  );
+  return flat;
+}
+
 function shortageRowAriaLabel(dateStr, slot, student, course){
   const { md, weekday } = calAlertDateParts(dateStr, getDayStatus);
   const gLabel = gradeLabel(student);
@@ -468,11 +499,12 @@ function expandShortageBar(){
   if(chevron) chevron.textContent = '▴';
 }
 
-function buildShortageSummaryLine({ draftCount, unassignedCount, pendingCount, pendingAbsences }){
+function buildShortageSummaryLine({ draftCount, unassignedCount, pendingCount, rejectedCount, pendingAbsences }){
   const chips = [];
-  if(draftCount > 0) chips.push({ kind: 'tentative', label: '仮決め', count: draftCount, unit: '件' });
   if(unassignedCount > 0) chips.push({ kind: 'unassigned', label: '講師なし', count: unassignedCount, unit: 'コマ' });
-  if(pendingCount > 0) chips.push({ kind: 'pending', label: '承認待ち', count: pendingCount, unit: '件' });
+  if(draftCount > 0) chips.push({ kind: 'tentative', label: '仮決め', count: draftCount, unit: '件' });
+  if(pendingCount > 0) chips.push({ kind: 'pending', label: '承認待ち', count: pendingCount, unit: '件', note: '講師の返事待ち' });
+  if(rejectedCount > 0) chips.push({ kind: 'rejected', label: '断り', count: rejectedCount, unit: '件' });
   if(pendingAbsences > 0) chips.push({ kind: 'absence', label: '未振替', count: pendingAbsences, unit: '件' });
   return buildCalStatusSummaryHtml(chips);
 }
@@ -666,14 +698,19 @@ function bindShortageDashboardActions(wrap){
   });
 }
 
-function renderShortageListBlock(label, count, unit, itemsHtml, ariaLabel, emptyMessage){
+function renderShortageListBlock(label, count, unit, itemsHtml, ariaLabel, emptyMessage, { headActions = '', footnote = '', labelMuted = false } = {}){
   const scrollHtml = itemsHtml || `<div class="shortage-panel-empty">${emptyMessage}</div>`;
+  const headCls = headActions ? 'shortage-panel-head shortage-panel-head-split' : 'shortage-panel-head';
+  const labelCls = `shortage-panel-label${labelMuted ? ' is-muted' : ''}`;
+  const headRight = headActions
+    || `<span class="shortage-panel-count"><span class="shortage-panel-num">${count}</span>${unit}</span>`;
   return `<section class="shortage-panel">
-    <div class="shortage-panel-head">
-      <span class="shortage-panel-label">${label}</span>
-      <span class="shortage-panel-count"><span class="shortage-panel-num">${count}</span>${unit}</span>
+    <div class="${headCls}">
+      <span class="${labelCls}">${label}</span>
+      ${headRight}
     </div>
     <div class="shortage-panel-scroll approval-scroll" aria-label="${ariaLabel}">${scrollHtml}</div>
+    ${footnote ? `<div class="shortage-panel-footnote">${footnote}</div>` : ''}
   </section>`;
 }
 
@@ -725,7 +762,24 @@ function renderDraftDashboardItem(entry){
   });
 }
 
-function renderShortageDashboard(){
+function renderPendingDashboardItem(entry){
+  const { dateStr, student, course, slot, teacher } = entry;
+  const { md, weekday } = calAlertDateParts(dateStr, getDayStatus);
+  const gLabel = gradeLabel(student);
+  const teacherName = teacher?.name || '不明';
+  const aria = `${md}（${weekday}）${slot.label} ${teacherName} ${student.name}（${gLabel}）${course.subject} 承認待ち`;
+  return buildApprovalAlertRowHtml({
+    whenPill: buildCalAlertWhenPill(md, weekday, slot.label),
+    teacherHead: `<span class="cal-alert-row-head">${teacherName}</span>`,
+    personInline: buildCalAlertPersonInline(student.name, gLabel),
+    subjectTag: buildCalAlertSubjectTag(subjectColor, student.level, course.subject),
+    badgeHtml: '<span class="approval-badge pending">承認待ち</span>',
+    dataAttrs: ` data-student="${student.id}" data-date="${dateStr}" aria-label="${aria}"`,
+    tag: 'button',
+  });
+}
+
+async function renderShortageDashboard(){
   const wrap = document.getElementById('shortageWrap');
   const summaryLine = document.getElementById('shortageSummaryLine');
   const statusBar = document.getElementById('calStatusBar');
@@ -747,53 +801,111 @@ function renderShortageDashboard(){
   const ym = getActiveYearMonth();
   const flatItems = collectUpcomingUnassignedFlat();
   const draftItems = collectUpcomingDraftsFlat();
+  const pendingItems = collectUpcomingPendingFlat();
   const pendingAbsences = S.absences.filter(a=> a.status === 'pending').length;
   const draftCount = draftItems.length;
-  const pendingCount = countAssignmentsInMonth(S.pendingAssignments, ym);
   const unassignedCount = flatItems.length;
-  const hasWork = unassignedCount > 0 || draftCount > 0 || pendingCount > 0 || pendingAbsences > 0;
+  const pendingCount = pendingItems.length;
+
+  const approvalList = await loadAssignmentApprovals();
+  const dismissed = loadDismissedApprovalIds();
+  const rejectedInMonth = approvalList.filter(a=> a.status === 'rejected' && !a.handled && approvalAppliesInMonth(a, ym));
+  const rejectedCount = rejectedInMonth.length;
+  const approvedRecent = approvalList
+    .filter(a=> a.status === 'approved' && !dismissed.has(a.id))
+    .slice(0, 10);
+
+  const hasWork = unassignedCount > 0 || draftCount > 0 || pendingCount > 0 || rejectedCount > 0 || pendingAbsences > 0;
 
   if(summaryLine){
     summaryLine.innerHTML = buildShortageSummaryLine({
       draftCount,
       unassignedCount,
       pendingCount,
+      rejectedCount,
       pendingAbsences,
     });
   }
   statusBar?.classList.toggle('is-warn', hasWork);
   statusBar?.classList.toggle('is-ok', !hasWork);
 
-  if(!hasWork){
-    wrap.innerHTML = `${renderShortageActionsHtml(ym)}<div class="shortage-ok">✓ 講師が決まっていないコマはありません</div>`;
-    bindShortageDashboardActions(wrap);
-    return;
-  }
+  const pendingActionCount = pendingCount + rejectedCount;
+  const pendingScrollHtml = [
+    ...rejectedInMonth.map(a=>{
+      const teacher = S.teachers.find(t=> t.id === a.teacherId);
+      return renderApprovalDashboardItem(a, teacher ? teacher.name : '(削除された講師)', 'rejected', { action: true });
+    }),
+    ...pendingItems.map(renderPendingDashboardItem),
+  ].join('');
 
-  const unassignedHtml = renderShortageListBlock(
-    '講師なし', unassignedCount, 'コマ',
-    flatItems.length > 0 ? flatItems.map(renderShortageDashboardItem).join('') : '',
-    '講師が決まっていないコマ',
-    '講師が決まっていないコマはありません',
-  );
-
-  const draftHtml = renderShortageListBlock(
-    '仮決め', draftCount, '件',
-    draftItems.length > 0 ? draftItems.map(renderDraftDashboardItem).join('') : '',
-    '仮決めのコマ',
-    '仮決めはありません',
-  );
-
-  const noteHtml = (unassignedCount === 0 && draftCount === 0)
-    ? '<div class="shortage-ok">講師なし・仮決めのコマはありません（承認待ちは下の承認バーを確認してください）</div>'
+  const approvedScrollHtml = approvedRecent.length
+    ? approvedRecent.map(a=>{
+        const teacher = S.teachers.find(t=> t.id === a.teacherId);
+        return renderApprovalDashboardItem(a, teacher ? teacher.name : '(削除された講師)', 'approved');
+      }).join('')
     : '';
 
-  wrap.innerHTML = `${renderShortageActionsHtml(ym)}<div class="shortage-two-col">${unassignedHtml}${draftHtml}</div>${noteHtml}`;
+  wrap.innerHTML = `${renderShortageActionsHtml(ym)}<div class="shortage-four-col">
+    ${renderShortageListBlock(
+      '講師なし', unassignedCount, 'コマ',
+      flatItems.length > 0 ? flatItems.map(renderShortageDashboardItem).join('') : '',
+      '講師が決まっていないコマ',
+      '講師が決まっていないコマはありません',
+    )}
+    ${renderShortageListBlock(
+      '仮決め', draftCount, '件',
+      draftItems.length > 0 ? draftItems.map(renderDraftDashboardItem).join('') : '',
+      '仮決めのコマ',
+      '仮決めはありません',
+    )}
+    ${renderShortageListBlock(
+      '承認待ち', pendingActionCount, '件',
+      pendingScrollHtml,
+      '承認待ちと断られた授業',
+      '承認待ちはありません',
+    )}
+    ${renderShortageListBlock(
+      '確定', approvedRecent.length, '件',
+      approvedScrollHtml,
+      '承認済みの履歴',
+      '承認済みの履歴はありません',
+      {
+        labelMuted: true,
+        headActions: '<button type="button" class="approval-history-clear-btn" id="approvalHistoryClearBtn">履歴削除</button>',
+        footnote: '※ 古い確定は表示しません',
+      },
+    )}
+  </div>`;
+
   bindShortageDashboardActions(wrap);
 
   wrap.querySelectorAll('.approval-item-btn[data-student]').forEach(btn=>{
     btn.addEventListener('click', ()=>{
       jumpToCalendarForDate(btn.dataset.student, btn.dataset.date);
+    });
+  });
+
+  wrap.querySelectorAll('.approval-item-btn[data-approval-id]').forEach(btn=>{
+    btn.addEventListener('click', ()=>{
+      const ticket = rejectedInMonth.find(a=> a.id === btn.dataset.approvalId);
+      if(ticket) openMatchingForApprovalTicket(ticket);
+    });
+  });
+
+  document.getElementById('approvalHistoryClearBtn')?.addEventListener('click', (e)=>{
+    if(approvedRecent.length === 0) return;
+    const btn = e.currentTarget;
+    mountInlineConfirm(wrap, btn, {
+      message: '表示中の承認済み履歴を削除します。\nよろしいですか？',
+      confirmLabel: '削除する',
+      variant: 'danger',
+      mountSelector: '.shortage-panel-head-split',
+      onConfirm: async ()=>{
+        approvedRecent.forEach(a=> dismissed.add(a.id));
+        saveDismissedApprovalIds(dismissed);
+        await renderShortageDashboard();
+        return { ok: true };
+      },
     });
   });
 }

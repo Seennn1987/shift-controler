@@ -412,15 +412,6 @@ async function init(){
     btn.setAttribute('aria-expanded', isOpen ? 'false' : 'true');
     if(chevron) chevron.textContent = isOpen ? '▾' : '▴';
   });
-  document.getElementById('approvalToggleBtn').addEventListener('click', ()=>{
-    const detail = document.getElementById('approvalDetailWrap');
-    const btn = document.getElementById('approvalToggleBtn');
-    const chevron = btn.querySelector('.cal-status-chevron');
-    const isOpen = detail.style.display !== 'none';
-    detail.style.display = isOpen ? 'none' : 'block';
-    btn.setAttribute('aria-expanded', isOpen ? 'false' : 'true');
-    if(chevron) chevron.textContent = isOpen ? '▾' : '▴';
-  });
   initMatchingPanel();
 
   await loadTeachers();
