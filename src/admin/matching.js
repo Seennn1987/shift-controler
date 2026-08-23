@@ -11,7 +11,7 @@ import { gradeLabel, isTeacherAvailableOnDate, subjectColor } from './schedule-c
 import { saveStudents, scheduleSave, scheduleSyncTeacherAssignments } from './students-persistence.js';
 import { renderTeacherList } from './teachers.js';
 import { assignmentAppliesOnDate, approvalAppliesInMonth, buildCandidateInfo, confirmAssignment, confirmDualAssignment, cancelAllDrafts, cancelDraftAuto, findEffectiveAssignment, getActiveYearMonth, getPreferredTeachersForCourse, isAssignmentEffectiveInMonth, loadAssignmentApprovals, loadDismissedApprovalIds, openMatchingForApprovalTicket, renderApprovalDashboardItem, saveDismissedApprovalIds, sendDraftAssignments, teacherHasSubmittedMonth } from './teacher-schedule-tab.js';
-import { findDualPairAtSlot, teacherTeachesBoth } from './dual-subject.js';
+import { findDualPairAtSlot, teacherTeachesBoth, buildDualSubjectTagsHtml } from './dual-subject.js';
 import { compareCandidateInfo, getMatchingPriority, MATCHING_FACTOR_META } from './matching-config.js';
 import { mountInlineConfirm, showActiveTabNotice } from '../shared/inline-confirm.js';
 import { dismissAppConfirmDialog, runAppConfirmDialog } from '../shared/app-confirm-dialog.js';
@@ -471,17 +471,21 @@ function collectUpcomingUnassignedFlat(){
 
 function collectUpcomingDraftsFlat(){
   const ym = getActiveYearMonth();
-  const today = getTodayStr();
   const flat = [];
+  const seenDual = new Set();
   const days = daysInYearMonth(ym);
   for(let d = 1; d <= days; d++){
     const dateStr = `${ym}-${pad2(d)}`;
-    if(dateStr < today) continue;
     if(getDayStatus(dateStr).type !== 'open') continue;
     S.draftAssignments.forEach(a=>{
       if(!isAssignmentEffectiveInMonth(a, ym)) return;
       if(!assignmentAppliesOnDate(a, dateStr)) return;
       if(findAbsenceFor(a.studentId, a.courseId, dateStr, a.day, a.slot)) return;
+      if(a.dualGroupId){
+        const dualKey = `${dateStr}:${a.studentId}:${a.slot}:${a.dualGroupId}`;
+        if(seenDual.has(dualKey)) return;
+        seenDual.add(dualKey);
+      }
       const student = S.students.find(s=> s.id === a.studentId);
       if(!student) return;
       const course = student.courses.find(c=> c.id === a.courseId);
@@ -489,7 +493,9 @@ function collectUpcomingDraftsFlat(){
       const slot = SLOTS.find(sl=> sl.id === a.slot);
       if(!slot) return;
       const teacher = S.teachers.find(t=> t.id === a.teacherId);
-      flat.push({ dateStr, student, course, slot, teacher, assignment: a });
+      const dualPair = a.dualGroupId ? findDualPairAtSlot(student.courses, a.day, a.slot) : null;
+      const subjects = dualPair?.subjects?.length >= 2 ? dualPair.subjects : null;
+      flat.push({ dateStr, student, course, slot, teacher, assignment: a, subjects });
     });
   }
   flat.sort((a, b)=>
@@ -800,17 +806,21 @@ function renderShortageDashboardItem(entry){
 }
 
 function renderDraftDashboardItem(entry){
-  const { dateStr, student, course, slot, teacher, assignment } = entry;
+  const { dateStr, student, course, slot, teacher, assignment, subjects } = entry;
   const { md, weekday } = calAlertDateParts(dateStr, getDayStatus);
   const gLabel = gradeLabel(student);
   const teacherName = teacher?.name || '不明';
   const autoBadge = assignment.source === 'auto' ? '<span class="auto-badge">自動</span>' : '';
-  const aria = `${md}(${weekday}) ${slot.label} ${teacherName} ${student.name}（${gLabel}）${course.subject} 仮決め`;
+  const subjectLabel = subjects?.length >= 2 ? subjects.join('') : course.subject;
+  const subjectTag = subjects?.length >= 2
+    ? buildDualSubjectTagsHtml(student.level, subjects, subjectColor)
+    : buildCalAlertSubjectTag(subjectColor, student.level, course.subject);
+  const aria = `${md}(${weekday}) ${slot.label} ${teacherName} ${student.name}（${gLabel}）${subjectLabel} 仮決め`;
   return buildApprovalAlertRowHtml({
     whenPill: buildCalAlertWhenPill(md, weekday, slot.label),
     teacherHead: buildCalAlertTeacherHead(teacherName),
     personInline: buildCalAlertPersonInline(student.name, gLabel),
-    subjectTag: buildCalAlertSubjectTag(subjectColor, student.level, course.subject),
+    subjectTag,
     badgeHtml: autoBadge,
     dataAttrs: ` data-student="${student.id}" data-date="${dateStr}" aria-label="${aria}"`,
     tag: 'button',
