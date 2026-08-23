@@ -666,18 +666,25 @@ function bindShortageDashboardActions(wrap){
   });
 }
 
+function renderShortageListBlock(label, count, unit, itemsHtml, ariaLabel){
+  return `<div class="approval-detail-well shortage-list-block">
+    <div class="approval-col">
+      <div class="approval-col-label">${label} <span class="approval-col-num">${count}${unit}</span></div>
+      <div class="approval-scroll" aria-label="${ariaLabel}">${itemsHtml}</div>
+    </div>
+  </div>`;
+}
+
 function renderShortageActionsHtml(ym){
   const monthSubmitted = monthHasSubmittedTeachers(ym);
   const monthLabel = ym ? `${Number(ym.slice(5))}月` : 'この月';
   return `<div class="shortage-actions">
     ${!monthSubmitted && ym ? `<div class="shortage-actions-warn">${monthLabel}は講師のシフト提出がまだないため、自動で組めません。</div>` : ''}
-    <div class="shortage-actions-row">
-      <button type="button" class="ghost mp-action" id="shortageBulkAutoBtn" ${!monthSubmitted ? 'disabled' : ''}>全コマを自動で組む</button>
-      <button type="button" class="primary mp-action" id="shortageSendBtn">講師にスケジュールを送信</button>
-    </div>
-    <div class="shortage-actions-row">
-      <button type="button" class="ghost mp-action" id="shortageCancelAutoBtn">自動マッチングで解除</button>
-      <button type="button" class="ghost mp-action danger-ghost" id="shortageCancelDraftsBtn">仮決めをすべて解除</button>
+    <div class="shortage-actions-grid">
+      <button type="button" class="ghost mp-action shortage-action-btn" id="shortageBulkAutoBtn" ${!monthSubmitted ? 'disabled' : ''}>全コマを自動で組む</button>
+      <button type="button" class="primary mp-action shortage-action-btn" id="shortageSendBtn">講師にスケジュールを送信</button>
+      <button type="button" class="danger-ghost mp-action shortage-action-btn" id="shortageCancelAutoBtn">自動マッチングで解除</button>
+      <button type="button" class="danger-ghost mp-action shortage-action-btn" id="shortageCancelDraftsBtn">仮決めをすべて解除</button>
     </div>
     <div id="shortageActionResult" class="shortage-action-result" aria-live="polite"></div>
   </div>`;
@@ -762,32 +769,30 @@ function renderShortageDashboard(){
   }
 
   const unassignedHtml = flatItems.length > 0
-    ? `<div class="approval-detail-well shortage-list-block">
-        <div class="cal-alert-list-shell">
-          <div class="approval-col">
-            <div class="approval-col-label">未確定 <span class="approval-col-num">${unassignedCount}コマ</span></div>
-            <div class="approval-scroll" aria-label="未確定のコマ">${flatItems.map(renderShortageDashboardItem).join('')}</div>
-          </div>
-        </div>
-      </div>`
+    ? renderShortageListBlock(
+      '未確定', unassignedCount, 'コマ',
+      flatItems.map(renderShortageDashboardItem).join(''),
+      '未確定のコマ',
+    )
     : '';
 
   const draftHtml = draftItems.length > 0
-    ? `<div class="approval-detail-well shortage-list-block">
-        <div class="cal-alert-list-shell">
-          <div class="approval-col">
-            <div class="approval-col-label">仮決め <span class="approval-col-num">${draftCount}件</span></div>
-            <div class="approval-scroll" aria-label="仮決めのコマ">${draftItems.map(renderDraftDashboardItem).join('')}</div>
-          </div>
-        </div>
-      </div>`
+    ? renderShortageListBlock(
+      '仮決め', draftCount, '件',
+      draftItems.map(renderDraftDashboardItem).join(''),
+      '仮決めのコマ',
+    )
     : '';
 
   const emptyHtml = (!unassignedHtml && !draftHtml)
     ? '<div class="shortage-ok">未確定・仮決めのコマはありません（承認待ちは下の承認バーを確認してください）</div>'
     : '';
 
-  wrap.innerHTML = `${renderShortageActionsHtml(ym)}${unassignedHtml}${draftHtml}${emptyHtml}`;
+  const listsHtml = (unassignedHtml && draftHtml)
+    ? `<div class="shortage-two-col">${unassignedHtml}${draftHtml}</div>`
+    : `${unassignedHtml}${draftHtml}`;
+
+  wrap.innerHTML = `${renderShortageActionsHtml(ym)}${listsHtml}${emptyHtml}`;
   bindShortageDashboardActions(wrap);
 
   wrap.querySelectorAll('.approval-item-btn[data-student]').forEach(btn=>{

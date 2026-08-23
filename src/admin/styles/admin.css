@@ -681,13 +681,25 @@
     font-size:var(--text-xs);font-weight:700;color:var(--danger);padding:8px 10px;
     background:var(--danger-bg);border-radius:var(--radius-md);
   }
-  .shortage-actions-row{
-    display:flex;flex-wrap:wrap;gap:8px;align-items:center;
+  .shortage-actions-grid{
+    display:grid;grid-template-columns:1fr 1fr;gap:8px;
+  }
+  .shortage-actions-grid .shortage-action-btn{
+    margin-top:0;width:100%;min-height:40px;
+    display:inline-flex;align-items:center;justify-content:center;
+    text-align:center;white-space:normal;line-height:1.35;padding:8px 10px;
   }
   .shortage-action-result{
     font-size:var(--text-xs);font-weight:700;color:var(--ink-soft);min-height:1.2em;
   }
-  .shortage-list-block + .shortage-list-block{margin-top:10px;}
+  .shortage-two-col{
+    display:grid;grid-template-columns:1fr 1fr;gap:8px;min-width:0;
+  }
+  .shortage-list-block .approval-col{min-height:200px;}
+  @media (max-width:640px){
+    .shortage-actions-grid,
+    .shortage-two-col{grid-template-columns:1fr;}
+  }
   .desired-slot-chip.draft{border-color:var(--border-strong);}
   .desired-slot-chip.draft .dsc-status{color:var(--ink-soft);}
 
