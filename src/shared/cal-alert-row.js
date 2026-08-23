@@ -28,19 +28,20 @@ export function buildCalAlertSubjectTag(subjectColor, level, subject){
   return `<span class="sched-student-tag" style="background:${c.bg};color:${c.text};">${subject}</span>`;
 }
 
-export function buildCalAlertRowBody(parts){
-  return `<div class="cal-alert-row-body">${parts.join('')}</div>`;
+export function buildCalAlertRowBody(parts, layout = 'full'){
+  const layoutCls = layout === 'person' ? ' cal-alert-row-body--person' : ' cal-alert-row-body--full';
+  return `<div class="cal-alert-row-body${layoutCls}">${parts.join('')}</div>`;
 }
 
 export function buildShortageAlertRowHtml({ whenPill, personHead, subjectTag, badgeHtml = '', dataAttrs = '' }){
   return `<button type="button" class="approval-item approval-item-btn cal-alert-row-c4"${dataAttrs}>
-    ${buildCalAlertRowBody([whenPill, personHead, subjectTag])}${badgeHtml}
+    ${buildCalAlertRowBody([whenPill, personHead, subjectTag], 'person')}${badgeHtml}
   </button>`;
 }
 
 export function buildApprovalAlertRowHtml({ whenPill, teacherHead, personInline, subjectTag, badgeHtml = '', rowCls = '', dataAttrs = '', tag = 'button' }){
   const cls = `approval-item cal-alert-row-c4${rowCls}${tag === 'button' ? ' approval-item-btn' : ''}`;
-  const inner = `${buildCalAlertRowBody([whenPill, teacherHead, personInline, subjectTag])}${badgeHtml}`;
+  const inner = `${buildCalAlertRowBody([whenPill, teacherHead, personInline, subjectTag], 'full')}${badgeHtml}`;
   if(tag === 'button'){
     return `<button type="button" class="${cls}"${dataAttrs}>${inner}</button>`;
   }

@@ -660,10 +660,21 @@
   .approval-item.cal-alert-row-c4{
     align-items:center;gap:8px;padding:7px 10px;min-height:40px;
   }
-  .cal-alert-row-body{
-    flex:1 1 auto;min-width:0;display:flex;align-items:center;flex-wrap:wrap;
-    gap:5px;justify-content:flex-start;
+  .cal-alert-row-c4 .cal-alert-row-body{
+    flex:1 1 auto;min-width:0;align-items:center;column-gap:5px;row-gap:2px;
   }
+  .cal-alert-row-c4 .cal-alert-row-body--full{
+    display:grid;grid-template-columns:auto minmax(0,1fr) minmax(0,1fr) auto;
+  }
+  .cal-alert-row-c4 .cal-alert-row-body--person{
+    display:grid;grid-template-columns:auto minmax(0,1fr) auto;
+  }
+  .cal-alert-row-c4 .cal-alert-row-body--full .cal-alert-row-head,
+  .cal-alert-row-c4 .cal-alert-row-body--full .cal-alert-person-inline,
+  .cal-alert-row-c4 .cal-alert-row-body--person .cal-alert-row-head{
+    min-width:0;overflow:hidden;text-overflow:ellipsis;
+  }
+  .cal-alert-row-c4 .cal-alert-row-body .sched-student-tag{justify-self:start;}
   .cal-alert-row-c4 .approval-badge,
   .cal-alert-row-c4 > .auto-badge{margin-left:auto;flex-shrink:0;}
   .cal-alert-when-pill{
