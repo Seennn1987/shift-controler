@@ -1,0 +1,48 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ピタコマ 提出ドック 文言・フォーマット プレビュー</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Zen+Kaku+Gothic+New:wght@400;500;700;900&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="teacher-dock-wording-preview.css">
+</head>
+<body>
+  <header class="preview-header">
+    <div class="preview-header-inner">
+      <h1>提出ドック — 文言20案 × 状態表示10案</h1>
+      <p>「返事」を使わない言い換えと、2行ステータスの見せ方を選んでください。</p>
+    </div>
+  </header>
+
+  <main class="preview-main">
+    <section>
+      <h2>前提（今回の修正）</h2>
+      <div id="premiseBox" class="note-box"></div>
+    </section>
+
+    <section>
+      <h2>シフトのバッジについて</h2>
+      <div id="badgeBox" class="note-box"></div>
+      <div id="badgeDemo" class="badge-demo-row"></div>
+    </section>
+
+    <section>
+      <h2>見出し × 送信ボタン — 20案（「返事」なし）</h2>
+      <p class="section-desc">授業ブロックの<strong>見出し</strong>と<strong>青ボタン</strong>の組み合わせ。下の白ボタンは「残り1コマをすべて承認」で固定。</p>
+      <div id="recommendW" class="recommend-box"></div>
+      <div id="wordGrid" class="grid-20"></div>
+    </section>
+
+    <section>
+      <h2>状態2行のフォーマット — 10案</h2>
+      <p class="section-desc">意味は同じ（未対応1コマ／下書き2件＝承認1・辞退1）。<strong>見出しW6＋ボタンW6</strong>で固定表示。</p>
+      <div id="recommendF" class="recommend-box"></div>
+      <div id="formatGrid" class="grid-10"></div>
+    </section>
+  </main>
+
+  <script src="teacher-dock-wording-preview.js"></script>
+</body>
+</html>

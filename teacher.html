@@ -44,34 +44,47 @@
 </header>
 
 <div class="app" id="appRoot" style="display:none;">
-  <div class="card" id="pendingBannerCard" style="display:none;">
-    <div class="pending-banner-col">
-      <p class="pending-banner-line pending-banner-request" id="pendingBannerRequest" style="display:none;"></p>
-      <p class="pending-banner-line pending-banner-draft" id="pendingBannerDraft" style="display:none;"></p>
-      <div id="pendingBannerNotices" class="pending-banner-notices" style="display:none;"></div>
-      <div class="pending-banner-actions">
-        <button type="button" class="ghost draft-approve-all-btn" id="draftApproveAllBtn" style="display:none;">残りをすべて承認</button>
-        <button type="button" class="primary" id="submitResponsesBtn" style="display:none;">教室長に送信する</button>
+  <div class="submit-dock submit-dock-d1" id="submitDock">
+    <div class="submit-dock-block is-lesson" id="submitDockLesson" style="display:none;">
+      <div class="submit-dock-head">
+        <div class="submit-dock-lines">
+          <p class="submit-dock-title">授業の承認・辞退</p>
+          <dl class="submit-dock-kv" id="submitDockLessonKv"></dl>
+          <div id="pendingBannerNotices" class="pending-banner-notices" style="display:none;"></div>
+        </div>
+        <div class="submit-dock-actions is-stacked">
+          <button type="button" class="primary" id="submitResponsesBtn" style="display:none;">確認結果を提出する</button>
+          <button type="button" class="ghost" id="draftApproveAllBtn" style="display:none;">残り1コマをすべて承認</button>
+        </div>
+      </div>
+    </div>
+    <div class="submit-dock-block is-shift" id="submitDockShift">
+      <div class="submit-dock-head">
+        <div class="submit-dock-lines">
+          <div class="submit-dock-meta">
+            <p class="submit-dock-title">シフト</p>
+            <span id="shiftDockBadges" class="submit-dock-badges"></span>
+          </div>
+        </div>
+        <div class="submit-dock-actions is-stacked">
+          <button type="button" class="primary" id="submitShiftBtn">シフトを提出する</button>
+          <button type="button" class="send-request-btn" id="sendRequestBtn" style="display:none;">変更を教室長に送る（0件）</button>
+        </div>
       </div>
     </div>
   </div>
+  <p class="submit-dock-msg" id="formMsg"></p>
 
   <div class="card">
     <h2>マイスケジュール</h2>
-    <p class="desc">担当授業の確認と、空きコマのシフト提出がこの1画面でできます。<br>青枠のコマは教室長からの授業依頼です。「承認／辞退」を選び、上部の「教室長に送信する」でまとめて送ってください。<br>授業のないコマでは ×不可・△可能・○優先 を選び、下の「シフトを提出する」でまとめて送れます。</p>
+    <p class="desc">担当授業の確認と、空きコマのシフト提出がこの1画面でできます。<br>青枠のコマは教室長からの授業依頼です。承認・辞退を選び、上部の「確認結果を提出する」でまとめて送ってください。<br>授業のないコマでは ×不可・△可能・○優先 を選び、上部の「シフトを提出する」で送れます。</p>
     <div class="month-nav">
       <button type="button" class="nav-btn" id="calPrevBtn">‹</button>
       <div class="month-title" id="calMonthTitle">2026年8月</div>
       <button type="button" class="nav-btn" id="calNextBtn">›</button>
       <button type="button" class="today-btn" id="calTodayBtn">今月</button>
     </div>
-    <div class="status-bar" id="shiftStatusBar"></div>
     <div id="myCalWrap"></div>
-    <div class="form-actions">
-      <button type="button" class="primary" id="submitShiftBtn">この内容でシフトを提出する</button>
-      <button type="button" class="send-request-btn" id="sendRequestBtn" style="display:none;">変更をリクエストする（0件）</button>
-      <span class="form-msg" id="formMsg"></span>
-    </div>
   </div>
 </div>
 

@@ -17,7 +17,6 @@ import {
   draftKeyForSlot,
   draftKeyForCancel,
   countUnrepliedPendingSlots,
-  summarizeDrafts,
   pruneStaleResponseDrafts,
   getSlotPendingTickets,
   entryAppliesOnDate,
@@ -27,7 +26,6 @@ import {
   buildShiftPickGroupHtml,
   handleShiftPickSelect,
   hasLocalShiftChange,
-  updateShiftStatusBar,
   updateShiftFormState,
   clearShiftLocalOverrides,
   submitShiftMonth,
@@ -239,11 +237,26 @@ function buildDayHtml(dateStr, dayNum, wd, isToday, dayStatus){
   </div>`;
 }
 
+function formatDraftDetail(drafts){
+  const keys = Object.keys(drafts);
+  if(keys.length === 0) return '';
+  let approve = 0, reject = 0, cancel = 0;
+  Object.values(drafts).forEach(d=>{
+    if(d.action === 'approve') approve++;
+    else if(d.action === 'reject') reject++;
+    else if(d.action === 'cancel') cancel++;
+  });
+  const parts = [];
+  if(approve) parts.push(`承認${approve}`);
+  if(reject) parts.push(`辞退${reject}`);
+  if(cancel) parts.push(`キャンセル依頼${cancel}`);
+  return `${keys.length}件（${parts.join('·')}）`;
+}
+
 function updateBanner(){
   pruneStaleResponseDrafts();
-  const bannerCard = document.getElementById('pendingBannerCard');
-  const requestLine = document.getElementById('pendingBannerRequest');
-  const draftLine = document.getElementById('pendingBannerDraft');
+  const lessonBlock = document.getElementById('submitDockLesson');
+  const kvEl = document.getElementById('submitDockLessonKv');
   const noticeWrap = document.getElementById('pendingBannerNotices');
   const draftAllBtn = document.getElementById('draftApproveAllBtn');
   const submitBtn = document.getElementById('submitResponsesBtn');
@@ -251,10 +264,9 @@ function updateBanner(){
   const unreplied = countUnrepliedPendingSlots();
   const draftCount = Object.keys(S.responseDrafts).length;
   const notices = S.adminCancelledNotices || [];
-  const show = unreplied > 0 || draftCount > 0 || notices.length > 0;
+  const showLesson = unreplied > 0 || draftCount > 0 || notices.length > 0;
 
-  if(!bannerCard) return;
-  bannerCard.style.display = show ? '' : 'none';
+  if(lessonBlock) lessonBlock.style.display = showLesson ? '' : 'none';
 
   if(noticeWrap){
     if(notices.length > 0){
@@ -271,25 +283,16 @@ function updateBanner(){
     }
   }
 
-  if(requestLine){
+  if(kvEl){
+    const rows = [];
     if(unreplied > 0){
-      requestLine.style.display = '';
-      requestLine.textContent = `【返事が必要】あと${unreplied}コマ、授業依頼への返事が必要です`;
-    }else{
-      requestLine.style.display = 'none';
-      requestLine.textContent = '';
+      rows.push(`<dt>未対応</dt><dd class="is-alert">${unreplied}コマ</dd>`);
     }
-  }
-
-  if(draftLine){
     if(draftCount > 0){
-      draftLine.style.display = '';
-      const summary = summarizeDrafts(S.responseDrafts);
-      draftLine.textContent = `【教室長に送る】${draftCount}件、まだ送っていません${summary ? `（${summary}）` : ''}`;
-    }else{
-      draftLine.style.display = 'none';
-      draftLine.textContent = '';
+      rows.push(`<dt>下書き</dt><dd class="is-draft">${formatDraftDetail(S.responseDrafts)}</dd>`);
     }
+    kvEl.innerHTML = rows.join('');
+    kvEl.style.display = rows.length ? '' : 'none';
   }
 
   if(draftAllBtn){
@@ -298,7 +301,6 @@ function updateBanner(){
   }
   if(submitBtn){
     submitBtn.style.display = draftCount > 0 ? '' : 'none';
-    submitBtn.textContent = `${draftCount}件を教室長に送信する`;
   }
 }
 
@@ -359,7 +361,6 @@ function renderMyCalendar(){
   wrap.innerHTML = html;
   bindCalendarActions(wrap);
   bindNoticeDismiss();
-  updateShiftStatusBar();
   updateShiftFormState();
 }
 

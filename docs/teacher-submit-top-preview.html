@@ -1,0 +1,51 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ピタコマ 提出ボタン上部配置プレビュー</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Zen+Kaku+Gothic+New:wght@400;500;700;900&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="teacher-submit-top-preview.css">
+</head>
+<body>
+  <header class="preview-header">
+    <div class="preview-header-inner">
+      <h1>提出ボタン — 上部まとめ プレビュー（T1 修正版）</h1>
+      <p>ボタン縦並び＋文言整理済み。<strong>T1</strong> を採用前提で確認してください。</p>
+    </div>
+  </header>
+
+  <main class="preview-main">
+    <section>
+      <h2>方針</h2>
+      <div id="ruleBox" class="rule-box"></div>
+    </section>
+
+    <section>
+      <h2>状態を切り替え</h2>
+      <div class="preview-controls" id="stateControls"></div>
+      <div id="evalRecommend" class="recommend-box"></div>
+    </section>
+
+    <section>
+      <h2>現在 vs 新案</h2>
+      <p class="section-desc">左が<strong>いまの公開中</strong>（授業＝上・シフト＝下）。右以降が上部まとめ案。</p>
+      <div id="compareCurrent" class="compare-row"></div>
+    </section>
+
+    <section>
+      <h2>上部まとめ T1〜T3</h2>
+      <div id="patternTabs" class="pattern-tabs"></div>
+      <div id="patternPanels"></div>
+    </section>
+
+    <section>
+      <h2>各案の長所・短所</h2>
+      <div id="prosGrid" class="pros-grid"></div>
+    </section>
+  </main>
+
+  <script src="teacher-submit-top-preview.js"></script>
+</body>
+</html>

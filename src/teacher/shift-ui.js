@@ -60,16 +60,16 @@ function buildShiftPickGroupHtml(dateStr, slotId, entry){
   </div>`;
 }
 
-function updateShiftStatusBar(){
-  const bar = document.getElementById('shiftStatusBar');
-  if(!bar || S.curYear == null || S.curMonth == null) return;
-  const yearMonth = `${S.curYear}-${pad2(S.curMonth + 1)}`;
-  const entry = getMonthEntry(yearMonth);
-  const isSubmitted = entry.status === 'submitted';
-  const adminNote = entry.submittedBy === 'admin' ? '（教室長が代理入力した内容です。内容をご確認ください）' : '';
-  bar.innerHTML = isSubmitted
-    ? `<span class="status-badge submitted">確定</span><span>この月はシフト提出済みです${adminNote}。空コマの○△×を変えてから「変更をリクエストする」を押すと、まとめて教室長に届きます。</span>`
-    : `<span class="status-badge draft">未提出</span><span>授業のないコマで○△×を選び、「この内容でシフトを提出する」を押してください${adminNote}。</span>`;
+function updateShiftDockBadges(isSubmitted, changeCount){
+  const wrap = document.getElementById('shiftDockBadges');
+  if(!wrap) return;
+  if(!isSubmitted){
+    wrap.innerHTML = '<span class="status-badge draft">未提出</span>';
+    return;
+  }
+  const badges = ['<span class="status-badge submitted">提出済</span>'];
+  if(changeCount > 0) badges.push('<span class="status-badge change">変更あり</span>');
+  wrap.innerHTML = badges.join('');
 }
 
 function updateShiftFormState(){
@@ -81,10 +81,12 @@ function updateShiftFormState(){
   const isSubmitted = entry.status === 'submitted';
   const changeCount = Object.keys(S.localOverrides).length;
 
+  updateShiftDockBadges(isSubmitted, changeCount);
+
   submitBtn.style.display = isSubmitted ? 'none' : '';
   if(isSubmitted){
     sendBtn.style.display = changeCount > 0 ? '' : 'none';
-    sendBtn.textContent = `変更をリクエストする（${changeCount}件）`;
+    sendBtn.textContent = `変更を教室長に送る（${changeCount}件）`;
     sendBtn.disabled = changeCount === 0;
   }else{
     sendBtn.style.display = 'none';
@@ -174,7 +176,6 @@ export {
   hasLocalShiftChange,
   buildShiftPickGroupHtml,
   handleShiftPickSelect,
-  updateShiftStatusBar,
   updateShiftFormState,
   submitShiftMonth,
   sendPendingChanges,
@@ -183,6 +184,5 @@ export {
 
 /** @deprecated 互換: schedule ポーリング後に calendar 側で再描画 */
 export function renderKeepingOverrides(){
-  updateShiftStatusBar();
   updateShiftFormState();
 }

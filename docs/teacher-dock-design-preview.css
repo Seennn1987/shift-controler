@@ -1,0 +1,349 @@
+@import url('/src/shared/styles/variables.css');
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  font-family: var(--font-family);
+  background: var(--cream);
+  color: var(--ink);
+  font-size: var(--text-base);
+  -webkit-font-smoothing: antialiased;
+}
+
+button { outline: none; font-family: inherit; cursor: default; }
+
+.preview-header {
+  background: var(--green-900);
+  color: var(--text-on-brand);
+  padding: 28px 20px;
+}
+
+.preview-header-inner { max-width: 1100px; margin: 0 auto; }
+.preview-header h1 { margin: 0; font-size: var(--text-2xl); font-weight: var(--font-weight-black); }
+.preview-header p { margin: 8px 0 0; font-size: var(--text-md); color: rgba(255,255,255,.72); line-height: var(--leading-relaxed); }
+
+.preview-main { max-width: 1100px; margin: 0 auto; padding: 28px 20px 64px; }
+section { margin-bottom: 36px; }
+h2 { margin: 0 0 8px; font-size: var(--text-lg); font-weight: var(--font-weight-black); color: var(--green-900); }
+.section-desc { margin: 0 0 14px; font-size: var(--text-md); color: var(--ink-soft); line-height: var(--leading-relaxed); }
+
+.note-box, .recommend-box {
+  background: var(--brand-50);
+  border: 1px solid var(--pending-border);
+  border-radius: var(--radius-lg);
+  padding: 14px 16px;
+  font-size: var(--text-md);
+  line-height: var(--leading-relaxed);
+  margin-bottom: 16px;
+}
+
+.grid-10 {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 14px;
+}
+
+@media (max-width: 760px) { .grid-10 { grid-template-columns: 1fr; } }
+
+.design-card {
+  border: 1px solid var(--border);
+  border-radius: var(--radius-card);
+  background: var(--card);
+  overflow: hidden;
+}
+
+.design-card-head {
+  padding: 8px 12px;
+  font-size: var(--text-sm);
+  font-weight: var(--font-weight-bold);
+  border-bottom: 1px solid var(--border);
+  background: var(--surface-muted);
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.design-card-head .rec { color: var(--green-800); font-size: var(--text-xs); }
+.design-card-body { padding: 12px; }
+.design-note { margin: 10px 0 0; font-size: var(--text-sm); color: var(--ink-soft); line-height: var(--leading-relaxed); }
+
+/* ---- 共通ドック中身 ---- */
+.dock-inner-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: nowrap;
+}
+
+.dock-lines { flex: 1; min-width: 0; }
+
+.dock-title {
+  margin: 0 0 6px;
+  font-size: var(--text-sm);
+  font-weight: var(--font-weight-black);
+  color: var(--green-900);
+}
+
+.fmt-kv {
+  display: grid;
+  grid-template-columns: 64px 1fr;
+  gap: 3px 8px;
+  font-size: var(--text-sm);
+}
+
+.fmt-kv dt { margin: 0; color: var(--ink-soft); font-weight: var(--font-weight-bold); }
+.fmt-kv dd { margin: 0; font-weight: var(--font-weight-bold); }
+.fmt-kv dd.is-alert { color: var(--danger); }
+.fmt-kv dd.is-draft { color: var(--green-800); }
+
+.dock-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  width: 168px;
+  flex-shrink: 0;
+}
+
+.btn-primary, .btn-ghost, .btn-request {
+  font-size: var(--text-sm);
+  font-weight: var(--font-weight-bold);
+  padding: 8px 10px;
+  border-radius: var(--radius-md);
+  text-align: center;
+  white-space: nowrap;
+}
+
+.btn-primary {
+  border: none;
+  background: linear-gradient(180deg, var(--brand-500), var(--brand-600));
+  color: var(--text-on-brand);
+}
+
+.btn-ghost {
+  border: 1px solid var(--border);
+  background: var(--surface-card);
+  color: var(--ink-soft);
+}
+
+.btn-request {
+  border: none;
+  background: var(--danger);
+  color: var(--text-on-brand);
+}
+
+.shift-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-bottom: 6px;
+}
+
+.status-badge {
+  font-size: var(--text-xs);
+  font-weight: var(--font-weight-bold);
+  padding: 3px 8px;
+  border-radius: var(--radius-pill);
+}
+
+.status-badge.draft { background: var(--warning-bg); color: var(--warning-ink); }
+.status-badge.submitted { background: var(--green-100); color: var(--green-900); }
+
+/* ========== D1 白1枚・区切り線のみ ========== */
+.dock-d1 {
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  background: var(--surface-card);
+  overflow: hidden;
+}
+
+.dock-d1 .dock-section { padding: 12px 14px; }
+.dock-d1 .dock-section + .dock-section { border-top: 1px solid var(--border); }
+
+/* ========== D2 全体薄グレー・均等 ========== */
+.dock-d2 {
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  background: var(--surface-muted);
+  overflow: hidden;
+}
+
+.dock-d2 .dock-section { padding: 12px 14px; }
+.dock-d2 .dock-section + .dock-section { border-top: 1px solid var(--border); }
+
+/* ========== D3 見出し帯のみ薄青（行単位） ========== */
+.dock-d3 {
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  background: var(--surface-card);
+  overflow: hidden;
+}
+
+.dock-d3 .dock-section { padding: 12px 14px; }
+.dock-d3 .dock-section + .dock-section { border-top: 1px solid var(--border); }
+.dock-d3 .dock-band {
+  margin: -12px -14px 10px;
+  padding: 8px 14px;
+  background: var(--brand-50);
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.dock-d3 .dock-band .dock-title { margin: 0; }
+
+/* ========== D4 2段とも同じ薄青（均等色） ========== */
+.dock-d4 {
+  border: 1px solid var(--pending-border);
+  border-radius: var(--radius-lg);
+  background: var(--brand-50);
+  overflow: hidden;
+}
+
+.dock-d4 .dock-section { padding: 12px 14px; }
+.dock-d4 .dock-section + .dock-section { border-top: 1px solid var(--pending-border); }
+
+/* ========== D5 影だけ・背景白 ========== */
+.dock-d5 {
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  background: var(--surface-card);
+  box-shadow: 0 2px 8px rgba(0,0,0,.06);
+  overflow: hidden;
+}
+
+.dock-d5 .dock-section { padding: 12px 14px; }
+.dock-d5 .dock-section + .dock-section { border-top: 1px solid var(--border); }
+
+/* ========== D6 ラベルチップ見出し（左線なし） ========== */
+.dock-d6 {
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  background: var(--surface-card);
+  overflow: hidden;
+}
+
+.dock-d6 .dock-section { padding: 12px 14px; }
+.dock-d6 .dock-section + .dock-section { border-top: 1px solid var(--border); }
+
+.dock-section-label {
+  display: inline-flex;
+  font-size: var(--text-xs);
+  font-weight: var(--font-weight-bold);
+  padding: 2px 8px;
+  border-radius: var(--radius-pill);
+  margin-bottom: 8px;
+}
+
+.dock-section-label.is-lesson {
+  background: var(--green-100);
+  color: var(--green-900);
+  border: 1px solid var(--green-600);
+}
+
+.dock-section-label.is-shift {
+  background: var(--surface-muted);
+  color: var(--ink-soft);
+  border: 1px solid var(--border);
+}
+
+/* ========== D7 右列ガイド線（左太線の代替） ========== */
+.dock-d7 {
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  background: var(--surface-card);
+  overflow: hidden;
+}
+
+.dock-d7 .dock-section { padding: 12px 14px; }
+.dock-d7 .dock-section + .dock-section { border-top: 1px solid var(--border); }
+
+.dock-d7 .dock-inner-head {
+  border-right: 1px solid var(--border);
+  padding-right: 12px;
+  margin-right: 0;
+}
+
+.dock-d7 .dock-actions {
+  padding-left: 12px;
+  border-left: none;
+}
+
+/* fix d7 - apply divider between content and actions differently */
+.dock-d7 .dock-inner-head { border-right: none; }
+.dock-d7 .dock-lines { padding-right: 12px; border-right: 1px solid var(--border); }
+.dock-d7 .dock-actions { padding-left: 12px; }
+
+/* ========== D8 角丸内カード2枚 ========== */
+.dock-d8 {
+  border: none;
+  background: transparent;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.dock-d8 .dock-section {
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  background: var(--surface-card);
+  padding: 12px 14px;
+}
+
+/* ========== D9 上端アクセント線（左右均等・1px） ========== */
+.dock-d9 {
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  background: var(--surface-card);
+  overflow: hidden;
+}
+
+.dock-d9 .dock-section { padding: 12px 14px; }
+.dock-d9 .dock-section + .dock-section { border-top: 1px solid var(--border); }
+.dock-d9 .dock-section.is-lesson { border-top: 3px solid var(--brand-500); }
+.dock-d9 .dock-section.is-shift { border-top: 3px solid var(--green-600); }
+
+/* ========== D10 未対応行だけ薄赤（カードは白） ========== */
+.dock-d10 {
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  background: var(--surface-card);
+  overflow: hidden;
+}
+
+.dock-d10 .dock-section { padding: 12px 14px; }
+.dock-d10 .dock-section + .dock-section { border-top: 1px solid var(--border); }
+
+.dock-d10 .status-highlight {
+  margin: 0 -14px 10px;
+  padding: 8px 14px;
+  background: var(--danger-bg);
+  border-bottom: 1px solid var(--border);
+}
+
+.dock-d10 .status-highlight .fmt-kv { grid-template-columns: 64px 1fr; }
+
+/* 旧案（問題あり）参考 */
+.dock-old {
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+}
+
+.dock-old .dock-section.is-lesson {
+  padding: 12px 14px;
+  background: var(--brand-50);
+  border-left: 3px solid var(--pending-border);
+}
+
+.dock-old .dock-section.is-shift {
+  padding: 12px 14px;
+  background: var(--surface-card);
+  border-top: 1px solid var(--border);
+}
+
+.compare-old { margin-bottom: 20px; }

@@ -534,7 +534,7 @@ async function submitResponseDrafts(){
   if(btn) btn.disabled = false;
 
   if(errors.length){
-    showInlineNotice(document.getElementById('pendingBannerCard'), `一部の送信に失敗しました。\n${errors.join('\n')}\n\nFirestoreの設定（キャンセル依頼）を教室長に確認してください。`, { variant: 'warn', clear: false });
+    showInlineNotice(document.getElementById('submitDock'), `一部の送信に失敗しました。\n${errors.join('\n')}\n\nFirestoreの設定（キャンセル依頼）を教室長に確認してください。`, { variant: 'warn', clear: false });
   }
 }
 
@@ -579,11 +579,11 @@ function initResponseDraftHandlers(){
     submitBtn.addEventListener('click', ()=>{
       const drafts = {...S.responseDrafts};
       if(Object.keys(drafts).length === 0) return;
-      mountInlineConfirm(document.getElementById('pendingBannerCard'), submitBtn, {
+      mountInlineConfirm(document.getElementById('submitDock'), submitBtn, {
         messageParts: buildSubmitConfirmMessage(drafts),
-        confirmLabel: '送信する',
+        confirmLabel: '提出する',
         variant: 'primary',
-        mountSelector: '.pending-banner-col',
+        mountSelector: '.submit-dock-block.is-lesson',
         onConfirm: async ()=>{
           await submitResponseDrafts();
           return { ok: true };
