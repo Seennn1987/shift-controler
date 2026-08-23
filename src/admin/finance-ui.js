@@ -241,7 +241,47 @@ function bindWeekGridDateClicks(root){
   });
 }
 
-// \u8b1b\u5e2b\u8ef8\uff1a\u30de\u30b9\u76ee\u306e\u4e2d\u306b\u8b1b\u5e2b\u306e\u7bb1\u3092\u4f5c\u308a\u3001\u305d\u306e\u4e2d\u306b\u62c5\u5f53\u751f\u5f92\u3092\u4e26\u3079\u308b\uff08\u5f93\u6765\u901a\u308a\uff09
+function buildWeekFlowBadge(isPending, isDraft, isWaiting){
+  if(isPending) return '<span class="cal-status-chip is-unassigned">講師なし</span>';
+  if(isDraft) return '<span class="cal-status-chip is-tentative-outline">仮決め</span>';
+  if(isWaiting) return '<span class="cal-status-chip is-waiting">承認待ち</span>';
+  return '';
+}
+
+function weekAssignmentStudentCard(a){
+  const student = S.students.find(s=>s.id===a.studentId);
+  const studentName = student ? student.name : '(\u524a\u9664\u3055\u308c\u305f\u751f\u5f92)';
+  const gLabel = student ? gradeLabel(student) : '';
+  const level = student ? student.level : '';
+  const c = level ? subjectColor(level, a.subject) : {bg:'#eee', text:'#333'};
+  const makeupBadge = a.kind==='makeup' ? '<span class="auto-badge" style="background:#fff;color:var(--ink);border:1px dashed var(--ink);">\u632f\u66ff</span>' : '';
+  return buildWeekTeacherStudentCard({
+    subject: a.subject,
+    subjectStyle: c,
+    studentName,
+    gradeLabel: gLabel,
+    isDraft: !!a.draft,
+    isWaiting: !!a.pending,
+    makeupBadge,
+  });
+}
+
+// 週間カレンダー・講師別：生徒1行カード（ヘッダーに講師名があるため講師行なし）
+function buildWeekTeacherStudentCard({ subject, subjectStyle, studentName, gradeLabel, isPending = false, isDraft = false, isWaiting = false, makeupBadge = '' }){
+  const subjectAbbr = SUBJECT_ABBR[subject] || subject.slice(0, 1);
+  const gradeHtml = gradeLabel ? `<span class="grade-tag">（${gradeLabel}）</span>` : '';
+  const flowBadge = buildWeekFlowBadge(isPending, isDraft, isWaiting);
+  const flowBadgeHtml = flowBadge ? `<span class="sched-card-flow-badge">${flowBadge}</span>` : '';
+  return `<div class="sched-lesson-card sched-lesson-card--compact${flowBadge ? ' has-flow-badge' : ''}">
+    ${flowBadgeHtml}
+    <div class="sched-card-row1 sched-card-row1--inline">
+      <span class="sched-student-tag" style="background:${subjectStyle.bg};color:${subjectStyle.text};">${subjectAbbr}</span>
+      <span class="sched-card-name-line">${studentName}${gradeHtml}${makeupBadge}</span>
+    </div>
+  </div>`;
+}
+
+// 講師軸：マス目の中に講師の箱を作り、その中に担当生徒を並べる
 function buildTeacherAxisCell(list){
   const byTeacher = {};
   list.forEach(a=>{
@@ -252,33 +292,13 @@ function buildTeacherAxisCell(list){
   Object.keys(byTeacher).forEach(teacherId=>{
     const teacher = S.teachers.find(t=>t.id===teacherId);
     const entries = byTeacher[teacherId];
-    let studentsHtml = '';
-    entries.forEach(a=>{
-      const student = S.students.find(s=>s.id===a.studentId);
-      const studentName = student ? student.name : '(\u524a\u9664\u3055\u308c\u305f\u751f\u5f92)';
-      const gLabel = student ? gradeLabel(student) : '';
-      const level = student ? student.level : '';
-      const c = level ? subjectColor(level, a.subject) : {bg:'#eee', text:'#333'};
-      const autoBadge = a.source==='auto' ? '<span class="auto-badge">\u81ea\u52d5</span>' : '';
-      const makeupBadge = a.kind==='makeup' ? '<span class="auto-badge" style="background:#fff;color:var(--ink);border:1px dashed var(--ink);">\u632f\u66ff</span>' : '';
-      studentsHtml += `<div class="sched-student-row">
-        <span class="sched-student-tag" style="background:${c.bg};color:${c.text};">${a.subject}</span>
-        <span>${studentName}<span class="grade-tag">${gLabel}</span></span>${autoBadge}${makeupBadge}
-      </div>`;
-    });
+    const studentsHtml = entries.map(weekAssignmentStudentCard).join('');
     boxesHtml += `<div class="sched-teacher-group">
       <div class="sched-teacher-head">${teacherHonorific(teacher)}<span class="sched-cap">\uff08${entries.length}/${S.teacherCapacity}\uff09</span></div>
       <div class="sched-teacher-students">${studentsHtml}</div>
     </div>`;
   });
   return boxesHtml;
-}
-
-function buildWeekFlowBadge(isPending, isDraft, isWaiting){
-  if(isPending) return '<span class="cal-status-chip is-unassigned">講師なし</span>';
-  if(isDraft) return '<span class="cal-status-chip is-tentative-outline">仮決め</span>';
-  if(isWaiting) return '<span class="cal-status-chip is-waiting">承認待ち</span>';
-  return '';
 }
 
 // 週間カレンダー：生徒カード（案R1 — 学年（小4）・フローバッジ右上・自動バッジなし）
@@ -345,12 +365,11 @@ function buildWeekUnassignedStudentBoxes(unassignedRows){
 function buildWeekUnassignedTeacherBlock(unassignedRows){
   return unassignedRows.map(row=>{
     const c = subjectColor(row.student.level, row.course.subject);
-    return buildWeekLessonCard({
+    return buildWeekTeacherStudentCard({
       subject: row.course.subject,
       subjectStyle: c,
       studentName: row.student.name,
       gradeLabel: gradeLabel(row.student),
-      teacher: null,
       isPending: true,
     });
   }).join('');
@@ -371,23 +390,7 @@ function buildWeekTeacherFilterCell(teacher, dateStr, slot){
   if(list.length===0){
     return '<div class="sched-empty">—</div>';
   }
-  let studentsHtml = '';
-  list.forEach(a=>{
-    const student = S.students.find(s=>s.id===a.studentId);
-    const studentName = student ? student.name : '(削除された生徒)';
-    const gLabel = student ? gradeLabel(student) : '';
-    const level = student ? student.level : '';
-    const c = level ? subjectColor(level, a.subject) : {bg:'#eee', text:'#333'};
-    const autoBadge = a.source==='auto' ? '<span class="auto-badge">自動</span>' : '';
-    const makeupBadge = a.kind==='makeup' ? '<span class="auto-badge" style="background:#fff;color:var(--ink);border:1px dashed var(--ink);">振替</span>' : '';
-    const stateBadge = a.draft
-      ? '<span class="week-status-tag tentative">仮</span>'
-      : (a.pending ? '<span class="week-status-tag waiting">承認待ち</span>' : '');
-    studentsHtml += `<div class="sched-student-row">
-      <span class="sched-student-tag" style="background:${c.bg};color:${c.text};">${a.subject}</span>
-      <span>${studentName}<span class="grade-tag">${gLabel}</span></span>${autoBadge}${makeupBadge}${stateBadge}
-    </div>`;
-  });
+  const studentsHtml = list.map(weekAssignmentStudentCard).join('');
   return `<div class="sched-teacher-group">
     <div class="sched-teacher-head">${teacherHonorific(teacher)}<span class="sched-cap">（${list.length}/${S.teacherCapacity}）</span></div>
     <div class="sched-teacher-students">${studentsHtml}</div>
