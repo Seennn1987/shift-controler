@@ -1,5 +1,7 @@
 /** 小学生・90分2教科（45分×2）のデータ操作 */
 
+import { SUBJECT_ABBR } from '../shared/constants.js';
+
 export const ELEMENTARY_DUAL_LEVEL = '小学';
 
 export function supportsDualSubjectSlot(level){
@@ -149,10 +151,11 @@ export function countSlotAssignmentUnits(assignments){
 }
 
 export function buildDualSubjectTagsHtml(level, subjects, subjectColorFn){
-  return subjects.map(sub=>{
+  return `<span class="sched-dual-abbr-tags">${subjects.map(sub=>{
+    const label = SUBJECT_ABBR[sub] || sub.slice(0, 1);
     const c = subjectColorFn(level, sub);
-    return `<span class="sched-student-tag" style="background:${c.bg};color:${c.text};">${sub}</span>`;
-  }).join('<span class="scc-dual-plus">+</span>');
+    return `<span class="sched-student-tag" style="background:${c.bg};color:${c.text};">${label}</span>`;
+  }).join('')}</span>`;
 }
 
 export function resolveDualRowAssignmentState(student, dualPair, day, slot, yearMonth, dateStr, findEffectiveAssignment){
