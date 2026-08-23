@@ -207,7 +207,7 @@ function renderCalendarWeekGrid(axis){
         tbody += `<td class="sched-cell week-date-cell is-empty" data-date="${ds}"><div class="sched-empty">\u4e88\u5b9a\u306a\u3057</div></td>`;
         return;
       }
-      const totalCount = list.length + unassigned.length;
+      const totalCount = countSlotAssignmentUnits(list) + unassigned.length;
       const cellInner = axis==='student'
         ? buildStudentAxisCell(list) + buildWeekUnassignedStudentBoxes(unassigned)
         : buildTeacherAxisCell(list) + buildWeekUnassignedTeacherBlock(unassigned);
@@ -369,16 +369,28 @@ function buildStudentAxisCell(list){
 
 function buildWeekUnassignedStudentBoxes(unassignedRows){
   return unassignedRows.map(row=>{
-    const { student, course } = row;
-    const c = subjectColor(student.level, course.subject);
-    return buildWeekLessonCard({
-      subject: course.subject,
-      subjectStyle: c,
-      studentName: student.name,
-      gradeLabel: gradeLabel(student),
-      teacher: null,
-      isPending: true,
-    });
+    const { student, course, courses, dualPair } = row;
+    const gLabel = gradeLabel(student);
+    const gradeHtml = gLabel ? `<span class="grade-tag">（${gLabel}）</span>` : '';
+    const flowBadgeHtml = buildFlowStatusBadgeHtml({ pending: true });
+    const subjectHtml = dualPair && courses?.length === 2
+      ? buildDualSubjectTagsHtml(student.level, courses.map(c=> c.subject), subjectColor)
+      : (()=>{
+        const c = subjectColor(student.level, course.subject);
+        const subjectAbbr = SUBJECT_ABBR[course.subject] || course.subject.slice(0, 1);
+        return `<span class="sched-student-tag" style="background:${c.bg};color:${c.text};">${subjectAbbr}</span>`;
+      })();
+    return `<div class="sched-lesson-card${flowBadgeHtml ? ' has-flow-badge' : ''}">
+      ${flowBadgeHtml}
+      <div class="sched-card-row1 sched-card-row1--inline">
+        ${subjectHtml}
+        <span class="sched-card-name-line">${student.name}${gradeHtml}</span>
+      </div>
+      <div class="sched-card-row2 sched-card-row2--grid">
+        <span class="sched-card-meta-label">講師</span>
+        <span class="sched-card-meta-value is-pending">—</span>
+      </div>
+    </div>`;
   }).join('');
 }
 
