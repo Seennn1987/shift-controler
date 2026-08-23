@@ -6,6 +6,7 @@ import { getDayStatus, renderCalendar } from './calendar.js';
 import { renderMatching } from './matching.js';
 import { gradeLabel, buildMonthDaysFromBaseAvailability, getOrCreateDraftSchedule } from './schedule-core.js';
 import { openTeacherScheduleEditor, renderTeacherScheduleTab } from './teacher-schedule-tab.js';
+import { collapseTeacherCalendarEntries, formatDualSubjectLabel } from './dual-subject.js';
 
 
 
@@ -156,14 +157,43 @@ function startTeacherScheduleListener(){
 
 // ---- 講師の承認をもって「承認待ち」から「確定」に昇格させる ----
 // 単発の代講（oneTimeDateあり）は、緊急対応の性質上ここでは対象にしない（teacherSubstitutionsで即時反映済みのため）
+function pendingMatchesTicket(p, ticket){
+  const student = S.students.find(s=> s.id === p.studentId);
+  if(!student || student.name !== ticket.studentName) return false;
+  if(p.teacherId !== ticket.teacherId || p.day !== ticket.day || Number(p.slot) !== Number(ticket.slot)) return false;
+  if(ticket.oneTimeDate){
+    if(p.oneTimeDate !== ticket.oneTimeDate) return false;
+  }else if(p.oneTimeDate){
+    return false;
+  }
+  if(ticket.subjects?.length === 2){
+    return ticket.subjects.includes(p.subject);
+  }
+  return p.subject === ticket.subject;
+}
+
 async function promotePendingAssignment(ticket, ticketId){
-  const idx = S.pendingAssignments.findIndex(p=>{
-    if(!(p.teacherId===ticket.teacherId && p.day===ticket.day && Number(p.slot)===Number(ticket.slot) && p.subject===ticket.subject)) return false;
-    const student = S.students.find(s=>s.id===p.studentId);
-    if(!student || student.name!==ticket.studentName) return false;
-    if(ticket.oneTimeDate) return p.oneTimeDate === ticket.oneTimeDate;
-    return !p.oneTimeDate;
-  });
+  if(ticket.subjects?.length === 2){
+    const indices = S.pendingAssignments
+      .map((p, i)=> (pendingMatchesTicket(p, ticket) ? i : -1))
+      .filter(i=> i !== -1);
+    if(indices.length === 0) return;
+    indices.sort((a, b)=> b - a).forEach(i=>{
+      S.assignments.push(S.pendingAssignments[i]);
+      S.pendingAssignments.splice(i, 1);
+    });
+    try{
+      await fbDb.collection('assignmentApprovals').doc(ticketId).update({promoted:true});
+    }catch(e){
+      console.error('チケットの昇格フラグ更新エラー:', e);
+    }
+    scheduleSyncTeacherAssignments();
+    scheduleSave();
+    renderMatching();
+    renderCalendar();
+    return;
+  }
+  const idx = S.pendingAssignments.findIndex(p=> pendingMatchesTicket(p, ticket));
   if(idx===-1) return; // 既に処理済み、または対応する承認待ちが見つからない
   const entry = S.pendingAssignments[idx];
   S.pendingAssignments.splice(idx, 1);
@@ -180,13 +210,31 @@ async function promotePendingAssignment(ticket, ticketId){
 }
 
 async function rejectPendingAssignment(ticket, ticketId){
-  const idx = S.pendingAssignments.findIndex(p=>{
-    if(!(p.teacherId===ticket.teacherId && p.day===ticket.day && Number(p.slot)===Number(ticket.slot) && p.subject===ticket.subject)) return false;
-    const student = S.students.find(s=>s.id===p.studentId);
-    if(!student || student.name!==ticket.studentName) return false;
-    if(ticket.oneTimeDate) return p.oneTimeDate === ticket.oneTimeDate;
-    return !p.oneTimeDate;
-  });
+  if(ticket.subjects?.length === 2){
+    const indices = S.pendingAssignments
+      .map((p, i)=> (pendingMatchesTicket(p, ticket) ? i : -1))
+      .filter(i=> i !== -1);
+    if(indices.length === 0){
+      try{
+        await fbDb.collection('assignmentApprovals').doc(ticketId).update({handled:true});
+      }catch(e){
+        console.error('チケットの処理済みフラグ更新エラー:', e);
+      }
+      return;
+    }
+    indices.sort((a, b)=> b - a).forEach(i=> S.pendingAssignments.splice(i, 1));
+    try{
+      await fbDb.collection('assignmentApprovals').doc(ticketId).update({handled:true});
+    }catch(e){
+      console.error('チケットの処理済みフラグ更新エラー:', e);
+    }
+    scheduleSyncTeacherAssignments();
+    scheduleSave();
+    renderMatching();
+    renderCalendar();
+    return;
+  }
+  const idx = S.pendingAssignments.findIndex(p=> pendingMatchesTicket(p, ticket));
   if(idx===-1){
     try{
       await fbDb.collection('assignmentApprovals').doc(ticketId).update({handled:true});
@@ -268,6 +316,50 @@ async function ensureMissingApprovalTickets(){
     if(!teacher || !teacher.loginUid) continue;
     const student = S.students.find(s=>s.id===a.studentId);
     if(!student) continue;
+
+    if(a.dualGroupId){
+      const siblings = S.pendingAssignments.filter(p=>
+        p.studentId === a.studentId &&
+        p.teacherId === a.teacherId &&
+        p.day === a.day &&
+        Number(p.slot) === Number(a.slot) &&
+        p.dualGroupId === a.dualGroupId
+      );
+      if(siblings.length >= 2){
+        const subjects = siblings.map(p=> p.subject).sort((x, y)=> x.localeCompare(y, 'ja'));
+        if(a.subject !== subjects[0]) continue;
+        const subjectLabel = formatDualSubjectLabel(subjects, '・');
+        const hasPending = existing.some(t=>
+          t.status==='pending' &&
+          t.teacherId===a.teacherId &&
+          t.day===a.day &&
+          Number(t.slot)===Number(a.slot) &&
+          t.studentName===student.name &&
+          (t.subjects?.length === 2 ? t.subject === subjectLabel : t.subject === subjectLabel)
+        );
+        if(hasPending) continue;
+        try{
+          await fbDb.collection('assignmentApprovals').add({
+            adminUid: user.uid,
+            teacherId: a.teacherId,
+            teacherLoginUid: teacher.loginUid,
+            studentName: student.name,
+            studentGrade: gradeLabel(student),
+            subject: subjectLabel,
+            subjects,
+            dualGroupId: a.dualGroupId,
+            day: a.day,
+            slot: a.slot,
+            status: 'pending',
+            createdAt: firebase.firestore.FieldValue.serverTimestamp(),
+          });
+        }catch(err){
+          console.error('承認チケット補完エラー:', err);
+        }
+        continue;
+      }
+    }
+
     const hasPending = existing.some(t=>
       t.status==='pending' &&
       t.teacherId===a.teacherId &&
@@ -334,6 +426,7 @@ function expandAssignmentForTeacherCalendar(a, approvalStatus, teacherId){
     studentName: student ? student.name : '(削除された生徒)',
     studentGrade: student ? gradeLabel(student) : '',
     subject: a.subject,
+    dualGroupId: a.dualGroupId || null,
     approvalStatus,
     isPreferredPair,
   };
@@ -386,11 +479,12 @@ async function syncTeacherAssignments(){
         isPreferredPair,
       });
     });
+    const collapsed = collapseTeacherCalendarEntries(entries);
     const ref = fbDb.collection('teacherAssignments').doc(`${user.uid}_${t.id}`);
     try{
       await ref.set({
         adminUid: user.uid, teacherId: t.id, teacherLoginUid: t.loginUid,
-        entries, updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
+        entries: collapsed, updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
       }, {merge:true});
     }catch(err){
       console.error('講師カレンダー同期エラー:', err);

@@ -13,6 +13,7 @@ import {
   summarizeDrafts,
   actionLabel,
 } from './response-draft.js';
+import { ticketSubjectMatchesEntry } from '../admin/dual-subject.js';
 
 async function loadAdminCancelledNotices(){
   const uid = fbAuth.currentUser ? fbAuth.currentUser.uid : null;
@@ -102,7 +103,8 @@ async function loadPendingCancellationRequests(){
 function findPendingTicket(day, slot, subject, studentName, oneTimeDate){
   const slotNum = Number(slot);
   return S.newAssignments.find(a=>{
-    if(a.day!==day || Number(a.slot)!==slotNum || a.subject!==subject || a.studentName!==studentName) return false;
+    if(a.day !== day || Number(a.slot) !== slotNum || a.studentName !== studentName) return false;
+    if(!ticketSubjectMatchesEntry(a, subject)) return false;
     if(a.oneTimeDate && oneTimeDate) return a.oneTimeDate === oneTimeDate;
     if(a.oneTimeDate && !oneTimeDate) return false;
     if(!a.oneTimeDate && oneTimeDate) return true;
@@ -166,7 +168,7 @@ function pruneStaleResponseDrafts(){
       const entry = S.myAssignmentEntries.find(e=>
         e.day === d.day &&
         Number(e.slot) === Number(d.slot) &&
-        e.subject === d.subject &&
+        ticketSubjectMatchesEntry({ subject: d.subject, subjects: d.subjects }, e.subject) &&
         e.studentName === d.studentName &&
         (d.oneTimeDate ? e.oneTimeDate === d.oneTimeDate : !e.oneTimeDate)
       );
@@ -187,11 +189,11 @@ function pruneStaleResponseDrafts(){
 
 function findPendingCancellation(entry){
   return S.pendingCancellationRequests.find(r=>
-    r.day===entry.day &&
-    Number(r.slot)===Number(entry.slot) &&
-    r.subject===entry.subject &&
-    r.studentName===entry.studentName &&
-    (entry.oneTimeDate ? r.oneTimeDate===entry.oneTimeDate : !r.oneTimeDate)
+    r.day === entry.day &&
+    Number(r.slot) === Number(entry.slot) &&
+    ticketSubjectMatchesEntry(r, entry.subject) &&
+    r.studentName === entry.studentName &&
+    (entry.oneTimeDate ? r.oneTimeDate === entry.oneTimeDate : !r.oneTimeDate)
   );
 }
 
@@ -306,9 +308,10 @@ async function submitResponseDrafts(){
       }else if(d.action==='cancel'){
         const uid = fbAuth.currentUser.uid;
         const existing = S.pendingCancellationRequests.find(r=>
-          r.day===d.day && Number(r.slot)===Number(d.slot) && r.subject===d.subject &&
-          r.studentName===d.studentName &&
-          (d.oneTimeDate ? r.oneTimeDate===d.oneTimeDate : !r.oneTimeDate)
+          r.day === d.day && Number(r.slot) === Number(d.slot) &&
+          ticketSubjectMatchesEntry(r, d.subject) &&
+          r.studentName === d.studentName &&
+          (d.oneTimeDate ? r.oneTimeDate === d.oneTimeDate : !r.oneTimeDate)
         );
         if(!existing){
           await fbDb.collection('assignmentCancellationRequests').add({

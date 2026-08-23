@@ -10,7 +10,7 @@ import { getWeekMonday, renderCalendarWeek, renderMatrix } from './finance-ui.js
 import { renderMatching } from './matching.js';
 import { subjectColor } from './schedule-core.js';
 import { findEffectiveAssignment, renderApprovalStatus, renderTeacherScheduleTab } from './teacher-schedule-tab.js';
-import { findDualPairAtSlot } from './dual-subject.js';
+import { findDualPairAtSlot, collapseDualAssignmentDisplayRows, countSlotAssignmentUnits, formatDualSubjectLabel } from './dual-subject.js';
 
 // カレンダー（トップページ・TimeTree風シンプルUI）
 // =====================================================================
@@ -48,9 +48,19 @@ function getDayStatus(dateStr){
 function shortName(fullName){ return (fullName||'').split(/\s+/)[0]; }
 
 // 生徒1コマ分の表示行（月間・週間で共通）
+function dualSubjectAbbr(courses){
+  return formatDualSubjectLabel(
+    courses.map(c=> SUBJECT_ABBR[c.subject] || c.subject.slice(0, 1)),
+    '+',
+  );
+}
+
 function studentRowToCalLine(r, student){
-  const subAbbr = SUBJECT_ABBR[r.course.subject] || r.course.subject.slice(0,1);
-  const sc = subjectColor(student.level, r.course.subject);
+  const isDual = r.courses?.length === 2;
+  const subAbbr = isDual
+    ? dualSubjectAbbr(r.courses)
+    : (SUBJECT_ABBR[r.course.subject] || r.course.subject.slice(0, 1));
+  const sc = subjectColor(student.level, isDual ? r.courses[0].subject : r.course.subject);
   if(r.isMakeupTarget){
     const teacher = S.teachers.find(t=>t.id===r.absence.makeup.teacherId);
     return {text:`${subAbbr}:${teacher?shortName(teacher.name):'?'}(振替)`, cls:'makeup', bg:sc.bg, color:sc.text};
@@ -95,10 +105,12 @@ function buildDayCellLines(dateStr, filterStudent){
       lines.push(studentRowToCalLine(r, filterStudent));
     });
   }else{
-    getEffectiveDayAssignments(dateStr).forEach(a=>{
+    collapseDualAssignmentDisplayRows(getEffectiveDayAssignments(dateStr)).forEach(a=>{
       const student = S.students.find(s=>s.id===a.studentId);
-      const subAbbr = SUBJECT_ABBR[a.subject] || a.subject.slice(0,1);
-      const sc = student ? subjectColor(student.level, a.subject) : {bg:'#eee', text:'#333'};
+      const subAbbr = a.isDual
+        ? formatDualSubjectLabel(a.subjects.map(s=> SUBJECT_ABBR[s] || s.slice(0, 1)), '+')
+        : (SUBJECT_ABBR[a.subject] || a.subject.slice(0, 1));
+      const sc = student ? subjectColor(student.level, a.isDual ? a.subjects[0] : a.subject) : {bg:'#eee', text:'#333'};
       let text;
       let cls;
       if(a.kind==='makeup'){
@@ -247,7 +259,8 @@ function heatBoxHtml(h){
 function buildDayHeat(dateStr){
   const list = getEffectiveDayAssignments(dateStr);
   return SLOTS.map(slot=>{
-    const confirmedCount = list.filter(a=>a.slot===slot.id).length;
+    const slotList = list.filter(a=> a.slot === slot.id);
+    const confirmedCount = countSlotAssignmentUnits(slotList);
     const pendingCount = countUnassignedDesiredForSlot(dateStr, slot.id);
     const count = confirmedCount + pendingCount;
     const ratio = S.roomCapacity>0 ? Math.min(count/S.roomCapacity, 1) : 0;
@@ -256,12 +269,14 @@ function buildDayHeat(dateStr){
 }
 
 function buildDayCellLinesForTeacher(dateStr, teacher){
-  return getEffectiveDayAssignments(dateStr)
+  return collapseDualAssignmentDisplayRows(getEffectiveDayAssignments(dateStr))
     .filter(a=> a.teacherId === teacher.id)
     .map(a=>{
       const student = S.students.find(s=> s.id === a.studentId);
-      const subAbbr = SUBJECT_ABBR[a.subject] || a.subject.slice(0,1);
-      const sc = student ? subjectColor(student.level, a.subject) : {bg:'#eee', text:'#333'};
+      const subAbbr = a.isDual
+        ? formatDualSubjectLabel(a.subjects.map(s=> SUBJECT_ABBR[s] || s.slice(0, 1)), '+')
+        : (SUBJECT_ABBR[a.subject] || a.subject.slice(0, 1));
+      const sc = student ? subjectColor(student.level, a.isDual ? a.subjects[0] : a.subject) : {bg:'#eee', text:'#333'};
       const suffix = a.kind==='makeup' ? '(振替)' : '';
       const studentLabel = student ? shortName(student.name) : '?';
       return {

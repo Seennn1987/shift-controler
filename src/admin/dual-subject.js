@@ -74,6 +74,55 @@ export function formatDualSubjectLabel(subjects, separator = '+'){
   return subjects.filter(Boolean).join(separator);
 }
 
+/** 承認チケットと表示行の教科が一致するか（双教科は結合ラベル or 個別教科） */
+export function ticketSubjectMatchesEntry(ticket, entrySubject){
+  if(!ticket || entrySubject == null) return false;
+  if(ticket.subjects?.length === 2){
+    const label = formatDualSubjectLabel(ticket.subjects, '・');
+    if(entrySubject === label) return true;
+    return ticket.subjects.includes(entrySubject);
+  }
+  return ticket.subject === entrySubject;
+}
+
+/** 講師マイカレンダー用：双教科エントリを1行にまとめる */
+export function collapseTeacherCalendarEntries(entries){
+  const result = [];
+  const seenDual = new Set();
+  entries.forEach(e=>{
+    if(e.dualGroupId){
+      const key = `${e.studentName}:${e.slot}:${e.day}:${e.oneTimeDate || ''}:${e.dualGroupId}`;
+      if(seenDual.has(key)) return;
+      seenDual.add(key);
+      const siblings = entries.filter(s=>
+        s.studentName === e.studentName &&
+        Number(s.slot) === Number(e.slot) &&
+        s.day === e.day &&
+        s.dualGroupId === e.dualGroupId &&
+        (s.oneTimeDate || null) === (e.oneTimeDate || null)
+      );
+      if(siblings.length >= 2){
+        const subjects = siblings.map(s=> s.subject);
+        result.push({
+          ...e,
+          subject: formatDualSubjectLabel(subjects, '・'),
+          subjects,
+          isDual: true,
+          approvalStatus: siblings.some(s=> s.approvalStatus === 'pending') ? 'pending' : e.approvalStatus,
+          isPreferredPair: siblings.some(s=> s.isPreferredPair),
+        });
+        return;
+      }
+    }
+    result.push({
+      ...e,
+      subjects: e.subjects?.length ? e.subjects : [e.subject],
+      isDual: false,
+    });
+  });
+  return result;
+}
+
 export function findDualPairForStudent(student, day, slot){
   return findDualPairAtSlot(student?.courses || [], day, slot);
 }

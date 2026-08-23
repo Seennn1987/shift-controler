@@ -1,4 +1,5 @@
 import { SLOTS, WEEKDAY_JP } from '../shared/constants.js';
+import { collapseTeacherCalendarEntries } from '../admin/dual-subject.js';
 import { pad2, daysInYearMonth, toDateStr } from '../shared/date-utils.js';
 import { S } from './state.js';
 import { getDayStatus } from './day-status.js';
@@ -213,7 +214,9 @@ function renderMyCalendar(){
     if(isClosed){
       rowsHtml = `<div class="mycal-lesson-row closed"><div class="mycal-lesson-info mycal-closed-label">休校（${status.label}）</div></div>`;
     }else{
-      const dayEntries = S.myAssignmentEntries.filter(e=> e.oneTimeDate ? e.oneTimeDate===dateStr : e.day===wd);
+      const dayEntries = collapseTeacherCalendarEntries(
+        S.myAssignmentEntries.filter(e=> e.oneTimeDate ? e.oneTimeDate === dateStr : e.day === wd)
+      );
       if(dayEntries.length===0){
         rowsHtml = `<div class="mycal-lesson-row empty"><div class="mycal-lesson-info mycal-empty-label">確定授業なし</div></div>`;
       }else{
