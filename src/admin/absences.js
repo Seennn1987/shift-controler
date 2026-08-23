@@ -5,7 +5,7 @@ import { firebaseConfig, fbAuth, fbDb, STORAGE_KEY, getSecondaryAuth, S } from '
 import { getDayStatus } from './calendar.js';
 import { getDateSlotState, isTeacherAvailableOnDate } from './schedule-core.js';
 import { assignmentAppliesOnDate, findEffectiveAssignment, isAssignmentEffectiveInMonth, isPreferredSubjectForTeacher, issueAssignmentApproval } from './teacher-schedule-tab.js';
-import { findDualPairAtSlot, resolveDualRowAssignmentState } from './dual-subject.js';
+import { findDualPairAtSlot, resolveDualRowAssignmentState, countSlotAssignmentUnits } from './dual-subject.js';
 
 // ---- 欠席・振替（特定の実日付にのみ影響。曜日パターン自体は変えない） ----
 // {id, studentId, courseId, subject, day, slot, date, status:'pending'|'resolved', makeup:null|{date,slot,teacherId}}
@@ -246,6 +246,17 @@ function confirmMakeup(absenceId, makeupDate, makeupSlot, teacherId){
 }
 
 // 指定日の「実際に何が起きるか」を、曜日パターン＋欠席＋振替を反映して求める（教室全体表示・週表示で使用）
+function enrichAssignmentEntry(a, weekday){
+  const student = S.students.find(s=> s.id === a.studentId);
+  const course = student?.courses.find(c=> c.id === a.courseId);
+  const ds = course?.desiredSlots.find(d=> d.day === weekday && Number(d.slot) === Number(a.slot));
+  return {
+    ...a,
+    day: weekday,
+    dualGroupId: a.dualGroupId || ds?.dualGroupId || null,
+  };
+}
+
 function getEffectiveDayAssignments(dateStr){
   const status = getDayStatus(dateStr);
   if(status.type!=='open') return [];
@@ -260,18 +271,31 @@ function getEffectiveDayAssignments(dateStr){
     const sub = S.teacherSubstitutions.find(s=>s.teacherId===a.teacherId && s.date===dateStr && s.slot===a.slot && s.studentId===a.studentId)
       || S.teacherSubstitutions.find(s=>s.teacherId===a.teacherId && s.date===dateStr && s.slot===a.slot && !s.studentId);
     const effectiveTeacherId = sub ? sub.substituteTeacherId : a.teacherId;
-    list.push({studentId:a.studentId, courseId:a.courseId, subject:a.subject, slot:a.slot, teacherId:effectiveTeacherId, kind:'normal', source:a.source, substituted: !!sub, originalTeacherId: sub ? a.teacherId : null});
+    list.push(enrichAssignmentEntry({
+      studentId:a.studentId, courseId:a.courseId, subject:a.subject, slot:a.slot,
+      teacherId:effectiveTeacherId, kind:'normal', source:a.source,
+      substituted: !!sub, originalTeacherId: sub ? a.teacherId : null,
+      dualGroupId: a.dualGroupId || null,
+    }, weekday));
   });
   S.pendingAssignments.forEach(a=>{
     if(a.day!==weekday) return;
     if(!assignmentAppliesOnDate(a, dateStr)) return;
-    list.push({studentId:a.studentId, courseId:a.courseId, subject:a.subject, slot:a.slot, teacherId:a.teacherId, kind:'normal', source:a.source, pending:true});
+    list.push(enrichAssignmentEntry({
+      studentId:a.studentId, courseId:a.courseId, subject:a.subject, slot:a.slot,
+      teacherId:a.teacherId, kind:'normal', source:a.source, pending:true,
+      dualGroupId: a.dualGroupId || null,
+    }, weekday));
   });
   S.draftAssignments.forEach(a=>{
     if(a.day!==weekday) return;
     if(!assignmentAppliesOnDate(a, dateStr)) return;
     if(findAbsenceFor(a.studentId, a.courseId, dateStr, a.day, a.slot)) return;
-    list.push({studentId:a.studentId, courseId:a.courseId, subject:a.subject, slot:a.slot, teacherId:a.teacherId, kind:'normal', source:a.source, draft:true});
+    list.push(enrichAssignmentEntry({
+      studentId:a.studentId, courseId:a.courseId, subject:a.subject, slot:a.slot,
+      teacherId:a.teacherId, kind:'normal', source:a.source, draft:true,
+      dualGroupId: a.dualGroupId || null,
+    }, weekday));
   });
   S.absences.forEach(ab=>{
     if(!ab.makeup || ab.makeup.date!==dateStr) return;
@@ -292,7 +316,14 @@ function computeTeacherOpenings(dateStr, onlyTeacherId){
     SLOTS.forEach(slot=>{
       const state = getDateSlotState(t.id, dateStr, slot.id); // 'none'|'normal'|'preferred'
       if(state==='none') return; // ×は対象外
-      const booked = dayList.filter(a=>a.teacherId===t.id && a.slot===slot.id).length;
+      const booked = countSlotAssignmentUnits(
+        dayList.filter(a=> a.teacherId === t.id && a.slot === slot.id).map(a=>({
+          studentId: a.studentId,
+          day: status.weekday,
+          slot: a.slot,
+          dualGroupId: a.dualGroupId || null,
+        })),
+      );
       let kind;
       if(booked===0){ kind='empty'; emptyCount++; }
       else if(booked<S.teacherCapacity){ kind='partial'; partialCount++; }

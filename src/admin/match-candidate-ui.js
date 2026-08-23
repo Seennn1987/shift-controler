@@ -22,18 +22,30 @@ function buildPrefPairActionHtml(cand, studentId, courseId, allowSet){
   return buildPrefPairActionHtmlForTeacher(studentId, courseId, cand.teacher.id, { allowSet });
 }
 
-/** マッチング枠：教科タグ行（フローバッジは右上・1行） */
-export function buildMpSlotSubjectRow(subjectTagHtml, flowKind, extraHtml = ''){
+/** マッチング枠：フローバッジHTML（右上用） */
+export function buildFlowStatusBadgeHtml({ pending = false, draft = false, waiting = false } = {}){
+  let kind = null;
+  if(pending) kind = 'pending';
+  else if(draft) kind = 'tentative';
+  else if(waiting) kind = 'waiting';
+  if(!kind) return '';
   const flowMap = {
     pending: { cls: 'is-unassigned', text: '講師なし' },
     tentative: { cls: 'is-tentative-outline', text: '仮決め' },
     waiting: { cls: 'is-waiting', text: '承認待ち' },
   };
-  const flow = flowMap[flowKind];
-  const flowBadgeHtml = flow
-    ? `<span class="sched-card-flow-badge"><span class="cal-status-chip ${flow.cls}">${flow.text}</span></span>`
-    : '';
-  return `<div class="mp-slot-subject${flow ? ' has-flow-badge' : ''}">
+  const flow = flowMap[kind];
+  return `<span class="sched-card-flow-badge"><span class="cal-status-chip ${flow.cls}">${flow.text}</span></span>`;
+}
+
+/** マッチング枠：教科タグ行（フローバッジは右上・1行） */
+export function buildMpSlotSubjectRow(subjectTagHtml, flowKind, extraHtml = ''){
+  const flowBadgeHtml = buildFlowStatusBadgeHtml({
+    pending: flowKind === 'pending',
+    draft: flowKind === 'tentative',
+    waiting: flowKind === 'waiting',
+  });
+  return `<div class="mp-slot-subject${flowBadgeHtml ? ' has-flow-badge' : ''}">
     ${flowBadgeHtml}
     <div class="mp-slot-subject-tags">${subjectTagHtml}${extraHtml}</div>
   </div>`;

@@ -3,6 +3,8 @@ import { HOLIDAYS_JP } from '../shared/holidays.js';
 import { pad2, daysInYearMonth, toDateStr, getTodayStr } from '../shared/date-utils.js';
 import { firebaseConfig, fbAuth, fbDb, STORAGE_KEY, getSecondaryAuth, S } from './state.js';
 import { computeDayFinance, computeTeacherOpenings, costRatioColor, getEffectiveDayAssignments, getStudentDateRows } from './absences.js';
+import { collapseDualAssignmentDisplayRows, countSlotAssignmentUnits, buildDualSubjectTagsHtml } from './dual-subject.js';
+import { buildFlowStatusBadgeHtml } from './match-candidate-ui.js';
 import { calLinesToEntriesHtml, computeSyncedWeekAnchor, getDayStatus, getUnassignedRowsForDate, refreshCalToolbarSecondary, renderCalendar, studentRowToCalLine, updateCalPeriodLabel } from './calendar.js';
 import { resolveFilterTeacher } from './cal-filter.js';
 import { renderMatching } from './matching.js';
@@ -253,11 +255,16 @@ function weekAssignmentStudentCard(a){
   const studentName = student ? student.name : '(\u524a\u9664\u3055\u308c\u305f\u751f\u5f92)';
   const gLabel = student ? gradeLabel(student) : '';
   const level = student ? student.level : '';
-  const c = level ? subjectColor(level, a.subject) : {bg:'#eee', text:'#333'};
+  const subjectHtml = a.isDual && level
+    ? buildDualSubjectTagsHtml(level, a.subjects, subjectColor)
+    : (()=>{
+      const c = level ? subjectColor(level, a.subject) : {bg:'#eee', text:'#333'};
+      const subjectAbbr = SUBJECT_ABBR[a.subject] || a.subject.slice(0, 1);
+      return `<span class="sched-student-tag" style="background:${c.bg};color:${c.text};">${subjectAbbr}</span>`;
+    })();
   const makeupBadge = a.kind==='makeup' ? '<span class="auto-badge" style="background:#fff;color:var(--ink);border:1px dashed var(--ink);">\u632f\u66ff</span>' : '';
   return buildWeekTeacherStudentCard({
-    subject: a.subject,
-    subjectStyle: c,
+    subjectHtml,
     studentName,
     gradeLabel: gLabel,
     isDraft: !!a.draft,
@@ -267,15 +274,13 @@ function weekAssignmentStudentCard(a){
 }
 
 // 週間カレンダー・講師別：生徒1行カード（ヘッダーに講師名があるため講師行なし）
-function buildWeekTeacherStudentCard({ subject, subjectStyle, studentName, gradeLabel, isPending = false, isDraft = false, isWaiting = false, makeupBadge = '' }){
-  const subjectAbbr = SUBJECT_ABBR[subject] || subject.slice(0, 1);
+function buildWeekTeacherStudentCard({ subjectHtml, studentName, gradeLabel, isPending = false, isDraft = false, isWaiting = false, makeupBadge = '' }){
   const gradeHtml = gradeLabel ? `<span class="grade-tag">（${gradeLabel}）</span>` : '';
-  const flowBadge = buildWeekFlowBadge(isPending, isDraft, isWaiting);
-  const flowBadgeHtml = flowBadge ? `<span class="sched-card-flow-badge">${flowBadge}</span>` : '';
-  return `<div class="sched-lesson-card sched-lesson-card--compact${flowBadge ? ' has-flow-badge' : ''}">
+  const flowBadgeHtml = buildFlowStatusBadgeHtml({ pending: isPending, draft: isDraft, waiting: isWaiting });
+  return `<div class="sched-lesson-card sched-lesson-card--compact${flowBadgeHtml ? ' has-flow-badge' : ''}">
     ${flowBadgeHtml}
     <div class="sched-card-row1 sched-card-row1--inline">
-      <span class="sched-student-tag" style="background:${subjectStyle.bg};color:${subjectStyle.text};">${subjectAbbr}</span>
+      ${subjectHtml}
       <span class="sched-card-name-line">${studentName}${gradeHtml}${makeupBadge}</span>
     </div>
   </div>`;
@@ -292,9 +297,17 @@ function buildTeacherAxisCell(list){
   Object.keys(byTeacher).forEach(teacherId=>{
     const teacher = S.teachers.find(t=>t.id===teacherId);
     const entries = byTeacher[teacherId];
-    const studentsHtml = entries.map(weekAssignmentStudentCard).join('');
+    const weekday = entries[0]?.day || '';
+    const loadCount = countSlotAssignmentUnits(entries.map(e=>({
+      studentId: e.studentId,
+      day: e.day || weekday,
+      slot: e.slot,
+      dualGroupId: e.dualGroupId || null,
+    })));
+    const displayRows = collapseDualAssignmentDisplayRows(entries);
+    const studentsHtml = displayRows.map(weekAssignmentStudentCard).join('');
     boxesHtml += `<div class="sched-teacher-group">
-      <div class="sched-teacher-head">${teacherHonorific(teacher)}<span class="sched-cap">\uff08${entries.length}/${S.teacherCapacity}\uff09</span></div>
+      <div class="sched-teacher-head">${teacherHonorific(teacher)}<span class="sched-cap">\uff08${loadCount}/${S.teacherCapacity}\uff09</span></div>
       <div class="sched-teacher-students">${studentsHtml}</div>
     </div>`;
   });
@@ -325,25 +338,35 @@ function buildWeekLessonCard({ subject, subjectStyle, studentName, gradeLabel, t
 
 // 生徒軸：マス目の中に生徒の箱を作り、その中に担当講師を入れる（主語を入れ替える）
 function buildStudentAxisCell(list){
-  return list.map(a=>{
+  return collapseDualAssignmentDisplayRows(list).map(a=>{
     const student = S.students.find(s=>s.id===a.studentId);
     const studentName = student ? student.name : '(\u524a\u9664\u3055\u308c\u305f\u751f\u5f92)';
     const gLabel = student ? gradeLabel(student) : '';
     const level = student ? student.level : '';
-    const c = level ? subjectColor(level, a.subject) : {bg:'#eee', text:'#333'};
+    const subjectHtml = a.isDual && level
+      ? buildDualSubjectTagsHtml(level, a.subjects, subjectColor)
+      : (()=>{
+        const c = level ? subjectColor(level, a.subject) : {bg:'#eee', text:'#333'};
+        const subjectAbbr = SUBJECT_ABBR[a.subject] || a.subject.slice(0, 1);
+        return `<span class="sched-student-tag" style="background:${c.bg};color:${c.text};">${subjectAbbr}</span>`;
+      })();
     const teacher = S.teachers.find(t=>t.id===a.teacherId);
     const makeupBadge = a.kind==='makeup' ? '<span class="auto-badge" style="background:#fff;color:var(--ink);border:1px dashed var(--ink);">\u632f\u66ff</span>' : '';
-    return buildWeekLessonCard({
-      subject: a.subject,
-      subjectStyle: c,
-      studentName,
-      gradeLabel: gLabel,
-      teacher,
-      isPending: false,
-      isDraft: !!a.draft,
-      isWaiting: !!a.pending,
-      makeupBadge,
-    });
+    const flowBadgeHtml = buildFlowStatusBadgeHtml({ draft: !!a.draft, waiting: !!a.pending });
+    const teacherText = a.pending
+      ? '<span class="sched-card-meta-value is-pending">—</span>'
+      : `<span class="sched-card-meta-value">${teacherHonorific(teacher)}</span>`;
+    return `<div class="sched-lesson-card${flowBadgeHtml ? ' has-flow-badge' : ''}">
+      ${flowBadgeHtml}
+      <div class="sched-card-row1 sched-card-row1--inline">
+        ${subjectHtml}
+        <span class="sched-card-name-line">${studentName}${gLabel ? `<span class="grade-tag">（${gLabel}）</span>` : ''}${makeupBadge}</span>
+      </div>
+      <div class="sched-card-row2 sched-card-row2--grid">
+        <span class="sched-card-meta-label">講師</span>
+        ${teacherText}
+      </div>
+    </div>`;
   }).join('');
 }
 
@@ -364,10 +387,15 @@ function buildWeekUnassignedStudentBoxes(unassignedRows){
 
 function buildWeekUnassignedTeacherBlock(unassignedRows){
   return unassignedRows.map(row=>{
-    const c = subjectColor(row.student.level, row.course.subject);
+    const subjectHtml = row.dualPair
+      ? buildDualSubjectTagsHtml(row.student.level, row.courses.map(c=> c.subject), subjectColor)
+      : (()=>{
+        const c = subjectColor(row.student.level, row.course.subject);
+        const abbr = SUBJECT_ABBR[row.course.subject] || row.course.subject.slice(0, 1);
+        return `<span class="sched-student-tag" style="background:${c.bg};color:${c.text};">${abbr}</span>`;
+      })();
     return buildWeekTeacherStudentCard({
-      subject: row.course.subject,
-      subjectStyle: c,
+      subjectHtml,
       studentName: row.student.name,
       gradeLabel: gradeLabel(row.student),
       isPending: true,
@@ -390,9 +418,17 @@ function buildWeekTeacherFilterCell(teacher, dateStr, slot){
   if(list.length===0){
     return '<div class="sched-empty">—</div>';
   }
-  const studentsHtml = list.map(weekAssignmentStudentCard).join('');
+  const weekday = getDayStatus(dateStr).weekday;
+  const loadCount = countSlotAssignmentUnits(list.map(e=>({
+    studentId: e.studentId,
+    day: e.day || weekday,
+    slot: e.slot,
+    dualGroupId: e.dualGroupId || null,
+  })));
+  const displayRows = collapseDualAssignmentDisplayRows(list);
+  const studentsHtml = displayRows.map(weekAssignmentStudentCard).join('');
   return `<div class="sched-teacher-group">
-    <div class="sched-teacher-head">${teacherHonorific(teacher)}<span class="sched-cap">（${list.length}/${S.teacherCapacity}）</span></div>
+    <div class="sched-teacher-head">${teacherHonorific(teacher)}<span class="sched-cap">（${loadCount}/${S.teacherCapacity}）</span></div>
     <div class="sched-teacher-students">${studentsHtml}</div>
   </div>`;
 }

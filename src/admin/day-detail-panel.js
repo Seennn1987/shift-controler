@@ -27,11 +27,41 @@ import {
   getActiveYearMonth,
 } from './teacher-schedule-tab.js';
 import { buildDualMatchCandidatesHtml, buildMatchCandidatesHtml } from './match-candidates-html.js';
-import { buildPrefPairActionHtmlForTeacher, buildDraftSlotCardHtml, buildWaitingSlotCardHtml } from './match-candidate-ui.js';
+import { buildPrefPairActionHtmlForTeacher, buildDraftSlotCardHtml, buildWaitingSlotCardHtml, buildFlowStatusBadgeHtml } from './match-candidate-ui.js';
 import { mountWithdrawConfirm } from './withdraw-pending-ui.js';
 import { showInlineNotice } from '../shared/inline-confirm.js';
 import { analyzePendingMatchSlot } from './match-slot-status.js';
-import { buildDualSubjectTagsHtml, findDualPairForStudent } from './dual-subject.js';
+import { buildDualSubjectTagsHtml, findDualPairForStudent, collapseDualAssignmentDisplayRows, countSlotAssignmentUnits } from './dual-subject.js';
+
+function buildDayDetailStudentRowHtml(a, dateStr){
+  const student = S.students.find(s=> s.id === a.studentId);
+  const studentName = student ? student.name : '(削除された生徒)';
+  const gLabel = student ? gradeLabel(student) : '';
+  const level = student ? student.level : '';
+  const subjectTagHtml = a.isDual && level
+    ? buildDualSubjectTagsHtml(level, a.subjects, subjectColor)
+    : (()=>{
+      const c = level ? subjectColor(level, a.subject) : { bg: '#eee', text: '#333' };
+      return `<span class="sched-student-tag" style="background:${c.bg};color:${c.text};">${a.subject}</span>`;
+    })();
+  const flowBadgeHtml = buildFlowStatusBadgeHtml({
+    draft: !!a.draft,
+    waiting: !!a.pending,
+  });
+  const makeupBadge = a.kind === 'makeup'
+    ? '<span class="auto-badge" style="background:#fff;color:var(--ink);border:1px dashed var(--ink);">振替</span>'
+    : '';
+  const handleBtn = a.kind === 'normal'
+    ? `<button class="handle-absence-btn" data-student="${a.studentId}" data-date="${dateStr}">欠席・振替の対応</button>`
+    : '';
+  return `<div class="sched-student-row sched-student-row--display${flowBadgeHtml ? ' has-flow-badge' : ''}">
+    ${flowBadgeHtml}
+    <div class="sched-student-row-main">
+      ${subjectTagHtml}
+      <span>${studentName}<span class="grade-tag">${gLabel}</span></span>${makeupBadge}${handleBtn}
+    </div>
+  </div>`;
+}
 
 function buildRowSubjectTagHtml(student, r){
   if(r.dualPair && r.courses?.length === 2){
@@ -321,25 +351,20 @@ export function renderDayDetailPanel(container, dateStr){
       Object.keys(slotByTeacher).forEach(teacherId=>{
         const teacher = S.teachers.find(t=> t.id === teacherId);
         const entries = slotByTeacher[teacherId];
+        const loadCount = countSlotAssignmentUnits(entries.map(e=>({
+          studentId: e.studentId,
+          day: weekday,
+          slot: e.slot,
+          dualGroupId: e.dualGroupId || null,
+        })));
+        const displayRows = collapseDualAssignmentDisplayRows(entries);
         let studentsHtml = '';
-        entries.forEach(a=>{
-          const student = S.students.find(s=> s.id === a.studentId);
-          const studentName = student ? student.name : '(削除された生徒)';
-          const gLabel = student ? gradeLabel(student) : '';
-          const level = student ? student.level : '';
-          const c = level ? subjectColor(level, a.subject) : { bg: '#eee', text: '#333' };
-          const makeupBadge = a.kind === 'makeup' ? '<span class="auto-badge" style="background:#fff;color:var(--ink);border:1px dashed var(--ink);">振替</span>' : '';
-          const handleBtn = a.kind === 'normal'
-            ? `<button class="handle-absence-btn" data-student="${a.studentId}" data-date="${dateStr}">欠席・振替の対応</button>`
-            : '';
-          studentsHtml += `<div class="sched-student-row">
-            <span class="sched-student-tag" style="background:${c.bg};color:${c.text};">${a.subject}</span>
-            <span>${studentName}<span class="grade-tag">${gLabel}</span></span>${makeupBadge}${handleBtn}
-          </div>`;
+        displayRows.forEach(a=>{
+          studentsHtml += buildDayDetailStudentRowHtml(a, dateStr);
         });
         html += `<div class="sched-teacher-box">
           <div class="sched-teacher-head-row">
-            <div class="sched-teacher-name">${teacherHonorific(teacher)}<span class="sched-cap">（${entries.length}/${S.teacherCapacity}）</span></div>
+            <div class="sched-teacher-name">${teacherHonorific(teacher)}<span class="sched-cap">（${loadCount}/${S.teacherCapacity}）</span></div>
             <button type="button" class="handle-teacher-absence-btn" data-teacher="${teacherId}" data-date="${dateStr}">欠勤・代講の対応</button>
           </div>
           ${studentsHtml}

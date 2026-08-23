@@ -660,6 +660,14 @@
   .sched-teacher-name .sched-cap{font-weight:400;color:var(--ink-soft);font-size:var(--text-sm);margin-left:4px;}
   .grade-tag{font-size:var(--text-xs);font-weight:400;color:var(--ink-soft);margin-left:3px;}
   .sched-student-row{display:flex;align-items:center;gap:5px;font-size:var(--text-sm);padding:2px 0;flex-wrap:wrap;}
+  .sched-student-row--display{
+    position:relative;align-items:flex-start;flex-wrap:nowrap;padding:4px 0;
+  }
+  .sched-student-row--display.has-flow-badge .sched-student-row-main{padding-right:54px;}
+  .sched-student-row--display .sched-card-flow-badge{position:absolute;top:2px;right:0;z-index:1;line-height:1;}
+  .sched-student-row-main{
+    display:flex;align-items:center;gap:5px;flex-wrap:nowrap;min-width:0;
+  }
   .sched-student-tag{
     font-size:var(--text-xs);font-weight:700;padding:1px 6px;border-radius:var(--radius-sm);flex-shrink:0;
   }

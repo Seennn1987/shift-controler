@@ -124,3 +124,40 @@ export function resolveDualRowAssignmentState(student, dualPair, day, slot, year
     isDraft: effs.some(e=> e?.isDraft) && !effs.some(e=> e?.isPending),
   };
 }
+
+/** 表示用：双教科ペアを1行にまとめる */
+export function collapseDualAssignmentDisplayRows(entries){
+  const result = [];
+  const seenDual = new Set();
+  entries.forEach(a=>{
+    const dualGroupId = a.dualGroupId;
+    if(dualGroupId){
+      const key = `${a.studentId}:${a.slot}:${dualGroupId}`;
+      if(seenDual.has(key)) return;
+      seenDual.add(key);
+      const siblings = entries.filter(e=>
+        e.studentId === a.studentId &&
+        Number(e.slot) === Number(a.slot) &&
+        e.dualGroupId === dualGroupId
+      );
+      if(siblings.length >= 2){
+        result.push({
+          ...a,
+          subjects: siblings.map(s=> s.subject),
+          courseIds: siblings.map(s=> s.courseId),
+          isDual: true,
+          draft: siblings.some(s=> s.draft),
+          pending: siblings.some(s=> s.pending),
+        });
+        return;
+      }
+    }
+    result.push({
+      ...a,
+      subjects: [a.subject],
+      courseIds: [a.courseId],
+      isDual: false,
+    });
+  });
+  return result;
+}
