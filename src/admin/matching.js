@@ -9,6 +9,7 @@ import { sortByNameKana } from '../shared/person-sort.js';
 import { renderCalendarWeek, switchCalMode, switchView } from './finance-ui.js';
 import { gradeLabel, isTeacherAvailableOnDate, subjectColor } from './schedule-core.js';
 import { saveStudents, scheduleSave, scheduleSyncTeacherAssignments } from './students-persistence.js';
+import { renderTeacherList } from './teachers.js';
 import { assignmentAppliesOnDate, approvalAppliesInMonth, buildCandidateInfo, confirmAssignment, cancelAllDrafts, cancelDraftAuto, findEffectiveAssignment, getActiveYearMonth, getPreferredTeachersForCourse, isAssignmentEffectiveInMonth, loadAssignmentApprovals, loadDismissedApprovalIds, openMatchingForApprovalTicket, renderApprovalDashboardItem, saveDismissedApprovalIds, sendDraftAssignments, teacherHasSubmittedMonth } from './teacher-schedule-tab.js';
 import { compareCandidateInfo, getMatchingPriority, MATCHING_FACTOR_META } from './matching-config.js';
 import { mountInlineConfirm, showActiveTabNotice } from '../shared/inline-confirm.js';
@@ -911,8 +912,9 @@ async function renderShortageDashboard(){
       variant: 'danger',
       mountSelector: '.shortage-panel-head-split',
       onConfirm: async ()=>{
-        approvedRecent.forEach(a=> dismissed.add(a.id));
-        saveDismissedApprovalIds(dismissed);
+        const nextDismissed = loadDismissedApprovalIds();
+        approvedRecent.forEach(a=> nextDismissed.add(a.id));
+        saveDismissedApprovalIds(nextDismissed);
         await renderShortageDashboard();
         return { ok: true };
       },
