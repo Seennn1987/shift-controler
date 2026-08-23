@@ -118,11 +118,11 @@
 
 | トークン | 値 | 用途 |
 |---|---|---|
-| `--radius-sm` | 6px | ツールチップ、小バッジ |
-| `--radius-md` | 8px | 入力欄、副ボタン、リスト行 |
-| `--radius-lg` | 10px | 主ボタン |
-| `--radius-xl` | 12px | パネル内ブロック |
-| `--radius-card` | 14px | カード |
+| `--radius-sm` | 4px | ツールチップ、小バッジ |
+| `--radius-md` | 4px | 入力欄、副ボタン、リスト行 |
+| `--radius-lg` | 6px | 主ボタン |
+| `--radius-xl` | 6px | パネル内ブロック |
+| `--radius-card` | 6px | カード |
 | `--radius-pill` | 999px | ピル型バッジ・チップ |
 
 **禁止**: 7px / 9px などスケール外の値（既存CSSは段階的に置換）
@@ -136,7 +136,7 @@
 ```
 背景: --surface-card
 枠線: 1px solid --border
-角丸: --radius-card (14px)
+角丸: --radius-card (6px)
 padding: --card-padding (22px 24px)
 見出し: --text-lg (15px), bold, --brand-900
 説明: --text-md (13px), --ink-soft
@@ -157,7 +157,7 @@ padding: --card-padding (22px 24px)
 ```
 高さ: --input-height (40px)
 padding: 10px 12px
-角丸: --radius-md (8px)
+角丸: --radius-md (4px)
 文字: --text-base (14px)
 枠線: 1px solid --border
 背景: --surface-card

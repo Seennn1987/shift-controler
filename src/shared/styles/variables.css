@@ -91,12 +91,12 @@
     --space-7:20px;
     --space-8:24px;
 
-    /* --- D. 角丸 --- */
-    --radius-sm:6px;     /* バッジ・小ボタン・ツールチップ */
-    --radius-md:8px;     /* 入力欄・副ボタン・行 */
-    --radius-lg:10px;    /* 主ボタン */
-    --radius-xl:12px;    /* パネル内ブロック */
-    --radius-card:14px;  /* カード */
+    /* --- D. 角丸（MFクラウド寄り：4〜6px中心） --- */
+    --radius-sm:4px;     /* バッジ・小ボタン・ツールチップ */
+    --radius-md:4px;     /* 入力欄・副ボタン・行 */
+    --radius-lg:6px;     /* 主ボタン */
+    --radius-xl:6px;     /* パネル内ブロック */
+    --radius-card:6px;   /* カード */
     --radius-pill:999px; /* ピル型バッジ・チップ */
 
     /* --- E. コンポーネント寸法 --- */

@@ -1597,7 +1597,7 @@
     visibility:visible;
     pointer-events:auto;
     transition:right .3s cubic-bezier(.4,0,.2,1),visibility 0s,border-radius .3s,box-shadow .3s;
-    border-radius:20px 0 0 20px;
+    border-radius:var(--radius-card) 0 0 var(--radius-card);
     box-shadow:-12px 0 32px rgba(15,23,42,.16),-4px 0 12px rgba(15,23,42,.1);
   }
 
