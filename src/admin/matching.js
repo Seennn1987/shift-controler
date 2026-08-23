@@ -475,13 +475,10 @@ function renderShortageDashboard(){
       <div class="shortage-date-head">${formatShortageDateLabel(group.dateStr)}</div>`;
     studentBlocks.forEach(block=>{
       const gLabel = gradeLabel(block.student);
-      const slotCount = block.slots.length;
-      const countNote = slotCount > 1 ? `<span class="shortage-student-count">未確定${slotCount}コマ</span>` : '';
       html += `<div class="shortage-student-block">
         <div class="shortage-student-head">
           <span class="sr-name">${block.student.name}</span>
           <span class="sr-grade">${gLabel}</span>
-          ${countNote}
         </div>`;
       block.slots.forEach(row=>{
         const { course, slot } = row;
