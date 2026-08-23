@@ -131,11 +131,35 @@ function getSlotPendingTickets(dateStr, slotId){
   });
 }
 
-function slotLabelFor(dateStr, slotId){
+function formatDateWeekdayLabel(dateStr){
   const d = new Date(`${dateStr}T00:00:00`);
   const wd = WEEKDAY_JP[d.getDay()];
+  return `${d.getMonth() + 1}/${d.getDate()}（${wd}）`;
+}
+
+function slotLabelFor(dateStr, slotId){
   const slotDef = SLOTS.find(s=> Number(s.id) === Number(slotId));
-  return `${d.getMonth() + 1}/${d.getDate()}（${wd}）${slotDef ? slotDef.label : `${slotId}講`}`;
+  return `${formatDateWeekdayLabel(dateStr)}${slotDef ? slotDef.label : `${slotId}講`}`;
+}
+
+function formatTicketConfirmLine(dateStr, ticket, action){
+  const slotDef = SLOTS.find(s=> Number(s.id) === Number(ticket.slot));
+  const slotLabel = slotDef ? slotDef.label : `${ticket.slot}講`;
+  const resolvedDate = dateStr || ticket.oneTimeDate || null;
+  const datePart = resolvedDate
+    ? formatDateWeekdayLabel(resolvedDate)
+    : `（${ticket.day}）`;
+  return `・${datePart}${slotLabel} ${ticket.studentName} ${ticket.subject} … ${actionLabel(action)}`;
+}
+
+function formatCancelDraftLabel(entry){
+  const slotDef = SLOTS.find(s=> Number(s.id) === Number(entry.slot));
+  const slotLabel = slotDef ? slotDef.label : `${entry.slot}講`;
+  const resolvedDate = entry.dateStr || entry.oneTimeDate || null;
+  const datePart = resolvedDate
+    ? formatDateWeekdayLabel(resolvedDate)
+    : `（${entry.day}）`;
+  return `${datePart}${slotLabel} ${entry.studentName} ${entry.subject}`;
 }
 
 function collectActionablePendingSlots(){
@@ -278,7 +302,8 @@ function setDraftForCancel(entry){
     studentName: entry.studentName,
     studentGrade: entry.studentGrade || '',
     oneTimeDate: entry.oneTimeDate || null,
-    label: `${entry.day}曜 ${SLOTS.find(s=>s.id===entry.slot)?.label||entry.slot+'講'} ${entry.studentName} ${entry.subject}`,
+    dateStr: entry.dateStr || entry.oneTimeDate || null,
+    label: formatCancelDraftLabel(entry),
   };
   persistDrafts();
   rerenderSchedule();
@@ -325,7 +350,24 @@ function draftAllPendingApprovals(){
 }
 
 function buildSubmitConfirmMessage(drafts){
-  const lines = Object.values(drafts).map(d=>`・${d.label} … ${actionLabel(d.action)}`);
+  const lines = [];
+  Object.values(drafts).forEach(d=>{
+    if(d.action === 'approve' || d.action === 'reject'){
+      const ticketIds = d.ticketIds?.length ? d.ticketIds : (d.ticketId ? [d.ticketId] : []);
+      const tickets = ticketIds.map(id=> S.newAssignments.find(t=> t.id === id)).filter(Boolean);
+      if(tickets.length > 0){
+        tickets.forEach(ticket=>{
+          lines.push(formatTicketConfirmLine(d.dateStr, ticket, d.action));
+        });
+        return;
+      }
+    }
+    if(d.action === 'cancel'){
+      lines.push(`・${formatCancelDraftLabel(d)} … ${actionLabel(d.action)}`);
+      return;
+    }
+    lines.push(`・${d.label} … ${actionLabel(d.action)}`);
+  });
   return `次の内容を教室長に送信します。\n\n${lines.join('\n')}\n\nよろしいですか？`;
 }
 
