@@ -1,0 +1,52 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ピタコマ 月カレンダー フローバッジ UI プレビュー v2</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Zen+Kaku+Gothic+New:wght@400;500;700;900&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="../src/shared/styles/variables.css">
+  <link rel="stylesheet" href="calendar-month-flow-preview.css">
+</head>
+<body>
+  <header class="preview-header">
+    <div class="preview-header-inner">
+      <h1>月カレンダー — フローバッジ UI プレビュー v2</h1>
+      <p>その日に存在するフローを<strong>最大3つ</strong>（講師なし・仮決め・承認待ち）表示。コマ行のバッジは削除。おすすめは<strong>案M1</strong>です。</p>
+      <p class="preview-url">URL: <a href="http://localhost:5173/docs/calendar-month-flow-preview.html">http://localhost:5173/docs/calendar-month-flow-preview.html</a></p>
+    </div>
+  </header>
+
+  <main class="preview-main">
+    <section class="intro-block">
+      <h2>方針（v2）</h2>
+      <ul class="rule-list" id="ruleList"></ul>
+      <div id="recommendBox" class="recommend-box"></div>
+    </section>
+
+    <section class="compare-block">
+      <h2>① 1週間分 — 公開中 vs 4案</h2>
+      <p class="section-desc">水曜=3状態すべて、木曜=講師なし+仮決め など。コマ行は「4講 2人」のみ。</p>
+      <div id="weekCompare" class="week-compare-grid"></div>
+    </section>
+
+    <section class="compare-block">
+      <h2>② 3バッジ並び — パターン別（水曜・3状態）</h2>
+      <div id="tripleCompare" class="day-head-grid"></div>
+    </section>
+
+    <section class="compare-block">
+      <h2>③ 各案の長所・短所</h2>
+      <div id="prosCons" class="pros-cons-grid"></div>
+    </section>
+
+    <section class="compare-block">
+      <h2>④ 表示ルール（最大3バッジ）</h2>
+      <div id="displayRules" class="priority-box"></div>
+    </section>
+  </main>
+
+  <script src="calendar-month-flow-preview.js"></script>
+</body>
+</html>

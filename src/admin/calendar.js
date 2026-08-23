@@ -168,18 +168,37 @@ function heatBoxTitle(h){
   return parts.join(' · ');
 }
 
-/** 教室全体表示：4講〜7講を常に4行。v4 flex左詰め（4講 2人 未決） */
+function buildDayFlowState(dateStr){
+  const list = getEffectiveDayAssignments(dateStr);
+  return {
+    hasUnassigned: SLOTS.some(slot=> countUnassignedDesiredForSlot(dateStr, slot.id) > 0),
+    hasDraft: list.some(a=> a.draft),
+    hasWaiting: list.some(a=> a.pending),
+  };
+}
+
+/** 教室全体表示：日付ヘッダーにフローバッジ最大3つ（案M1） */
+function buildDayHeadHtml(day, dateStr, isToday){
+  const { hasUnassigned, hasDraft, hasWaiting } = buildDayFlowState(dateStr);
+  const badges = [];
+  if(hasUnassigned) badges.push('<span class="cal-day-flow-badge is-unassigned">講師なし</span>');
+  if(hasDraft) badges.push('<span class="cal-day-flow-badge is-tentative-outline">仮決め</span>');
+  if(hasWaiting) badges.push('<span class="cal-day-flow-badge is-waiting">承認待ち</span>');
+  const todayCls = isToday ? ' is-today' : '';
+  const badgesHtml = badges.length
+    ? `<span class="cal-day-badges">${badges.join('')}</span>`
+    : '';
+  return `<div class="cal-day-head"><span class="cal-daynum${todayCls}">${day}</span>${badgesHtml}</div>`;
+}
+
+/** 教室全体表示：4講〜7講を常に4行。v4 flex左詰め（4講 2人） */
 function heatBoxHtml(h){
   const isEmpty = h.count === 0;
-  const hasPending = h.pendingCount > 0;
   const countHtml = isEmpty
     ? '<span class="cal-heat-count is-dash">—</span>'
     : `<span class="cal-heat-count">${h.count}人</span>`;
-  const badge = hasPending
-    ? `<span class="cal-heat-pending-badge">未決${h.pendingCount}</span>`
-    : '';
   const cls = ['cal-heat-box', isEmpty ? 'is-empty' : ''].filter(Boolean).join(' ');
-  return `<div class="${cls}" title="${heatBoxTitle(h)}"><span class="cal-heat-label">${h.slotLabel}</span>${countHtml}${badge}</div>`;
+  return `<div class="${cls}" title="${heatBoxTitle(h)}"><span class="cal-heat-label">${h.slotLabel}</span>${countHtml}</div>`;
 }
 
 // 教室全体表示用：その実日付における4コマ(4講〜7講)それぞれの混雑度（確定＋未マッチの希望コマを反映）
@@ -282,12 +301,7 @@ function renderCalendar(){
         const heat = buildDayHeat(dateStr);
         const total = heat.reduce((sum,h)=>sum+h.count, 0);
         if(total===0) classes.push('no-activity');
-        if(heat.some(h=>h.pendingCount>0)){
-          inner = inner.replace(
-            `<div class="cal-daynum">${day}</div>`,
-            `<div class="cal-daynum">${day}<span class="cal-day-pending-dot" aria-hidden="true"></span></div>`
-          );
-        }
+        inner = buildDayHeadHtml(day, dateStr, dateStr===todayStr);
         const heatBoxes = heat.map(h=>heatBoxHtml(h)).join('');
         inner += `<div class="cal-heat-stack">${heatBoxes}</div>`;
       }
