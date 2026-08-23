@@ -76,17 +76,13 @@
     <div id="calMatchingMain">
 
     <div class="card cal-card">
-      <div class="cal-zone-label cal-zone-label-inset">カレンダー</div>
       <div class="cal-toolbar">
         <button type="button" class="cal-mode-toggle" id="calModeToggleBtn" aria-haspopup="true">月間表示 ▾</button>
         <div class="cal-period-nav">
           <button type="button" class="cal-nav-btn" id="calPrevBtn" aria-label="前へ">‹</button>
           <div class="cal-period-label" id="calPeriodLabel">2026年8月</div>
           <button type="button" class="cal-nav-btn" id="calNextBtn" aria-label="次へ">›</button>
-        </div>
-        <button type="button" class="cal-today-btn" id="calTodayBtn">今月</button>
-        <div class="cal-toolbar-actions">
-          <button type="button" class="btn-primary" id="openMatchingPanelBtn">コマを組む</button>
+          <button type="button" class="cal-today-btn" id="calTodayBtn">今月</button>
         </div>
       </div>
 
@@ -321,7 +317,7 @@
       <input type="text" inputmode="numeric" id="studentGradeInput" style="max-width:100px;" placeholder="例：5">
 
       <div style="height:22px"></div>
-      <label class="field-label">受講科目<span class="help-tip" tabindex="0">?<span class="help-tip-text">まず「基本情報を登録」を押してください。そのあと、空いているマスをクリックして教科を選びます。講師への依頼は「コマを組む」から、カレンダー画面の右パネルで行います。</span></span></label>
+      <label class="field-label">受講科目<span class="help-tip" tabindex="0">?<span class="help-tip-text">まず「基本情報を登録」を押してください。そのあと、空いているマスをクリックして教科を選びます。講師への依頼は、カレンダーでコマをクリックして右パネルから行います。</span></span></label>
       <div id="courseList"></div>
       <div id="studentMatchingAction" class="student-matching-action" hidden></div>
 
@@ -341,7 +337,7 @@
       <div class="teacher-list student-list" id="studentList"></div>
     </div>
 
-    <p class="desc" style="padding:0 4px;">担当生徒の登録は「カレンダー」のコマを組む画面から行えます。登録済みの組み合わせは、下の生徒一覧と「講師管理」の講師一覧に表示されます。未充足コマ・自動仮組みは「カレンダー」タブ上部にあります。</p>
+    <p class="desc" style="padding:0 4px;">担当生徒の登録は、カレンダーでコマをクリックして行えます。登録済みの組み合わせは、下の生徒一覧と「講師管理」の講師一覧に表示されます。未充足コマ・自動仮組みは「カレンダー」タブ上部にあります。</p>
 
     <!-- マッチング候補の詳細操作はカレンダー画面（生徒フィルター＋日付クリック）に統合しました。
          matchingWrapは内部の集計処理用に非表示のまま維持しています。 -->

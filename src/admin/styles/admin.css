@@ -914,7 +914,7 @@
   table.avail-grid td.closed-day-tint{background:var(--surface-muted);}
 
   /* ===== カレンダー（3ゾーン：状況 / 操作 / カレンダー） ===== */
-  .cal-card{padding:16px 0 18px;}
+  .cal-card{padding:12px 0 16px;}
 
   .cal-status-bar{
     background:var(--surface-card);border:1px solid var(--border);border-radius:var(--radius-xl);
@@ -1037,13 +1037,7 @@
   .cal-header{display:flex;align-items:center;gap:10px;margin-bottom:14px;padding:0 16px;}
 
   .cal-toolbar{
-    display:flex;align-items:center;gap:8px;margin-bottom:12px;padding:0 16px;flex-wrap:wrap;
-  }
-  .cal-toolbar-actions{
-    margin-left:auto;display:flex;align-items:center;gap:8px;flex-shrink:0;
-  }
-  .cal-toolbar-actions .btn-primary{
-    padding:7px 14px;font-size:var(--text-sm);font-weight:700;white-space:nowrap;
+    display:flex;align-items:center;gap:8px;margin-bottom:8px;padding:0 16px;flex-wrap:wrap;
   }
   .cal-mode-toggle{
     flex-shrink:0;border:1px solid var(--border);background:var(--surface-card);color:var(--ink);
@@ -1052,14 +1046,14 @@
   }
   .cal-mode-toggle:hover{background:var(--green-100);}
   .cal-period-nav{
-    flex:1;display:flex;align-items:center;justify-content:center;gap:6px;min-width:0;
+    flex:1;display:flex;align-items:center;justify-content:center;gap:6px;min-width:0;flex-wrap:wrap;
   }
   .cal-period-label{
     font-size:var(--text-lg);font-weight:700;color:var(--green-900);text-align:center;
-    min-width:140px;white-space:nowrap;
+    min-width:120px;white-space:nowrap;
   }
   .cal-toolbar .cal-nav-btn{width:30px;height:30px;font-size:var(--text-xl);}
-  .cal-toolbar .cal-today-btn{padding:6px 10px;font-size:var(--text-md);flex-shrink:0;}
+  .cal-toolbar .cal-today-btn{padding:6px 10px;font-size:var(--text-md);flex-shrink:0;margin-left:4px;}
 
   .cal-mode-tabs{display:flex;gap:6px;padding:0 16px;margin-bottom:14px;}
   .cal-mode-btn{
@@ -1791,7 +1785,6 @@
   .matching-panel-slot-list .matching-panel-cand-list{margin-top:4px;}
   .matching-panel-slot-list .match-cand{margin-bottom:6px;}
   .mp-action{margin-top:8px;}
-  #openMatchingPanelBtn{font-weight:700;}
 
   body.cal-drawer-open .cal-grid{
     font-size:var(--text-md);
