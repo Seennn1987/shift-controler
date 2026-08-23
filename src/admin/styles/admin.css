@@ -659,6 +659,14 @@
   .sched-teacher-name .sched-cap{font-weight:400;color:var(--ink-soft);font-size:var(--text-sm);margin-left:4px;}
   .grade-tag{font-size:var(--text-xs);font-weight:400;color:var(--ink-soft);margin-left:3px;}
   .sched-student-row{display:flex;align-items:center;gap:5px;font-size:var(--text-sm);padding:2px 0;flex-wrap:wrap;}
+  .sched-student-row--day-detail{
+    display:flex;align-items:center;justify-content:space-between;gap:8px;
+    flex-wrap:nowrap;padding:4px 0;font-size:var(--text-sm);
+  }
+  .sched-student-row--day-detail .sched-student-row-body{
+    display:flex;align-items:center;gap:5px;flex-wrap:nowrap;min-width:0;flex:1 1 auto;
+  }
+  .sched-student-row--day-detail .sched-student-row-name{min-width:0;}
   .sched-student-row--display{
     position:relative;align-items:flex-start;flex-wrap:nowrap;padding:4px 0;
   }
@@ -1388,13 +1396,11 @@
     margin-top:10px;padding-top:10px;border-top:1px dashed var(--border);
   }
   .day-detail-unassigned-head{
-    position:relative;margin-bottom:8px;font-size:var(--text-md);
+    margin-bottom:8px;font-size:var(--text-md);
   }
-  .day-detail-unassigned-head.has-flow-badge .day-detail-unassigned-head-main{padding-right:58px;}
   .day-detail-unassigned-head-main{
     display:flex;flex-wrap:nowrap;align-items:center;gap:6px;min-width:0;
   }
-  .day-detail-unassigned-head .sched-card-flow-badge{position:absolute;top:0;right:0;z-index:1;line-height:1;}
 
   /* ===== 講師スケジュール（月次提出） ===== */
   .ts-card{padding:20px 18px 22px;}
@@ -1505,16 +1511,11 @@
     cursor:pointer;padding:7px 14px;border-radius:var(--radius-md);
   }
   .absent-btn:hover{background:var(--green-100);}
-  .handle-absence-btn{
-    border:1px solid var(--ink);background:var(--surface-card);color:var(--ink);font-size:var(--text-xs);font-weight:700;
-    cursor:pointer;padding:5px 10px;border-radius:var(--radius-sm);margin-left:auto;
+  .sched-teacher-head-row button.ghost.handle-teacher-absence-btn,
+  .sched-student-row--day-detail button.ghost.handle-absence-btn{
+    flex-shrink:0;font-size:var(--text-xs);font-weight:700;padding:4px 10px;border-radius:var(--radius-sm);
+    min-height:0;line-height:1.35;margin-left:0;white-space:nowrap;
   }
-  .handle-absence-btn:hover{background:var(--green-100);}
-  .handle-teacher-absence-btn{
-    flex-shrink:0;border:1px solid var(--ink);background:var(--surface-card);color:var(--ink);
-    font-size:var(--text-xs);font-weight:700;cursor:pointer;padding:5px 10px;border-radius:var(--radius-sm);
-  }
-  .handle-teacher-absence-btn:hover{background:var(--green-100);}
   .sched-teacher-head-row{
     display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap;margin-bottom:4px;
   }

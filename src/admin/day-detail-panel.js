@@ -27,7 +27,7 @@ import {
   getActiveYearMonth,
 } from './teacher-schedule-tab.js';
 import { buildDualMatchCandidatesHtml, buildMatchCandidatesHtml } from './match-candidates-html.js';
-import { buildPrefPairActionHtmlForTeacher, buildDraftSlotCardHtml, buildWaitingSlotCardHtml, buildFlowStatusBadgeHtml } from './match-candidate-ui.js';
+import { buildPrefPairActionHtmlForTeacher, buildDraftSlotCardHtml, buildWaitingSlotCardHtml, buildFlowStatusBadgeChipHtml } from './match-candidate-ui.js';
 import { mountWithdrawConfirm } from './withdraw-pending-ui.js';
 import { showInlineNotice } from '../shared/inline-confirm.js';
 import { analyzePendingMatchSlot } from './match-slot-status.js';
@@ -44,7 +44,7 @@ function buildDayDetailStudentRowHtml(a, dateStr){
       const c = level ? subjectColor(level, a.subject) : { bg: '#eee', text: '#333' };
       return `<span class="sched-student-tag" style="background:${c.bg};color:${c.text};">${a.subject}</span>`;
     })();
-  const flowBadgeHtml = buildFlowStatusBadgeHtml({
+  const flowBadgeChip = buildFlowStatusBadgeChipHtml({
     draft: !!a.draft,
     waiting: !!a.pending,
   });
@@ -52,14 +52,15 @@ function buildDayDetailStudentRowHtml(a, dateStr){
     ? '<span class="auto-badge" style="background:#fff;color:var(--ink);border:1px dashed var(--ink);">振替</span>'
     : '';
   const handleBtn = a.kind === 'normal'
-    ? `<button class="handle-absence-btn" data-student="${a.studentId}" data-date="${dateStr}">欠席・振替の対応</button>`
+    ? `<button type="button" class="ghost handle-absence-btn" data-student="${a.studentId}" data-date="${dateStr}">欠席・振替</button>`
     : '';
-  return `<div class="sched-student-row sched-student-row--display${flowBadgeHtml ? ' has-flow-badge' : ''}">
-    ${flowBadgeHtml}
-    <div class="sched-student-row-main">
+  return `<div class="sched-student-row sched-student-row--day-detail">
+    <div class="sched-student-row-body">
       ${subjectTagHtml}
-      <span>${studentName}<span class="grade-tag">${gLabel}</span></span>${makeupBadge}${handleBtn}
+      <span class="sched-student-row-name">${studentName}<span class="grade-tag">${gLabel}</span></span>
+      ${flowBadgeChip}${makeupBadge}
     </div>
+    ${handleBtn}
   </div>`;
 }
 
@@ -114,12 +115,12 @@ function buildUnassignedSlotHtml(row, dateStr, weekday){
     )) || `<div class="match-none">対応できる講師がいません</div>`;
 
   return `<div class="day-detail-unassigned">
-    <div class="day-detail-unassigned-head has-flow-badge">
-      ${buildFlowStatusBadgeHtml({ pending: true })}
+    <div class="day-detail-unassigned-head">
       <div class="day-detail-unassigned-head-main">
         ${subjectTag}
         <span>${student.name}さん</span>
         <span class="grade-tag">${gradeLabel(student)}</span>
+        ${buildFlowStatusBadgeChipHtml({ pending: true })}
       </div>
     </div>
     ${candHtml}
@@ -316,7 +317,7 @@ export function renderDayDetailPanel(container, dateStr){
   }
 
   if(filterTeacher){
-    container.innerHTML = `<div class="cal-day-note">${teacherHonorific(filterTeacher)}のこの日の担当授業について、欠勤・代講の対応ができます。</div><div class="teacher-absence-root"></div>`;
+    container.innerHTML = `<div class="cal-day-note">${teacherHonorific(filterTeacher)}のこの日の担当授業について、欠勤・代講ができます。</div><div class="teacher-absence-root"></div>`;
     return;
   }
 
@@ -365,7 +366,7 @@ export function renderDayDetailPanel(container, dateStr){
         html += `<div class="sched-teacher-box">
           <div class="sched-teacher-head-row">
             <div class="sched-teacher-name">${teacherHonorific(teacher)}<span class="sched-cap">（${loadCount}/${S.teacherCapacity}）</span></div>
-            <button type="button" class="handle-teacher-absence-btn" data-teacher="${teacherId}" data-date="${dateStr}">欠勤・代講の対応</button>
+            <button type="button" class="ghost handle-teacher-absence-btn" data-teacher="${teacherId}" data-date="${dateStr}">欠勤・代講</button>
           </div>
           ${studentsHtml}
         </div>`;
