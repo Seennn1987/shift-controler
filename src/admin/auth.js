@@ -12,7 +12,7 @@ installAuthDebug({ fbAuth, S, getSecondaryAuth });
 
 function showLoginScreen(msg){
   document.getElementById('loginScreen').style.display = 'flex';
-  document.getElementById('appHeader').style.display = 'none';
+  document.getElementById('appChrome').style.display = 'none';
   document.getElementById('appRoot').style.display = 'none';
   document.getElementById('loginMsg').textContent = msg || '';
 }
@@ -44,7 +44,7 @@ async function showAppScreen(user){
   }
 
   document.getElementById('loginScreen').style.display = 'none';
-  document.getElementById('appHeader').style.display = '';
+  document.getElementById('appChrome').style.display = '';
   document.getElementById('appRoot').style.display = '';
   document.getElementById('loginUserEmail').textContent = user.email || '';
 

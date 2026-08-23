@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ピタコマ ヘッダー・タブ コンパクト化プレビュー</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Zen+Kaku+Gothic+New:wght@400;500;700;900&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="../src/shared/styles/variables.css">
+  <link rel="stylesheet" href="header-compact-preview.css">
+</head>
+<body>
+  <header class="preview-page-header">
+    <div class="preview-page-header-inner">
+      <h1>ヘッダー・タブ コンパクト化プレビュー</h1>
+      <p>いまの2段（緑ヘッダー＋白タブ）が縦に広い、との指摘への修正案です。<strong>副題「個別指導塾の…」は全案で削除</strong>しています。</p>
+      <p class="preview-url">開き方: 開発サーバー起動後 → <code id="previewUrl"></code></p>
+    </div>
+  </header>
+
+  <main class="preview-main">
+    <section class="intro-block">
+      <div id="recommendBox" class="recommend-box"></div>
+      <div id="heightCompare" class="height-compare"></div>
+    </section>
+
+    <section class="compare-block">
+      <h2>4案を並べて比較</h2>
+      <p class="section-desc">各パネル下の薄いエリア＝カレンダーが始まる位置のイメージ。数字はヘッダー＋タブのおおよその高さです。</p>
+      <div id="variantGrid" class="variant-grid"></div>
+    </section>
+
+    <section class="compare-block">
+      <h2>各案の長所・短所</h2>
+      <div id="prosConsGrid" class="pros-cons-grid"></div>
+    </section>
+  </main>
+
+  <script src="header-compact-preview.js"></script>
+</body>
+</html>

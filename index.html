@@ -35,11 +35,11 @@
   </div>
 </div>
 
-<header class="top" id="appHeader" style="display:none;">
+<div class="app-chrome" id="appChrome" style="display:none;">
+<header class="top" id="appHeader">
   <div class="inner">
     <div class="brand">
       <h1>ピタコマ</h1>
-      <div class="sub">個別指導塾のコマ組み・シフト管理</div>
     </div>
     <div class="header-account">
       <span id="loginUserEmail" class="header-email"></span>
@@ -47,8 +47,6 @@
     </div>
   </div>
 </header>
-
-<div class="app" id="appRoot" style="display:none;">
   <div class="tabs">
     <button class="tab-btn tab-btn-home active" data-view="calendar">カレンダー</button>
     <button class="tab-btn" data-view="student">生徒登録</button>
@@ -57,7 +55,9 @@
     <button class="tab-btn" data-view="finance">分析</button>
     <button class="tab-btn" data-view="settings">設定</button>
   </div>
+</div>
 
+<div class="app" id="appRoot" style="display:none;">
   <!-- ===== カレンダー ===== -->
   <section id="view-calendar" class="view active">
     <div id="calViewShell" class="cal-view-shell">
