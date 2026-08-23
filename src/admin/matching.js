@@ -10,8 +10,9 @@ import { renderCalendarWeek, switchCalMode, switchView } from './finance-ui.js';
 import { gradeLabel, isTeacherAvailableOnDate, subjectColor } from './schedule-core.js';
 import { saveStudents, scheduleSave, scheduleSyncTeacherAssignments } from './students-persistence.js';
 import { assignmentAppliesOnDate, buildCandidateInfo, confirmAssignment, countAssignmentsInMonth, cancelAllDrafts, cancelDraftAuto, findEffectiveAssignment, getActiveYearMonth, getPreferredTeachersForCourse, isAssignmentEffectiveInMonth, sendDraftAssignments, teacherHasSubmittedMonth } from './teacher-schedule-tab.js';
-import { compareCandidateInfo } from './matching-config.js';
-import { showActiveTabNotice, mountInlineConfirm } from '../shared/inline-confirm.js';
+import { compareCandidateInfo, getMatchingPriority, MATCHING_FACTOR_META } from './matching-config.js';
+import { showActiveTabNotice } from '../shared/inline-confirm.js';
+import { dismissAppConfirmDialog, runAppConfirmDialog } from '../shared/app-confirm-dialog.js';
 import {
   buildApprovalAlertRowHtml, buildCalAlertPersonHead, buildCalAlertPersonInline,
   buildCalAlertSubjectTag, buildCalAlertWhenPill,
@@ -476,99 +477,166 @@ function buildShortageSummaryLine({ draftCount, unassignedCount, pendingCount, p
   return parts.join(' ／ ') || '✓ すべて確定です';
 }
 
+function getUpcomingAutoDraftIds(){
+  const ids = new Set();
+  collectUpcomingDraftsFlat().forEach(entry=>{
+    if(entry.assignment.source === 'auto') ids.add(entry.assignment.id);
+  });
+  return ids;
+}
+
+function cancelUpcomingAutoDrafts(){
+  const ids = getUpcomingAutoDraftIds();
+  const count = S.draftAssignments.filter(a=> ids.has(a.id)).length;
+  S.draftAssignments = S.draftAssignments.filter(a=> !ids.has(a.id));
+  return count;
+}
+
+function buildMatchingPriorityExtraHtml(){
+  const enabled = getMatchingPriority().filter(item=> item.enabled);
+  if(enabled.length === 0){
+    return `<div class="app-confirm-priority">
+      <div class="app-confirm-priority-label">いまの優先順位（設定どおり）</div>
+      <p class="app-confirm-body" style="margin:0;">有効な条件がありません。設定で見直してください。</p>
+      <button type="button" class="app-confirm-settings-link" id="appConfirmSettingsLink">設定で優先順位を変更</button>
+    </div>`;
+  }
+  const items = enabled.map((item, idx)=>{
+    const meta = MATCHING_FACTOR_META[item.id];
+    const label = meta?.label || item.id;
+    return `<li>${idx + 1}. ${label}</li>`;
+  }).join('');
+  return `<div class="app-confirm-priority">
+    <div class="app-confirm-priority-label">いまの優先順位（設定どおり）</div>
+    <ol class="app-confirm-priority-list">${items}</ol>
+    <button type="button" class="app-confirm-settings-link" id="appConfirmSettingsLink">設定で優先順位を変更</button>
+  </div>`;
+}
+
+let appConfirmExtrasWired = false;
+function wireAppConfirmExtras(){
+  if(appConfirmExtrasWired) return;
+  const extra = document.getElementById('appConfirmExtra');
+  if(!extra) return;
+  appConfirmExtrasWired = true;
+  extra.addEventListener('click', (ev)=>{
+    const link = ev.target.closest('#appConfirmSettingsLink');
+    if(!link) return;
+    dismissAppConfirmDialog(false);
+    switchView('settings');
+    requestAnimationFrame(()=>{
+      document.getElementById('matchingPriorityList')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    });
+  });
+}
+
 function bindShortageDashboardActions(wrap){
+  wireAppConfirmExtras();
   const ym = getActiveYearMonth();
   const monthSubmitted = monthHasSubmittedTeachers(ym);
   const resultEl = wrap.querySelector('#shortageActionResult');
 
-  wrap.querySelector('#shortageBulkAutoBtn')?.addEventListener('click', ()=>{
+  wrap.querySelector('#shortageBulkAutoBtn')?.addEventListener('click', async ()=>{
     if(!monthSubmitted){
       if(resultEl) resultEl.textContent = 'この月は講師のシフト提出がないため、自動で組めません。';
       return;
     }
-    const { filled, skipped, total } = bulkAutoAssign();
-    scheduleSave();
-    refreshAfterMatchingChange();
-    if(total === 0){
-      if(resultEl) resultEl.textContent = '未確定のコマはありません。';
-    }else if(filled === 0){
-      if(resultEl) resultEl.textContent = `対応できる講師が見つからず、${skipped}件とも自動で組めませんでした。`;
-    }else if(skipped === 0){
-      if(resultEl) resultEl.textContent = `✓ 未確定だった${filled}件を下書き保存しました。「講師にスケジュールを送信」で依頼できます。`;
-    }else{
-      if(resultEl) resultEl.textContent = `${filled}件を下書き保存しました。${skipped}件は未確定のままです。`;
-    }
+    const unassignedCount = collectUpcomingUnassignedFlat().length;
+    const result = await runAppConfirmDialog({
+      title: '全コマを自動で組みますか？',
+      message: unassignedCount > 0
+        ? `この月の未確定コマ（${unassignedCount}コマ）に、条件に合う講師を仮決めします。\n講師にはまだ送られません。送信は「講師にスケジュールを送信」から行います。`
+        : '未確定コマはありませんが、自動で組み直す場合も同じ操作です。\n講師にはまだ送られません。',
+      extraHtml: buildMatchingPriorityExtraHtml(),
+      confirmLabel: '仮決めする',
+      variant: 'primary',
+    }, async ()=>{
+      const { filled, skipped, total } = bulkAutoAssign();
+      scheduleSave();
+      refreshAfterMatchingChange();
+      if(total === 0){
+        if(resultEl) resultEl.textContent = '未確定のコマはありません。';
+      }else if(filled === 0){
+        if(resultEl) resultEl.textContent = `対応できる講師が見つからず、${skipped}件とも自動で組めませんでした。`;
+      }else if(skipped === 0){
+        if(resultEl) resultEl.textContent = `✓ 未確定だった${filled}件を仮決めしました。「講師にスケジュールを送信」で依頼できます。`;
+      }else{
+        if(resultEl) resultEl.textContent = `${filled}件を仮決めしました。${skipped}件は未確定のままです。`;
+      }
+      return { ok: true };
+    });
+    if(result && result.msg && resultEl) resultEl.textContent = result.msg;
   });
 
-  wrap.querySelector('#shortageSendBtn')?.addEventListener('click', (ev)=>{
-    const btn = ev.currentTarget;
+  wrap.querySelector('#shortageSendBtn')?.addEventListener('click', async ()=>{
     const draftCount = S.draftAssignments.length;
     if(draftCount === 0){
-      if(resultEl) resultEl.textContent = '送信する下書きがありません。';
+      if(resultEl) resultEl.textContent = '送信する仮決めがありません。';
       return;
     }
-    mountInlineConfirm(wrap, btn, {
-      message: `下書き${draftCount}件を講師に送信しますか？`,
+    const result = await runAppConfirmDialog({
+      title: '講師にスケジュールを送信しますか？',
+      message: `仮決め ${draftCount}件を講師に送信します。\nログインありの講師は承認待ち、ログインなしの講師は確定になります。`,
       confirmLabel: '送信する',
-      mountSelector: '.shortage-actions',
-      onConfirm: async ()=>{
-        const { sent, confirmed, pending } = await sendDraftAssignments();
-        scheduleSave();
-        scheduleSyncTeacherAssignments();
-        refreshAfterMatchingChange();
-        if(resultEl){
-          const parts = [`${sent}件を送信しました`];
-          if(confirmed > 0) parts.push(`確定 ${confirmed}件`);
-          if(pending > 0) parts.push(`承認待ち ${pending}件`);
-          resultEl.textContent = `✓ ${parts.join(' ／ ')}`;
-        }
-        return { ok: true };
-      },
+      variant: 'primary',
+    }, async ()=>{
+      const { sent, confirmed, pending } = await sendDraftAssignments();
+      scheduleSave();
+      scheduleSyncTeacherAssignments();
+      refreshAfterMatchingChange();
+      if(resultEl){
+        const parts = [`${sent}件を送信しました`];
+        if(confirmed > 0) parts.push(`確定 ${confirmed}件`);
+        if(pending > 0) parts.push(`承認待ち ${pending}件`);
+        resultEl.textContent = `✓ ${parts.join(' ／ ')}`;
+      }
+      return { ok: true };
     });
+    if(result && result.msg && resultEl) resultEl.textContent = result.msg;
   });
 
-  wrap.querySelector('#shortageCancelAutoBtn')?.addEventListener('click', (ev)=>{
-    const btn = ev.currentTarget;
-    const autoCount = S.draftAssignments.filter(a=> a.source === 'auto').length;
+  wrap.querySelector('#shortageCancelAutoBtn')?.addEventListener('click', async ()=>{
+    const autoIds = getUpcomingAutoDraftIds();
+    const autoCount = autoIds.size;
     if(autoCount === 0){
-      if(resultEl) resultEl.textContent = '自動で組んだ下書きはありません。';
+      if(resultEl) resultEl.textContent = 'この月で解除できる自動の仮決めはありません。';
       return;
     }
-    mountInlineConfirm(wrap, btn, {
-      message: `自動で組んだ下書き${autoCount}件を解除しますか？`,
+    const flatAutoSlots = collectUpcomingDraftsFlat().filter(e=> e.assignment.source === 'auto').length;
+    const result = await runAppConfirmDialog({
+      title: '自動で組んだ仮決めを解除しますか？',
+      message: `この月の自動仮決め ${flatAutoSlots}コマ（${autoCount}件）を解除します。\n手動の仮決め・送信済み・確定済みには触れません。`,
       confirmLabel: '解除する',
       variant: 'danger',
-      mountSelector: '.shortage-actions',
-      onConfirm: async ()=>{
-        const count = cancelDraftAuto();
-        scheduleSave();
-        refreshAfterMatchingChange();
-        if(resultEl) resultEl.textContent = `自動で組んだ下書き${count}件を解除しました。`;
-        return { ok: true };
-      },
+    }, async ()=>{
+      const count = cancelUpcomingAutoDrafts();
+      scheduleSave();
+      refreshAfterMatchingChange();
+      if(resultEl) resultEl.textContent = `自動で組んだ仮決め ${count}件を解除しました。`;
+      return { ok: true };
     });
+    if(result && result.msg && resultEl) resultEl.textContent = result.msg;
   });
 
-  wrap.querySelector('#shortageCancelDraftsBtn')?.addEventListener('click', (ev)=>{
-    const btn = ev.currentTarget;
+  wrap.querySelector('#shortageCancelDraftsBtn')?.addEventListener('click', async ()=>{
     const draftCount = S.draftAssignments.length;
     if(draftCount === 0){
-      if(resultEl) resultEl.textContent = '依頼前の下書きはありません。';
+      if(resultEl) resultEl.textContent = '依頼前の仮決めはありません。';
       return;
     }
-    mountInlineConfirm(wrap, btn, {
-      message: `依頼前の下書き${draftCount}件をすべて解除しますか？`,
+    const result = await runAppConfirmDialog({
+      title: '依頼前の仮決めをすべて解除しますか？',
+      message: `仮決め ${draftCount}件（自動・手動とも）をすべて解除します。\n送信済み・確定済みには触れません。`,
       confirmLabel: 'すべて解除',
       variant: 'danger',
-      mountSelector: '.shortage-actions',
-      onConfirm: async ()=>{
-        const count = cancelAllDrafts();
-        scheduleSave();
-        refreshAfterMatchingChange();
-        if(resultEl) resultEl.textContent = `依頼前の下書き${count}件を解除しました。`;
-        return { ok: true };
-      },
+    }, async ()=>{
+      const count = cancelAllDrafts();
+      scheduleSave();
+      refreshAfterMatchingChange();
+      if(resultEl) resultEl.textContent = `依頼前の仮決め ${count}件を解除しました。`;
+      return { ok: true };
     });
+    if(result && result.msg && resultEl) resultEl.textContent = result.msg;
   });
 }
 

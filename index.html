@@ -536,6 +536,19 @@
   <div id="matchingPanelBody" class="matching-drawer-body"></div>
 </aside>
 
+  <div id="appConfirmOverlay" class="app-confirm-overlay" hidden aria-hidden="true" role="dialog" aria-modal="true" aria-labelledby="appConfirmTitle">
+    <div class="app-confirm-card">
+      <button type="button" class="app-confirm-close" id="appConfirmCloseBtn" aria-label="閉じる">×</button>
+      <h2 class="app-confirm-title" id="appConfirmTitle"></h2>
+      <p class="app-confirm-body" id="appConfirmBody"></p>
+      <div class="app-confirm-extra" id="appConfirmExtra" hidden></div>
+      <div class="app-confirm-actions">
+        <button type="button" class="btn-secondary app-confirm-cancel" id="appConfirmCancelBtn">やめる</button>
+        <button type="button" class="app-confirm-submit primary" id="appConfirmSubmitBtn">実行する</button>
+      </div>
+    </div>
+  </div>
+
   <div id="onboardingOverlay" class="onboarding-overlay" hidden aria-hidden="true" role="dialog" aria-labelledby="onboardingTitle">
     <div class="onboarding-card">
       <div class="onboarding-step" id="onboardingStepLabel">1 / 3</div>
