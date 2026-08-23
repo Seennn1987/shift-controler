@@ -22,8 +22,6 @@ export const S = {
   lastLocalScheduleEditAt: 0,
   newAssignments: [],
   myAssignmentEntries: [],
-  myCalYear: undefined,
-  myCalMonth: undefined,
   myAssignTimer: null,
   responseDrafts: {},
   pendingCancellationRequests: [],

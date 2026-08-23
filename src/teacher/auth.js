@@ -15,8 +15,7 @@ import {
   startMyAssignmentsListener,
   initResponseDraftHandlers,
 } from './approvals.js';
-import { renderMyCalendar } from './calendar.js';
-import { render } from './shift-ui.js';
+import { renderScheduleUnified } from './schedule-unified.js';
 
 function showLogin(msg){
   document.getElementById('loginScreen').style.display = 'flex';
@@ -107,7 +106,6 @@ async function bootstrap(user){
 
   const t = new Date();
   if(S.curYear===undefined){ S.curYear = t.getFullYear(); S.curMonth = t.getMonth(); }
-  if(S.myCalYear===undefined){ S.myCalYear = t.getFullYear(); S.myCalMonth = t.getMonth(); }
   initResponseDraftHandlers();
   startScheduleListener();
   startMyAssignmentsListener();
@@ -117,7 +115,6 @@ async function bootstrap(user){
   S.pendingCancellationRequests = await loadPendingCancellationRequests();
   S.adminCancelledNotices = await loadAdminCancelledNotices();
   reloadDraftsFromStorage();
-  renderMyCalendar();
-  render();
+  renderScheduleUnified();
 }
 export { showLogin, handleLogin, bootstrap };

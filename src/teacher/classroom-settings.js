@@ -3,7 +3,7 @@ import { HOLIDAYS_JP } from '../shared/holidays.js';
 import { pad2, daysInYearMonth, toDateStr } from '../shared/date-utils.js';
 import { fbAuth, fbDb, S } from './state.js';
 import { debugLog } from './debug.js';
-import { renderMyCalendar } from './calendar.js';
+import { renderScheduleKeepingOverrides } from './schedule-unified.js';
 
 function startClassroomSettingsListener(){
   if(S.classroomSettingsTimer) clearInterval(S.classroomSettingsTimer);
@@ -20,7 +20,7 @@ function startClassroomSettingsListener(){
         S.holidayAutoDetect = !!d.holidayAutoDetect;
         S.customClosures = d.customClosures || [];
       }
-      renderMyCalendar();
+      renderScheduleKeepingOverrides();
     }catch(err){
       debugLog(`[classroomSettings] ★失敗★ code=${err.code} message=${err.message}`);
       console.error('休校日設定の読み込みエラー:', err);

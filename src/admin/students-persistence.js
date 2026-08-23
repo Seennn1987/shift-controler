@@ -172,6 +172,15 @@ function pendingMatchesTicket(p, ticket){
   return p.subject === ticket.subject;
 }
 
+function slotPendingAssignments(ticket){
+  return S.pendingAssignments.filter(p=>
+    p.teacherId === ticket.teacherId &&
+    p.day === ticket.day &&
+    Number(p.slot) === Number(ticket.slot) &&
+    (ticket.oneTimeDate ? p.oneTimeDate === ticket.oneTimeDate : !p.oneTimeDate)
+  );
+}
+
 async function promotePendingAssignment(ticket, ticketId){
   if(ticket.subjects?.length === 2){
     const indices = S.pendingAssignments
@@ -193,11 +202,20 @@ async function promotePendingAssignment(ticket, ticketId){
     renderCalendar();
     return;
   }
-  const idx = S.pendingAssignments.findIndex(p=> pendingMatchesTicket(p, ticket));
-  if(idx===-1) return; // 既に処理済み、または対応する承認待ちが見つからない
-  const entry = S.pendingAssignments[idx];
-  S.pendingAssignments.splice(idx, 1);
-  S.assignments.push(entry);
+  const mates = slotPendingAssignments(ticket);
+  if(mates.length === 0){
+    const idx = S.pendingAssignments.findIndex(p=> pendingMatchesTicket(p, ticket));
+    if(idx === -1) return;
+    S.assignments.push(S.pendingAssignments[idx]);
+    S.pendingAssignments.splice(idx, 1);
+  }else{
+    mates.forEach(entry=>{
+      const idx = S.pendingAssignments.indexOf(entry);
+      if(idx === -1) return;
+      S.assignments.push(S.pendingAssignments[idx]);
+      S.pendingAssignments.splice(idx, 1);
+    });
+  }
   try{
     await fbDb.collection('assignmentApprovals').doc(ticketId).update({promoted:true});
   }catch(e){
@@ -234,16 +252,24 @@ async function rejectPendingAssignment(ticket, ticketId){
     renderCalendar();
     return;
   }
-  const idx = S.pendingAssignments.findIndex(p=> pendingMatchesTicket(p, ticket));
-  if(idx===-1){
-    try{
-      await fbDb.collection('assignmentApprovals').doc(ticketId).update({handled:true});
-    }catch(e){
-      console.error('チケットの処理済みフラグ更新エラー:', e);
+  const mates = slotPendingAssignments(ticket);
+  if(mates.length === 0){
+    const idx = S.pendingAssignments.findIndex(p=> pendingMatchesTicket(p, ticket));
+    if(idx === -1){
+      try{
+        await fbDb.collection('assignmentApprovals').doc(ticketId).update({handled:true});
+      }catch(e){
+        console.error('チケットの処理済みフラグ更新エラー:', e);
+      }
+      return;
     }
-    return;
+    S.pendingAssignments.splice(idx, 1);
+  }else{
+    mates.forEach(entry=>{
+      const idx = S.pendingAssignments.indexOf(entry);
+      if(idx !== -1) S.pendingAssignments.splice(idx, 1);
+    });
   }
-  S.pendingAssignments.splice(idx, 1);
   try{
     await fbDb.collection('assignmentApprovals').doc(ticketId).update({handled:true});
   }catch(e){
@@ -263,7 +289,7 @@ async function pollApprovalPromotions(){
       .where('adminUid','==',user.uid).get();
     snap.forEach(doc=>{
       const a = doc.data();
-      if(a.status!=='approved' || a.promoted || a.oneTimeDate) return;
+      if(a.status!=='approved' || a.promoted) return;
       promotePendingAssignment(a, doc.id);
     });
   }catch(err){
@@ -433,16 +459,9 @@ function expandAssignmentForTeacherCalendar(a, approvalStatus, teacherId){
   if(a.oneTimeDate){
     return [{ ...base, oneTimeDate: a.oneTimeDate }];
   }
-  const out = [];
-  S.teacherSchedules.filter(s=>s.teacherId===a.teacherId && s.status==='submitted').forEach(sch=>{
-    Object.keys(sch.days || {}).forEach(dateStr=>{
-      const wd = WEEKDAY_JP[new Date(dateStr+'T00:00:00').getDay()];
-      if(wd !== a.day) return;
-      if(!(sch.days[dateStr]||[]).some(e=>Number(e.slot)===Number(a.slot))) return;
-      out.push({ ...base, oneTimeDate: dateStr });
-    });
-  });
-  return out;
+  // 曜日パターン: シフト提出日に依存せず表示（講師マイカレンダー Phase 0）
+  // 表示月の同曜日すべてに calendar.js が e.day === wd で展開する
+  return [{ ...base }];
 }
 
 async function syncTeacherAssignments(){

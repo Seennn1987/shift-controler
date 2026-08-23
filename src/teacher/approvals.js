@@ -4,9 +4,10 @@ import { pad2, daysInYearMonth } from '../shared/date-utils.js';
 import { fbAuth, fbDb, S } from './state.js';
 import { debugLog } from './debug.js';
 import { getDayStatus } from './day-status.js';
-import { renderMyCalendar } from './calendar.js';
+import { renderScheduleKeepingOverrides } from './schedule-unified.js';
 import {
   draftKeyForTicket,
+  draftKeyForSlot,
   draftKeyForCancel,
   loadResponseDrafts,
   saveResponseDrafts,
@@ -120,35 +121,46 @@ function resolveApprovalState(entry){
     : 'confirmed';
 }
 
-function collectActionablePendingApprovals(){
-  const seenTicketIds = new Set();
+function getSlotPendingTickets(dateStr, slotId){
+  const wd = WEEKDAY_JP[new Date(`${dateStr}T00:00:00`).getDay()];
+  return S.newAssignments.filter(t=>{
+    if(t.day !== wd || Number(t.slot) !== Number(slotId)) return false;
+    if(t.oneTimeDate) return t.oneTimeDate === dateStr;
+    return true;
+  });
+}
+
+function slotLabelFor(dateStr, slotId){
+  const d = new Date(`${dateStr}T00:00:00`);
+  const wd = WEEKDAY_JP[d.getDay()];
+  const slotDef = SLOTS.find(s=> Number(s.id) === Number(slotId));
+  return `${d.getMonth() + 1}/${d.getDate()}（${wd}）${slotDef ? slotDef.label : `${slotId}講`}`;
+}
+
+function collectActionablePendingSlots(){
+  if(S.curYear == null || S.curMonth == null) return [];
+  const seen = new Set();
   const items = [];
-  const addEntry = (entry)=>{
-    if(resolveApprovalState(entry) !== 'pending') return;
-    const ticket = findPendingTicket(entry.day, entry.slot, entry.subject, entry.studentName, entry.oneTimeDate);
-    if(!ticket) return;
-    const draftKey = draftKeyForTicket(ticket.id);
-    if(S.responseDrafts[draftKey]) return;
-    if(seenTicketIds.has(ticket.id)) return;
-    seenTicketIds.add(ticket.id);
-    items.push({ entry, ticket });
-  };
-
-  if(S.myCalYear == null || S.myCalMonth == null){
-    S.myAssignmentEntries.forEach(addEntry);
-    return items;
-  }
-
-  const total = daysInYearMonth(`${S.myCalYear}-${pad2(S.myCalMonth + 1)}`);
+  const total = daysInYearMonth(`${S.curYear}-${pad2(S.curMonth + 1)}`);
   for(let d = 1; d <= total; d++){
-    const dateStr = `${S.myCalYear}-${pad2(S.myCalMonth + 1)}-${pad2(d)}`;
-    const wd = WEEKDAY_JP[new Date(`${dateStr}T00:00:00`).getDay()];
+    const dateStr = `${S.curYear}-${pad2(S.curMonth + 1)}-${pad2(d)}`;
     if(getDayStatus(dateStr).type !== 'open') continue;
-    S.myAssignmentEntries
-      .filter(e=> (e.oneTimeDate ? e.oneTimeDate === dateStr : e.day === wd))
-      .forEach(addEntry);
+    SLOTS.forEach(slot=>{
+      const tickets = getSlotPendingTickets(dateStr, slot.id);
+      if(tickets.length === 0) return;
+      const key = draftKeyForSlot(dateStr, slot.id);
+      if(S.responseDrafts[key]) return;
+      if(seen.has(key)) return;
+      seen.add(key);
+      items.push({ dateStr, slotId: slot.id, tickets });
+    });
   }
   return items;
+}
+
+/** @deprecated 互換用 */
+function collectActionablePendingApprovals(){
+  return collectActionablePendingSlots();
 }
 
 function pruneStaleResponseDrafts(){
@@ -156,6 +168,15 @@ function pruneStaleResponseDrafts(){
   let changed = false;
   Object.entries(S.responseDrafts).forEach(([key, d])=>{
     if(d.action === 'approve' || d.action === 'reject'){
+      if(key.startsWith('slot:')){
+        const tickets = getSlotPendingTickets(d.dateStr, d.slotId);
+        if(tickets.length === 0){
+          changed = true;
+          return;
+        }
+        next[key] = d;
+        return;
+      }
       const ticket = d.ticketId ? S.newAssignments.find(t=> t.id === d.ticketId) : null;
       if(!ticket){
         changed = true;
@@ -220,21 +241,29 @@ function getDraftForEntry(entry, ticket){
   return null;
 }
 
-function setDraftForTicket(ticket, action, entry){
-  const key = draftKeyForTicket(ticket.id);
+function rerenderSchedule(){
+  renderScheduleKeepingOverrides();
+}
+
+function getSlotDraft(dateStr, slotId){
+  return S.responseDrafts[draftKeyForSlot(dateStr, slotId)] || null;
+}
+
+function setDraftForSlot(dateStr, slotId, action){
+  const tickets = getSlotPendingTickets(dateStr, slotId);
+  if(tickets.length === 0) return;
+  const wd = WEEKDAY_JP[new Date(`${dateStr}T00:00:00`).getDay()];
+  const key = draftKeyForSlot(dateStr, slotId);
   S.responseDrafts[key] = {
     action,
-    ticketId: ticket.id,
-    day: entry.day,
-    slot: entry.slot,
-    subject: entry.subject,
-    studentName: entry.studentName,
-    studentGrade: entry.studentGrade || ticket.studentGrade || '',
-    oneTimeDate: entry.oneTimeDate || null,
-    label: `${entry.day}曜 ${SLOTS.find(s=>s.id===entry.slot)?.label||entry.slot+'講'} ${entry.studentName} ${entry.subject}`,
+    dateStr,
+    slotId: Number(slotId),
+    day: wd,
+    ticketIds: tickets.map(t=> t.id),
+    label: `${slotLabelFor(dateStr, slotId)}（${tickets.length}件）`,
   };
   persistDrafts();
-  renderMyCalendar();
+  rerenderSchedule();
 }
 
 function setDraftForCancel(entry){
@@ -250,37 +279,32 @@ function setDraftForCancel(entry){
     label: `${entry.day}曜 ${SLOTS.find(s=>s.id===entry.slot)?.label||entry.slot+'講'} ${entry.studentName} ${entry.subject}`,
   };
   persistDrafts();
-  renderMyCalendar();
+  rerenderSchedule();
 }
 
 function clearDraftByKey(key){
   delete S.responseDrafts[key];
   persistDrafts();
-  renderMyCalendar();
+  rerenderSchedule();
+}
+
+function clearSlotDraft(dateStr, slotId){
+  clearDraftByKey(draftKeyForSlot(dateStr, slotId));
+}
+
+function countUnrepliedPendingSlots(){
+  return collectActionablePendingSlots().length;
 }
 
 function countUnrepliedPendingTickets(){
-  return collectActionablePendingApprovals().length;
+  return countUnrepliedPendingSlots();
 }
 
 function draftAllPendingApprovals(){
-  collectActionablePendingApprovals().forEach(({ ticket, entry })=>{
-    const key = draftKeyForTicket(ticket.id);
-    if(S.responseDrafts[key]) return;
-    S.responseDrafts[key] = {
-      action: 'approve',
-      ticketId: ticket.id,
-      day: entry.day,
-      slot: entry.slot,
-      subject: entry.subject,
-      studentName: entry.studentName,
-      studentGrade: entry.studentGrade || ticket.studentGrade || '',
-      oneTimeDate: entry.oneTimeDate || null,
-      label: `${entry.day}曜 ${SLOTS.find(s=>s.id===entry.slot)?.label||entry.slot+'講'} ${entry.studentName} ${entry.subject}`,
-    };
+  collectActionablePendingSlots().forEach(({ dateStr, slotId })=>{
+    if(getSlotDraft(dateStr, slotId)) return;
+    setDraftForSlot(dateStr, slotId, 'approve');
   });
-  persistDrafts();
-  renderMyCalendar();
 }
 
 function buildSubmitConfirmMessage(drafts){
@@ -301,10 +325,12 @@ async function submitResponseDrafts(){
     const d = drafts[key];
     try{
       if(d.action==='approve' || d.action==='reject'){
-        if(!d.ticketId) throw new Error('ticketId missing');
-        await fbDb.collection('assignmentApprovals').doc(d.ticketId).update({
-          status: d.action==='approve' ? 'approved' : 'rejected',
-        });
+        const status = d.action === 'approve' ? 'approved' : 'rejected';
+        const ticketIds = d.ticketIds?.length ? d.ticketIds : (d.ticketId ? [d.ticketId] : []);
+        if(ticketIds.length === 0) throw new Error('ticketIds missing');
+        for(const ticketId of ticketIds){
+          await fbDb.collection('assignmentApprovals').doc(ticketId).update({ status });
+        }
       }else if(d.action==='cancel'){
         const uid = fbAuth.currentUser.uid;
         const existing = S.pendingCancellationRequests.find(r=>
@@ -340,7 +366,7 @@ async function submitResponseDrafts(){
   S.newAssignments = await loadNewAssignments();
   S.pendingCancellationRequests = await loadPendingCancellationRequests();
   S.adminCancelledNotices = await loadAdminCancelledNotices();
-  renderMyCalendar();
+  rerenderSchedule();
   if(btn) btn.disabled = false;
 
   if(errors.length){
@@ -360,7 +386,7 @@ function startMyAssignmentsListener(){
       S.pendingCancellationRequests = await loadPendingCancellationRequests();
       S.adminCancelledNotices = await loadAdminCancelledNotices();
       pruneStaleResponseDrafts();
-      renderMyCalendar();
+      rerenderSchedule();
     }catch(err){
       console.error('担当授業の読み込みエラー:', err);
     }
@@ -374,7 +400,7 @@ async function refreshPendingAndRender(){
   S.pendingCancellationRequests = await loadPendingCancellationRequests();
   S.adminCancelledNotices = await loadAdminCancelledNotices();
   pruneStaleResponseDrafts();
-  renderMyCalendar();
+  rerenderSchedule();
 }
 
 function initResponseDraftHandlers(){
@@ -412,17 +438,23 @@ export {
   findPendingTicket,
   findPendingCancellation,
   getDraftForEntry,
-  setDraftForTicket,
+  getSlotDraft,
+  setDraftForSlot,
   setDraftForCancel,
   clearDraftByKey,
+  clearSlotDraft,
   draftKeyForTicket,
+  draftKeyForSlot,
   draftKeyForCancel,
+  countUnrepliedPendingSlots,
   countUnrepliedPendingTickets,
   summarizeDrafts,
   reloadDraftsFromStorage,
   pruneStaleResponseDrafts,
   resolveApprovalState,
+  collectActionablePendingSlots,
   collectActionablePendingApprovals,
+  getSlotPendingTickets,
   refreshPendingAndRender,
   startMyAssignmentsListener,
   initResponseDraftHandlers,
