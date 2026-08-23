@@ -115,7 +115,7 @@ function buildUnassignedSlotHtml(row, dateStr, weekday){
 
   return `<div class="day-detail-unassigned">
     <div class="day-detail-unassigned-head has-flow-badge">
-      <span class="sched-card-flow-badge"><span class="cal-status-chip is-unassigned">講師なし</span></span>
+      ${buildFlowStatusBadgeHtml({ pending: true })}
       <div class="day-detail-unassigned-head-main">
         ${subjectTag}
         <span>${student.name}さん</span>

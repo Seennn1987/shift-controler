@@ -22,8 +22,8 @@ function buildPrefPairActionHtml(cand, studentId, courseId, allowSet){
   return buildPrefPairActionHtmlForTeacher(studentId, courseId, cand.teacher.id, { allowSet });
 }
 
-/** マッチング枠：フローバッジHTML（右上用） */
-export function buildFlowStatusBadgeHtml({ pending = false, draft = false, waiting = false } = {}){
+/** フローバッジ本体（カレンダー日付ヘッダーと同型） */
+export function buildFlowStatusBadgeChipHtml({ pending = false, draft = false, waiting = false } = {}){
   let kind = null;
   if(pending) kind = 'pending';
   else if(draft) kind = 'tentative';
@@ -35,7 +35,14 @@ export function buildFlowStatusBadgeHtml({ pending = false, draft = false, waiti
     waiting: { cls: 'is-waiting', text: '承認待ち' },
   };
   const flow = flowMap[kind];
-  return `<span class="sched-card-flow-badge"><span class="cal-status-chip ${flow.cls}">${flow.text}</span></span>`;
+  return `<span class="cal-day-flow-badge ${flow.cls}">${flow.text}</span>`;
+}
+
+/** マッチング枠：フローバッジHTML（右上用） */
+export function buildFlowStatusBadgeHtml(opts){
+  const chip = buildFlowStatusBadgeChipHtml(opts);
+  if(!chip) return '';
+  return `<span class="sched-card-flow-badge">${chip}</span>`;
 }
 
 /** マッチング枠：教科タグ行（フローバッジは右上・1行） */

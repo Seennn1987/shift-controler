@@ -4,7 +4,7 @@ import { pad2, daysInYearMonth, toDateStr, getTodayStr } from '../shared/date-ut
 import { firebaseConfig, fbAuth, fbDb, STORAGE_KEY, getSecondaryAuth, S } from './state.js';
 import { computeDayFinance, computeTeacherOpenings, costRatioColor, getEffectiveDayAssignments, getStudentDateRows } from './absences.js';
 import { collapseDualAssignmentDisplayRows, countSlotAssignmentUnits, buildDualSubjectTagsHtml } from './dual-subject.js';
-import { buildFlowStatusBadgeHtml } from './match-candidate-ui.js';
+import { buildFlowStatusBadgeHtml, buildFlowStatusBadgeChipHtml } from './match-candidate-ui.js';
 import { calLinesToEntriesHtml, computeSyncedWeekAnchor, getDayStatus, getUnassignedRowsForDate, refreshCalToolbarSecondary, renderCalendar, studentRowToCalLine, updateCalPeriodLabel } from './calendar.js';
 import { resolveFilterTeacher } from './cal-filter.js';
 import { renderMatching } from './matching.js';
@@ -244,10 +244,7 @@ function bindWeekGridDateClicks(root){
 }
 
 function buildWeekFlowBadge(isPending, isDraft, isWaiting){
-  if(isPending) return '<span class="cal-status-chip is-unassigned">講師なし</span>';
-  if(isDraft) return '<span class="cal-status-chip is-tentative-outline">仮決め</span>';
-  if(isWaiting) return '<span class="cal-status-chip is-waiting">承認待ち</span>';
-  return '';
+  return buildFlowStatusBadgeChipHtml({ pending: isPending, draft: isDraft, waiting: isWaiting });
 }
 
 function weekAssignmentStudentCard(a){
