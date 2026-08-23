@@ -28,6 +28,7 @@ export function clearInlineConfirms(root, selector = CONFIRM_SEL){
 
 export function mountInlineConfirm(root, anchorEl, {
   message,
+  messageParts,
   confirmLabel = '実行する',
   cancelLabel = 'やめる',
   variant = 'danger',
@@ -38,17 +39,35 @@ export function mountInlineConfirm(root, anchorEl, {
   const mountEl = resolveMountEl(anchorEl, mountSelector);
   if(!mountEl || !anchorEl) return;
   const confirmCls = variant === 'primary' ? 'app-inline-confirm-primary' : 'app-inline-confirm-danger';
-  mountEl.insertAdjacentHTML('beforeend', `
-    <div class="app-inline-confirm matching-panel-flash-followup" role="group">
-      <span class="app-inline-confirm-text matching-panel-flash-followup-text">${formatMessage(message)}</span>
-      <div class="matching-panel-flash-followup-actions">
-        <button type="button" class="mp-inline-action ${confirmCls}" data-action="confirm">${escapeHtml(confirmLabel)}</button>
-        <button type="button" class="mp-inline-action app-inline-cancel-btn" data-action="cancel">${escapeHtml(cancelLabel)}</button>
-      </div>
+  const actionsHtml = `
+    <div class="matching-panel-flash-followup-actions">
+      <button type="button" class="mp-inline-action ${confirmCls}" data-action="confirm">${escapeHtml(confirmLabel)}</button>
+      <button type="button" class="mp-inline-action app-inline-cancel-btn" data-action="cancel">${escapeHtml(cancelLabel)}</button>
     </div>
-  `);
+  `;
+  if(messageParts){
+    mountEl.insertAdjacentHTML('beforeend', `
+      <div class="app-inline-confirm app-inline-confirm--head-actions matching-panel-flash-followup" role="group">
+        <div class="app-inline-confirm-head">
+          <span class="app-inline-confirm-title">${formatMessage(messageParts.title)}</span>
+          ${actionsHtml}
+        </div>
+        ${messageParts.body ? `<div class="app-inline-confirm-body">${formatMessage(messageParts.body)}</div>` : ''}
+        ${messageParts.footer ? `<div class="app-inline-confirm-foot">${formatMessage(messageParts.footer)}</div>` : ''}
+      </div>
+    `);
+  }else{
+    mountEl.insertAdjacentHTML('beforeend', `
+      <div class="app-inline-confirm matching-panel-flash-followup" role="group">
+        <span class="app-inline-confirm-text matching-panel-flash-followup-text">${formatMessage(message)}</span>
+        ${actionsHtml}
+      </div>
+    `);
+  }
   const box = mountEl.querySelector('.app-inline-confirm');
-  const textEl = box.querySelector('.app-inline-confirm-text');
+  const textEl = box.querySelector('.app-inline-confirm-text')
+    || box.querySelector('.app-inline-confirm-body')
+    || box.querySelector('.app-inline-confirm-title');
   box.querySelector('[data-action=cancel]').addEventListener('click', ()=> box.remove());
   box.querySelector('[data-action=confirm]').addEventListener('click', async ()=>{
     const confirmBtn = box.querySelector('[data-action=confirm]');
@@ -56,14 +75,14 @@ export function mountInlineConfirm(root, anchorEl, {
     try{
       const result = await onConfirm();
       if(result && result.ok === false){
-        textEl.innerHTML = formatMessage(result.msg || '処理に失敗しました。');
+        if(textEl) textEl.innerHTML = formatMessage(result.msg || '処理に失敗しました。');
         confirmBtn.disabled = false;
         return;
       }
       box.remove();
     }catch(err){
       console.error('[inline-confirm]', err);
-      textEl.textContent = '処理に失敗しました。';
+      if(textEl) textEl.textContent = '処理に失敗しました。';
       confirmBtn.disabled = false;
     }
   });

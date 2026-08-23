@@ -142,14 +142,14 @@ function slotLabelFor(dateStr, slotId){
   return `${formatDateWeekdayLabel(dateStr)}${slotDef ? slotDef.label : `${slotId}講`}`;
 }
 
-function formatTicketConfirmLine(dateStr, ticket, action){
+function formatTicketDetailLine(dateStr, ticket){
   const slotDef = SLOTS.find(s=> Number(s.id) === Number(ticket.slot));
   const slotLabel = slotDef ? slotDef.label : `${ticket.slot}講`;
   const resolvedDate = dateStr || ticket.oneTimeDate || null;
   const datePart = resolvedDate
     ? formatDateWeekdayLabel(resolvedDate)
     : `（${ticket.day}）`;
-  return `・${datePart}${slotLabel} ${ticket.studentName} ${ticket.subject} … ${actionLabel(action)}`;
+  return `・${datePart}${slotLabel} ${ticket.studentName} ${ticket.subject}`;
 }
 
 function formatCancelDraftLabel(entry){
@@ -350,25 +350,39 @@ function draftAllPendingApprovals(){
 }
 
 function buildSubmitConfirmMessage(drafts){
-  const lines = [];
+  const approveLines = [];
+  const rejectLines = [];
+  const cancelLines = [];
+
   Object.values(drafts).forEach(d=>{
     if(d.action === 'approve' || d.action === 'reject'){
       const ticketIds = d.ticketIds?.length ? d.ticketIds : (d.ticketId ? [d.ticketId] : []);
       const tickets = ticketIds.map(id=> S.newAssignments.find(t=> t.id === id)).filter(Boolean);
+      const target = d.action === 'approve' ? approveLines : rejectLines;
       if(tickets.length > 0){
-        tickets.forEach(ticket=>{
-          lines.push(formatTicketConfirmLine(d.dateStr, ticket, d.action));
-        });
+        tickets.forEach(ticket=> target.push(formatTicketDetailLine(d.dateStr, ticket)));
         return;
       }
-    }
-    if(d.action === 'cancel'){
-      lines.push(`・${formatCancelDraftLabel(d)} … ${actionLabel(d.action)}`);
+      target.push(`・${d.label}`);
       return;
     }
-    lines.push(`・${d.label} … ${actionLabel(d.action)}`);
+    if(d.action === 'cancel'){
+      cancelLines.push(`・${formatCancelDraftLabel(d)}`);
+      return;
+    }
+    cancelLines.push(`・${d.label}`);
   });
-  return `次の内容を教室長に送信します。\n\n${lines.join('\n')}\n\nよろしいですか？`;
+
+  const sections = [];
+  if(approveLines.length) sections.push(`【承認】\n${approveLines.join('\n')}`);
+  if(rejectLines.length) sections.push(`【辞退】\n${rejectLines.join('\n')}`);
+  if(cancelLines.length) sections.push(`【キャンセルを依頼】\n${cancelLines.join('\n')}`);
+
+  return {
+    title: '次の内容を教室長に送信します。',
+    body: sections.join('\n\n'),
+    footer: 'よろしいですか？',
+  };
 }
 
 async function submitResponseDrafts(){
@@ -475,7 +489,7 @@ function initResponseDraftHandlers(){
       const drafts = {...S.responseDrafts};
       if(Object.keys(drafts).length === 0) return;
       mountInlineConfirm(document.getElementById('pendingBannerCard'), submitBtn, {
-        message: buildSubmitConfirmMessage(drafts),
+        messageParts: buildSubmitConfirmMessage(drafts),
         confirmLabel: '送信する',
         variant: 'primary',
         mountSelector: '.pending-banner-col',
