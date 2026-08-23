@@ -3,13 +3,13 @@ import { HOLIDAYS_JP } from '../shared/holidays.js';
 import { pad2, daysInYearMonth, toDateStr, getTodayStr } from '../shared/date-utils.js';
 import { firebaseConfig, fbAuth, fbDb, STORAGE_KEY, getSecondaryAuth, S } from './state.js';
 import { cancelSubstitute, cancelTeacherAbsence, confirmSubstitute, findAbsenceFor, findSubstituteCandidatesForStudent, findTeacherAbsence, getTeacherLessonsOnDate, recordTeacherAbsence, resolveSlotViaStudentAbsence } from './absences.js';
-import { getDayStatus, renderCalendar } from './calendar.js';
+import { getDayStatus, getUnassignedRowsForDate, renderCalendar } from './calendar.js';
 import { refreshCalFilterOptions, setCalFilterStudent, refreshAllPersonComboboxes } from './filter-ui.js';
 import { sortByNameKana } from '../shared/person-sort.js';
 import { renderCalendarWeek, switchCalMode, switchView } from './finance-ui.js';
 import { gradeLabel, isTeacherAvailableOnDate, subjectColor } from './schedule-core.js';
 import { saveStudents, scheduleSave, scheduleSyncTeacherAssignments } from './students-persistence.js';
-import { buildCandidateInfo, confirmAssignment, countCourseConfirmed, findEffectiveAssignment, getPreferredTeachersForCourse } from './teacher-schedule-tab.js';
+import { buildCandidateInfo, confirmAssignment, countCourseConfirmed, findEffectiveAssignment, getActiveYearMonth, getPreferredTeachersForCourse } from './teacher-schedule-tab.js';
 import { compareCandidateInfo } from './matching-config.js';
 import { showActiveTabNotice } from '../shared/inline-confirm.js';
 import {
@@ -391,65 +391,26 @@ function renderMatching(){
   refreshAfterMatchingChange();
 }
 
-// 未充足コマ一覧：次に組むべき日付・コマ（ジャンプ先と同じ基準）
-function findShortageJumpTarget(studentId, course){
-  if(!course.desiredSlots || course.desiredSlots.length===0){
-    return { dateStr: null, slotLabel: null, whenLabel: '希望未登録', sortKey: '9999-12-31' };
+// 未確定コマ一覧：日付詳細パネルと同じ getUnassignedRowsForDate で列挙
+function collectUpcomingUnassignedByDate(){
+  const ym = getActiveYearMonth();
+  const today = getTodayStr();
+  const groups = [];
+  const days = daysInYearMonth(ym);
+  for(let d = 1; d <= days; d++){
+    const dateStr = `${ym}-${pad2(d)}`;
+    if(dateStr < today) continue;
+    const rows = getUnassignedRowsForDate(dateStr);
+    if(rows.length === 0) continue;
+    groups.push({ dateStr, rows });
   }
-  let best = null;
-  course.desiredSlots.forEach(ds=>{
-    const dateStr = findNearestFutureDate(ds.day);
-    if(!dateStr) return;
-    const ym = dateStr.slice(0,7);
-    if(findEffectiveAssignment(studentId, course.id, ds.day, ds.slot, ym)) return;
-    const slotDef = SLOTS.find(s=> Number(s.id)===Number(ds.slot));
-    const slotLabel = slotDef ? slotDef.label : `${ds.slot}講`;
-    const d = new Date(`${dateStr}T00:00:00`);
-    const whenLabel = `${d.getMonth()+1}/${d.getDate()}（${WEEKDAY_JP[d.getDay()]}）${slotLabel}`;
-    const candidate = { dateStr, slotLabel, whenLabel, sortKey: dateStr, slot: ds.slot };
-    if(!best || dateStr < best.dateStr || (dateStr === best.dateStr && Number(ds.slot) < Number(best.slot))){
-      best = candidate;
-    }
-  });
-  if(best) return best;
-  const fallback = course.desiredSlots[0];
-  const dateStr = findNearestFutureDate(fallback.day);
-  if(!dateStr){
-    return { dateStr: null, slotLabel: null, whenLabel: '日付なし', sortKey: '9999-12-31' };
-  }
-  const slotDef = SLOTS.find(s=> Number(s.id)===Number(fallback.slot));
-  const slotLabel = slotDef ? slotDef.label : `${fallback.slot}講`;
+  return groups;
+}
+
+function formatShortageDateLabel(dateStr){
+  const status = getDayStatus(dateStr);
   const d = new Date(`${dateStr}T00:00:00`);
-  return {
-    dateStr,
-    slotLabel,
-    whenLabel: `${d.getMonth()+1}/${d.getDate()}（${WEEKDAY_JP[d.getDay()]}）${slotLabel}`,
-    sortKey: dateStr,
-    slot: fallback.slot,
-  };
-}
-
-function compareShortages(a, b){
-  if(a.target.sortKey !== b.target.sortKey) return a.target.sortKey < b.target.sortKey ? -1 : 1;
-  if(a.gap !== b.gap) return b.gap - a.gap;
-  return a.student.name.localeCompare(b.student.name, 'ja');
-}
-
-// 未充足コマ一覧（週の必要コマ数に対して確定が足りていない教科だけを抽出）
-function groupShortagesByStudent(shortages){
-  const order = [];
-  const map = new Map();
-  shortages.forEach(sh=>{
-    if(!map.has(sh.student.id)){
-      map.set(sh.student.id, { student: sh.student, courses: [] });
-      order.push(sh.student.id);
-    }
-    map.get(sh.student.id).courses.push(sh);
-  });
-  order.forEach(id=>{
-    map.get(id).courses.sort(compareShortages);
-  });
-  return order.map(id=> map.get(id));
+  return `${d.getMonth()+1}/${d.getDate()}（${status.weekday}）`;
 }
 
 function renderShortageDashboard(){
@@ -464,37 +425,21 @@ function renderShortageDashboard(){
     return;
   }
   if(S.students.length===0){
-    wrap.innerHTML = '<div class="empty-state">生徒が登録されるとここに未充足の教科が表示されます。</div>';
+    wrap.innerHTML = '<div class="empty-state">生徒が登録されると、未確定のコマが日付順で表示されます。</div>';
     if(summaryLine) summaryLine.textContent = 'まだ生徒が登録されていません';
     statusBar?.classList.remove('is-warn');
     statusBar?.classList.add('is-ok');
     return;
   }
 
-  const shortages = [];
-  S.students.forEach(s=>{
-    s.courses.forEach(course=>{
-      const confirmed = countCourseConfirmed(s.id, course.id);
-      const need = course.weeklyCount;
-      if(confirmed < need){
-        shortages.push({
-          student: s,
-          course,
-          confirmed,
-          need,
-          gap: need - confirmed,
-          target: findShortageJumpTarget(s.id, course),
-        });
-      }
-    });
-  });
-
+  const dateGroups = collectUpcomingUnassignedByDate();
   const pendingAbsences = S.absences.filter(a=>a.status==='pending').length;
+  const totalSlots = dateGroups.reduce((sum, g)=> sum + g.rows.length, 0);
 
-  if(shortages.length===0){
-    wrap.innerHTML = '<div class="shortage-ok">✓ すべての生徒・教科で、週の必要コマ数が確定しています</div>';
+  if(totalSlots===0){
+    wrap.innerHTML = '<div class="shortage-ok">✓ この月の未確定コマはありません</div>';
     if(summaryLine){
-      summaryLine.textContent = pendingAbsences>0 ? `✓ コマは充足／未振替 ${pendingAbsences}件` : '✓ すべて確定です';
+      summaryLine.textContent = pendingAbsences>0 ? `✓ 未確定なし／未振替 ${pendingAbsences}件` : '✓ すべて確定です';
     }
     statusBar?.classList.toggle('is-warn', pendingAbsences>0);
     statusBar?.classList.toggle('is-ok', pendingAbsences===0);
@@ -502,46 +447,37 @@ function renderShortageDashboard(){
   }
   if(summaryLine){
     const absPart = pendingAbsences>0 ? ` ／ 未振替 ${pendingAbsences}件` : '';
-    summaryLine.textContent = `${shortages.length}件 · 日付が近い順${absPart}`;
+    summaryLine.textContent = `${totalSlots}コマ未確定 · 日付が近い順${absPart}`;
   }
   statusBar?.classList.remove('is-ok');
   statusBar?.classList.add('is-warn');
 
-  shortages.sort(compareShortages);
-
-  const groups = groupShortagesByStudent(shortages);
   let html = '<div class="shortage-well">';
-  groups.forEach(group=>{
-    const gLabel = gradeLabel(group.student);
-    let coursesHtml = '';
-    group.courses.forEach(sh=>{
-      const c = subjectColor(group.student.level, sh.course.subject);
-      const statusCls = sh.gap === 1 ? ' is-mild' : '';
-      const jumpLabel = `${sh.student.name} ${sh.course.subject} ${sh.target.whenLabel} あと${sh.gap}`;
-      coursesHtml += `<button type="button" class="shortage-course-row" data-student="${sh.student.id}" data-course="${sh.course.id}" aria-label="${jumpLabel}">
-        <span class="sr-subject" style="background:${c.bg};color:${c.text};">${sh.course.subject}</span>
-        <span class="sr-main">
-          <span class="sr-when">${sh.target.whenLabel}</span>
-          <span class="sr-status${statusCls}">· <strong>あと${sh.gap}</strong></span>
-          <span class="sr-weekly">週${sh.need} · ${sh.confirmed}確定</span>
-        </span>
+  dateGroups.forEach(group=>{
+    html += `<div class="shortage-date-group">
+      <div class="shortage-date-head">${formatShortageDateLabel(group.dateStr)}</div>`;
+    group.rows.forEach(row=>{
+      const { student, course, slot } = row;
+      const c = subjectColor(student.level, course.subject);
+      const gLabel = gradeLabel(student);
+      const jumpLabel = `${formatShortageDateLabel(group.dateStr)} ${slot.label} ${student.name} ${course.subject} 未確定`;
+      html += `<button type="button" class="shortage-slot-row" data-student="${student.id}" data-date="${group.dateStr}" aria-label="${jumpLabel}">
+        <span class="sr-slot">${slot.label}</span>
+        <span class="sr-student">${student.name}</span>
+        <span class="sr-grade">${gLabel}</span>
+        <span class="sr-subject" style="background:${c.bg};color:${c.text};">${course.subject}</span>
+        <span class="mp-slot-badge pending">未確定</span>
         <span class="sr-chevron" aria-hidden="true">›</span>
       </button>`;
     });
-    html += `<div class="shortage-student-card">
-      <div class="shortage-student-head">
-        <span class="sr-name">${group.student.name}</span>
-        <span class="sr-grade">${gLabel}</span>
-      </div>
-      ${coursesHtml}
-    </div>`;
+    html += '</div>';
   });
   html += '</div>';
   wrap.innerHTML = html;
 
-  wrap.querySelectorAll('.shortage-course-row[data-student]').forEach(btn=>{
+  wrap.querySelectorAll('.shortage-slot-row[data-student]').forEach(btn=>{
     btn.addEventListener('click', ()=>{
-      jumpToCalendarForStudent(btn.dataset.student, btn.dataset.course);
+      jumpToCalendarForDate(btn.dataset.student, btn.dataset.date);
     });
   });
 }
