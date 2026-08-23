@@ -118,7 +118,7 @@ function buildStudentLineHtml(entry, isLast, showCancelInRow, dateStr){
 
 function buildCancelActionHtml(entry, dateStr){
   const pendingCancel = findPendingCancellation(entry);
-  const cancelKey = draftKeyForCancel(entry);
+  const cancelKey = draftKeyForCancel(entry, dateStr);
   const cancelDraft = S.responseDrafts[cancelKey];
   if(pendingCancel){
     return '<span class="schedule-cancel-note">キャンセル待ち</span>';

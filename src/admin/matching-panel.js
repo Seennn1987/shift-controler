@@ -908,6 +908,7 @@ function renderMatchingDesiredBar(){
         }
       }
       const active = !!(S.calSelectedDate &&
+        S.calSelectedDate.startsWith(ym) &&
         getDayStatus(S.calSelectedDate).weekday === ds.day);
       chips.push(`<span class="desired-slot-chip ${status}${active?' active':''}" data-course="${course.id}" data-day="${ds.day}" data-slot="${ds.slot}" data-subject="${course.subject}">
         <span class="dsc-sub" style="background:${c.bg};color:${c.text};">${course.subject}</span>
@@ -947,13 +948,15 @@ function findNearestDateForWeekday(weekday){
     const dateStr = `${ym}-${String(d).padStart(2,'0')}`;
     const wd = ['日','月','火','水','木','金','土'][new Date(dateStr+'T00:00:00').getDay()];
     if(wd!==weekday) continue;
+    if(getDayStatus(dateStr).type !== 'open') continue;
     const dt = new Date(dateStr+'T00:00:00');
     if(dt >= today || d===total) return dateStr;
   }
   for(let d=1; d<=total; d++){
     const dateStr = `${ym}-${String(d).padStart(2,'0')}`;
     const wd = ['日','月','火','水','木','金','土'][new Date(dateStr+'T00:00:00').getDay()];
-    if(wd===weekday) return dateStr;
+    if(wd!==weekday) continue;
+    if(getDayStatus(dateStr).type !== 'open') return dateStr;
   }
   return null;
 }

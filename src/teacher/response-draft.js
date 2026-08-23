@@ -12,8 +12,9 @@ export function draftKeyForSlot(dateStr, slotId){
   return `slot:${dateStr}|${slotId}`;
 }
 
-export function draftKeyForCancel(entry){
-  return `cancel:${entry.day}|${entry.slot}|${entry.subject}|${entry.studentName}|${entry.oneTimeDate||''}`;
+export function draftKeyForCancel(entry, dateStr){
+  const d = dateStr || entry.dateStr || entry.oneTimeDate || '';
+  return `cancel:${d}|${entry.day}|${entry.slot}|${entry.subject}|${entry.studentName}|${entry.oneTimeDate||''}`;
 }
 
 export function loadResponseDrafts(uid){

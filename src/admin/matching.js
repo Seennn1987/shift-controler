@@ -702,14 +702,15 @@ function bindShortageDashboardActions(wrap){
   });
 
   wrap.querySelector('#shortageSendBtn')?.addEventListener('click', async ()=>{
-    const draftCount = S.draftAssignments.length;
+    const draftItems = collectUpcomingDraftsFlat();
+    const draftCount = draftItems.length;
     if(draftCount === 0){
       if(resultEl) resultEl.textContent = '送信する仮決めがありません。';
       return;
     }
     const noLoginTeachers = [...new Set(
-      S.draftAssignments
-        .map(a=> S.teachers.find(t=> t.id === a.teacherId))
+      draftItems
+        .map(item=> item.teacher)
         .filter(t=> t && !t.loginUid)
         .map(t=> t.name),
     )];
@@ -914,7 +915,7 @@ async function renderShortageDashboard(){
   const rejectedInMonth = approvalList.filter(a=> a.status === 'rejected' && !a.handled && approvalAppliesInMonth(a, ym));
   const rejectedCount = rejectedInMonth.length;
   const approvedRecent = approvalList
-    .filter(a=> a.status === 'approved' && !dismissed.has(a.id))
+    .filter(a=> a.status === 'approved' && !dismissed.has(a.id) && approvalAppliesInMonth(a, ym))
     .slice(0, 10);
 
   const hasWork = unassignedCount > 0 || draftCount > 0 || pendingCount > 0 || rejectedCount > 0 || pendingAbsences > 0;

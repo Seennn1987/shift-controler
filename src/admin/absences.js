@@ -224,11 +224,12 @@ function confirmSubstitute(teacherId, dateStr, slot, substituteTeacherId, studen
   // 代講講師にも、既存の「授業の承認」の仕組みで通知する（単発の代講であることが分かるよう日付を添える）
   const status = getDayStatus(dateStr);
   const weekday = status.weekday;
+  const yearMonth = dateStr.slice(0, 7);
   const targets = studentId
     ? [{studentId}]
-    : S.assignments.filter(a=>a.teacherId===teacherId && a.day===weekday && a.slot===slot);
+    : S.assignments.filter(a=>a.teacherId===teacherId && a.day===weekday && a.slot===slot && isAssignmentEffectiveInMonth(a, yearMonth));
   targets.forEach(a=>{
-    const original = S.assignments.find(x=>x.teacherId===teacherId && x.day===weekday && x.slot===slot && x.studentId===a.studentId);
+    const original = S.assignments.find(x=>x.teacherId===teacherId && x.day===weekday && x.slot===slot && x.studentId===a.studentId && isAssignmentEffectiveInMonth(x, yearMonth));
     if(!original) return;
     issueAssignmentApproval(original.studentId, original.courseId, original.subject, weekday, slot, substituteTeacherId, dateStr);
   });

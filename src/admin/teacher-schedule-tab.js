@@ -94,6 +94,7 @@ function findNearestFutureDateForWeekday(weekday){
 function approvalJumpDate(a){
   if(a.oneTimeDate) return a.oneTimeDate;
   const ym = getActiveYearMonth();
+  if(!teacherHasSubmittedMonth(a.teacherId, ym)) return null;
   const today = getTodayStr();
   const total = daysInYearMonth(ym);
   for(let d=1; d<=total; d++){
@@ -837,11 +838,13 @@ function cancelAllDrafts(){
 }
 
 async function sendDraftAssignments(){
-  const drafts = [...S.draftAssignments];
+  const ym = getActiveYearMonth();
+  const drafts = S.draftAssignments.filter(a=> isAssignmentEffectiveInMonth(a, ym));
+  const outOfMonthDrafts = S.draftAssignments.filter(a=> !isAssignmentEffectiveInMonth(a, ym));
   if(drafts.length === 0){
     return { sent: 0, pending: 0, skippedNoLogin: 0, noLoginTeachers: [] };
   }
-  S.draftAssignments = [];
+  S.draftAssignments = [...outOfMonthDrafts];
   let pending = 0;
   let skippedNoLogin = 0;
   const noLoginTeachers = new Set();

@@ -132,7 +132,10 @@ function findPendingTicket(day, slot, subject, studentName, oneTimeDate, dateStr
     if(!ticketSubjectMatchesEntry(a, subject)) return false;
     if(a.oneTimeDate && oneTimeDate) return a.oneTimeDate === oneTimeDate;
     if(a.oneTimeDate && !oneTimeDate) return false;
-    if(!a.oneTimeDate && oneTimeDate) return true;
+    if(!a.oneTimeDate && oneTimeDate){
+      const checkDate = dateStr || oneTimeDate;
+      return checkDate ? approvalAppliesOnDate(a, checkDate) : false;
+    }
     if(dateStr && !approvalAppliesOnDate(a, dateStr)) return false;
     return true;
   });
@@ -298,6 +301,10 @@ function pruneStaleResponseDrafts(){
         (d.oneTimeDate ? e.oneTimeDate === d.oneTimeDate : !e.oneTimeDate)
       );
       if(!entry || entry.approvalStatus === 'pending' || findPendingCancellation(entry)){
+        changed = true;
+        return;
+      }
+      if(draft.dateStr && !entryAppliesOnDate(entry, draft.dateStr)){
         changed = true;
         return;
       }
