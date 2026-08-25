@@ -1,0 +1,47 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ピタコマ 担当決定パネル — 月切り替え UI プレビュー</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Zen+Kaku+Gothic+New:wght@400;500;700;900&display=swap" rel="stylesheet">
+  <link rel="icon" href="data:,">
+  <link rel="stylesheet" href="shortage-month-nav-preview.css">
+</head>
+<body>
+  <header class="preview-header">
+    <div class="preview-header-inner">
+      <h1>担当決定パネル — 月切り替え UI 5案</h1>
+      <p>カレンダー上部の4列パネル（講師なし→仮決め→承認待ち→確定）に、<strong>月を切り替える操作</strong>を足す案です。下の月間カレンダーと<strong>同じ月</strong>を見せる想定です。</p>
+      <p class="preview-url">URL: <a href="http://127.0.0.1:5173/docs/shortage-month-nav-preview.html">http://127.0.0.1:5173/docs/shortage-month-nav-preview.html</a></p>
+    </div>
+  </header>
+
+  <main class="preview-main">
+    <section>
+      <h2>いまの課題</h2>
+      <div id="problemBox" class="note-box"></div>
+    </section>
+
+    <section>
+      <h2>共通ルール</h2>
+      <div id="ruleBox" class="note-box"></div>
+      <div id="recommendBox" class="recommend-box"></div>
+    </section>
+
+    <section>
+      <h2>案 N1〜N5（クリックで月が動きます）</h2>
+      <p class="section-desc">各案の ‹ › 今月 を押すと、見出しの月が変わります（プレビュー用の動き）。番号で選んでください。</p>
+      <div id="patternGrid" class="pattern-grid"></div>
+    </section>
+
+    <section>
+      <h2>各案の長所・短所</h2>
+      <div id="prosGrid" class="pros-grid"></div>
+    </section>
+  </main>
+
+  <script src="shortage-month-nav-preview.js"></script>
+</body>
+</html>

@@ -3,7 +3,7 @@ import { HOLIDAYS_JP } from '../shared/holidays.js';
 import { pad2, daysInYearMonth, toDateStr, getTodayStr } from '../shared/date-utils.js';
 import { firebaseConfig, fbAuth, fbDb, STORAGE_KEY, getSecondaryAuth, S } from './state.js';
 import { findAbsenceFor } from './absences.js';
-import { getDayStatus, getUnassignedRowsForDate, renderCalendar } from './calendar.js';
+import { getDayStatus, getUnassignedRowsForDate, renderCalendar, syncMonthChange } from './calendar.js';
 import { refreshCalFilterOptions, setCalFilterStudent, setCalFilterTeacher, refreshAllPersonComboboxes } from './filter-ui.js';
 import { sortByNameKana } from '../shared/person-sort.js';
 import { renderCalendarWeek, switchCalMode, switchView } from './finance-ui.js';
@@ -663,6 +663,7 @@ function wireAppConfirmExtras(){
 
 function bindShortageDashboardActions(wrap){
   wireAppConfirmExtras();
+  bindShortageMonthNav(wrap);
   const ym = getActiveYearMonth();
   const monthSubmitted = monthHasSubmittedTeachers(ym);
   const resultEl = wrap.querySelector('#shortageActionResult');
@@ -807,6 +808,57 @@ function renderShortageListBlock(label, count, unit, itemsHtml, ariaLabel, empty
 
 function bulkApproveHeadBtn(id, enabled){
   return `<button type="button" class="confirm-btn" id="${id}"${enabled ? '' : ' disabled'}>まとめて承認</button>`;
+}
+
+function ensureCalMonthInitialized(){
+  if(S.calYear === undefined || S.calMonth === undefined){
+    const t = new Date();
+    S.calYear = t.getFullYear();
+    S.calMonth = t.getMonth();
+  }
+}
+
+function renderShortageMonthNavHtml(){
+  ensureCalMonthInitialized();
+  const label = `${S.calYear}年${S.calMonth + 1}月`;
+  return `<div class="shortage-month-nav">
+    <div class="cal-period-nav">
+      <button type="button" class="cal-nav-btn" id="shortageMonthPrevBtn" aria-label="前の月">‹</button>
+      <div class="cal-period-label" id="shortageMonthLabel">${label}</div>
+      <button type="button" class="cal-nav-btn" id="shortageMonthNextBtn" aria-label="次の月">›</button>
+      <button type="button" class="cal-today-btn" id="shortageMonthTodayBtn">今月</button>
+    </div>
+    <p class="shortage-month-sync-note">下のカレンダーと同じ月を表示しています</p>
+  </div>`;
+}
+
+function afterShortageMonthChange(){
+  const detailCard = document.getElementById('calDetailCard');
+  if(detailCard) detailCard.style.display = 'none';
+  S.calSelectedDate = null;
+  syncMonthChange();
+  expandShortageBar();
+}
+
+function bindShortageMonthNav(wrap){
+  wrap.querySelector('#shortageMonthPrevBtn')?.addEventListener('click', ()=>{
+    ensureCalMonthInitialized();
+    S.calMonth--;
+    if(S.calMonth < 0){ S.calMonth = 11; S.calYear--; }
+    afterShortageMonthChange();
+  });
+  wrap.querySelector('#shortageMonthNextBtn')?.addEventListener('click', ()=>{
+    ensureCalMonthInitialized();
+    S.calMonth++;
+    if(S.calMonth > 11){ S.calMonth = 0; S.calYear++; }
+    afterShortageMonthChange();
+  });
+  wrap.querySelector('#shortageMonthTodayBtn')?.addEventListener('click', ()=>{
+    const t = new Date();
+    S.calYear = t.getFullYear();
+    S.calMonth = t.getMonth();
+    afterShortageMonthChange();
+  });
 }
 
 function renderShortageActionsHtml(ym){
@@ -1135,7 +1187,8 @@ async function renderShortageDashboard(){
   if(!wrap) return;
   await renderShiftStatusDashboard();
   if(!S.dataReady || !S.studentDataReady){
-    wrap.innerHTML = '<div class="loading">読み込み中…</div>';
+    wrap.innerHTML = `${renderShortageMonthNavHtml()}<div class="loading">読み込み中…</div>`;
+    bindShortageMonthNav(wrap);
     if(summaryLine) summaryLine.textContent = '読み込み中…';
     statusBar?.classList.remove('is-ok', 'is-warn');
     return;
@@ -1153,7 +1206,8 @@ async function renderShortageDashboard(){
     }
     statusBar?.classList.remove('is-warn');
     statusBar?.classList.add('is-ok');
-    wrap.innerHTML = '<div class="empty-state">生徒が登録されると、講師が決まっていないコマが日付順で表示されます。</div>';
+    wrap.innerHTML = `${renderShortageMonthNavHtml()}<div class="empty-state">生徒が登録されると、講師が決まっていないコマが日付順で表示されます。</div>`;
+    bindShortageMonthNav(wrap);
     return;
   }
 
@@ -1205,7 +1259,7 @@ async function renderShortageDashboard(){
       }).join('')
     : '';
 
-  wrap.innerHTML = `${renderShortageActionsHtml(ym)}<div class="shortage-four-col">
+  wrap.innerHTML = `${renderShortageMonthNavHtml()}${renderShortageActionsHtml(ym)}<div class="shortage-four-col">
     ${renderShortageListBlock(
       '講師なし', unassignedCount, 'コマ',
       flatItems.length > 0 ? flatItems.map(renderShortageDashboardItem).join('') : '',
