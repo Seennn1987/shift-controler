@@ -3,6 +3,7 @@ import { collapseTeacherCalendarEntries, ticketSubjectMatchesEntry, buildDualSub
 import { subjectColor } from '../admin/schedule-core.js';
 import { pad2, daysInYearMonth, toDateStr } from '../shared/date-utils.js';
 import { S } from './state.js';
+import { mountInlineConfirm } from '../shared/inline-confirm.js';
 import { getDayStatus } from './day-status.js';
 import { splitResponseDrafts } from './response-draft.js';
 import {
@@ -31,6 +32,7 @@ import {
   clearShiftLocalOverrides,
   submitShiftMonth,
   sendPendingChanges,
+  buildShiftChangeConfirmMessage,
 } from './shift-ui.js';
 
 function getEntriesForDate(dateStr){
@@ -409,9 +411,21 @@ function bindShiftFormActions(){
     await submitShiftMonth();
     renderMyCalendar();
   });
-  document.getElementById('sendRequestBtn')?.addEventListener('click', async ()=>{
-    await sendPendingChanges();
-    renderMyCalendar();
+  document.getElementById('sendRequestBtn')?.addEventListener('click', ()=>{
+    const sendBtn = document.getElementById('sendRequestBtn');
+    const messageParts = buildShiftChangeConfirmMessage();
+    if(!sendBtn || !messageParts) return;
+    mountInlineConfirm(document.getElementById('submitDock'), sendBtn, {
+      messageParts,
+      confirmLabel: '提出する',
+      variant: 'primary',
+      mountSelector: '.submit-dock-block.is-shift',
+      onConfirm: async ()=>{
+        await sendPendingChanges();
+        renderMyCalendar();
+        return { ok: true };
+      },
+    });
   });
 }
 bindShiftFormActions();

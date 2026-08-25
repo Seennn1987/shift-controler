@@ -1,4 +1,5 @@
 import { pad2 } from '../shared/date-utils.js';
+import { SLOTS, WEEKDAY_JP } from '../shared/constants.js';
 import { fbAuth, fbDb, S } from './state.js';
 import { cellKey } from './schedule-utils.js';
 import { saveMonthEntry } from './schedule.js';
@@ -60,6 +61,44 @@ function buildShiftPickGroupHtml(dateStr, slotId, entry){
     ${statusBadge}
     ${buttons}
   </div>`;
+}
+
+function shiftPriorityMark(priority){
+  const opt = SHIFT_PICK_OPTIONS.find(o=> o.key === priority);
+  return opt ? `${opt.sym}${opt.label}` : '×不可';
+}
+
+function formatShiftChangeLine(dateStr, slot, fromPriority, toPriority){
+  const slotDef = SLOTS.find(s=> Number(s.id) === Number(slot));
+  const slotLabel = slotDef ? slotDef.label : `${slot}講`;
+  const d = new Date(`${dateStr}T00:00:00`);
+  const wd = WEEKDAY_JP[d.getDay()];
+  return `・${d.getMonth() + 1}/${d.getDate()}（${wd}）${slotLabel} ${shiftPriorityMark(fromPriority)} → ${shiftPriorityMark(toPriority)}`;
+}
+
+function buildShiftChangeConfirmMessage(){
+  const keys = Object.keys(S.localOverrides);
+  if(keys.length === 0) return null;
+  const yearMonth = `${S.curYear}-${pad2(S.curMonth + 1)}`;
+  const entry = getMonthEntry(yearMonth);
+  const lines = keys.map(key=>{
+    const [dateStr, slotStr] = key.split('|');
+    const slot = Number(slotStr);
+    return {
+      dateStr,
+      slot,
+      from: baselineState(entry, dateStr, slot),
+      to: S.localOverrides[key],
+    };
+  }).sort((a, b)=>{
+    const d = String(a.dateStr).localeCompare(String(b.dateStr));
+    return d || a.slot - b.slot;
+  }).map(item=> formatShiftChangeLine(item.dateStr, item.slot, item.from, item.to));
+  return {
+    title: '次の内容を教室長に送信します。',
+    body: `【シフト変更】\n${lines.join('\n')}`,
+    footer: 'よろしいですか？',
+  };
 }
 
 function updateShiftDockBadges(isSubmitted, changeCount){
@@ -181,6 +220,7 @@ export {
   updateShiftFormState,
   submitShiftMonth,
   sendPendingChanges,
+  buildShiftChangeConfirmMessage,
   clearShiftLocalOverrides,
 };
 
