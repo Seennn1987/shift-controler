@@ -52,10 +52,12 @@ function buildShiftPickGroupHtml(dateStr, slotId, entry){
     </button>
   `).join('');
 
-  const reqBadge = isRequested ? '<span class="shift-req-badge">シフト変更承認待ち</span>' : '';
+  const statusBadge = isDirty
+    ? '<span class="local-shift-badge">シフト変更送信前</span>'
+    : (isRequested ? '<span class="shift-req-badge">シフト変更承認待ち</span>' : '');
 
   return `<div class="shift-pick-group shift-pick-s4" role="group" aria-label="${slotNum}講の出勤希望">
-    ${reqBadge}
+    ${statusBadge}
     ${buttons}
   </div>`;
 }

@@ -191,10 +191,9 @@ function buildSlotCardHtml(dateStr, slotId, entries){
   if(!slotHasLessonContent(dateStr, slotId, entries)){
     const localDirty = hasLocalShiftChange(dateStr, slotId);
     const cls = ['mycal-slot-card', 'is-empty-shift', localDirty ? 'has-local-shift' : ''].filter(Boolean).join(' ');
-    const badge = localDirty ? '<span class="local-shift-badge">シフト変更送信前</span>' : '';
     return `<div class="${cls}">
       <div class="mycal-slot-head">
-        <span class="mycal-slot-label">${slotLabel}${badge}</span>
+        <span class="mycal-slot-label">${slotLabel}</span>
         ${buildShiftPickGroupHtml(dateStr, slotId, monthEntry)}
       </div>
     </div>`;

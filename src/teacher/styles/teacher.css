@@ -237,7 +237,7 @@
     display:inline-flex;align-items:center;
     font-size:var(--text-xs);font-weight:var(--font-weight-bold);
     padding:2px 8px;border-radius:var(--radius-pill);line-height:1.35;
-    background:var(--warning-bg);color:var(--warning-ink);margin-left:6px;
+    background:var(--warning-bg);color:var(--warning-ink);margin-right:4px;
     white-space:nowrap;
   }
   .shift-pick-group{
