@@ -12,12 +12,12 @@ const RECOMMEND = `
   <strong>おすすめ：カレンダー上部のバー（未振替と同じ右側）＋詳細を開いたときの上段</strong><br>
   ・毎日コマを組む場所で、追加の空きが出たことにすぐ気づける<br>
   ・4つの流れ（講師なし→仮決め→承認待ち→確定）には混ぜない。5列目にすると狭くて読みにくい<br>
-  ・0件のときは何も出さない<br>
+  ・0件でもバー右側に「追加シフト 0件」を出す（講師なしなどと同じ）<br>
   ・シフト管理タブの提出一覧はそのまま。承認作業だけカレンダーへ移す
 `;
 
 const PRINCIPLES = [
-  'バーの右側は「未振替」と同じ。件数があるときだけ出す',
+  'バーの右側に「追加シフト」を常に出す。0件のときは薄い数字',
   '詳細を開いたとき、4列の上に横長の1枚。行は承認待ちと同じ型',
   '右端のボタンは講師候補行と同じ大きさ（11px・4×10）。承認＝青、却下＝枠線',
   '講師名は登録名の姓＋「先生」（カレンダー上部の行と同じ）',
@@ -40,9 +40,7 @@ function kpiChip(kind, label, count, unit) {
 }
 
 function flowSummary(shiftCount) {
-  const extras = shiftCount > 0
-    ? `<span class="cal-status-kpi-extras">${kpiChip('shift', '追加シフト', shiftCount, '件')}</span>`
-    : '';
+  const extras = `<span class="cal-status-kpi-extras">${kpiChip('shift', '追加シフト', shiftCount, '件')}</span>`;
   return `<span class="cal-status-flow">
     ${kpiChip('unassigned', '講師なし', 3, 'コマ')}
     <span class="cal-status-flow-arrow" aria-hidden="true">→</span>
@@ -132,8 +130,9 @@ function fiveCol(items) {
 }
 
 function shiftPanel(items, { live = false } = {}) {
-  if(items.length === 0) return '';
-  const inner = items.map(r => shiftReqRow(r, { live })).join('');
+  const inner = items.length
+    ? items.map(r => shiftReqRow(r, { live })).join('')
+    : '<div class="shortage-panel-empty">追加シフトはありません</div>';
   return `<section class="shortage-panel shift-req-panel">
     <div class="shortage-panel-head">
       <span class="shortage-panel-label">講師からの追加シフト</span>

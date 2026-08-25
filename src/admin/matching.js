@@ -588,7 +588,7 @@ function buildShortageSummaryLine({ draftCount, unassignedCount, pendingCount, r
   const pendingActionCount = pendingCount + rejectedCount;
   const extras = [];
   if(pendingAbsences > 0) extras.push({ kind: 'absence', label: '未振替', count: pendingAbsences, unit: '件' });
-  if(shiftRequestCount > 0) extras.push({ kind: 'shift', label: '追加シフト', count: shiftRequestCount, unit: '件' });
+  extras.push({ kind: 'shift', label: '追加シフト', count: shiftRequestCount, unit: '件' });
   return buildCalWorkflowSummaryHtml([
     { kind: 'unassigned', label: '講師なし', count: unassignedCount, unit: 'コマ' },
     { kind: 'tentative', label: '仮決め', count: draftCount, unit: '件' },
@@ -905,10 +905,9 @@ function renderShiftRequestDashboardItem(req){
 }
 
 function renderShiftRequestPanel(requests){
-  if(requests.length === 0) return '';
   return `<div class="shift-req-panel">${renderShortageListBlock(
     '講師からの追加シフト', requests.length, '件',
-    requests.map(renderShiftRequestDashboardItem).join(''),
+    requests.length > 0 ? requests.map(renderShiftRequestDashboardItem).join('') : '',
     '講師からの追加シフト',
     '追加シフトはありません',
   )}</div>`;
