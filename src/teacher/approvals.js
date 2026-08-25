@@ -118,6 +118,7 @@ function approvalAppliesOnDate(ticket, dateStr){
 
 function entryAppliesOnDate(entry, dateStr){
   if((entry.absentDates || []).includes(dateStr)) return false;
+  if((entry.skippedDates || []).includes(dateStr)) return false;
   if(entry.oneTimeDate) return entry.oneTimeDate === dateStr;
   const yearMonth = dateStr.slice(0, 7);
   if(!teacherHasSubmittedMonth(yearMonth)) return false;

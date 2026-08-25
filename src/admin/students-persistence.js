@@ -460,9 +460,11 @@ function expandAssignmentForTeacherCalendar(a, approvalStatus, teacherId){
     approvalStatus,
     isPreferredPair,
     absentDates,
+    skippedDates: a.skippedDates || [],
   };
   if(a.oneTimeDate){
     if(absentDates.includes(a.oneTimeDate)) return [];
+    if((a.skippedDates || []).includes(a.oneTimeDate)) return [];
     return [{ ...base, oneTimeDate: a.oneTimeDate }];
   }
   // 曜日パターン: シフト提出日に依存せず表示（講師マイカレンダー Phase 0）

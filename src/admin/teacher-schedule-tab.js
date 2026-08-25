@@ -539,6 +539,7 @@ function findAssignment(studentId, courseId, day, slot){
 
 function assignmentAppliesOnDate(a, dateStr){
   if(!dateStr) return true;
+  if((a.skippedDates || []).includes(dateStr)) return false;
   const status = getDayStatus(dateStr);
   if(status.type !== 'open') return false;
   if(a.day !== status.weekday) return false;
@@ -565,12 +566,31 @@ function countRoomSlotOnDate(dateStr, slot, excludeStudentId){
   return countSlotAssignmentUnits(matched);
 }
 
+function skipOrRemoveSlotAssignments(list, studentId, courseId, day, slot, dateStr){
+  const matchCore = a=> a.studentId===studentId && a.courseId===courseId && a.day===day && Number(a.slot)===Number(slot);
+  if(!dateStr){
+    return list.filter(a=> !matchCore(a));
+  }
+  const next = [];
+  list.forEach(a=>{
+    if(!matchCore(a)){
+      next.push(a);
+      return;
+    }
+    if(a.oneTimeDate){
+      if(a.oneTimeDate !== dateStr) next.push(a);
+      return;
+    }
+    const skipped = Array.from(new Set([...(a.skippedDates || []), dateStr]));
+    next.push({ ...a, skippedDates: skipped });
+  });
+  return next;
+}
+
 function removeSlotAssignmentsOnDate(studentId, courseId, day, slot, dateStr){
-  const conflicts = a=> a.studentId===studentId && a.courseId===courseId && a.day===day && Number(a.slot)===Number(slot) &&
-    assignmentAppliesOnDate(a, dateStr);
-  S.assignments = S.assignments.filter(a=> !conflicts(a));
-  S.pendingAssignments = S.pendingAssignments.filter(a=> !conflicts(a));
-  S.draftAssignments = S.draftAssignments.filter(a=> !conflicts(a));
+  S.assignments = skipOrRemoveSlotAssignments(S.assignments, studentId, courseId, day, slot, dateStr);
+  S.pendingAssignments = skipOrRemoveSlotAssignments(S.pendingAssignments, studentId, courseId, day, slot, dateStr);
+  S.draftAssignments = skipOrRemoveSlotAssignments(S.draftAssignments, studentId, courseId, day, slot, dateStr);
 }
 
 function removeAllSlotAssignments(studentId, courseId, day, slot){
@@ -799,15 +819,17 @@ function confirmDualAssignment(studentId, dualPair, day, slot, teacherId, source
   return { ok: true, draft: true, pending: false, dual: true, subjects: courses.map(c=> c.subject) };
 }
 
-function cancelDualAssignment(studentId, dualPair, day, slot){
+function cancelDualAssignment(studentId, dualPair, day, slot, dateStr){
   dualPair.entries.forEach(({ course })=>{
-    cancelAssignment(studentId, course.id, day, slot);
+    cancelAssignment(studentId, course.id, day, slot, dateStr);
   });
 }
-function cancelAssignment(studentId, courseId, day, slot){
-  S.assignments = S.assignments.filter(a=>!(a.studentId===studentId && a.courseId===courseId && a.day===day && a.slot===slot));
-  S.pendingAssignments = S.pendingAssignments.filter(a=>!(a.studentId===studentId && a.courseId===courseId && a.day===day && a.slot===slot));
-  S.draftAssignments = S.draftAssignments.filter(a=>!(a.studentId===studentId && a.courseId===courseId && a.day===day && a.slot===slot));
+function cancelAssignment(studentId, courseId, day, slot, dateStr){
+  if(dateStr){
+    removeSlotAssignmentsOnDate(studentId, courseId, day, slot, dateStr);
+    return;
+  }
+  removeAllSlotAssignments(studentId, courseId, day, slot);
 }
 
 function countAssignmentsInMonth(list, yearMonth){
@@ -932,13 +954,15 @@ async function withdrawPendingAssignment(studentId, courseId, day, slot, dateStr
   const dualPair = findDualPairAtSlot(student.courses || [], day, slot);
   const isDual = dualPair && dualPair.entries.some(e=> e.course.id === courseId);
   if(isDual){
-    cancelDualAssignment(studentId, dualPair, day, slot);
+    cancelDualAssignment(studentId, dualPair, day, slot, dateStr || null);
   }else{
-    cancelAssignment(studentId, courseId, day, slot);
+    cancelAssignment(studentId, courseId, day, slot, dateStr || null);
   }
   try{
-    const subjects = isDual ? dualPair.subjects : [course.subject];
-    await revokePendingApprovalTicket(student, { subject: subjects.join('・'), subjects }, day, slot, oneTimeDate);
+    if(!dateStr || oneTimeDate){
+      const subjects = isDual ? dualPair.subjects : [course.subject];
+      await revokePendingApprovalTicket(student, { subject: subjects.join('・'), subjects }, day, slot, oneTimeDate);
+    }
   }catch(err){
     console.error('承認依頼取り消しエラー:', err);
     return { ok: false, msg: '依頼の取り消しに失敗しました。' };

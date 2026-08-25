@@ -418,13 +418,14 @@ function buildRowSubjectTagHtml(student, r){
 }
 
 function cancelRowDraftOrAssignment(btn){
+  const dateStr = /^\d{4}-\d{2}-\d{2}$/.test(btn.dataset.date || '') ? btn.dataset.date : null;
   if(btn.dataset.dual === '1'){
     const student = S.students.find(s=> s.id === btn.dataset.student);
     const dualPair = findDualPairForStudent(student, btn.dataset.day, Number(btn.dataset.slot));
-    if(dualPair) cancelDualAssignment(btn.dataset.student, dualPair, btn.dataset.day, Number(btn.dataset.slot));
+    if(dualPair) cancelDualAssignment(btn.dataset.student, dualPair, btn.dataset.day, Number(btn.dataset.slot), dateStr);
     return;
   }
-  cancelAssignment(btn.dataset.student, btn.dataset.course, btn.dataset.day, Number(btn.dataset.slot));
+  cancelAssignment(btn.dataset.student, btn.dataset.course, btn.dataset.day, Number(btn.dataset.slot), dateStr);
 }
 
 function buildAssignmentFlashMessage({slotLabel, subject, teacherName, draft, pending}){

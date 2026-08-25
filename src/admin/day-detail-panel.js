@@ -74,13 +74,14 @@ function buildRowSubjectTagHtml(student, r){
 }
 
 function cancelRowDraftOrAssignment(btn){
+  const dateStr = /^\d{4}-\d{2}-\d{2}$/.test(btn.dataset.date || '') ? btn.dataset.date : null;
   if(btn.dataset.dual === '1'){
     const student = S.students.find(s=> s.id === btn.dataset.student);
     const dualPair = findDualPairForStudent(student, btn.dataset.day, Number(btn.dataset.slot));
-    if(dualPair) cancelDualAssignment(btn.dataset.student, dualPair, btn.dataset.day, Number(btn.dataset.slot));
+    if(dualPair) cancelDualAssignment(btn.dataset.student, dualPair, btn.dataset.day, Number(btn.dataset.slot), dateStr);
     return;
   }
-  cancelAssignment(btn.dataset.student, btn.dataset.course, btn.dataset.day, Number(btn.dataset.slot));
+  cancelAssignment(btn.dataset.student, btn.dataset.course, btn.dataset.day, Number(btn.dataset.slot), dateStr);
 }
 
 export function getDayDetailTitle(dateStr){
@@ -261,7 +262,7 @@ export function renderDayDetailPanel(container, dateStr){
               <span class="cb-cap">（定員 ${used}/${S.teacherCapacity}）</span>
               <div class="confirmed-box-actions">${prefHtml}
                 <button class="absent-btn" data-student="${filterStudent.id}" data-course="${r.course.id}" data-subject="${r.course.subject}" data-day="${weekday}" data-slot="${r.slot.id}" data-date="${dateStr}"${dualAttr}>欠席にする</button>
-                <button class="unconfirm-btn" data-student="${filterStudent.id}" data-course="${r.course.id}" data-day="${weekday}" data-slot="${r.slot.id}"${dualAttr}>確定を解除</button>
+                <button class="unconfirm-btn" data-student="${filterStudent.id}" data-course="${r.course.id}" data-day="${weekday}" data-slot="${r.slot.id}" data-date="${dateStr}"${dualAttr}>確定を解除</button>
               </div>
             </div>
           </div>`;

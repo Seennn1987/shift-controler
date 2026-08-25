@@ -154,23 +154,27 @@ function buildMonthDaysFromBaseAvailability(teacher, yearMonth){
   return days;
 }
 
-// 対象月内で、その曜日に該当する実日付のいずれかで対応可能なら、その曜日は対応可能とみなす（優先度は最も高いものを採用）
-// 月のスケジュールが未提出（レコードなし）の場合は全日×（対応不可）扱い
+// 対象月内で、その曜日の開校日がすべて対応可能なら、その曜日は対応可能とみなす（優先度は最も高いものを採用）
+// 開校日が1日でも×なら、曜日単位では組めない。月のスケジュールが未提出（レコードなし）の場合は全日×
 function getWeekdayAvailabilityInMonth(teacherId, weekday, slot, yearMonth){
   if(!yearMonth) return null;
   const sch = findTeacherSchedule(teacherId, yearMonth);
   if(!sch || sch.status !== 'submitted') return null; // 未提出（下書きのみも不可）
   const total = daysInYearMonth(yearMonth);
   let best = null;
+  let sawOpen = false;
   for(let d=1; d<=total; d++){
     const dateStr = `${yearMonth}-${pad2(d)}`;
     const wd = WEEKDAY_JP[new Date(dateStr+'T00:00:00').getDay()];
     if(wd!==weekday) continue;
+    if(isScheduleDateClosed(dateStr)) continue;
+    sawOpen = true;
     const state = getDateSlotState(teacherId, dateStr, slot);
+    if(state==='none') return null;
     if(state==='preferred') best = 'preferred';
-    else if(state==='normal' && best!=='preferred') best = 'normal';
+    else if(best!=='preferred') best = 'normal';
   }
-  return best; // null(不可) | 'normal' | 'preferred'
+  return sawOpen ? best : null;
 }
 
 // 指定日に講師がそのコマでシフト提出済みか（日付ベースの正しい判定）
