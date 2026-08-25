@@ -86,6 +86,10 @@ export function buildCalWorkflowSummaryHtml(stages, extras = []){
   return `<span class="cal-status-flow">${flowParts}</span>${extrasHtml}`;
 }
 
+export function buildCalKpiGroupHtml(chips){
+  return `<span class="cal-status-kpi-group">${chips.map(renderCalStatusKpiChip).join('')}</span>`;
+}
+
 /** @deprecated 要対応バッジ型。フロー表示は buildCalWorkflowSummaryHtml を使う */
 export function buildCalStatusSummaryHtml(chips, okLabel = '✓ すべて確定です'){
   if(!chips.length){

@@ -18,7 +18,7 @@ import { dismissAppConfirmDialog, runAppConfirmDialog } from '../shared/app-conf
 import {
   buildApprovalAlertRowHtml, buildCalAlertPersonHead, buildCalAlertPersonInline,
   buildCalAlertSubjectTag, buildCalAlertTeacherHead, buildCalAlertWhenPill,
-  buildCalWorkflowSummaryHtml, buildShortageAlertRowHtml, calAlertDateParts,
+  buildCalKpiGroupHtml, buildCalWorkflowSummaryHtml, buildShortageAlertRowHtml, calAlertDateParts,
 } from '../shared/cal-alert-row.js';
 import {
   normalizeFormCoursesForSave,
@@ -584,11 +584,11 @@ function expandShortageBar(){
   if(chevron) chevron.textContent = '▴';
 }
 
-function buildShortageSummaryLine({ draftCount, unassignedCount, pendingCount, rejectedCount, pendingAbsences, confirmedCount, shiftRequestCount = 0 }){
+function buildShortageSummaryLine({ draftCount, unassignedCount, pendingCount, rejectedCount, pendingAbsences, confirmedCount }){
   const pendingActionCount = pendingCount + rejectedCount;
-  const extras = [];
-  if(pendingAbsences > 0) extras.push({ kind: 'absence', label: '未振替', count: pendingAbsences, unit: '件' });
-  extras.push({ kind: 'shift', label: '追加シフト', count: shiftRequestCount, unit: '件' });
+  const extras = pendingAbsences > 0
+    ? [{ kind: 'absence', label: '未振替', count: pendingAbsences, unit: '件' }]
+    : [];
   return buildCalWorkflowSummaryHtml([
     { kind: 'unassigned', label: '講師なし', count: unassignedCount, unit: 'コマ' },
     { kind: 'tentative', label: '仮決め', count: draftCount, unit: '件' },
@@ -879,6 +879,33 @@ function shiftPriorityMark(priority){
   return '×不可';
 }
 
+function isAddShiftRequest(req){
+  const from = getDateSlotState(req.teacherId, req.dateStr, Number(req.slot));
+  return from === 'none' && req.priority !== 'none';
+}
+
+function classifyShiftRequests(requests){
+  const addRequests = [];
+  const changeRequests = [];
+  requests.forEach(req=>{
+    if(isAddShiftRequest(req)) addRequests.push(req);
+    else changeRequests.push(req);
+  });
+  return { addRequests, changeRequests };
+}
+
+function collectUnsubmittedTeachers(yearMonth){
+  return sortByNameKana(S.teachers.filter(t=> !teacherHasSubmittedMonth(t.id, yearMonth)), t=> t.nameKana, t=> t.name);
+}
+
+function renderUnsubmittedTeacherItem(teacher){
+  return `<div class="approval-item cal-alert-row-c4">
+    <div class="cal-alert-row-body cal-alert-row-body--person">
+      ${buildCalAlertTeacherHead(teacher.name)}
+    </div>
+  </div>`;
+}
+
 function renderShiftRequestDashboardItem(req){
   const teacher = S.teachers.find(t=> t.id === req.teacherId);
   const teacherName = teacher ? teacher.name : '(削除された講師)';
@@ -904,13 +931,12 @@ function renderShiftRequestDashboardItem(req){
   </div>`;
 }
 
-function renderShiftRequestPanel(requests){
-  return `<div class="shift-req-panel">${renderShortageListBlock(
-    '講師からの追加シフト', requests.length, '件',
-    requests.length > 0 ? requests.map(renderShiftRequestDashboardItem).join('') : '',
-    '講師からの追加シフト',
-    '追加シフトはありません',
-  )}</div>`;
+function buildShiftStatusSummaryLine({ unsubmittedCount, addSlotCount, changeSlotCount }){
+  return buildCalKpiGroupHtml([
+    { kind: 'unassigned', label: 'シフト未提出', count: unsubmittedCount, unit: '人' },
+    { kind: 'shift', label: '追加シフト希望', count: addSlotCount, unit: 'コマ' },
+    { kind: 'pending', label: 'シフト変更希望', count: changeSlotCount, unit: 'コマ' },
+  ]);
 }
 
 function bindShiftRequestActions(wrap, requests){
@@ -929,11 +955,63 @@ function bindShiftRequestActions(wrap, requests){
   });
 }
 
+async function renderShiftStatusDashboard(){
+  const wrap = document.getElementById('shiftStatusWrap');
+  const summaryLine = document.getElementById('shiftStatusSummaryLine');
+  const statusBar = document.getElementById('calShiftStatusBar');
+  if(!wrap) return;
+  if(!S.dataReady){
+    wrap.innerHTML = '<div class="loading">読み込み中…</div>';
+    if(summaryLine) summaryLine.textContent = '読み込み中…';
+    statusBar?.classList.remove('is-ok', 'is-warn');
+    return;
+  }
+
+  const ym = getActiveYearMonth();
+  const unsubmitted = collectUnsubmittedTeachers(ym);
+  const requests = await loadPendingChangeRequests();
+  const { addRequests, changeRequests } = classifyShiftRequests(requests);
+  const hasWork = unsubmitted.length > 0 || addRequests.length > 0 || changeRequests.length > 0;
+
+  if(summaryLine){
+    summaryLine.innerHTML = buildShiftStatusSummaryLine({
+      unsubmittedCount: unsubmitted.length,
+      addSlotCount: addRequests.length,
+      changeSlotCount: changeRequests.length,
+    });
+  }
+  statusBar?.classList.toggle('is-warn', hasWork);
+  statusBar?.classList.toggle('is-ok', !hasWork);
+
+  wrap.innerHTML = `<div class="shortage-three-col">
+    ${renderShortageListBlock(
+      'シフト未提出', unsubmitted.length, '人',
+      unsubmitted.length > 0 ? unsubmitted.map(renderUnsubmittedTeacherItem).join('') : '',
+      'シフト未提出の講師',
+      '未提出の講師はいません',
+    )}
+    ${renderShortageListBlock(
+      '追加シフト提出', addRequests.length, 'コマ',
+      addRequests.length > 0 ? addRequests.map(renderShiftRequestDashboardItem).join('') : '',
+      '追加シフト希望',
+      '追加シフト希望はありません',
+    )}
+    ${renderShortageListBlock(
+      'シフト変更希望', changeRequests.length, 'コマ',
+      changeRequests.length > 0 ? changeRequests.map(renderShiftRequestDashboardItem).join('') : '',
+      'シフト変更希望',
+      'シフト変更希望はありません',
+    )}
+  </div>`;
+  bindShiftRequestActions(wrap, requests);
+}
+
 async function renderShortageDashboard(){
   const wrap = document.getElementById('shortageWrap');
   const summaryLine = document.getElementById('shortageSummaryLine');
   const statusBar = document.getElementById('calStatusBar');
   if(!wrap) return;
+  await renderShiftStatusDashboard();
   if(!S.dataReady || !S.studentDataReady){
     wrap.innerHTML = '<div class="loading">読み込み中…</div>';
     if(summaryLine) summaryLine.textContent = '読み込み中…';
@@ -941,7 +1019,6 @@ async function renderShortageDashboard(){
     return;
   }
   if(S.students.length===0){
-    const shiftRequests = await loadPendingChangeRequests();
     if(summaryLine){
       summaryLine.innerHTML = buildShortageSummaryLine({
         draftCount: 0,
@@ -950,14 +1027,11 @@ async function renderShortageDashboard(){
         rejectedCount: 0,
         pendingAbsences: 0,
         confirmedCount: 0,
-        shiftRequestCount: shiftRequests.length,
       });
     }
-    const hasShiftWork = shiftRequests.length > 0;
-    statusBar?.classList.toggle('is-warn', hasShiftWork);
-    statusBar?.classList.toggle('is-ok', !hasShiftWork);
-    wrap.innerHTML = `${renderShiftRequestPanel(shiftRequests)}<div class="empty-state">生徒が登録されると、講師が決まっていないコマが日付順で表示されます。</div>`;
-    bindShiftRequestActions(wrap, shiftRequests);
+    statusBar?.classList.remove('is-warn');
+    statusBar?.classList.add('is-ok');
+    wrap.innerHTML = '<div class="empty-state">生徒が登録されると、講師が決まっていないコマが日付順で表示されます。</div>';
     return;
   }
 
@@ -970,10 +1044,7 @@ async function renderShortageDashboard(){
   const unassignedCount = flatItems.length;
   const pendingCount = pendingItems.length;
 
-  const [approvalList, shiftRequests] = await Promise.all([
-    loadAssignmentApprovals(),
-    loadPendingChangeRequests(),
-  ]);
+  const approvalList = await loadAssignmentApprovals();
   const dismissed = loadDismissedApprovalIds();
   const rejectedInMonth = approvalList.filter(a=> a.status === 'rejected' && !a.handled && approvalAppliesInMonth(a, ym));
   const rejectedCount = rejectedInMonth.length;
@@ -981,7 +1052,7 @@ async function renderShortageDashboard(){
     .filter(a=> a.status === 'approved' && !dismissed.has(a.id) && approvalAppliesInMonth(a, ym))
     .slice(0, 10);
 
-  const hasWork = unassignedCount > 0 || draftCount > 0 || pendingCount > 0 || rejectedCount > 0 || pendingAbsences > 0 || shiftRequests.length > 0;
+  const hasWork = unassignedCount > 0 || draftCount > 0 || pendingCount > 0 || rejectedCount > 0 || pendingAbsences > 0;
 
   if(summaryLine){
     summaryLine.innerHTML = buildShortageSummaryLine({
@@ -991,7 +1062,6 @@ async function renderShortageDashboard(){
       rejectedCount,
       pendingAbsences,
       confirmedCount: approvedRecent.length,
-      shiftRequestCount: shiftRequests.length,
     });
   }
   statusBar?.classList.toggle('is-warn', hasWork);
@@ -1013,7 +1083,7 @@ async function renderShortageDashboard(){
       }).join('')
     : '';
 
-  wrap.innerHTML = `${renderShortageActionsHtml(ym)}${renderShiftRequestPanel(shiftRequests)}<div class="shortage-four-col">
+  wrap.innerHTML = `${renderShortageActionsHtml(ym)}<div class="shortage-four-col">
     ${renderShortageListBlock(
       '講師なし', unassignedCount, 'コマ',
       flatItems.length > 0 ? flatItems.map(renderShortageDashboardItem).join('') : '',
@@ -1046,7 +1116,6 @@ async function renderShortageDashboard(){
   </div>`;
 
   bindShortageDashboardActions(wrap);
-  bindShiftRequestActions(wrap, shiftRequests);
 
   wrap.querySelectorAll('.approval-item-btn[data-student]').forEach(btn=>{
     btn.addEventListener('click', ()=>{

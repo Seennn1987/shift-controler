@@ -26,7 +26,7 @@ function getDateSlotState(teacherId, dateStr, slot){
   const sch = findTeacherSchedule(teacherId, dateStr.slice(0,7));
   if(!sch) return 'none';
   const entries = sch.days[dateStr] || [];
-  const e = entries.find(x=>x.slot===slot);
+  const e = entries.find(x=> Number(x.slot) === Number(slot));
   return e ? e.priority : 'none'; // 'normal' | 'preferred' | 'none'(×)
 }
 function setDateSlotState(schedule, dateStr, slot, state){

@@ -795,6 +795,9 @@
   .shortage-four-col{
     display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px;min-width:0;
   }
+  .shortage-three-col{
+    display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;min-width:0;
+  }
   .shift-req-panel{margin:0 0 8px;}
   .shift-req-panel .shortage-panel-scroll{max-height:none;}
   .approval-item.cal-alert-row-c4.has-actions{
@@ -847,6 +850,9 @@
   .shortage-panel-footnote{
     flex-shrink:0;font-size:var(--text-xs);color:var(--ink-faint);padding:6px 12px 8px;
     border-top:1px dashed var(--border);
+  }
+  @media (max-width:900px){
+    .shortage-three-col{grid-template-columns:1fr;}
   }
   @media (max-width:640px){
     .shortage-two-col{grid-template-columns:1fr;}
