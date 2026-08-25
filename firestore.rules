@@ -1,0 +1,66 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    match /appState/{userId} {
+      allow read, write: if request.auth != null && request.auth.uid == userId;
+    }
+    match /teacherSchedules/{docId} {
+      allow read: if request.auth != null && (
+        resource == null ||
+        request.auth.uid == resource.data.adminUid ||
+        request.auth.uid == resource.data.teacherLoginUid
+      );
+      allow write: if request.auth != null && (
+        request.auth.uid == resource.data.adminUid ||
+        request.auth.uid == resource.data.teacherLoginUid
+      );
+      allow create: if request.auth != null && (
+        request.auth.uid == request.resource.data.adminUid ||
+        request.auth.uid == request.resource.data.teacherLoginUid
+      );
+    }
+    match /teacherAccounts/{uid} {
+      allow read: if request.auth != null && (
+        request.auth.uid == uid ||
+        request.auth.uid == resource.data.adminUid
+      );
+      allow create, update: if request.auth != null && request.auth.uid == request.resource.data.adminUid;
+    }
+    match /scheduleChangeRequests/{docId} {
+      allow read: if request.auth != null && (
+        request.auth.uid == resource.data.adminUid ||
+        request.auth.uid == resource.data.teacherLoginUid
+      );
+      allow update: if request.auth != null && request.auth.uid == resource.data.adminUid;
+      allow create: if request.auth != null && request.auth.uid == request.resource.data.teacherLoginUid;
+    }
+    match /assignmentApprovals/{docId} {
+      allow read, update: if request.auth != null && (
+        request.auth.uid == resource.data.adminUid ||
+        request.auth.uid == resource.data.teacherLoginUid
+      );
+      allow create: if request.auth != null && request.auth.uid == request.resource.data.adminUid;
+    }
+    match /assignmentCancellationRequests/{docId} {
+      allow read: if request.auth != null && (
+        request.auth.uid == resource.data.adminUid ||
+        request.auth.uid == resource.data.teacherLoginUid
+      );
+      allow update: if request.auth != null && request.auth.uid == resource.data.adminUid;
+      allow create: if request.auth != null && request.auth.uid == request.resource.data.teacherLoginUid;
+    }
+    match /teacherAssignments/{docId} {
+      allow read: if request.auth != null && (
+        resource == null ||
+        request.auth.uid == resource.data.adminUid ||
+        request.auth.uid == resource.data.teacherLoginUid
+      );
+      allow write: if request.auth != null && request.auth.uid == resource.data.adminUid;
+      allow create: if request.auth != null && request.auth.uid == request.resource.data.adminUid;
+    }
+    match /classroomSettings/{adminUid} {
+      allow read: if request.auth != null;
+      allow write: if request.auth != null && request.auth.uid == adminUid;
+    }
+  }
+}
