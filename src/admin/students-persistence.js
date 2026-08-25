@@ -512,7 +512,7 @@ async function syncTeacherAssignments(){
   await ensureMissingApprovalTickets();
 }
 
-async function approveCancellationRequest(req, reqId){
+async function approveCancellationRequest(req, reqId, opts = {}){
   if(req.oneTimeDate){
     S.teacherSubstitutions = S.teacherSubstitutions.filter(s=>
       !(s.substituteTeacherId===req.teacherId && s.date===req.oneTimeDate &&
@@ -534,6 +534,17 @@ async function approveCancellationRequest(req, reqId){
   }catch(err){
     console.error('キャンセル承認の更新エラー:', err);
     throw err;
+  }
+  if(opts.skipRefresh) return;
+  scheduleSyncTeacherAssignments();
+  scheduleSave();
+  renderMatching();
+  renderCalendar();
+}
+
+async function approveCancellationRequests(requests){
+  for(const req of requests){
+    await approveCancellationRequest(req, req.id, { skipRefresh: true });
   }
   scheduleSyncTeacherAssignments();
   scheduleSave();
@@ -744,4 +755,4 @@ async function clearAllMatchingData(){
 }
 
 
-export { loadStudents, saveStudents, getStateDocRef, teacherSchedDocRef, syncTeacherLoginUidEverywhere, saveTeacherScheduleDoc, loadAllTeacherSchedules, startTeacherScheduleListener, promotePendingAssignment, startApprovalPromotionListener, scheduleSyncClosureSettings, syncClosureSettings, scheduleSyncTeacherAssignments, syncTeacherAssignments, scheduleSave, saveAppState, loadAppStateFromFirestore, clearAllMatchingData, seedTeacherMonthSchedulesFromBase, approveCancellationRequest, rejectCancellationRequest };
+export { loadStudents, saveStudents, getStateDocRef, teacherSchedDocRef, syncTeacherLoginUidEverywhere, saveTeacherScheduleDoc, loadAllTeacherSchedules, startTeacherScheduleListener, promotePendingAssignment, startApprovalPromotionListener, scheduleSyncClosureSettings, syncClosureSettings, scheduleSyncTeacherAssignments, syncTeacherAssignments, scheduleSave, saveAppState, loadAppStateFromFirestore, clearAllMatchingData, seedTeacherMonthSchedulesFromBase, approveCancellationRequest, approveCancellationRequests, rejectCancellationRequest };

@@ -67,6 +67,11 @@ export function buildApprovalAlertRowHtml({ whenPill, teacherHead, personInline,
 function renderCalStatusKpiChip(chip){
   const count = chip.count ?? 0;
   const zeroCls = Number(count) === 0 ? ' is-zero' : '';
+  if(chip.inlineCount){
+    return `<span class="cal-status-kpi is-${chip.kind}${zeroCls} is-inline">
+      <span class="cal-status-kpi-label">${chip.label || ''}：${count}${chip.unit || ''}</span>
+    </span>`;
+  }
   return `<span class="cal-status-kpi is-${chip.kind}${zeroCls}">
     <span class="cal-status-kpi-label">${chip.label || ''}</span>
     <span class="cal-status-kpi-value"><span class="cal-status-kpi-num">${count}</span><span class="cal-status-kpi-unit">${chip.unit || ''}</span></span>

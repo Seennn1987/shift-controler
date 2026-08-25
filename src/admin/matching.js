@@ -8,9 +8,9 @@ import { refreshCalFilterOptions, setCalFilterStudent, setCalFilterTeacher, refr
 import { sortByNameKana } from '../shared/person-sort.js';
 import { renderCalendarWeek, switchCalMode, switchView } from './finance-ui.js';
 import { gradeLabel, getDateSlotState, isTeacherAvailableOnDate, subjectColor } from './schedule-core.js';
-import { approveCancellationRequest, rejectCancellationRequest, saveStudents, scheduleSave, scheduleSyncTeacherAssignments, saveAppState } from './students-persistence.js';
+import { approveCancellationRequest, approveCancellationRequests, rejectCancellationRequest, saveStudents, scheduleSave, scheduleSyncTeacherAssignments, saveAppState } from './students-persistence.js';
 import { renderTeacherList } from './teachers.js';
-import { assignmentAppliesOnDate, approvalAppliesInMonth, buildCandidateInfo, confirmAssignment, confirmDualAssignment, cancelAllDrafts, cancelDraftAuto, findEffectiveAssignment, getActiveYearMonth, getPreferredTeachersForCourse, isAssignmentEffectiveInMonth, loadAssignmentApprovals, loadDismissedApprovalIds, loadPendingCancellationRequests, loadPendingChangeRequests, openMatchingForApprovalTicket, renderApprovalDashboardItem, resolveScheduleChangeRequest, saveDismissedApprovalIds, sendDraftAssignments, teacherHasSubmittedMonth } from './teacher-schedule-tab.js';
+import { assignmentAppliesOnDate, approvalAppliesInMonth, buildCandidateInfo, confirmAssignment, confirmDualAssignment, cancelAllDrafts, cancelDraftAuto, findEffectiveAssignment, getActiveYearMonth, getPreferredTeachersForCourse, isAssignmentEffectiveInMonth, loadAssignmentApprovals, loadDismissedApprovalIds, loadPendingCancellationRequests, loadPendingChangeRequests, openMatchingForApprovalTicket, renderApprovalDashboardItem, resolveScheduleChangeRequest, resolveScheduleChangeRequests, saveDismissedApprovalIds, sendDraftAssignments, teacherHasSubmittedMonth } from './teacher-schedule-tab.js';
 import { findDualPairAtSlot, teacherTeachesBoth, buildDualSubjectTagsHtml } from './dual-subject.js';
 import { compareCandidateInfo, getMatchingPriority, MATCHING_FACTOR_META } from './matching-config.js';
 import { mountInlineConfirm, showActiveTabNotice } from '../shared/inline-confirm.js';
@@ -788,20 +788,25 @@ function bindShortageDashboardActions(wrap){
   });
 }
 
-function renderShortageListBlock(label, count, unit, itemsHtml, ariaLabel, emptyMessage, { headActions = '', footnote = '', labelMuted = false } = {}){
+function renderShortageListBlock(label, count, unit, itemsHtml, ariaLabel, emptyMessage, { headActions = '', footnote = '', labelMuted = false, countInLabel = false } = {}){
   const scrollHtml = itemsHtml || `<div class="shortage-panel-empty">${emptyMessage}</div>`;
   const headCls = headActions ? 'shortage-panel-head shortage-panel-head-split' : 'shortage-panel-head';
   const labelCls = `shortage-panel-label${labelMuted ? ' is-muted' : ''}`;
+  const title = countInLabel ? `${label}：${count}${unit}` : label;
   const headRight = headActions
-    || `<span class="shortage-panel-count"><span class="shortage-panel-num">${count}</span>${unit}</span>`;
+    || (countInLabel ? '' : `<span class="shortage-panel-count"><span class="shortage-panel-num">${count}</span>${unit}</span>`);
   return `<section class="shortage-panel">
     <div class="${headCls}">
-      <span class="${labelCls}">${label}</span>
+      <span class="${labelCls}">${title}</span>
       ${headRight}
     </div>
     <div class="shortage-panel-scroll approval-scroll" aria-label="${ariaLabel}">${scrollHtml}</div>
     ${footnote ? `<div class="shortage-panel-footnote">${footnote}</div>` : ''}
   </section>`;
+}
+
+function bulkApproveHeadBtn(id, enabled){
+  return `<button type="button" class="confirm-btn" id="${id}"${enabled ? '' : ' disabled'}>まとめて承認</button>`;
 }
 
 function renderShortageActionsHtml(ym){
@@ -987,9 +992,9 @@ function renderAbsenceDashboardItem(req){
 
 function buildShiftStatusSummaryLine({ unsubmittedCount, changeSlotCount, absenceCount }){
   return buildCalKpiGroupHtml([
-    { kind: 'unassigned', label: 'シフト未提出', count: unsubmittedCount, unit: '人' },
-    { kind: 'shift', label: '追加シフト提出・変更', count: changeSlotCount, unit: 'コマ' },
-    { kind: 'absence', label: '欠勤連絡', count: absenceCount, unit: '件' },
+    { kind: 'unassigned', label: 'シフト未提出', count: unsubmittedCount, unit: '人', inlineCount: true },
+    { kind: 'shift', label: '追加シフト提出・変更', count: changeSlotCount, unit: 'コマ', inlineCount: true },
+    { kind: 'absence', label: '欠勤連絡', count: absenceCount, unit: '件', inlineCount: true },
   ]);
 }
 
@@ -1005,6 +1010,30 @@ function bindShiftRequestActions(wrap, requests){
         btn.disabled = false;
         console.error('追加シフト提出・変更の処理エラー:', err);
       }
+    });
+  });
+}
+
+function bindBulkApproveAction(wrap, btnId, items, message, onConfirm){
+  const btn = wrap.querySelector(`#${btnId}`);
+  if(!btn || items.length === 0) return;
+  btn.addEventListener('click', ()=>{
+    mountInlineConfirm(wrap, btn, {
+      message,
+      confirmLabel: '承認する',
+      variant: 'primary',
+      mountSelector: '.shortage-panel-head-split',
+      onConfirm: async ()=>{
+        btn.disabled = true;
+        try{
+          await onConfirm();
+          return { ok: true };
+        }catch(err){
+          btn.disabled = false;
+          console.error(err);
+          return { ok: false, msg: '処理に失敗しました。' };
+        }
+      },
     });
   });
 }
@@ -1064,22 +1093,39 @@ async function renderShiftStatusDashboard(){
       unsubmitted.length > 0 ? unsubmitted.map(renderUnsubmittedTeacherItem).join('') : '',
       'シフト未提出の講師',
       '未提出の講師はいません',
+      { countInLabel: true },
     )}
     ${renderShortageListBlock(
       '追加シフト提出・変更', requests.length, 'コマ',
       requests.length > 0 ? requests.map(renderShiftRequestDashboardItem).join('') : '',
       '追加シフト提出・変更',
       '追加シフト提出・変更はありません',
+      {
+        countInLabel: true,
+        headActions: bulkApproveHeadBtn('shiftChangeBulkApproveBtn', requests.length > 0),
+      },
     )}
     ${renderShortageListBlock(
       '欠勤連絡', absences.length, '件',
       absences.length > 0 ? absences.map(renderAbsenceDashboardItem).join('') : '',
       '欠勤連絡',
       '欠勤連絡はありません',
+      {
+        countInLabel: true,
+        headActions: bulkApproveHeadBtn('absenceBulkApproveBtn', absences.length > 0),
+      },
     )}
   </div>`;
   bindShiftRequestActions(wrap, requests);
   bindAbsenceRequestActions(wrap, absences);
+  bindBulkApproveAction(wrap, 'shiftChangeBulkApproveBtn', requests,
+    `追加シフト提出・変更を${requests.length}件、まとめて承認します。\nよろしいですか？`,
+    ()=> resolveScheduleChangeRequests(requests, 'approve'),
+  );
+  bindBulkApproveAction(wrap, 'absenceBulkApproveBtn', absences,
+    `欠勤連絡を${absences.length}件、まとめて承認します。\nよろしいですか？`,
+    ()=> approveCancellationRequests(absences),
+  );
 }
 
 async function renderShortageDashboard(){

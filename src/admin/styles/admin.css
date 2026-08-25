@@ -829,10 +829,11 @@
     overflow:hidden;
   }
   .shortage-panel-head{
-    display:flex;align-items:baseline;justify-content:space-between;gap:8px;
+    display:flex;align-items:center;justify-content:space-between;gap:8px;
     padding:10px 12px;border-bottom:1px solid var(--border);background:var(--surface-muted);
   }
-  .shortage-panel-label{font-size:var(--text-sm);font-weight:800;color:var(--ink);}
+  .shortage-panel-label{font-size:var(--text-sm);font-weight:800;color:var(--ink);min-width:0;line-height:1.35;}
+  .shortage-panel-head .confirm-btn{margin-left:0;flex-shrink:0;}
   .shortage-panel-count{
     display:inline-flex;align-items:baseline;gap:2px;white-space:nowrap;
     font-size:var(--text-xs);font-weight:700;color:var(--ink-soft);
@@ -1102,6 +1103,8 @@
   .cal-status-kpi.is-absence .cal-status-kpi-num,
   .cal-status-kpi.is-rejected .cal-status-kpi-num{color:var(--danger);}
   .cal-status-kpi.is-ok .cal-status-kpi-label{color:var(--green-800);}
+  .cal-status-kpi.is-inline .cal-status-kpi-label{font-weight:800;color:var(--ink);}
+  .cal-status-kpi.is-inline.is-zero .cal-status-kpi-label{color:var(--ink-faint);}
   .cal-status-chip{
     display:inline-flex;align-items:center;
     font-size:var(--text-xs);font-weight:700;padding:3px 10px;border-radius:var(--radius-pill);

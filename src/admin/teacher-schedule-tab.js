@@ -42,7 +42,7 @@ async function loadPendingChangeRequests(){
   }
 }
 
-async function resolveScheduleChangeRequest(req, action){
+async function resolveScheduleChangeRequest(req, action, opts = {}){
   if(action === 'approve'){
     const yearMonth = req.dateStr.slice(0, 7);
     const schedule = getOrCreateDraftSchedule(req.teacherId, yearMonth);
@@ -52,6 +52,16 @@ async function resolveScheduleChangeRequest(req, action){
   await fbDb.collection('scheduleChangeRequests').doc(req.id).update({
     status: action === 'approve' ? 'approved' : 'rejected',
   });
+  if(opts.skipRefresh) return;
+  renderTeacherScheduleTab();
+  renderMatrix();
+  renderMatching();
+}
+
+async function resolveScheduleChangeRequests(requests, action){
+  for(const req of requests){
+    await resolveScheduleChangeRequest(req, action, { skipRefresh: true });
+  }
   renderTeacherScheduleTab();
   renderMatrix();
   renderMatching();
@@ -969,4 +979,4 @@ async function replaceDesiredSlot(studentId, courseId, oldDay, oldSlot, newDay, 
 }
 
 
-export { loadPendingChangeRequests, loadPendingCancellationRequests, resolveScheduleChangeRequest, loadAssignmentApprovals, loadDismissedApprovalIds, saveDismissedApprovalIds, approvalAppliesInMonth, openMatchingForApprovalTicket, renderApprovalDashboardItem, renderApprovalStatus, renderTeacherScheduleTab, openTeacherScheduleEditor, renderTeacherScheduleGrid, isPreferredPair, getPreferredTeachersForCourse, getPreferredPairsForTeacher, addPreferredPair, removePreferredPair, removePreferredPairFor, isPreferredSubjectForTeacher, teacherWorksOtherSlotOnWeekday, countTeacherCourseSlotCoverage, buildCandidateInfo, findAssignment, getActiveYearMonth, teacherHasSubmittedMonth, isAssignmentEffectiveInMonth, assignmentAppliesOnDate, findEffectiveAssignment, countCourseConfirmed, countTeacherSlot, countTeacherSlotOnDate, countRoomSlot, countRoomSlotOnDate, issueAssignmentApproval, confirmAssignment, confirmDualAssignment, cancelAssignment, cancelDualAssignment, cancelDraftAuto, cancelAllDrafts, sendDraftAssignments, countAssignmentsInMonth, withdrawPendingAssignment, findAlternativeSlots, replaceDesiredSlot };
+export { loadPendingChangeRequests, loadPendingCancellationRequests, resolveScheduleChangeRequest, resolveScheduleChangeRequests, loadAssignmentApprovals, loadDismissedApprovalIds, saveDismissedApprovalIds, approvalAppliesInMonth, openMatchingForApprovalTicket, renderApprovalDashboardItem, renderApprovalStatus, renderTeacherScheduleTab, openTeacherScheduleEditor, renderTeacherScheduleGrid, isPreferredPair, getPreferredTeachersForCourse, getPreferredPairsForTeacher, addPreferredPair, removePreferredPair, removePreferredPairFor, isPreferredSubjectForTeacher, teacherWorksOtherSlotOnWeekday, countTeacherCourseSlotCoverage, buildCandidateInfo, findAssignment, getActiveYearMonth, teacherHasSubmittedMonth, isAssignmentEffectiveInMonth, assignmentAppliesOnDate, findEffectiveAssignment, countCourseConfirmed, countTeacherSlot, countTeacherSlotOnDate, countRoomSlot, countRoomSlotOnDate, issueAssignmentApproval, confirmAssignment, confirmDualAssignment, cancelAssignment, cancelDualAssignment, cancelDraftAuto, cancelAllDrafts, sendDraftAssignments, countAssignmentsInMonth, withdrawPendingAssignment, findAlternativeSlots, replaceDesiredSlot };
