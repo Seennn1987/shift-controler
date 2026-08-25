@@ -8,9 +8,9 @@ import { refreshCalFilterOptions, setCalFilterStudent, setCalFilterTeacher, refr
 import { sortByNameKana } from '../shared/person-sort.js';
 import { renderCalendarWeek, switchCalMode, switchView } from './finance-ui.js';
 import { gradeLabel, getDateSlotState, isTeacherAvailableOnDate, subjectColor } from './schedule-core.js';
-import { saveStudents, scheduleSave, scheduleSyncTeacherAssignments, saveAppState } from './students-persistence.js';
+import { approveCancellationRequest, rejectCancellationRequest, saveStudents, scheduleSave, scheduleSyncTeacherAssignments, saveAppState } from './students-persistence.js';
 import { renderTeacherList } from './teachers.js';
-import { assignmentAppliesOnDate, approvalAppliesInMonth, buildCandidateInfo, confirmAssignment, confirmDualAssignment, cancelAllDrafts, cancelDraftAuto, findEffectiveAssignment, getActiveYearMonth, getPreferredTeachersForCourse, isAssignmentEffectiveInMonth, loadAssignmentApprovals, loadDismissedApprovalIds, loadPendingChangeRequests, openMatchingForApprovalTicket, renderApprovalDashboardItem, resolveScheduleChangeRequest, saveDismissedApprovalIds, sendDraftAssignments, teacherHasSubmittedMonth } from './teacher-schedule-tab.js';
+import { assignmentAppliesOnDate, approvalAppliesInMonth, buildCandidateInfo, confirmAssignment, confirmDualAssignment, cancelAllDrafts, cancelDraftAuto, findEffectiveAssignment, getActiveYearMonth, getPreferredTeachersForCourse, isAssignmentEffectiveInMonth, loadAssignmentApprovals, loadDismissedApprovalIds, loadPendingCancellationRequests, loadPendingChangeRequests, openMatchingForApprovalTicket, renderApprovalDashboardItem, resolveScheduleChangeRequest, saveDismissedApprovalIds, sendDraftAssignments, teacherHasSubmittedMonth } from './teacher-schedule-tab.js';
 import { findDualPairAtSlot, teacherTeachesBoth, buildDualSubjectTagsHtml } from './dual-subject.js';
 import { compareCandidateInfo, getMatchingPriority, MATCHING_FACTOR_META } from './matching-config.js';
 import { mountInlineConfirm, showActiveTabNotice } from '../shared/inline-confirm.js';
@@ -879,19 +879,33 @@ function shiftPriorityMark(priority){
   return '×不可';
 }
 
-function isAddShiftRequest(req){
-  const from = getDateSlotState(req.teacherId, req.dateStr, Number(req.slot));
-  return from === 'none' && req.priority !== 'none';
+function teacherHasLessonOnSlot(teacherId, dateStr, slot){
+  if(!dateStr) return false;
+  const all = S.assignments.concat(S.pendingAssignments, S.draftAssignments);
+  return all.some(a=>
+    a.teacherId === teacherId &&
+    Number(a.slot) === Number(slot) &&
+    assignmentAppliesOnDate(a, dateStr)
+  );
 }
 
-function classifyShiftRequests(requests){
-  const addRequests = [];
-  const changeRequests = [];
-  requests.forEach(req=>{
-    if(isAddShiftRequest(req)) addRequests.push(req);
-    else changeRequests.push(req);
-  });
-  return { addRequests, changeRequests };
+function collectUnassignedSlotChangeRequests(requests){
+  return requests.filter(req=> !teacherHasLessonOnSlot(req.teacherId, req.dateStr, req.slot));
+}
+
+function cancellationRecurringDateStr(day){
+  const ym = getActiveYearMonth();
+  if(!ym || !day) return null;
+  const total = daysInYearMonth(ym);
+  const today = getTodayStr();
+  let first = null;
+  for(let d=1; d<=total; d++){
+    const dateStr = `${ym}-${pad2(d)}`;
+    if(getDayStatus(dateStr).weekday !== day) continue;
+    if(!first) first = dateStr;
+    if(dateStr >= today) return dateStr;
+  }
+  return first;
 }
 
 function collectUnsubmittedTeachers(yearMonth){
@@ -931,11 +945,51 @@ function renderShiftRequestDashboardItem(req){
   </div>`;
 }
 
-function buildShiftStatusSummaryLine({ unsubmittedCount, addSlotCount, changeSlotCount }){
+function renderAbsenceDashboardItem(req){
+  const teacher = S.teachers.find(t=> t.id === req.teacherId);
+  const teacherName = teacher ? teacher.name : '(削除された講師)';
+  const slot = Number(req.slot);
+  const slotLabel = SLOTS.find(s=> s.id === slot)?.label || `${slot}講`;
+  const dateStr = req.oneTimeDate || cancellationRecurringDateStr(req.day);
+  let md;
+  let weekday;
+  if(dateStr){
+    ({ md, weekday } = calAlertDateParts(dateStr, getDayStatus));
+  }else{
+    md = `${req.day || ''}曜`;
+    weekday = '';
+  }
+  const student = S.students.find(s=> s.name === req.studentName);
+  const gLabel = req.studentGrade || (student ? gradeLabel(student) : '');
+  const level = student?.level
+    || (String(gLabel).startsWith('小') ? '小学'
+      : String(gLabel).startsWith('高') ? '高校'
+      : '中学');
+  const subjectTag = req.subject ? buildCalAlertSubjectTag(subjectColor, level, req.subject) : '';
+  const personInline = req.studentName
+    ? buildCalAlertPersonInline(req.studentName, gLabel)
+    : '';
+  return `<div class="approval-item cal-alert-row-c4 has-actions">
+    <div class="shift-req-row-main">
+      <div class="cal-alert-row-body cal-alert-row-body--full">
+        ${buildCalAlertWhenPill(md, weekday, slotLabel)}
+        ${buildCalAlertTeacherHead(teacherName)}
+        ${personInline}
+        ${subjectTag}
+      </div>
+    </div>
+    <div class="match-cand-actions">
+      <button type="button" class="confirm-btn" data-absence-req-id="${req.id}" data-absence-req-action="approve">承認</button>
+      <button type="button" class="mp-change-teacher-btn" data-absence-req-id="${req.id}" data-absence-req-action="reject">却下</button>
+    </div>
+  </div>`;
+}
+
+function buildShiftStatusSummaryLine({ unsubmittedCount, changeSlotCount, absenceCount }){
   return buildCalKpiGroupHtml([
     { kind: 'unassigned', label: 'シフト未提出', count: unsubmittedCount, unit: '人' },
-    { kind: 'shift', label: '追加シフト希望', count: addSlotCount, unit: 'コマ' },
-    { kind: 'pending', label: 'シフト変更希望', count: changeSlotCount, unit: 'コマ' },
+    { kind: 'shift', label: '追加シフト提出・変更', count: changeSlotCount, unit: 'コマ' },
+    { kind: 'absence', label: '欠勤連絡', count: absenceCount, unit: '件' },
   ]);
 }
 
@@ -949,7 +1003,28 @@ function bindShiftRequestActions(wrap, requests){
         await resolveScheduleChangeRequest(req, btn.dataset.shiftReqAction);
       }catch(err){
         btn.disabled = false;
-        console.error('追加シフトの処理エラー:', err);
+        console.error('追加シフト提出・変更の処理エラー:', err);
+      }
+    });
+  });
+}
+
+function bindAbsenceRequestActions(wrap, requests){
+  wrap.querySelectorAll('[data-absence-req-id]').forEach(btn=>{
+    btn.addEventListener('click', async ()=>{
+      const req = requests.find(r=> r.id === btn.dataset.absenceReqId);
+      if(!req) return;
+      btn.disabled = true;
+      try{
+        if(btn.dataset.absenceReqAction === 'approve'){
+          await approveCancellationRequest(req, req.id);
+        }else{
+          await rejectCancellationRequest(req.id);
+        }
+        await renderShiftStatusDashboard();
+      }catch(err){
+        btn.disabled = false;
+        console.error('欠勤連絡の処理エラー:', err);
       }
     });
   });
@@ -969,15 +1044,15 @@ async function renderShiftStatusDashboard(){
 
   const ym = getActiveYearMonth();
   const unsubmitted = collectUnsubmittedTeachers(ym);
-  const requests = await loadPendingChangeRequests();
-  const { addRequests, changeRequests } = classifyShiftRequests(requests);
-  const hasWork = unsubmitted.length > 0 || addRequests.length > 0 || changeRequests.length > 0;
+  const requests = collectUnassignedSlotChangeRequests(await loadPendingChangeRequests());
+  const absences = await loadPendingCancellationRequests();
+  const hasWork = unsubmitted.length > 0 || requests.length > 0 || absences.length > 0;
 
   if(summaryLine){
     summaryLine.innerHTML = buildShiftStatusSummaryLine({
       unsubmittedCount: unsubmitted.length,
-      addSlotCount: addRequests.length,
-      changeSlotCount: changeRequests.length,
+      changeSlotCount: requests.length,
+      absenceCount: absences.length,
     });
   }
   statusBar?.classList.toggle('is-warn', hasWork);
@@ -991,19 +1066,20 @@ async function renderShiftStatusDashboard(){
       '未提出の講師はいません',
     )}
     ${renderShortageListBlock(
-      '追加シフト提出', addRequests.length, 'コマ',
-      addRequests.length > 0 ? addRequests.map(renderShiftRequestDashboardItem).join('') : '',
-      '追加シフト希望',
-      '追加シフト希望はありません',
+      '追加シフト提出・変更', requests.length, 'コマ',
+      requests.length > 0 ? requests.map(renderShiftRequestDashboardItem).join('') : '',
+      '追加シフト提出・変更',
+      '追加シフト提出・変更はありません',
     )}
     ${renderShortageListBlock(
-      'シフト変更希望', changeRequests.length, 'コマ',
-      changeRequests.length > 0 ? changeRequests.map(renderShiftRequestDashboardItem).join('') : '',
-      'シフト変更希望',
-      'シフト変更希望はありません',
+      '欠勤連絡', absences.length, '件',
+      absences.length > 0 ? absences.map(renderAbsenceDashboardItem).join('') : '',
+      '欠勤連絡',
+      '欠勤連絡はありません',
     )}
   </div>`;
   bindShiftRequestActions(wrap, requests);
+  bindAbsenceRequestActions(wrap, absences);
 }
 
 async function renderShortageDashboard(){
