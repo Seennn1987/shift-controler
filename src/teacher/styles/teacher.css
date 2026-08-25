@@ -93,6 +93,9 @@
   .submit-dock-kv dd.is-alert{color:var(--danger);}
   .submit-dock-kv dd.is-draft{color:var(--warning-ink);}
   .submit-dock-meta{display:flex;align-items:center;gap:8px;flex-wrap:wrap;}
+  .submit-dock-meta .submit-dock-title{margin:0;}
+  .submit-dock-block.is-absence .submit-dock-head,
+  .submit-dock-block.is-shift .submit-dock-head{align-items:center;}
   .submit-dock-badges{display:flex;align-items:center;gap:6px;flex-wrap:wrap;}
   .submit-dock-actions{
     display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-left:auto;flex-shrink:0;

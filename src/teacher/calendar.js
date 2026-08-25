@@ -263,7 +263,8 @@ function updateBanner(){
   const draftAllBtn = document.getElementById('draftApproveAllBtn');
   const submitBtn = document.getElementById('submitResponsesBtn');
   const absenceBlock = document.getElementById('submitDockAbsence');
-  const absenceKv = document.getElementById('submitDockAbsenceKv');
+  const absenceBadges = document.getElementById('absenceDockBadges');
+  const absenceBtn = document.getElementById('submitAbsenceBtn');
 
   const unreplied = countUnrepliedPendingSlots();
   const { lesson: lessonDrafts, absence: absenceDrafts } = splitResponseDrafts(S.responseDrafts);
@@ -302,10 +303,13 @@ function updateBanner(){
     kvEl.style.display = rows.length ? '' : 'none';
   }
 
-  if(absenceKv){
-    absenceKv.innerHTML = absenceDraftCount > 0
-      ? `<dt>送信前</dt><dd class="is-draft">欠勤申請${absenceDraftCount}件</dd>`
+  if(absenceBadges){
+    absenceBadges.innerHTML = absenceDraftCount > 0
+      ? '<span class="status-badge change">欠勤申請送信前</span>'
       : '';
+  }
+  if(absenceBtn){
+    absenceBtn.textContent = `欠勤申請を提出する（${absenceDraftCount}件）`;
   }
 
   if(draftAllBtn){
