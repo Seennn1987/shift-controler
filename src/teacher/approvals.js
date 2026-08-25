@@ -13,6 +13,7 @@ import {
   saveResponseDrafts,
   summarizeDrafts,
   actionLabel,
+  splitResponseDrafts,
 } from './response-draft.js';
 import { ticketSubjectMatchesEntry } from '../admin/dual-subject.js';
 
@@ -467,7 +468,7 @@ function buildSubmitConfirmMessage(drafts){
   const sections = [];
   if(approveLines.length) sections.push(`【承認】\n${approveLines.join('\n')}`);
   if(rejectLines.length) sections.push(`【辞退】\n${rejectLines.join('\n')}`);
-  if(cancelLines.length) sections.push(`【キャンセルを依頼】\n${cancelLines.join('\n')}`);
+  if(cancelLines.length) sections.push(`【欠勤申請】\n${cancelLines.join('\n')}`);
 
   return {
     title: '次の内容を教室長に送信します。',
@@ -476,12 +477,15 @@ function buildSubmitConfirmMessage(drafts){
   };
 }
 
-async function submitResponseDrafts(){
-  const drafts = {...S.responseDrafts};
+async function submitResponseDrafts(kind){
+  const { lesson, absence } = splitResponseDrafts(S.responseDrafts);
+  const drafts = kind === 'absence' ? absence : lesson;
   const keys = Object.keys(drafts);
   if(keys.length===0) return;
 
-  const btn = document.getElementById('submitResponsesBtn');
+  const btn = kind === 'absence'
+    ? document.getElementById('submitAbsenceBtn')
+    : document.getElementById('submitResponsesBtn');
   if(btn) btn.disabled = true;
   const errors = [];
 
@@ -534,8 +538,28 @@ async function submitResponseDrafts(){
   if(btn) btn.disabled = false;
 
   if(errors.length){
-    showInlineNotice(document.getElementById('submitDock'), `一部の送信に失敗しました。\n${errors.join('\n')}\n\nFirestoreの設定（キャンセル依頼）を教室長に確認してください。`, { variant: 'warn', clear: false });
+    const failLabel = kind === 'absence' ? '欠勤申請' : '承認・辞退';
+    showInlineNotice(document.getElementById('submitDock'), `一部の送信に失敗しました。\n${errors.join('\n')}\n\n${failLabel}を送れませんでした。通信状況をご確認ください。`, { variant: 'warn', clear: false });
   }
+}
+
+function bindSubmitDraftButton(btn, kind, mountSelector){
+  if(!btn) return;
+  btn.addEventListener('click', ()=>{
+    const { lesson, absence } = splitResponseDrafts(S.responseDrafts);
+    const drafts = kind === 'absence' ? absence : lesson;
+    if(Object.keys(drafts).length === 0) return;
+    mountInlineConfirm(document.getElementById('submitDock'), btn, {
+      messageParts: buildSubmitConfirmMessage(drafts),
+      confirmLabel: '提出する',
+      variant: 'primary',
+      mountSelector,
+      onConfirm: async ()=>{
+        await submitResponseDrafts(kind);
+        return { ok: true };
+      },
+    });
+  });
 }
 
 function startMyAssignmentsListener(){
@@ -571,26 +595,19 @@ function initResponseDraftHandlers(){
   if(initResponseDraftHandlers._bound) return;
   initResponseDraftHandlers._bound = true;
   const draftAllBtn = document.getElementById('draftApproveAllBtn');
-  const submitBtn = document.getElementById('submitResponsesBtn');
   if(draftAllBtn){
     draftAllBtn.addEventListener('click', ()=> draftAllPendingApprovals());
   }
-  if(submitBtn){
-    submitBtn.addEventListener('click', ()=>{
-      const drafts = {...S.responseDrafts};
-      if(Object.keys(drafts).length === 0) return;
-      mountInlineConfirm(document.getElementById('submitDock'), submitBtn, {
-        messageParts: buildSubmitConfirmMessage(drafts),
-        confirmLabel: '提出する',
-        variant: 'primary',
-        mountSelector: '.submit-dock-block.is-lesson',
-        onConfirm: async ()=>{
-          await submitResponseDrafts();
-          return { ok: true };
-        },
-      });
-    });
-  }
+  bindSubmitDraftButton(
+    document.getElementById('submitResponsesBtn'),
+    'lesson',
+    '.submit-dock-block.is-lesson',
+  );
+  bindSubmitDraftButton(
+    document.getElementById('submitAbsenceBtn'),
+    'absence',
+    '.submit-dock-block.is-absence',
+  );
 }
 
 export {

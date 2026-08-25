@@ -53,8 +53,19 @@
           <div id="pendingBannerNotices" class="pending-banner-notices" style="display:none;"></div>
         </div>
         <div class="submit-dock-actions is-stacked">
-          <button type="button" class="primary" id="submitResponsesBtn" style="display:none;">確認結果を提出する</button>
+          <button type="button" class="primary" id="submitResponsesBtn" style="display:none;">承認・辞退を提出する</button>
           <button type="button" class="ghost" id="draftApproveAllBtn" style="display:none;">残り1コマをすべて承認</button>
+        </div>
+      </div>
+    </div>
+    <div class="submit-dock-block is-absence" id="submitDockAbsence" style="display:none;">
+      <div class="submit-dock-head">
+        <div class="submit-dock-lines">
+          <p class="submit-dock-title">欠勤</p>
+          <dl class="submit-dock-kv" id="submitDockAbsenceKv"></dl>
+        </div>
+        <div class="submit-dock-actions is-stacked">
+          <button type="button" class="primary" id="submitAbsenceBtn">欠勤申請を提出する</button>
         </div>
       </div>
     </div>
@@ -67,8 +78,8 @@
           </div>
         </div>
         <div class="submit-dock-actions is-stacked">
-          <button type="button" class="primary" id="submitShiftBtn">シフトを提出する</button>
-          <button type="button" class="send-request-btn" id="sendRequestBtn" style="display:none;">変更を教室長に送る（0件）</button>
+          <button type="button" class="primary" id="submitShiftBtn">新規シフトを提出する</button>
+          <button type="button" class="primary" id="sendRequestBtn" style="display:none;">シフト変更を提出する</button>
         </div>
       </div>
     </div>
@@ -77,7 +88,7 @@
 
   <div class="card">
     <h2>マイスケジュール</h2>
-    <p class="desc">担当授業の確認と、空きコマのシフト提出がこの1画面でできます。<br>青枠のコマは教室長からの授業依頼です。承認・辞退を選び、上部の「確認結果を提出する」でまとめて送ってください。<br>授業のないコマでは ×不可・△可能・○優先 を選び、上部の「シフトを提出する」で送れます。</p>
+    <p class="desc">担当授業の確認と、空きコマのシフト提出がこの1画面でできます。<br>青枠のコマは教室長からの授業依頼です。承認・辞退を選び、上部の「承認・辞退を提出する」で送ってください。<br>確定した授業を休むときは「欠勤申請」を選び、上部の「欠勤申請を提出する」で送れます。<br>授業のないコマでは ×不可・△可能・○優先 を選び、上部の「新規シフトを提出する」または「シフト変更を提出する」で送れます。</p>
     <div class="month-nav">
       <button type="button" class="nav-btn" id="calPrevBtn">‹</button>
       <div class="month-title" id="calMonthTitle">2026年8月</div>

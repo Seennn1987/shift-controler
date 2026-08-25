@@ -91,19 +91,18 @@
   .submit-dock-kv dt{margin:0;color:var(--ink-soft);font-weight:var(--font-weight-bold);}
   .submit-dock-kv dd{margin:0;font-weight:var(--font-weight-bold);}
   .submit-dock-kv dd.is-alert{color:var(--danger);}
-  .submit-dock-kv dd.is-draft{color:var(--green-800);}
+  .submit-dock-kv dd.is-draft{color:var(--warning-ink);}
   .submit-dock-meta{display:flex;align-items:center;gap:8px;flex-wrap:wrap;}
   .submit-dock-badges{display:flex;align-items:center;gap:6px;flex-wrap:wrap;}
   .submit-dock-actions{
     display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-left:auto;flex-shrink:0;
   }
   .submit-dock-actions.is-stacked{
-    flex-direction:column;align-items:stretch;width:168px;gap:6px;
+    flex-direction:column;align-items:stretch;width:200px;gap:6px;
   }
   .submit-dock-actions.is-stacked .primary,
-  .submit-dock-actions.is-stacked .ghost,
-  .submit-dock-actions.is-stacked .send-request-btn{
-    width:100%;text-align:center;font-size:var(--text-sm);padding:8px 10px;white-space:nowrap;
+  .submit-dock-actions.is-stacked .ghost{
+    width:100%;text-align:center;font-size:var(--text-sm);padding:8px 10px;
   }
   @media (max-width:480px){
     .submit-dock-head{flex-wrap:wrap;}
@@ -143,7 +142,7 @@
   }
   .mycal-slot-card.is-waiting{border:1px solid var(--pending-border);background:var(--surface-card);}
   .mycal-slot-card.is-confirmed{border:2px solid var(--brand-600);background:var(--brand-50);}
-  .mycal-slot-card.has-draft{box-shadow:0 0 0 1px var(--pending-border);}
+  .mycal-slot-card.has-draft{box-shadow:0 0 0 1px var(--warning-ink);}
   .mycal-slot-head{
     display:flex;align-items:center;justify-content:space-between;gap:var(--space-3);flex-wrap:wrap;
   }
@@ -162,8 +161,9 @@
   .mycal-slot-student.is-pending .mycal-slot-student-name{font-weight:var(--font-weight-bold);}
   .mycal-slot-student-name{font-weight:var(--font-weight-bold);}
   .mycal-slot-student .mycal-cancel-btn,
-  .mycal-slot-student .mycal-undo-btn,
+  .mycal-slot-student .mycal-slot-status,
   .mycal-slot-student .schedule-cancel-note{margin-left:auto;}
+  .mycal-slot-status{display:inline-flex;align-items:center;gap:6px;flex-wrap:wrap;}
   .sched-student-tag{
     font-size:var(--text-xs);font-weight:var(--font-weight-bold);padding:1px 6px;border-radius:var(--radius-sm);flex-shrink:0;
   }
@@ -181,7 +181,10 @@
     border:1px solid var(--brand-600);
   }
   .mycal-draft-label{
-    font-size:var(--text-xs);font-weight:var(--font-weight-bold);color:var(--ink-soft);white-space:nowrap;
+    display:inline-flex;align-items:center;
+    font-size:var(--text-xs);font-weight:var(--font-weight-bold);white-space:nowrap;
+    padding:2px 8px;border-radius:var(--radius-pill);line-height:1.35;
+    color:var(--warning-ink);background:var(--warning-bg);
   }
   .mycal-actions{display:flex;align-items:center;gap:var(--space-2);flex-shrink:0;flex-wrap:wrap;}
   .mycal-approve-btn{
@@ -226,12 +229,16 @@
   .mycal-closed-label, .mycal-empty-label{font-size:var(--text-sm);color:var(--ink-soft);}
 
   .mycal-slot-card.is-empty-shift .mycal-slot-head{align-items:center;min-height:40px;}
-  .mycal-slot-card.has-local-shift{box-shadow:0 0 0 1px var(--green-700);}
+  .mycal-slot-card.has-local-shift{box-shadow:0 0 0 1px var(--warning-ink);}
   .local-shift-badge{
-    font-size:var(--text-xs);font-weight:var(--font-weight-bold);color:var(--green-700);margin-left:6px;
+    display:inline-flex;align-items:center;
+    font-size:var(--text-xs);font-weight:var(--font-weight-bold);
+    padding:2px 8px;border-radius:var(--radius-pill);line-height:1.35;
+    background:var(--warning-bg);color:var(--warning-ink);margin-left:6px;
+    white-space:nowrap;
   }
   .shift-pick-group{
-    display:inline-flex;align-items:center;align-self:center;margin-left:auto;flex-shrink:0;gap:4px;
+    display:inline-flex;align-items:center;align-self:center;margin-left:auto;flex-shrink:1;flex-wrap:wrap;gap:4px;
   }
   .shift-pick-s4 .shift-pick-btn{
     min-width:38px;height:auto;padding:4px 6px 3px;border:1px solid var(--border);border-radius:var(--radius-sm);
@@ -246,7 +253,10 @@
   .shift-pick-symbol{font-size:var(--text-md);font-weight:var(--font-weight-black);line-height:1;}
   .shift-pick-label{font-size:var(--text-xs);font-weight:var(--font-weight-bold);line-height:1.1;}
   .shift-req-badge{
-    font-size:var(--text-xs);font-weight:var(--font-weight-bold);color:var(--danger);margin-right:4px;white-space:nowrap;
+    display:inline-flex;align-items:center;
+    font-size:var(--text-xs);font-weight:var(--font-weight-bold);
+    padding:2px 8px;border-radius:var(--radius-pill);line-height:1.35;
+    background:var(--danger-bg);color:var(--danger);margin-right:4px;white-space:nowrap;
   }
 
   .month-nav{display:flex;align-items:center;gap:var(--space-4);margin-bottom:var(--space-2);}
@@ -262,13 +272,21 @@
   }
 
   .status-badge{font-size:var(--text-xs);font-weight:var(--font-weight-bold);padding:3px var(--space-4);border-radius:var(--radius-pill);}
-  .status-badge.submitted{background:var(--green-100);color:var(--green-900);}
+  .status-badge.submitted{
+    color:var(--text-on-brand);background:linear-gradient(180deg, var(--brand-500), var(--brand-600));
+    border:1px solid var(--brand-600);
+  }
   .status-badge.draft{background:var(--warning-bg);color:var(--warning-ink);}
-  .status-badge.change{background:var(--brand-50);color:var(--green-900);border:1px solid var(--green-600);}
+  .status-badge.change{background:var(--warning-bg);color:var(--warning-ink);}
 
   .grid-scroll{border:1px solid var(--border);border-radius:var(--radius-md);overflow-x:auto;}
   table.grid{border-collapse:collapse;width:100%;min-width:640px;}
-  .schedule-cancel-note{font-size:var(--text-xs);color:var(--warning-ink);}
+  .schedule-cancel-note{
+    display:inline-flex;align-items:center;
+    font-size:var(--text-xs);font-weight:var(--font-weight-bold);
+    padding:2px 8px;border-radius:var(--radius-pill);line-height:1.35;
+    background:var(--danger-bg);color:var(--danger);white-space:nowrap;
+  }
   table.grid th, table.grid td{border:1px solid var(--border);text-align:center;font-size:var(--text-sm);padding:0;}
   table.grid thead th{
     background:var(--green-100);color:var(--green-900);font-weight:var(--font-weight-bold);
@@ -288,16 +306,10 @@
   .cell-btn .req-badge{
     position:absolute;top:1px;right:2px;font-size:var(--text-xs);font-weight:var(--font-weight-bold);color:var(--danger);
   }
-  .cell-btn.pending-local{border:1.5px dashed var(--green-700);}
+  .cell-btn.pending-local{border:1.5px dashed var(--warning-ink);}
   .cell-btn .local-badge{
-    position:absolute;top:1px;right:2px;font-size:var(--text-xs);font-weight:var(--font-weight-bold);color:var(--green-700);
+    position:absolute;top:1px;right:2px;font-size:var(--text-xs);font-weight:var(--font-weight-bold);color:var(--warning-ink);
   }
-  .send-request-btn{
-    border:none;background:var(--danger);color:var(--text-on-brand);font-family:inherit;
-    font-size:var(--text-md);font-weight:var(--font-weight-bold);
-    padding:var(--space-4) var(--space-6);border-radius:var(--radius-md);cursor:pointer;
-  }
-  .send-request-btn:disabled{background:var(--ink-disabled);cursor:default;}
 
   .empty-note{color:var(--ink-soft);font-size:var(--text-md);padding:var(--space-4) 2px;}
   .new-assign-row{

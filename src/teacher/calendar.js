@@ -4,6 +4,7 @@ import { subjectColor } from '../admin/schedule-core.js';
 import { pad2, daysInYearMonth, toDateStr } from '../shared/date-utils.js';
 import { S } from './state.js';
 import { getDayStatus } from './day-status.js';
+import { splitResponseDrafts } from './response-draft.js';
 import {
   markAdminCancelledNoticeRead,
   formatAdminCancelledNoticeLine,
@@ -130,10 +131,13 @@ function buildCancelActionHtml(entry, dateStr){
   const cancelKey = draftKeyForCancel(entry, dateStr);
   const cancelDraft = S.responseDrafts[cancelKey];
   if(pendingCancel){
-    return '<span class="schedule-cancel-note">キャンセル待ち</span>';
+    return '<span class="schedule-cancel-note">欠勤申請中</span>';
   }
   if(cancelDraft){
-    return `<button type="button" class="mycal-undo-btn" data-draft-key="${cancelKey}">取り消す</button>`;
+    return `<span class="mycal-slot-status">
+      <span class="mycal-draft-label">欠勤申請（送信前）</span>
+      <button type="button" class="mycal-undo-btn" data-draft-key="${cancelKey}">取り消す</button>
+    </span>`;
   }
   const payload = encodeURIComponent(JSON.stringify({
     day: entry.day, slot: entry.slot, subject: entry.subject,
@@ -141,7 +145,7 @@ function buildCancelActionHtml(entry, dateStr){
     oneTimeDate: entry.oneTimeDate || null,
     dateStr,
   }));
-  return `<button type="button" class="mycal-cancel-btn schedule-cancel-btn" data-cancel-entry="${payload}">キャンセルを依頼</button>`;
+  return `<button type="button" class="mycal-cancel-btn schedule-cancel-btn" data-cancel-entry="${payload}">欠勤申請</button>`;
 }
 
 function buildPendingHeaderActionsHtml(dateStr, slotId){
@@ -149,10 +153,10 @@ function buildPendingHeaderActionsHtml(dateStr, slotId){
   const slotKey = draftKeyForSlot(dateStr, slotId);
   if(draft){
     if(draft.action === 'approve'){
-      return `<span class="mycal-draft-label">承認（選択済）</span>
+      return `<span class="mycal-draft-label">承認（送信前）</span>
         <button type="button" class="mycal-undo-btn" data-draft-key="${slotKey}">取り消す</button>`;
     }
-    return `<span class="mycal-draft-label">辞退（選択済）</span>
+    return `<span class="mycal-draft-label">辞退（送信前）</span>
       <button type="button" class="mycal-undo-btn" data-draft-key="${slotKey}">取り消す</button>`;
   }
   return `<button type="button" class="mycal-approve-btn" data-slot-date="${dateStr}" data-slot-id="${slotId}">承認</button>
@@ -187,7 +191,7 @@ function buildSlotCardHtml(dateStr, slotId, entries){
   if(!slotHasLessonContent(dateStr, slotId, entries)){
     const localDirty = hasLocalShiftChange(dateStr, slotId);
     const cls = ['mycal-slot-card', 'is-empty-shift', localDirty ? 'has-local-shift' : ''].filter(Boolean).join(' ');
-    const badge = localDirty ? '<span class="local-shift-badge">未送信</span>' : '';
+    const badge = localDirty ? '<span class="local-shift-badge">シフト変更送信前</span>' : '';
     return `<div class="${cls}">
       <div class="mycal-slot-head">
         <span class="mycal-slot-label">${slotLabel}${badge}</span>
@@ -237,20 +241,18 @@ function buildDayHtml(dateStr, dayNum, wd, isToday, dayStatus){
   </div>`;
 }
 
-function formatDraftDetail(drafts){
-  const keys = Object.keys(drafts);
-  if(keys.length === 0) return '';
-  let approve = 0, reject = 0, cancel = 0;
+function formatLessonDraftDetail(drafts){
+  let approve = 0, reject = 0;
   Object.values(drafts).forEach(d=>{
     if(d.action === 'approve') approve++;
     else if(d.action === 'reject') reject++;
-    else if(d.action === 'cancel') cancel++;
   });
   const parts = [];
   if(approve) parts.push(`承認${approve}`);
   if(reject) parts.push(`辞退${reject}`);
-  if(cancel) parts.push(`キャンセル依頼${cancel}`);
-  return `${keys.length}件（${parts.join('·')}）`;
+  const count = approve + reject;
+  if(count === 0) return '';
+  return `${count}件（${parts.join('·')}）`;
 }
 
 function updateBanner(){
@@ -260,13 +262,18 @@ function updateBanner(){
   const noticeWrap = document.getElementById('pendingBannerNotices');
   const draftAllBtn = document.getElementById('draftApproveAllBtn');
   const submitBtn = document.getElementById('submitResponsesBtn');
+  const absenceBlock = document.getElementById('submitDockAbsence');
+  const absenceKv = document.getElementById('submitDockAbsenceKv');
 
   const unreplied = countUnrepliedPendingSlots();
-  const draftCount = Object.keys(S.responseDrafts).length;
+  const { lesson: lessonDrafts, absence: absenceDrafts } = splitResponseDrafts(S.responseDrafts);
+  const lessonDraftCount = Object.keys(lessonDrafts).length;
+  const absenceDraftCount = Object.keys(absenceDrafts).length;
   const notices = S.adminCancelledNotices || [];
-  const showLesson = unreplied > 0 || draftCount > 0 || notices.length > 0;
+  const showLesson = unreplied > 0 || lessonDraftCount > 0 || notices.length > 0;
 
   if(lessonBlock) lessonBlock.style.display = showLesson ? '' : 'none';
+  if(absenceBlock) absenceBlock.style.display = absenceDraftCount > 0 ? '' : 'none';
 
   if(noticeWrap){
     if(notices.length > 0){
@@ -288,11 +295,17 @@ function updateBanner(){
     if(unreplied > 0){
       rows.push(`<dt>未対応</dt><dd class="is-alert">${unreplied}コマ</dd>`);
     }
-    if(draftCount > 0){
-      rows.push(`<dt>下書き</dt><dd class="is-draft">${formatDraftDetail(S.responseDrafts)}</dd>`);
+    if(lessonDraftCount > 0){
+      rows.push(`<dt>送信前</dt><dd class="is-draft">${formatLessonDraftDetail(lessonDrafts)}</dd>`);
     }
     kvEl.innerHTML = rows.join('');
     kvEl.style.display = rows.length ? '' : 'none';
+  }
+
+  if(absenceKv){
+    absenceKv.innerHTML = absenceDraftCount > 0
+      ? `<dt>送信前</dt><dd class="is-draft">欠勤申請${absenceDraftCount}件</dd>`
+      : '';
   }
 
   if(draftAllBtn){
@@ -300,7 +313,7 @@ function updateBanner(){
     draftAllBtn.textContent = `残り${unreplied}コマをすべて承認`;
   }
   if(submitBtn){
-    submitBtn.style.display = draftCount > 0 ? '' : 'none';
+    submitBtn.style.display = lessonDraftCount > 0 ? '' : 'none';
   }
 }
 

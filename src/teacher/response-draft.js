@@ -47,13 +47,23 @@ export function summarizeDrafts(drafts){
   const parts = [];
   if(approve) parts.push(`承認${approve}件`);
   if(reject) parts.push(`辞退${reject}件`);
-  if(cancel) parts.push(`キャンセル依頼${cancel}件`);
+  if(cancel) parts.push(`欠勤申請${cancel}件`);
   return parts.join('・') || '';
+}
+
+export function splitResponseDrafts(drafts){
+  const lesson = {};
+  const absence = {};
+  Object.entries(drafts || {}).forEach(([key, d])=>{
+    if(d?.action === 'cancel') absence[key] = d;
+    else lesson[key] = d;
+  });
+  return { lesson, absence };
 }
 
 export function actionLabel(action){
   if(action === 'approve') return '承認';
   if(action === 'reject') return '辞退';
-  if(action === 'cancel') return 'キャンセルを依頼';
+  if(action === 'cancel') return '欠勤申請';
   return action;
 }

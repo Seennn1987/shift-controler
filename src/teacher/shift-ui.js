@@ -52,7 +52,7 @@ function buildShiftPickGroupHtml(dateStr, slotId, entry){
     </button>
   `).join('');
 
-  const reqBadge = isRequested ? '<span class="shift-req-badge">申請中</span>' : '';
+  const reqBadge = isRequested ? '<span class="shift-req-badge">シフト変更承認待ち</span>' : '';
 
   return `<div class="shift-pick-group shift-pick-s4" role="group" aria-label="${slotNum}講の出勤希望">
     ${reqBadge}
@@ -68,7 +68,7 @@ function updateShiftDockBadges(isSubmitted, changeCount){
     return;
   }
   const badges = ['<span class="status-badge submitted">提出済</span>'];
-  if(changeCount > 0) badges.push('<span class="status-badge change">変更あり</span>');
+  if(changeCount > 0) badges.push('<span class="status-badge change">シフト変更送信前</span>');
   wrap.innerHTML = badges.join('');
 }
 
@@ -86,7 +86,7 @@ function updateShiftFormState(){
   submitBtn.style.display = isSubmitted ? 'none' : '';
   if(isSubmitted){
     sendBtn.style.display = changeCount > 0 ? '' : 'none';
-    sendBtn.textContent = `変更を教室長に送る（${changeCount}件）`;
+    sendBtn.textContent = `シフト変更を提出する（${changeCount}件）`;
     sendBtn.disabled = changeCount === 0;
   }else{
     sendBtn.style.display = 'none';
@@ -156,7 +156,7 @@ async function sendPendingChanges(){
       }
     }
     S.localOverrides = {};
-    if(msg) msg.textContent = `✓ ${keys.length}件の変更をリクエストしました。教室長の承認をお待ちください。`;
+    if(msg) msg.textContent = `✓ ${keys.length}件のシフト変更を提出しました。教室長の承認をお待ちください。`;
     return { rerender: true };
   }catch(err){
     console.error('変更リクエストエラー:', err);
