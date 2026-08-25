@@ -4,7 +4,7 @@ import { pad2, daysInYearMonth, toDateStr, getTodayStr } from '../shared/date-ut
 import { firebaseConfig, fbAuth, fbDb, STORAGE_KEY, getSecondaryAuth, S } from './state.js';
 import { getDayStatus } from './calendar.js';
 import { getDateSlotState, isTeacherAvailableOnDate } from './schedule-core.js';
-import { assignmentAppliesOnDate, findEffectiveAssignment, isAssignmentEffectiveInMonth, isPreferredSubjectForTeacher, issueAssignmentApproval } from './teacher-schedule-tab.js';
+import { assignmentAppliesOnDate, findEffectiveAssignment, isPreferredSubjectForTeacher, issueAssignmentApproval } from './teacher-schedule-tab.js';
 import { findDualPairAtSlot, resolveDualRowAssignmentState, countSlotAssignmentUnits, teacherTeachesBoth } from './dual-subject.js';
 
 // ---- 欠席・振替（特定の実日付にのみ影響。曜日パターン自体は変えない） ----
@@ -288,11 +288,10 @@ function countTeacherLoadOnDate(teacherId, dateStr, slot, excludeStudentId){
   const status = getDayStatus(dateStr);
   if(status.type!=='open') return 0;
   const weekday = status.weekday;
-  const yearMonth = dateStr.slice(0,7);
   const units = [];
   S.assignments.forEach(a=>{
-    if(a.teacherId!==teacherId || a.day!==weekday || a.slot!==slot) return;
-    if(!isAssignmentEffectiveInMonth(a, yearMonth)) return;
+    if(a.teacherId!==teacherId || Number(a.slot)!==Number(slot)) return;
+    if(!assignmentAppliesOnDate(a, dateStr)) return;
     if(a.studentId===excludeStudentId) return;
     if(isAbsentOnDate(a.studentId, a.courseId, dateStr, a.day, a.slot)) return;
     if(isAssignedTeacherMissingOnDate(a, dateStr)) return;
@@ -321,11 +320,10 @@ function countRoomLoadOnDate(dateStr, slot, excludeStudentId){
   const status = getDayStatus(dateStr);
   if(status.type!=='open') return 0;
   const weekday = status.weekday;
-  const yearMonth = dateStr.slice(0,7);
   const units = [];
   S.assignments.forEach(a=>{
-    if(a.day!==weekday || a.slot!==slot) return;
-    if(!isAssignmentEffectiveInMonth(a, yearMonth)) return;
+    if(Number(a.slot)!==Number(slot)) return;
+    if(!assignmentAppliesOnDate(a, dateStr)) return;
     if(a.studentId===excludeStudentId) return;
     if(isAbsentOnDate(a.studentId, a.courseId, dateStr, a.day, a.slot)) return;
     if(isAssignedTeacherMissingOnDate(a, dateStr)) return;
