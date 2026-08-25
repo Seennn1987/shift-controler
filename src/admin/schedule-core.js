@@ -179,7 +179,10 @@ function isTeacherAvailableOnDate(teacherId, dateStr, slot){
   if(status.type !== 'open') return false;
   const sch = findTeacherSchedule(teacherId, dateStr.slice(0,7));
   if(!sch || sch.status !== 'submitted') return false;
-  return getDateSlotState(teacherId, dateStr, slot) !== 'none';
+  if(getDateSlotState(teacherId, dateStr, slot) === 'none') return false;
+  const ta = (S.teacherAbsences || []).find(t=> t.teacherId===teacherId && t.date===dateStr);
+  if(ta && ta.slots.some(s=> Number(s)===Number(slot))) return false;
+  return true;
 }
 
 // ---- 既存コード互換のためのブリッジ（曜日パターンとして扱う関数群） ----

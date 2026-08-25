@@ -117,6 +117,7 @@ function approvalAppliesOnDate(ticket, dateStr){
 }
 
 function entryAppliesOnDate(entry, dateStr){
+  if((entry.absentDates || []).includes(dateStr)) return false;
   if(entry.oneTimeDate) return entry.oneTimeDate === dateStr;
   const yearMonth = dateStr.slice(0, 7);
   if(!teacherHasSubmittedMonth(yearMonth)) return false;
@@ -300,7 +301,7 @@ function pruneStaleResponseDrafts(){
         e.studentName === d.studentName &&
         (d.oneTimeDate ? e.oneTimeDate === d.oneTimeDate : !e.oneTimeDate)
       );
-      if(!entry || entry.approvalStatus === 'pending' || findPendingCancellation(entry)){
+      if(!entry || entry.approvalStatus === 'pending' || findPendingCancellation(entry, d.dateStr)){
         changed = true;
         return;
       }
@@ -319,13 +320,18 @@ function pruneStaleResponseDrafts(){
   }
 }
 
-function findPendingCancellation(entry){
+function cancellationDateKey(r){
+  return r.dateStr || r.oneTimeDate || '';
+}
+
+function findPendingCancellation(entry, dateStr){
+  const eDate = dateStr || entry.dateStr || entry.oneTimeDate || '';
   return S.pendingCancellationRequests.find(r=>
     r.day === entry.day &&
     Number(r.slot) === Number(entry.slot) &&
     ticketSubjectMatchesEntry(r, entry.subject) &&
     r.studentName === entry.studentName &&
-    (entry.oneTimeDate ? r.oneTimeDate === entry.oneTimeDate : !r.oneTimeDate)
+    (eDate ? cancellationDateKey(r) === eDate : !cancellationDateKey(r))
   );
 }
 
@@ -505,7 +511,7 @@ async function submitResponseDrafts(kind){
           r.day === d.day && Number(r.slot) === Number(d.slot) &&
           ticketSubjectMatchesEntry(r, d.subject) &&
           r.studentName === d.studentName &&
-          (d.oneTimeDate ? r.oneTimeDate === d.oneTimeDate : !r.oneTimeDate)
+          cancellationDateKey(r) === cancellationDateKey(d)
         );
         if(!existing){
           await fbDb.collection('assignmentCancellationRequests').add({
@@ -518,6 +524,7 @@ async function submitResponseDrafts(kind){
             studentName: d.studentName,
             studentGrade: d.studentGrade || '',
             oneTimeDate: d.oneTimeDate || null,
+            dateStr: d.dateStr || d.oneTimeDate || null,
             status: 'pending',
             createdAt: firebase.firestore.FieldValue.serverTimestamp(),
           });

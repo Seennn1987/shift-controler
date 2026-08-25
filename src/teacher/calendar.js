@@ -129,7 +129,7 @@ function buildStudentLineHtml(entry, isLast, showCancelInRow, dateStr){
 }
 
 function buildCancelActionHtml(entry, dateStr){
-  const pendingCancel = findPendingCancellation(entry);
+  const pendingCancel = findPendingCancellation(entry, dateStr);
   const cancelKey = draftKeyForCancel(entry, dateStr);
   const cancelDraft = S.responseDrafts[cancelKey];
   if(pendingCancel){

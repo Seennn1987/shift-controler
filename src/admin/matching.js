@@ -955,7 +955,7 @@ function renderAbsenceDashboardItem(req){
   const teacherName = teacher ? teacher.name : '(削除された講師)';
   const slot = Number(req.slot);
   const slotLabel = SLOTS.find(s=> s.id === slot)?.label || `${slot}講`;
-  const dateStr = req.oneTimeDate || cancellationRecurringDateStr(req.day);
+  const dateStr = req.dateStr || req.oneTimeDate || cancellationRecurringDateStr(req.day);
   let md;
   let weekday;
   if(dateStr){

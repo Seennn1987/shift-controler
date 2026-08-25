@@ -261,7 +261,9 @@ async function renderCancellationRequests(){
   wrap.innerHTML = requests.map(r=>{
     const teacher = S.teachers.find(t=>t.id===r.teacherId);
     const teacherName = teacher ? teacher.name : '(削除された講師)';
-    const dateNote = r.oneTimeDate ? `（${r.oneTimeDate} 単発）` : '';
+    const dateNote = r.dateStr || r.oneTimeDate
+      ? `（${r.dateStr || r.oneTimeDate}）`
+      : '';
     return `<div class="change-req-row">
       <div class="change-req-main">
         <span class="change-req-name">${teacherName}</span>

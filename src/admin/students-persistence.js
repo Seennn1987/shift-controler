@@ -7,6 +7,7 @@ import { renderMatching } from './matching.js';
 import { gradeLabel, buildMonthDaysFromBaseAvailability, getOrCreateDraftSchedule } from './schedule-core.js';
 import { openTeacherScheduleEditor, renderTeacherScheduleTab } from './teacher-schedule-tab.js';
 import { collapseTeacherCalendarEntries, formatDualSubjectLabel } from './dual-subject.js';
+import { recordTeacherAbsence } from './absences.js';
 
 
 
@@ -446,6 +447,9 @@ function expandAssignmentForTeacherCalendar(a, approvalStatus, teacherId){
   const isPreferredPair = S.preferredPairs.some(p=>
     p.studentId===a.studentId && p.courseId===a.courseId && p.teacherId===teacherId
   );
+  const absentDates = (S.teacherAbsences || [])
+    .filter(ta=> ta.teacherId===teacherId && ta.slots.some(s=> Number(s)===Number(a.slot)))
+    .map(ta=> ta.date);
   const base = {
     day: a.day,
     slot: a.slot,
@@ -455,8 +459,10 @@ function expandAssignmentForTeacherCalendar(a, approvalStatus, teacherId){
     dualGroupId: a.dualGroupId || null,
     approvalStatus,
     isPreferredPair,
+    absentDates,
   };
   if(a.oneTimeDate){
+    if(absentDates.includes(a.oneTimeDate)) return [];
     return [{ ...base, oneTimeDate: a.oneTimeDate }];
   }
   // 曜日パターン: シフト提出日に依存せず表示（講師マイカレンダー Phase 0）
@@ -512,22 +518,34 @@ async function syncTeacherAssignments(){
   await ensureMissingApprovalTickets();
 }
 
+function resolveCancellationDate(req){
+  if(req.dateStr) return req.dateStr;
+  if(req.oneTimeDate) return req.oneTimeDate;
+  if(!req.day) return null;
+  const today = getTodayStr();
+  const start = new Date(`${today}T00:00:00`);
+  for(let i=0;i<60;i++){
+    const d = new Date(start);
+    d.setDate(start.getDate()+i);
+    const dateStr = toDateStr(d.getFullYear(), d.getMonth(), d.getDate());
+    if(getDayStatus(dateStr).weekday === req.day) return dateStr;
+  }
+  return null;
+}
+
 async function approveCancellationRequest(req, reqId, opts = {}){
-  if(req.oneTimeDate){
-    S.teacherSubstitutions = S.teacherSubstitutions.filter(s=>
-      !(s.substituteTeacherId===req.teacherId && s.date===req.oneTimeDate &&
-        Number(s.slot)===Number(req.slot))
-    );
+  const dateStr = resolveCancellationDate(req);
+  const slot = Number(req.slot);
+  if(dateStr){
+    if(req.oneTimeDate){
+      S.teacherSubstitutions = S.teacherSubstitutions.filter(s=>
+        !(s.substituteTeacherId===req.teacherId && s.date===req.oneTimeDate &&
+          Number(s.slot)===slot)
+      );
+    }
+    recordTeacherAbsence(req.teacherId, dateStr, [slot]);
   }else{
-    const idx = S.assignments.findIndex(a=>{
-      if(a.teacherId!==req.teacherId) return false;
-      if(a.day!==req.day) return false;
-      if(Number(a.slot)!==Number(req.slot)) return false;
-      if(a.subject!==req.subject) return false;
-      const student = S.students.find(s=>s.id===a.studentId);
-      return student && student.name===req.studentName;
-    });
-    if(idx!==-1) S.assignments.splice(idx, 1);
+    console.error('欠勤承認に日付がありません', req);
   }
   try{
     await fbDb.collection('assignmentCancellationRequests').doc(reqId).update({status:'approved'});

@@ -2,7 +2,7 @@ import { SUBJECT_MAP, DAYS, SLOTS, WEEKDAY_JP, WEEK_FULL, SUBJECT_ABBR } from '.
 import { HOLIDAYS_JP } from '../shared/holidays.js';
 import { pad2, daysInYearMonth, toDateStr, getTodayStr } from '../shared/date-utils.js';
 import { firebaseConfig, fbAuth, fbDb, STORAGE_KEY, getSecondaryAuth, S } from './state.js';
-import { findAbsenceFor, getEffectiveDayAssignments, getStudentDateRows } from './absences.js';
+import { findAbsenceFor, getEffectiveDayAssignments, getStudentDateRows, isAssignedTeacherMissingOnDate } from './absences.js';
 import { hasCalFocusFilter, registerCalFilterUiSync, resolveFilterStudent, resolveFilterTeacher, setCalFilterStudent } from './cal-filter.js';
 import { refreshCalFilterOptions } from './filter-ui.js';
 import { setSearchComboboxValue } from './search-combobox.js';
@@ -14,6 +14,11 @@ import { findDualPairAtSlot, collapseDualAssignmentDisplayRows, countSlotAssignm
 
 // カレンダー（トップページ・TimeTree風シンプルUI）
 // =====================================================================
+
+function hasCoveringTeacher(studentId, courseId, day, slot, yearMonth, dateStr){
+  const eff = findEffectiveAssignment(studentId, courseId, day, slot, yearMonth, dateStr);
+  return !!(eff && !isAssignedTeacherMissingOnDate(eff.entry, dateStr));
+}
 
 
 // 指定日のステータスを判定する
@@ -155,13 +160,13 @@ function countUnassignedDesiredForSlot(dateStr, slotId){
             findAbsenceFor(student.id, co.id, dateStr, ds.day, ds.slot));
           if(hasAbsence) return;
           const allAssigned = dualPair.entries.every(({ course: co })=>
-            findEffectiveAssignment(student.id, co.id, ds.day, ds.slot, yearMonth, dateStr));
+            hasCoveringTeacher(student.id, co.id, ds.day, ds.slot, yearMonth, dateStr));
           if(allAssigned) return;
           count++;
           return;
         }
         if(findAbsenceFor(student.id, course.id, dateStr, ds.day, ds.slot)) return;
-        if(findEffectiveAssignment(student.id, course.id, ds.day, ds.slot, yearMonth, dateStr)) return;
+        if(hasCoveringTeacher(student.id, course.id, ds.day, ds.slot, yearMonth, dateStr)) return;
         count++;
       });
     });
@@ -190,7 +195,7 @@ function getUnassignedRowsForDate(dateStr){
             findAbsenceFor(student.id, co.id, dateStr, ds.day, ds.slot));
           if(hasAbsence) return;
           const allAssigned = dualPair.entries.every(({ course: co })=>
-            findEffectiveAssignment(student.id, co.id, ds.day, ds.slot, yearMonth, dateStr));
+            hasCoveringTeacher(student.id, co.id, ds.day, ds.slot, yearMonth, dateStr));
           if(allAssigned) return;
           const slot = SLOTS.find(sl=> sl.id === ds.slot);
           if(!slot) return;
@@ -205,7 +210,7 @@ function getUnassignedRowsForDate(dateStr){
           return;
         }
         if(findAbsenceFor(student.id, course.id, dateStr, ds.day, ds.slot)) return;
-        if(findEffectiveAssignment(student.id, course.id, ds.day, ds.slot, yearMonth, dateStr)) return;
+        if(hasCoveringTeacher(student.id, course.id, ds.day, ds.slot, yearMonth, dateStr)) return;
         const slot = SLOTS.find(sl=> sl.id === ds.slot);
         if(!slot) return;
         rows.push({ student, course, courses: null, dualPair: null, slot, weekday });

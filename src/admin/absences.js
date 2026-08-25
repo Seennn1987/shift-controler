@@ -144,6 +144,25 @@ function findTeacherAbsence(teacherId, dateStr){
   return S.teacherAbsences.find(ta=>ta.teacherId===teacherId && ta.date===dateStr) || null;
 }
 
+function isTeacherSlotAbsent(teacherId, dateStr, slot){
+  const ta = findTeacherAbsence(teacherId, dateStr);
+  return !!(ta && ta.slots.some(s=> Number(s) === Number(slot)));
+}
+
+function findSubstitutionOnDate(teacherId, dateStr, slot, studentId){
+  return S.teacherSubstitutions.find(s=>
+    s.teacherId===teacherId && s.date===dateStr && Number(s.slot)===Number(slot) && s.studentId===studentId
+  ) || S.teacherSubstitutions.find(s=>
+    s.teacherId===teacherId && s.date===dateStr && Number(s.slot)===Number(slot) && !s.studentId
+  ) || null;
+}
+
+function isAssignedTeacherMissingOnDate(assignment, dateStr){
+  if(!assignment || !dateStr) return false;
+  if(findSubstitutionOnDate(assignment.teacherId, dateStr, assignment.slot, assignment.studentId)) return false;
+  return isTeacherSlotAbsent(assignment.teacherId, dateStr, assignment.slot);
+}
+
 function recordTeacherAbsence(teacherId, dateStr, slots){
   let ta = findTeacherAbsence(teacherId, dateStr);
   if(!ta){
@@ -273,6 +292,7 @@ function countTeacherLoadOnDate(teacherId, dateStr, slot, excludeStudentId){
     if(!isAssignmentEffectiveInMonth(a, yearMonth)) return;
     if(a.studentId===excludeStudentId) return;
     if(isAbsentOnDate(a.studentId, a.courseId, dateStr, a.day, a.slot)) return;
+    if(isAssignedTeacherMissingOnDate(a, dateStr)) return;
     units.push({
       studentId: a.studentId,
       day: weekday,
@@ -305,6 +325,7 @@ function countRoomLoadOnDate(dateStr, slot, excludeStudentId){
     if(!isAssignmentEffectiveInMonth(a, yearMonth)) return;
     if(a.studentId===excludeStudentId) return;
     if(isAbsentOnDate(a.studentId, a.courseId, dateStr, a.day, a.slot)) return;
+    if(isAssignedTeacherMissingOnDate(a, dateStr)) return;
     units.push({
       studentId: a.studentId,
       day: weekday,
@@ -422,9 +443,8 @@ function getEffectiveDayAssignments(dateStr){
     if(a.day!==weekday) return;
     if(!assignmentAppliesOnDate(a, dateStr)) return;
     if(isAbsentOnDate(a.studentId, a.courseId, dateStr, a.day, a.slot)) return;
-    // studentId指定ありの代講（この生徒だけ）を優先し、なければ全体向け（studentId:null）の代講を見る
-    const sub = S.teacherSubstitutions.find(s=>s.teacherId===a.teacherId && s.date===dateStr && s.slot===a.slot && s.studentId===a.studentId)
-      || S.teacherSubstitutions.find(s=>s.teacherId===a.teacherId && s.date===dateStr && s.slot===a.slot && !s.studentId);
+    const sub = findSubstitutionOnDate(a.teacherId, dateStr, a.slot, a.studentId);
+    if(!sub && isTeacherSlotAbsent(a.teacherId, dateStr, a.slot)) return;
     const effectiveTeacherId = sub ? sub.substituteTeacherId : a.teacherId;
     list.push(enrichAssignmentEntry({
       studentId:a.studentId, courseId:a.courseId, subject:a.subject, slot:a.slot,
@@ -436,6 +456,7 @@ function getEffectiveDayAssignments(dateStr){
   S.pendingAssignments.forEach(a=>{
     if(a.day!==weekday) return;
     if(!assignmentAppliesOnDate(a, dateStr)) return;
+    if(isTeacherSlotAbsent(a.teacherId, dateStr, a.slot)) return;
     list.push(enrichAssignmentEntry({
       studentId:a.studentId, courseId:a.courseId, subject:a.subject, slot:a.slot,
       teacherId:a.teacherId, kind:'normal', source:a.source, pending:true,
@@ -446,6 +467,7 @@ function getEffectiveDayAssignments(dateStr){
     if(a.day!==weekday) return;
     if(!assignmentAppliesOnDate(a, dateStr)) return;
     if(isAbsentOnDate(a.studentId, a.courseId, dateStr, a.day, a.slot)) return;
+    if(isTeacherSlotAbsent(a.teacherId, dateStr, a.slot)) return;
     list.push(enrichAssignmentEntry({
       studentId:a.studentId, courseId:a.courseId, subject:a.subject, slot:a.slot,
       teacherId:a.teacherId, kind:'normal', source:a.source, draft:true,
@@ -691,4 +713,4 @@ function getStudentDateRows(student, dateStr){
 }
 
 
-export { findAbsenceFor, recordAbsence, recordStudentSlotAbsence, cancelAbsenceRecord, cancelMakeup, markNoMakeup, getTeacherLessonsOnDate, findTeacherAbsence, recordTeacherAbsence, findSubstituteCandidatesForStudent, confirmSubstitute, cancelSubstitute, resolveSlotViaStudentAbsence, cancelTeacherAbsence, countTeacherLoadOnDate, countRoomLoadOnDate, isTeacherAvailableOnDate, findMakeupCandidates, findDualMakeupCandidates, confirmMakeup, getEffectiveDayAssignments, computeTeacherOpenings, countTeacherLessonsBefore, getTeacherRateForDate, computeDayFinance, costRatioColor, getStudentDateRows };
+export { findAbsenceFor, recordAbsence, recordStudentSlotAbsence, cancelAbsenceRecord, cancelMakeup, markNoMakeup, getTeacherLessonsOnDate, findTeacherAbsence, isTeacherSlotAbsent, isAssignedTeacherMissingOnDate, recordTeacherAbsence, findSubstituteCandidatesForStudent, confirmSubstitute, cancelSubstitute, resolveSlotViaStudentAbsence, cancelTeacherAbsence, countTeacherLoadOnDate, countRoomLoadOnDate, isTeacherAvailableOnDate, findMakeupCandidates, findDualMakeupCandidates, confirmMakeup, getEffectiveDayAssignments, computeTeacherOpenings, countTeacherLessonsBefore, getTeacherRateForDate, computeDayFinance, costRatioColor, getStudentDateRows };
