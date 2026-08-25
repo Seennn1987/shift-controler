@@ -584,6 +584,16 @@ function expandShortageBar(){
   if(chevron) chevron.textContent = '▴';
 }
 
+function expandShiftStatusBar(){
+  const detail = document.getElementById('shiftStatusDetailWrap');
+  const btn = document.getElementById('shiftStatusToggleBtn');
+  if(!detail || !btn) return;
+  detail.style.display = 'block';
+  btn.setAttribute('aria-expanded', 'true');
+  const chevron = btn.querySelector('.cal-status-chevron');
+  if(chevron) chevron.textContent = '▴';
+}
+
 function buildShortageSummaryLine({ draftCount, unassignedCount, pendingCount, rejectedCount, pendingAbsences, confirmedCount }){
   const pendingActionCount = pendingCount + rejectedCount;
   const extras = pendingAbsences > 0
@@ -818,47 +828,67 @@ function ensureCalMonthInitialized(){
   }
 }
 
-function renderShortageMonthNavHtml(){
+function renderCalMonthNavHtml({ idPrefix }){
   ensureCalMonthInitialized();
   const label = `${S.calYear}年${S.calMonth + 1}月`;
   return `<div class="shortage-month-nav">
     <div class="cal-period-nav">
-      <button type="button" class="cal-nav-btn" id="shortageMonthPrevBtn" aria-label="前の月">‹</button>
-      <div class="cal-period-label" id="shortageMonthLabel">${label}</div>
-      <button type="button" class="cal-nav-btn" id="shortageMonthNextBtn" aria-label="次の月">›</button>
-      <button type="button" class="cal-today-btn" id="shortageMonthTodayBtn">今月</button>
+      <button type="button" class="cal-nav-btn" id="${idPrefix}PrevBtn" aria-label="前の月">‹</button>
+      <div class="cal-period-label" id="${idPrefix}Label">${label}</div>
+      <button type="button" class="cal-nav-btn" id="${idPrefix}NextBtn" aria-label="次の月">›</button>
+      <button type="button" class="cal-today-btn" id="${idPrefix}TodayBtn">今月</button>
     </div>
     <p class="shortage-month-sync-note">下のカレンダーと同じ月を表示しています</p>
   </div>`;
 }
 
-function afterShortageMonthChange(){
+function renderShortageMonthNavHtml(){
+  return renderCalMonthNavHtml({ idPrefix: 'shortageMonth' });
+}
+
+function afterCalMonthNavChange(expandBarFn){
   const detailCard = document.getElementById('calDetailCard');
   if(detailCard) detailCard.style.display = 'none';
   S.calSelectedDate = null;
   syncMonthChange();
-  expandShortageBar();
+  expandBarFn?.();
 }
 
-function bindShortageMonthNav(wrap){
-  wrap.querySelector('#shortageMonthPrevBtn')?.addEventListener('click', ()=>{
+function afterShortageMonthChange(){
+  afterCalMonthNavChange(expandShortageBar);
+}
+
+function afterShiftStatusMonthChange(){
+  afterCalMonthNavChange(expandShiftStatusBar);
+}
+
+function bindCalMonthNav(wrap, { idPrefix, onAfterChange }){
+  wrap.querySelector(`#${idPrefix}PrevBtn`)?.addEventListener('click', ()=>{
     ensureCalMonthInitialized();
     S.calMonth--;
     if(S.calMonth < 0){ S.calMonth = 11; S.calYear--; }
-    afterShortageMonthChange();
+    onAfterChange();
   });
-  wrap.querySelector('#shortageMonthNextBtn')?.addEventListener('click', ()=>{
+  wrap.querySelector(`#${idPrefix}NextBtn`)?.addEventListener('click', ()=>{
     ensureCalMonthInitialized();
     S.calMonth++;
     if(S.calMonth > 11){ S.calMonth = 0; S.calYear++; }
-    afterShortageMonthChange();
+    onAfterChange();
   });
-  wrap.querySelector('#shortageMonthTodayBtn')?.addEventListener('click', ()=>{
+  wrap.querySelector(`#${idPrefix}TodayBtn`)?.addEventListener('click', ()=>{
     const t = new Date();
     S.calYear = t.getFullYear();
     S.calMonth = t.getMonth();
-    afterShortageMonthChange();
+    onAfterChange();
   });
+}
+
+function bindShortageMonthNav(wrap){
+  bindCalMonthNav(wrap, { idPrefix: 'shortageMonth', onAfterChange: afterShortageMonthChange });
+}
+
+function bindShiftStatusMonthNav(wrap){
+  bindCalMonthNav(wrap, { idPrefix: 'shiftStatusMonth', onAfterChange: afterShiftStatusMonthChange });
 }
 
 function renderShortageActionsHtml(ym){
@@ -1117,7 +1147,8 @@ async function renderShiftStatusDashboard(){
   const statusBar = document.getElementById('calShiftStatusBar');
   if(!wrap) return;
   if(!S.dataReady){
-    wrap.innerHTML = '<div class="loading">読み込み中…</div>';
+    wrap.innerHTML = `${renderCalMonthNavHtml({ idPrefix: 'shiftStatusMonth' })}<div class="loading">読み込み中…</div>`;
+    bindShiftStatusMonthNav(wrap);
     if(summaryLine) summaryLine.textContent = '読み込み中…';
     statusBar?.classList.remove('is-ok', 'is-warn');
     return;
@@ -1139,7 +1170,7 @@ async function renderShiftStatusDashboard(){
   statusBar?.classList.toggle('is-warn', hasWork);
   statusBar?.classList.toggle('is-ok', !hasWork);
 
-  wrap.innerHTML = `<div class="shortage-three-col">
+  wrap.innerHTML = `${renderCalMonthNavHtml({ idPrefix: 'shiftStatusMonth' })}<div class="shortage-three-col">
     ${renderShortageListBlock(
       'シフト未提出', unsubmitted.length, '人',
       unsubmitted.length > 0 ? unsubmitted.map(renderUnsubmittedTeacherItem).join('') : '',
@@ -1168,6 +1199,7 @@ async function renderShiftStatusDashboard(){
       },
     )}
   </div>`;
+  bindShiftStatusMonthNav(wrap);
   bindShiftRequestActions(wrap, requests);
   bindAbsenceRequestActions(wrap, absences);
   bindBulkApproveAction(wrap, 'shiftChangeBulkApproveBtn', requests,
