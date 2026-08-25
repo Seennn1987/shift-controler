@@ -51,6 +51,7 @@ export function showAppConfirmDialog({
   confirmLabel = '実行する',
   cancelLabel = 'やめる',
   variant = 'primary',
+  ackOnly = false,
 }){
   if(dialogPromise) closeDialog(false);
 
@@ -80,11 +81,12 @@ export function showAppConfirmDialog({
     ? 'app-confirm-submit danger-ghost'
     : 'app-confirm-submit primary';
   cancelBtn.textContent = cancelLabel;
+  cancelBtn.hidden = !!ackOnly;
 
   overlay.hidden = false;
   overlay.setAttribute('aria-hidden', 'false');
   document.body.classList.add('app-confirm-open');
-  cancelBtn.focus();
+  (ackOnly ? submitBtn : cancelBtn).focus();
 
   const onCancel = ()=> closeDialog(false);
   const onConfirm = ()=> closeDialog(true);
@@ -105,6 +107,11 @@ export function showAppConfirmDialog({
     dialogResolve = resolve;
   });
   return dialogPromise;
+}
+
+/** 知らせ専用（OK または右上の × で閉じる） */
+export function showAppNoticeDialog({ title, message, confirmLabel = 'OK' }){
+  return showAppConfirmDialog({ title, message, confirmLabel, ackOnly: true });
 }
 
 /** 開いている確認ポップアップを閉じる */

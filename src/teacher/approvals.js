@@ -1,4 +1,5 @@
 import { SLOTS, WEEKDAY_JP } from '../shared/constants.js';
+import { showAppNoticeDialog } from '../shared/app-confirm-dialog.js';
 import { mountInlineConfirm, showInlineNotice } from '../shared/inline-confirm.js';
 import { pad2, daysInYearMonth } from '../shared/date-utils.js';
 import { fbAuth, fbDb, S } from './state.js';
@@ -552,7 +553,10 @@ async function submitResponseDrafts(kind){
     return { ok: false };
   }
   if(kind === 'absence'){
-    showInlineNotice(dock, '欠勤を申請しました。\n別途、教室長にLINE、もしくは3日後以内の急な欠勤の場合は電話でご連絡をお願いします', { variant: 'ok' });
+    showAppNoticeDialog({
+      title: '欠勤を申請しました。',
+      message: '別途、教室長にLINE、もしくは3日後以内の急な欠勤の場合は電話でご連絡をお願いします',
+    });
   }
   return { ok: true };
 }
