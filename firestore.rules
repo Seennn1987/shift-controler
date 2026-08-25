@@ -31,7 +31,10 @@ service cloud.firestore {
         request.auth.uid == resource.data.adminUid ||
         request.auth.uid == resource.data.teacherLoginUid
       );
-      allow update: if request.auth != null && request.auth.uid == resource.data.adminUid;
+      allow update: if request.auth != null && (
+        request.auth.uid == resource.data.adminUid ||
+        request.auth.uid == resource.data.teacherLoginUid
+      );
       allow create: if request.auth != null && request.auth.uid == request.resource.data.teacherLoginUid;
     }
     match /assignmentApprovals/{docId} {
