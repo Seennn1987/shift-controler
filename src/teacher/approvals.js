@@ -545,10 +545,16 @@ async function submitResponseDrafts(kind){
   rerenderSchedule();
   if(btn) btn.disabled = false;
 
+  const dock = document.getElementById('submitDock');
   if(errors.length){
     const failLabel = kind === 'absence' ? '欠勤申請' : '承認・辞退';
-    showInlineNotice(document.getElementById('submitDock'), `一部の送信に失敗しました。\n${errors.join('\n')}\n\n${failLabel}を送れませんでした。通信状況をご確認ください。`, { variant: 'warn', clear: false });
+    showInlineNotice(dock, `一部の送信に失敗しました。\n${errors.join('\n')}\n\n${failLabel}を送れませんでした。通信状況をご確認ください。`, { variant: 'warn', clear: false });
+    return { ok: false };
   }
+  if(kind === 'absence'){
+    showInlineNotice(dock, '欠勤を申請しました。\n別途、教室長にLINE、もしくは3日後以内の急な欠勤の場合は電話でご連絡をお願いします', { variant: 'ok' });
+  }
+  return { ok: true };
 }
 
 function bindSubmitDraftButton(btn, kind, mountSelector){
