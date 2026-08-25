@@ -1,0 +1,56 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ピタコマ 追加シフトの承認 UI プレビュー</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Zen+Kaku+Gothic+New:wght@400;500;700;900&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="../src/shared/styles/variables.css">
+  <link rel="stylesheet" href="shift-request-approval-preview.css">
+</head>
+<body>
+  <header class="preview-header">
+    <div class="preview-header-inner">
+      <h1>追加シフトの承認 — 置き場所プレビュー</h1>
+      <p>講師が提出済みの月に、あとから出した出勤希望を教室長が確認・承認する画面です。本番の画面はまだ変えていません。</p>
+      <p class="preview-url">URL: <a href="http://localhost:5173/docs/shift-request-approval-preview.html">http://localhost:5173/docs/shift-request-approval-preview.html</a></p>
+    </div>
+  </header>
+
+  <main class="preview-main">
+    <section class="intro-block">
+      <h2>いま起きていること</h2>
+      <div id="evalSummary" class="eval-summary"></div>
+      <div id="evalRecommend" class="recommend-box"></div>
+    </section>
+
+    <section class="compare-block">
+      <h2>置き場所 — 3案</h2>
+      <p class="section-desc">左から「いま（シフト管理）」「カレンダーの5列目」「おすすめ（バーの右側＋詳細の上段）」。同じ2件のデータです。</p>
+      <div id="placementCompare" class="placement-grid"></div>
+    </section>
+
+    <section class="compare-block">
+      <h2>おすすめ案 — カレンダー全体</h2>
+      <p class="section-desc">上のバーに件数が入ります。バーを開くと、いつもの4列の<strong>すぐ上</strong>で承認できます。0件のときは何も出しません。</p>
+      <div class="preview-toggles" id="previewToggles"></div>
+      <div id="calendarMock" class="single-panel"></div>
+    </section>
+
+    <section class="compare-block">
+      <h2>1行の中身</h2>
+      <p class="section-desc">カレンダー上部の「承認待ち」行と同じ型。右端だけ、講師候補行と同じ大きさの「承認 / 却下」です。</p>
+      <div id="rowZoom" class="single-panel"></div>
+    </section>
+
+    <section class="intro-block">
+      <h2>おすすめ案で守るルール</h2>
+      <ul class="principle-list" id="principleList"></ul>
+    </section>
+  </main>
+
+  <div class="preview-flash" id="previewFlash" hidden></div>
+  <script src="shift-request-approval-preview.js"></script>
+</body>
+</html>

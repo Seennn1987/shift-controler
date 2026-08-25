@@ -7,10 +7,10 @@ import { getDayStatus, getUnassignedRowsForDate, renderCalendar } from './calend
 import { refreshCalFilterOptions, setCalFilterStudent, setCalFilterTeacher, refreshAllPersonComboboxes } from './filter-ui.js';
 import { sortByNameKana } from '../shared/person-sort.js';
 import { renderCalendarWeek, switchCalMode, switchView } from './finance-ui.js';
-import { gradeLabel, isTeacherAvailableOnDate, subjectColor } from './schedule-core.js';
+import { gradeLabel, getDateSlotState, isTeacherAvailableOnDate, subjectColor } from './schedule-core.js';
 import { saveStudents, scheduleSave, scheduleSyncTeacherAssignments, saveAppState } from './students-persistence.js';
 import { renderTeacherList } from './teachers.js';
-import { assignmentAppliesOnDate, approvalAppliesInMonth, buildCandidateInfo, confirmAssignment, confirmDualAssignment, cancelAllDrafts, cancelDraftAuto, findEffectiveAssignment, getActiveYearMonth, getPreferredTeachersForCourse, isAssignmentEffectiveInMonth, loadAssignmentApprovals, loadDismissedApprovalIds, openMatchingForApprovalTicket, renderApprovalDashboardItem, saveDismissedApprovalIds, sendDraftAssignments, teacherHasSubmittedMonth } from './teacher-schedule-tab.js';
+import { assignmentAppliesOnDate, approvalAppliesInMonth, buildCandidateInfo, confirmAssignment, confirmDualAssignment, cancelAllDrafts, cancelDraftAuto, findEffectiveAssignment, getActiveYearMonth, getPreferredTeachersForCourse, isAssignmentEffectiveInMonth, loadAssignmentApprovals, loadDismissedApprovalIds, loadPendingChangeRequests, openMatchingForApprovalTicket, renderApprovalDashboardItem, resolveScheduleChangeRequest, saveDismissedApprovalIds, sendDraftAssignments, teacherHasSubmittedMonth } from './teacher-schedule-tab.js';
 import { findDualPairAtSlot, teacherTeachesBoth, buildDualSubjectTagsHtml } from './dual-subject.js';
 import { compareCandidateInfo, getMatchingPriority, MATCHING_FACTOR_META } from './matching-config.js';
 import { mountInlineConfirm, showActiveTabNotice } from '../shared/inline-confirm.js';
@@ -584,11 +584,11 @@ function expandShortageBar(){
   if(chevron) chevron.textContent = '▴';
 }
 
-function buildShortageSummaryLine({ draftCount, unassignedCount, pendingCount, rejectedCount, pendingAbsences, confirmedCount }){
+function buildShortageSummaryLine({ draftCount, unassignedCount, pendingCount, rejectedCount, pendingAbsences, confirmedCount, shiftRequestCount = 0 }){
   const pendingActionCount = pendingCount + rejectedCount;
-  const extras = pendingAbsences > 0
-    ? [{ kind: 'absence', label: '未振替', count: pendingAbsences, unit: '件' }]
-    : [];
+  const extras = [];
+  if(pendingAbsences > 0) extras.push({ kind: 'absence', label: '未振替', count: pendingAbsences, unit: '件' });
+  if(shiftRequestCount > 0) extras.push({ kind: 'shift', label: '追加シフト', count: shiftRequestCount, unit: '件' });
   return buildCalWorkflowSummaryHtml([
     { kind: 'unassigned', label: '講師なし', count: unassignedCount, unit: 'コマ' },
     { kind: 'tentative', label: '仮決め', count: draftCount, unit: '件' },
@@ -873,6 +873,63 @@ function renderPendingDashboardItem(entry){
   });
 }
 
+function shiftPriorityMark(priority){
+  if(priority === 'preferred') return '○優先';
+  if(priority === 'normal') return '△可能';
+  return '×不可';
+}
+
+function renderShiftRequestDashboardItem(req){
+  const teacher = S.teachers.find(t=> t.id === req.teacherId);
+  const teacherName = teacher ? teacher.name : '(削除された講師)';
+  const slot = Number(req.slot);
+  const slotLabel = SLOTS.find(s=> s.id === slot)?.label || `${slot}講`;
+  const { md, weekday } = calAlertDateParts(req.dateStr, getDayStatus);
+  const fromMark = shiftPriorityMark(getDateSlotState(req.teacherId, req.dateStr, slot));
+  const toMark = shiftPriorityMark(req.priority);
+  const note = req.note ? `<div class="shift-req-note">${String(req.note).replace(/</g, '&lt;')}</div>` : '';
+  return `<div class="approval-item cal-alert-row-c4 has-actions">
+    <div class="shift-req-row-main">
+      <div class="cal-alert-row-body cal-alert-row-body--full">
+        ${buildCalAlertWhenPill(md, weekday, slotLabel)}
+        ${buildCalAlertTeacherHead(teacherName)}
+        <span class="cal-alert-change"><span class="cal-alert-change-from">${fromMark}</span> → <span class="cal-alert-change-to">${toMark}</span></span>
+      </div>
+      ${note}
+    </div>
+    <div class="match-cand-actions">
+      <button type="button" class="confirm-btn" data-shift-req-id="${req.id}" data-shift-req-action="approve">承認</button>
+      <button type="button" class="mp-change-teacher-btn" data-shift-req-id="${req.id}" data-shift-req-action="reject">却下</button>
+    </div>
+  </div>`;
+}
+
+function renderShiftRequestPanel(requests){
+  if(requests.length === 0) return '';
+  return `<div class="shift-req-panel">${renderShortageListBlock(
+    '講師からの追加シフト', requests.length, '件',
+    requests.map(renderShiftRequestDashboardItem).join(''),
+    '講師からの追加シフト',
+    '追加シフトはありません',
+  )}</div>`;
+}
+
+function bindShiftRequestActions(wrap, requests){
+  wrap.querySelectorAll('[data-shift-req-id]').forEach(btn=>{
+    btn.addEventListener('click', async ()=>{
+      const req = requests.find(r=> r.id === btn.dataset.shiftReqId);
+      if(!req) return;
+      btn.disabled = true;
+      try{
+        await resolveScheduleChangeRequest(req, btn.dataset.shiftReqAction);
+      }catch(err){
+        btn.disabled = false;
+        console.error('追加シフトの処理エラー:', err);
+      }
+    });
+  });
+}
+
 async function renderShortageDashboard(){
   const wrap = document.getElementById('shortageWrap');
   const summaryLine = document.getElementById('shortageSummaryLine');
@@ -885,7 +942,7 @@ async function renderShortageDashboard(){
     return;
   }
   if(S.students.length===0){
-    wrap.innerHTML = '<div class="empty-state">生徒が登録されると、講師が決まっていないコマが日付順で表示されます。</div>';
+    const shiftRequests = await loadPendingChangeRequests();
     if(summaryLine){
       summaryLine.innerHTML = buildShortageSummaryLine({
         draftCount: 0,
@@ -894,10 +951,14 @@ async function renderShortageDashboard(){
         rejectedCount: 0,
         pendingAbsences: 0,
         confirmedCount: 0,
+        shiftRequestCount: shiftRequests.length,
       });
     }
-    statusBar?.classList.remove('is-warn');
-    statusBar?.classList.add('is-ok');
+    const hasShiftWork = shiftRequests.length > 0;
+    statusBar?.classList.toggle('is-warn', hasShiftWork);
+    statusBar?.classList.toggle('is-ok', !hasShiftWork);
+    wrap.innerHTML = `${renderShiftRequestPanel(shiftRequests)}<div class="empty-state">生徒が登録されると、講師が決まっていないコマが日付順で表示されます。</div>`;
+    bindShiftRequestActions(wrap, shiftRequests);
     return;
   }
 
@@ -910,7 +971,10 @@ async function renderShortageDashboard(){
   const unassignedCount = flatItems.length;
   const pendingCount = pendingItems.length;
 
-  const approvalList = await loadAssignmentApprovals();
+  const [approvalList, shiftRequests] = await Promise.all([
+    loadAssignmentApprovals(),
+    loadPendingChangeRequests(),
+  ]);
   const dismissed = loadDismissedApprovalIds();
   const rejectedInMonth = approvalList.filter(a=> a.status === 'rejected' && !a.handled && approvalAppliesInMonth(a, ym));
   const rejectedCount = rejectedInMonth.length;
@@ -918,7 +982,7 @@ async function renderShortageDashboard(){
     .filter(a=> a.status === 'approved' && !dismissed.has(a.id) && approvalAppliesInMonth(a, ym))
     .slice(0, 10);
 
-  const hasWork = unassignedCount > 0 || draftCount > 0 || pendingCount > 0 || rejectedCount > 0 || pendingAbsences > 0;
+  const hasWork = unassignedCount > 0 || draftCount > 0 || pendingCount > 0 || rejectedCount > 0 || pendingAbsences > 0 || shiftRequests.length > 0;
 
   if(summaryLine){
     summaryLine.innerHTML = buildShortageSummaryLine({
@@ -928,6 +992,7 @@ async function renderShortageDashboard(){
       rejectedCount,
       pendingAbsences,
       confirmedCount: approvedRecent.length,
+      shiftRequestCount: shiftRequests.length,
     });
   }
   statusBar?.classList.toggle('is-warn', hasWork);
@@ -949,7 +1014,7 @@ async function renderShortageDashboard(){
       }).join('')
     : '';
 
-  wrap.innerHTML = `${renderShortageActionsHtml(ym)}<div class="shortage-four-col">
+  wrap.innerHTML = `${renderShortageActionsHtml(ym)}${renderShiftRequestPanel(shiftRequests)}<div class="shortage-four-col">
     ${renderShortageListBlock(
       '講師なし', unassignedCount, 'コマ',
       flatItems.length > 0 ? flatItems.map(renderShortageDashboardItem).join('') : '',
@@ -982,6 +1047,7 @@ async function renderShortageDashboard(){
   </div>`;
 
   bindShortageDashboardActions(wrap);
+  bindShiftRequestActions(wrap, shiftRequests);
 
   wrap.querySelectorAll('.approval-item-btn[data-student]').forEach(btn=>{
     btn.addEventListener('click', ()=>{

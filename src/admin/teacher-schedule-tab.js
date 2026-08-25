@@ -26,11 +26,31 @@ async function loadPendingChangeRequests(){
       .where('adminUid','==',user.uid).where('status','==','pending').get();
     const list = [];
     snap.forEach(doc=> list.push({id:doc.id, ...doc.data()}));
+    list.sort((a,b)=>{
+      const d = String(a.dateStr || '').localeCompare(String(b.dateStr || ''));
+      if(d) return d;
+      return Number(a.slot) - Number(b.slot);
+    });
     return list;
   }catch(err){
     console.error('変更リクエスト読み込みエラー:', err);
     return [];
   }
+}
+
+async function resolveScheduleChangeRequest(req, action){
+  if(action === 'approve'){
+    const yearMonth = req.dateStr.slice(0, 7);
+    const schedule = getOrCreateDraftSchedule(req.teacherId, yearMonth);
+    setDateSlotState(schedule, req.dateStr, req.slot, req.priority);
+    await saveTeacherScheduleDoc(schedule);
+  }
+  await fbDb.collection('scheduleChangeRequests').doc(req.id).update({
+    status: action === 'approve' ? 'approved' : 'rejected',
+  });
+  renderTeacherScheduleTab();
+  renderMatrix();
+  renderMatching();
 }
 // ---- 授業の承認状況（カレンダー上部・閲覧のみ。承認操作は講師専用ページ） ----
 const APPROVAL_RECENT_LIMIT = 10;
@@ -272,58 +292,8 @@ async function renderCancellationRequests(){
   });
 }
 
-async function renderChangeRequests(){
-  const card = document.getElementById('changeRequestCard');
-  const wrap = document.getElementById('changeRequestWrap');
-  if(!card || !wrap) return;
-  const requests = await loadPendingChangeRequests();
-  if(requests.length===0){
-    card.style.display = 'none';
-    return;
-  }
-  card.style.display = '';
-  wrap.innerHTML = requests.map(r=>{
-    const teacher = S.teachers.find(t=>t.id===r.teacherId);
-    const teacherName = teacher ? teacher.name : '(削除された講師)';
-    const mark = r.priority==='none' ? '×不可' : (r.priority==='preferred' ? '○特に希望' : '△対応可能');
-    return `<div class="change-req-row">
-      <div class="change-req-main">
-        <span class="change-req-name">${teacherName}</span>
-        <span class="change-req-detail">${r.dateStr}　${SLOTS.find(s=>s.id===r.slot)?.label||r.slot+'講'}　→　${mark}</span>
-        ${r.note ? `<div class="change-req-note">${r.note.replace(/</g,'&lt;')}</div>` : ''}
-      </div>
-      <div class="change-req-actions">
-        <button class="primary" data-id="${r.id}" data-action="approve">承認</button>
-        <button class="ghost" data-id="${r.id}" data-action="reject">却下</button>
-      </div>
-    </div>`;
-  }).join('');
-
-  wrap.querySelectorAll('button[data-action]').forEach(btn=>{
-    btn.addEventListener('click', async ()=>{
-      const req = requests.find(r=>r.id===btn.dataset.id);
-      if(!req) return;
-      if(btn.dataset.action==='approve'){
-        const yearMonth = req.dateStr.slice(0,7);
-        const schedule = getOrCreateDraftSchedule(req.teacherId, yearMonth);
-        setDateSlotState(schedule, req.dateStr, req.slot, req.priority);
-        await saveTeacherScheduleDoc(schedule);
-      }
-      await fbDb.collection('scheduleChangeRequests').doc(req.id).update({
-        status: btn.dataset.action==='approve' ? 'approved' : 'rejected',
-      });
-      renderChangeRequests();
-      renderTeacherScheduleTab();
-      renderMatrix();
-      renderMatching();
-      renderCalendar();
-    });
-  });
-}
-
 function renderTeacherScheduleTab(){
   scheduleSave();
-  renderChangeRequests();
   renderCancellationRequests();
   const wrap = document.getElementById('tsTeacherListWrap');
   if(!wrap) return;
@@ -991,4 +961,4 @@ async function replaceDesiredSlot(studentId, courseId, oldDay, oldSlot, newDay, 
 }
 
 
-export { loadPendingChangeRequests, loadAssignmentApprovals, loadDismissedApprovalIds, saveDismissedApprovalIds, approvalAppliesInMonth, openMatchingForApprovalTicket, renderApprovalDashboardItem, renderApprovalStatus, renderChangeRequests, renderTeacherScheduleTab, openTeacherScheduleEditor, renderTeacherScheduleGrid, isPreferredPair, getPreferredTeachersForCourse, getPreferredPairsForTeacher, addPreferredPair, removePreferredPair, removePreferredPairFor, isPreferredSubjectForTeacher, teacherWorksOtherSlotOnWeekday, countTeacherCourseSlotCoverage, buildCandidateInfo, findAssignment, getActiveYearMonth, teacherHasSubmittedMonth, isAssignmentEffectiveInMonth, assignmentAppliesOnDate, findEffectiveAssignment, countCourseConfirmed, countTeacherSlot, countTeacherSlotOnDate, countRoomSlot, countRoomSlotOnDate, issueAssignmentApproval, confirmAssignment, confirmDualAssignment, cancelAssignment, cancelDualAssignment, cancelDraftAuto, cancelAllDrafts, sendDraftAssignments, countAssignmentsInMonth, withdrawPendingAssignment, findAlternativeSlots, replaceDesiredSlot };
+export { loadPendingChangeRequests, resolveScheduleChangeRequest, loadAssignmentApprovals, loadDismissedApprovalIds, saveDismissedApprovalIds, approvalAppliesInMonth, openMatchingForApprovalTicket, renderApprovalDashboardItem, renderApprovalStatus, renderTeacherScheduleTab, openTeacherScheduleEditor, renderTeacherScheduleGrid, isPreferredPair, getPreferredTeachersForCourse, getPreferredPairsForTeacher, addPreferredPair, removePreferredPair, removePreferredPairFor, isPreferredSubjectForTeacher, teacherWorksOtherSlotOnWeekday, countTeacherCourseSlotCoverage, buildCandidateInfo, findAssignment, getActiveYearMonth, teacherHasSubmittedMonth, isAssignmentEffectiveInMonth, assignmentAppliesOnDate, findEffectiveAssignment, countCourseConfirmed, countTeacherSlot, countTeacherSlotOnDate, countRoomSlot, countRoomSlotOnDate, issueAssignmentApproval, confirmAssignment, confirmDualAssignment, cancelAssignment, cancelDualAssignment, cancelDraftAuto, cancelAllDrafts, sendDraftAssignments, countAssignmentsInMonth, withdrawPendingAssignment, findAlternativeSlots, replaceDesiredSlot };
