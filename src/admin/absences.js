@@ -123,11 +123,10 @@ function getTeacherLessonsOnDate(teacherId, dateStr){
   const status = getDayStatus(dateStr);
   if(status.type!=='open') return {};
   const weekday = status.weekday;
-  const yearMonth = dateStr.slice(0,7);
   const bySlot = {};
   S.assignments.forEach(a=>{
-    if(a.teacherId!==teacherId || a.day!==weekday) return;
-    if(!isAssignmentEffectiveInMonth(a, yearMonth)) return;
+    if(a.teacherId!==teacherId) return;
+    if(!assignmentAppliesOnDate(a, dateStr)) return;
     if(isAbsentOnDate(a.studentId, a.courseId, dateStr, a.day, a.slot)) return;
     bySlot[a.slot] = bySlot[a.slot] || [];
     const dualGroupId = a.dualGroupId || resolveDualGroupIdForSlot(a.studentId, a.courseId, weekday, a.slot);
@@ -243,12 +242,16 @@ function confirmSubstitute(teacherId, dateStr, slot, substituteTeacherId, studen
   // 代講講師にも、既存の「授業の承認」の仕組みで通知する（単発の代講であることが分かるよう日付を添える）
   const status = getDayStatus(dateStr);
   const weekday = status.weekday;
-  const yearMonth = dateStr.slice(0, 7);
   const targets = studentId
     ? [{studentId}]
-    : S.assignments.filter(a=>a.teacherId===teacherId && a.day===weekday && a.slot===slot && isAssignmentEffectiveInMonth(a, yearMonth));
+    : S.assignments.filter(a=>
+      a.teacherId===teacherId && Number(a.slot)===Number(slot) && assignmentAppliesOnDate(a, dateStr)
+    );
   targets.forEach(a=>{
-    const original = S.assignments.find(x=>x.teacherId===teacherId && x.day===weekday && x.slot===slot && x.studentId===a.studentId && isAssignmentEffectiveInMonth(x, yearMonth));
+    const original = S.assignments.find(x=>
+      x.teacherId===teacherId && Number(x.slot)===Number(slot) && x.studentId===a.studentId &&
+      assignmentAppliesOnDate(x, dateStr)
+    );
     if(!original) return;
     issueAssignmentApproval(original.studentId, original.courseId, original.subject, weekday, slot, substituteTeacherId, dateStr);
   });
