@@ -22,10 +22,14 @@ async function loadPendingChangeRequests(){
   const user = fbAuth.currentUser;
   if(!user) return [];
   try{
+    // where句1つだけにして、複合索引が無い環境でも読み込めるようにする（statusはこちらで絞る）
     const snap = await fbDb.collection('scheduleChangeRequests')
-      .where('adminUid','==',user.uid).where('status','==','pending').get();
+      .where('adminUid','==',user.uid).get();
     const list = [];
-    snap.forEach(doc=> list.push({id:doc.id, ...doc.data()}));
+    snap.forEach(doc=>{
+      const data = doc.data();
+      if(data.status === 'pending') list.push({id:doc.id, ...data});
+    });
     list.sort((a,b)=>{
       const d = String(a.dateStr || '').localeCompare(String(b.dateStr || ''));
       if(d) return d;
@@ -219,10 +223,14 @@ async function loadPendingCancellationRequests(){
   const user = fbAuth.currentUser;
   if(!user) return [];
   try{
+    // where句1つだけにして、複合索引が無い環境でも読み込めるようにする（statusはこちらで絞る）
     const snap = await fbDb.collection('assignmentCancellationRequests')
-      .where('adminUid','==',user.uid).where('status','==','pending').get();
+      .where('adminUid','==',user.uid).get();
     const list = [];
-    snap.forEach(doc=> list.push({id:doc.id, ...doc.data()}));
+    snap.forEach(doc=>{
+      const data = doc.data();
+      if(data.status === 'pending') list.push({id:doc.id, ...data});
+    });
     return list;
   }catch(err){
     console.error('キャンセル依頼の読み込みエラー:', err);
