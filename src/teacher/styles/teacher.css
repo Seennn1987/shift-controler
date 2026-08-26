@@ -12,7 +12,6 @@
   header.top h1{font-size:var(--text-xl);margin:0;font-weight:var(--font-weight-bold);}
   header.top .sub{font-size:var(--text-md);color:rgba(255,255,255,.65);margin-top:2px;}
   .header-account{display:flex;align-items:center;gap:var(--space-5);}
-  .header-email{font-size:var(--text-md);color:rgba(255,255,255,.75);}
   .logout-btn{
     border:1px solid rgba(255,255,255,.4);background:transparent;color:var(--text-on-brand);
     font-size:var(--text-md);font-weight:var(--font-weight-bold);padding:var(--space-2) var(--space-5);
@@ -363,9 +362,6 @@
   }
   table.subject-matrix td button:hover{filter:brightness(.96);}
   table.subject-matrix td.sub-empty button{color:var(--ink-disabled);font-size:var(--text-base);font-weight:700;}
-  @media (max-width:375px){
-    .header-email{display:none;}
-  }
   @media (prefers-reduced-motion: reduce){
     table.subject-matrix td button:hover{filter:none;}
   }

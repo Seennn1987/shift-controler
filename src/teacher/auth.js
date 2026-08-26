@@ -104,7 +104,6 @@ async function bootstrap(user){
   document.getElementById('appHeader').style.display = '';
   document.getElementById('appRoot').style.display = '';
   document.getElementById('myNameLabel').textContent = `${S.myTeacherName} さん`;
-  document.getElementById('loginUserEmail').textContent = user.email || '';
 
   const t = new Date();
   if(S.curYear===undefined){ S.curYear = t.getFullYear(); S.curMonth = t.getMonth(); }
