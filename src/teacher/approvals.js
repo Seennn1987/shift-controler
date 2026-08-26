@@ -1,7 +1,7 @@
 import { SLOTS, WEEKDAY_JP } from '../shared/constants.js';
 import { showAppNoticeDialog } from '../shared/app-confirm-dialog.js';
 import { mountInlineConfirm, showInlineNotice } from '../shared/inline-confirm.js';
-import { pad2, daysInYearMonth } from '../shared/date-utils.js';
+import { pad2, daysInYearMonth, isOnOrAfterDate } from '../shared/date-utils.js';
 import { fbAuth, fbDb, S } from './state.js';
 import { debugLog } from './debug.js';
 import { getDayStatus } from './day-status.js';
@@ -103,7 +103,16 @@ async function loadPendingCancellationRequests(){
   }
 }
 
+function resolveCourseStartDate(item){
+  if(item?.courseStartDate) return item.courseStartDate;
+  const name = item?.studentName;
+  if(!name) return null;
+  const fromEntry = (S.myAssignmentEntries || []).find(e=> e.studentName === name && e.courseStartDate);
+  return fromEntry?.courseStartDate || null;
+}
+
 function approvalAppliesOnDate(ticket, dateStr){
+  if(!isOnOrAfterDate(dateStr, resolveCourseStartDate(ticket))) return false;
   if(ticket.oneTimeDate) return ticket.oneTimeDate === dateStr;
   const wd = WEEKDAY_JP[new Date(`${dateStr}T00:00:00`).getDay()];
   if(ticket.day !== wd) return false;
@@ -111,6 +120,7 @@ function approvalAppliesOnDate(ticket, dateStr){
 }
 
 function entryAppliesOnDate(entry, dateStr){
+  if(!isOnOrAfterDate(dateStr, resolveCourseStartDate(entry))) return false;
   if((entry.absentDates || []).includes(dateStr)) return false;
   if((entry.skippedDates || []).includes(dateStr)) return false;
   if(entry.oneTimeDate) return entry.oneTimeDate === dateStr;

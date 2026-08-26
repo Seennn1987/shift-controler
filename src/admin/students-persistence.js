@@ -465,6 +465,7 @@ async function ensureMissingApprovalTickets(){
             slot: a.slot,
             status: 'pending',
             createdAt: firebase.firestore.FieldValue.serverTimestamp(),
+            ...(student.courseStartDate ? { courseStartDate: student.courseStartDate } : {}),
           });
         }catch(err){
           console.error('承認チケット補完エラー:', err);
@@ -494,6 +495,7 @@ async function ensureMissingApprovalTickets(){
         slot: a.slot,
         status: 'pending',
         createdAt: firebase.firestore.FieldValue.serverTimestamp(),
+        ...(student.courseStartDate ? { courseStartDate: student.courseStartDate } : {}),
       });
     }catch(err){
       console.error('承認チケット補完エラー:', err);
@@ -547,6 +549,7 @@ function expandAssignmentForTeacherCalendar(a, approvalStatus, teacherId){
     isPreferredPair,
     absentDates,
     skippedDates: [...(a.skippedDates || []), ...studentAbsentDatesForAssignment(a)],
+    courseStartDate: student?.courseStartDate || null,
   };
   if(a.oneTimeDate){
     if(absentDates.includes(a.oneTimeDate)) return [];

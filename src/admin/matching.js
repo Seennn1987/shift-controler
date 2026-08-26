@@ -1,6 +1,6 @@
 import { DAYS, SLOTS, WEEKDAY_JP, WEEK_FULL, LEVELS_ORDER } from '../shared/constants.js';
 import { HOLIDAYS_JP } from '../shared/holidays.js';
-import { pad2, daysInYearMonth, toDateStr, getTodayStr } from '../shared/date-utils.js';
+import { pad2, daysInYearMonth, toDateStr, getTodayStr, isOnOrAfterDate } from '../shared/date-utils.js';
 import { firebaseConfig, fbAuth, fbDb, STORAGE_KEY, getSecondaryAuth, S } from './state.js';
 import { findAbsenceFor, listPendingAbsenceWorkItems, setMakeupPlacementFromAbsence } from './absences.js';
 import { getDayStatus, getUnassignedRowsForDate, renderCalendar, syncMonthChange } from './calendar.js';
@@ -49,6 +49,7 @@ function bulkAutoAssign({ studentId } = {}){
     const weekday = status.weekday;
 
     targetStudents.forEach(s=>{
+      if(!isOnOrAfterDate(dateStr, s.courseStartDate)) return;
       const processedDual = new Set();
       s.courses.forEach(course=>{
         course.desiredSlots.forEach(ds=>{

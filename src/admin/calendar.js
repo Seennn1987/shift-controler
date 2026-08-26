@@ -1,6 +1,6 @@
 import { SUBJECT_MAP, DAYS, SLOTS, WEEKDAY_JP, WEEK_FULL, SUBJECT_ABBR } from '../shared/constants.js';
 import { HOLIDAYS_JP } from '../shared/holidays.js';
-import { pad2, daysInYearMonth, toDateStr, getTodayStr } from '../shared/date-utils.js';
+import { pad2, daysInYearMonth, toDateStr, getTodayStr, isOnOrAfterDate } from '../shared/date-utils.js';
 import { firebaseConfig, fbAuth, fbDb, STORAGE_KEY, getSecondaryAuth, S } from './state.js';
 import { findAbsenceFor, getAbsenceRecordsOnDate, getEffectiveDayAssignments, getStudentDateRows, isAssignedTeacherMissingOnDate } from './absences.js';
 import { hasCalFocusFilter, registerCalFilterUiSync, resolveFilterStudent, resolveFilterTeacher, setCalFilterStudent } from './cal-filter.js';
@@ -165,6 +165,7 @@ function countUnassignedDesiredForSlot(dateStr, slotId){
   const yearMonth = dateStr.slice(0, 7);
   let count = 0;
   S.students.forEach(student=>{
+    if(!isOnOrAfterDate(dateStr, student.courseStartDate)) return;
     const processedDual = new Set();
     student.courses.forEach(course=>{
       course.desiredSlots.forEach(ds=>{
@@ -200,6 +201,7 @@ function getUnassignedRowsForDate(dateStr){
   const yearMonth = dateStr.slice(0, 7);
   const rows = [];
   S.students.forEach(student=>{
+    if(!isOnOrAfterDate(dateStr, student.courseStartDate)) return;
     const processedDual = new Set();
     student.courses.forEach(course=>{
       course.desiredSlots.forEach(ds=>{

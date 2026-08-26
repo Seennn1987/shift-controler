@@ -1,6 +1,6 @@
 import { SUBJECT_MAP, DAYS, SLOTS, WEEKDAY_JP, WEEK_FULL } from '../shared/constants.js';
 import { HOLIDAYS_JP } from '../shared/holidays.js';
-import { pad2, daysInYearMonth, toDateStr, getTodayStr } from '../shared/date-utils.js';
+import { pad2, daysInYearMonth, toDateStr, getTodayStr, isOnOrAfterDate } from '../shared/date-utils.js';
 import { firebaseConfig, fbAuth, fbDb, STORAGE_KEY, getSecondaryAuth, S } from './state.js';
 import { findCustomClosure, getDayStatus, renderCalendar } from './calendar.js';
 import { renderMatrix } from './finance-ui.js';
@@ -559,6 +559,8 @@ function findAssignment(studentId, courseId, day, slot){
 function assignmentAppliesOnDate(a, dateStr){
   // カレンダー表示は「この授業の講師は誰か」を見る。出勤表の印・提出有無では消さない。
   if(!dateStr) return true;
+  const student = S.students.find(s=> s.id === a.studentId);
+  if(student && !isOnOrAfterDate(dateStr, student.courseStartDate)) return false;
   if((a.skippedDates || []).includes(dateStr)) return false;
   const status = getDayStatus(dateStr);
   if(status.type !== 'open') return false;
@@ -722,6 +724,7 @@ async function issueAssignmentApproval(studentId, courseId, subject, day, slot, 
       payload.dualGroupId = approvalOpts.dualGroupId || null;
     }
     if(oneTimeDate) payload.oneTimeDate = oneTimeDate;
+    if(student.courseStartDate) payload.courseStartDate = student.courseStartDate;
     await fbDb.collection('assignmentApprovals').add(payload);
     return true;
   }catch(err){
@@ -738,6 +741,10 @@ function confirmAssignment(studentId, courseId, subject, day, slot, teacherId, s
   const recurring = !!opts.recurring;
   const teacher = S.teachers.find(t=>t.id===teacherId);
   if(!teacher) return {ok:false, msg:'講師が見つかりません。'};
+  const student = S.students.find(s=>s.id===studentId);
+  if(dateStr && student && !isOnOrAfterDate(dateStr, student.courseStartDate)){
+    return {ok:false, msg:'受講開始日より前の日付には組めません。'};
+  }
 
   if(dateStr && !recurring){
     if(!isTeacherAvailableOnDate(teacherId, dateStr, slot)){
@@ -784,6 +791,9 @@ function confirmDualAssignment(studentId, dualPair, day, slot, teacherId, source
   if(!teacher) return { ok: false, msg: '講師が見つかりません。' };
   const student = S.students.find(s=> s.id === studentId);
   if(!student) return { ok: false, msg: '生徒が見つかりません。' };
+  if(dateStr && !isOnOrAfterDate(dateStr, student.courseStartDate)){
+    return { ok: false, msg: '受講開始日より前の日付には組めません。' };
+  }
   const courses = dualPair.entries.map(e=> e.course);
   if(courses.length !== 2) return { ok: false, msg: '2教科の登録が見つかりません。' };
 

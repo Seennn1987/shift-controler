@@ -79,6 +79,7 @@ function ticketToDisplayEntry(ticket){
     dualGroupId: ticket.dualGroupId || null,
     isDual: (ticket.subjects?.length || 0) >= 2,
     oneTimeDate: ticket.oneTimeDate || null,
+    courseStartDate: ticket.courseStartDate || null,
     approvalStatus: 'pending',
     isPreferredPair: false,
   };

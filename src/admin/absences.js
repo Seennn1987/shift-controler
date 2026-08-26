@@ -1,6 +1,6 @@
 import { SUBJECT_MAP, DAYS, SLOTS, WEEKDAY_JP, WEEK_FULL } from '../shared/constants.js';
 import { HOLIDAYS_JP } from '../shared/holidays.js';
-import { pad2, daysInYearMonth, toDateStr, getTodayStr } from '../shared/date-utils.js';
+import { pad2, daysInYearMonth, toDateStr, getTodayStr, isOnOrAfterDate } from '../shared/date-utils.js';
 import { firebaseConfig, fbAuth, fbDb, STORAGE_KEY, getSecondaryAuth, S } from './state.js';
 import { getDayStatus } from './calendar.js';
 import { getDateSlotState, gradeLabel, isTeacherAvailableOnDate } from './schedule-core.js';
@@ -882,6 +882,7 @@ function getStudentDateRows(student, dateStr){
   const processedDual = new Set();
   const yearMonth = dateStr.slice(0, 7);
 
+  if(isOnOrAfterDate(dateStr, student.courseStartDate)){
   student.courses.forEach(course=>{
     course.desiredSlots.forEach(ds=>{
       if(ds.day !== weekday) return;
@@ -938,6 +939,7 @@ function getStudentDateRows(student, dateStr){
       });
     });
   });
+  }
   S.absences.forEach(ab=>{
     if(ab.studentId!==student.id || !ab.makeup || ab.makeup.date!==dateStr) return;
     const slot = SLOTS.find(sl=>sl.id===ab.makeup.slot);
