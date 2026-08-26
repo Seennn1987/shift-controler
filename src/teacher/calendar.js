@@ -404,6 +404,33 @@ function bindCalendarNav(){
 
 bindCalendarNav();
 
+function setMyCalHelpOpen(open){
+  const btn = document.getElementById('myCalHelpBtn');
+  if(!btn) return;
+  btn.classList.toggle('is-open', open);
+  btn.setAttribute('aria-expanded', open ? 'true' : 'false');
+}
+
+function bindMyCalHelpTip(){
+  if(bindMyCalHelpTip._bound) return;
+  bindMyCalHelpTip._bound = true;
+  document.addEventListener('click', (e)=>{
+    const btn = document.getElementById('myCalHelpBtn');
+    if(!btn) return;
+    const onPanel = !!(e.target.closest && e.target.closest('#myCalHelpText'));
+    const onBtn = btn.contains(e.target);
+    if(onBtn && !onPanel){
+      setMyCalHelpOpen(!btn.classList.contains('is-open'));
+      return;
+    }
+    if(!onBtn) setMyCalHelpOpen(false);
+  });
+  document.addEventListener('keydown', (e)=>{
+    if(e.key === 'Escape') setMyCalHelpOpen(false);
+  });
+}
+bindMyCalHelpTip();
+
 function bindShiftFormActions(){
   if(bindShiftFormActions._bound) return;
   bindShiftFormActions._bound = true;

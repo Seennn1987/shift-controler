@@ -9,7 +9,8 @@ export const firebaseConfig = {
 };
 
 export function initPrimaryFirebase() {
-  if (!firebase.apps.length) {
+  const hasDefault = firebase.apps.some(a => a.name === '[DEFAULT]');
+  if (!hasDefault) {
     firebase.initializeApp(firebaseConfig);
   }
   const fbAuth = firebase.auth();

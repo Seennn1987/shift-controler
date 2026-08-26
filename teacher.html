@@ -90,8 +90,15 @@
   <p class="submit-dock-msg" id="formMsg"></p>
 
   <div class="card">
-    <h2>マイスケジュール</h2>
-    <p class="desc">担当授業の確認と、空きコマのシフト提出がこの1画面でできます。<br>青枠のコマは教室長からの授業依頼です。承認・辞退を選び、上部の「承認・辞退を提出する」で送ってください。<br>確定した授業を休むときは「欠勤申請」を選び、上部の「欠勤申請を提出する」で送れます。<br>授業のないコマでは ×不可・△可能・○優先 を選び、上部の「新規シフトを提出する」または「シフト変更を提出する」で送れます。</p>
+    <h2>マイスケジュール
+      <button type="button" class="help-tip" id="myCalHelpBtn" aria-expanded="false" aria-controls="myCalHelpText" aria-label="この画面の使い方">?
+        <span class="help-tip-text" id="myCalHelpText">
+          <span><strong>授業（青い枠）</strong>教室長からのお願いを、引き受けるか辞退できます。選んだら、上のボタンで送ってください。</span>
+          <span><strong>欠勤</strong>決まっている授業を休む申請ができます。欠勤申請を選んで、上のボタンで送ってください。</span>
+          <span><strong>シフト</strong>空いている時間の出勤希望を出せます。×（不可）・△（可能）・○（優先）を選んで送ってください。</span>
+        </span>
+      </button>
+    </h2>
     <div class="month-nav">
       <button type="button" class="nav-btn" id="calPrevBtn">‹</button>
       <div class="month-title" id="calMonthTitle">2026年8月</div>
