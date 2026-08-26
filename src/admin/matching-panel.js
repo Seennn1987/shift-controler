@@ -5,7 +5,7 @@ import { getStudentDateRows } from './absences.js';
 import { getDayStatus, renderCalendar } from './calendar.js';
 import { refreshCalFilterOptions, clearCalFilter, setCalFilterStudent } from './filter-ui.js';
 import { resolveFilterStudent } from './cal-filter.js';
-import { expandShortageBar, fillStudentFormForEdit, renderMatching, renderShortageDashboard, renderStudentList } from './matching.js';
+import { expandShortageBar, fillStudentFormForEdit, monthHasSubmittedTeachers, renderMatching, renderShortageDashboard, renderStudentList, runStudentMonthAutoAssign } from './matching.js';
 import { renderTeacherList } from './teachers.js';
 import { switchCalMode, switchView, renderCalendarWeek } from './finance-ui.js';
 import { getDateSlotState, gradeLabel, subjectColor, teacherHonorific } from './schedule-core.js';
@@ -241,6 +241,7 @@ let matchingPanelFlashMsg = null;
 let matchingPanelFutureOffer = null;
 let matchingPanelPrefPairOffer = null;
 let matchingPanelRenderedPeriodKey = '';
+let studentAutoResult = { studentId: '', msg: '' };
 
 function getPeriodKey(){
   return `${getActiveYearMonth()}-${S.calMode}-${S.calWeekAnchor || ''}-${S.matchingPanelStudentId || ''}`;
@@ -385,6 +386,15 @@ function refreshPostAssignView(){
     renderStudentPeriodSlots(S.matchingPanelStudentId, S.calSelectedDate);
     updateDrawerHeader();
   }
+}
+
+function bindStudentMonthAuto(root, studentId){
+  root.querySelector('#mpStudentAutoBtn')?.addEventListener('click', async ()=>{
+    const result = await runStudentMonthAutoAssign(studentId);
+    if(result?.cancelled) return;
+    studentAutoResult = { studentId, msg: result?.msg || '' };
+    afterMatchingChange(S.calSelectedDate);
+  });
 }
 
 function bindBackToMenu(root){
@@ -758,6 +768,7 @@ function closeMatchingPanel(){
   S.matchingPanelSlot = null;
   S.matchingReturnToStudentId = null;
   S.calendarDrawerView = 'day';
+  studentAutoResult = { studentId: '', msg: '' };
   applyPanelLayout();
   renderMatchingDesiredBar();
   renderCalendar();
@@ -806,6 +817,12 @@ function renderStudentPeriodSlots(studentId, scrollToDateStr){
 
   const periodLabel = S.calMode === 'week' ? '今週' : `${Number(getActiveYearMonth().slice(5))}月`;
 
+  const ym = getActiveYearMonth();
+  const monthSubmitted = monthHasSubmittedTeachers(ym);
+  const monthLabel = `${Number(ym.slice(5))}月`;
+  const canAuto = monthSubmitted && totalPending > 0;
+  const autoMsg = studentAutoResult.studentId === student.id ? studentAutoResult.msg : '';
+
   body.innerHTML = `
     <button type="button" class="ghost mp-back-btn" id="mpBackToMenu">← 閉じる</button>
     <div class="matching-panel-student-head">
@@ -814,12 +831,23 @@ function renderStudentPeriodSlots(studentId, scrollToDateStr){
     </div>
     ${buildPostAssignBannersHtml()}
     <p class="matching-panel-hint">${periodLabel}のコマ一覧（${dayCount}日分）${totalPending > 0 ? ` — 講師なし <strong>${totalPending}コマ</strong>` : ''}</p>
+    <div class="matching-panel-student-auto">
+      ${!monthSubmitted ? `<div class="shortage-actions-warn">${monthLabel}は講師のシフト提出がまだないため、自動で組めません。</div>` : ''}
+      <div class="shortage-actions-toolbar">
+        <button type="button" class="ghost mp-action shortage-action-btn shortage-action-btn--muted" id="mpStudentAutoBtn"${canAuto ? '' : ' disabled'}>この生徒の今月を自動で組む</button>
+      </div>
+      <div id="mpStudentAutoResult" class="shortage-action-result" aria-live="polite"></div>
+    </div>
     ${daySectionsHtml
       ? `<div class="matching-panel-period-list">${daySectionsHtml}</div>`
       : `<p class="matching-panel-hint">この期間に表示できるコマがありません。</p>`}
   `;
 
+  const resultEl = body.querySelector('#mpStudentAutoResult');
+  if(resultEl) resultEl.textContent = autoMsg;
+
   bindBackToMenu(body);
+  bindStudentMonthAuto(body, student.id);
   bindConfirmButtons(body);
   bindChangeTeacherButtons(body);
   bindPrefPairButtons(body, ()=> afterMatchingChange(S.calSelectedDate));
@@ -834,6 +862,9 @@ function renderStudentPeriodSlots(studentId, scrollToDateStr){
 }
 
 function selectPanelStudent(studentId){
+  if(studentAutoResult.studentId !== studentId){
+    studentAutoResult = { studentId: '', msg: '' };
+  }
   S.matchingPanelStudentId = studentId;
   S.matchingPanelSlot = null;
   S.calendarDrawerView = 'matching-student';

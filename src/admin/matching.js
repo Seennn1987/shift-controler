@@ -29,9 +29,18 @@ import {
 // ---- 一括自動仮組み ----
 // 表示中の月の各開校日について、未確定の希望コマを日付単位で自動的に埋める。
 // 候補が少ない（融通が利かない）枠から優先。講師選定は compareCandidateInfo に従う（追加コストは、その時点の出勤を前提に増える金額）。
-function bulkAutoAssign(){
+function autoSlotPatternLabel(p){
+  const slotLabel = SLOTS.find(s=> s.id === p.slot)?.label || '';
+  const subject = p.dual ? (p.subjects || []).join('・') : p.subject;
+  return `${p.day}曜${slotLabel}の${subject}`;
+}
+
+function bulkAutoAssign({ studentId } = {}){
   const ym = S.referenceYearMonth;
   const pending = [];
+  const targetStudents = studentId
+    ? S.students.filter(s=> s.id === studentId)
+    : S.students;
 
   for(let d = 1; d <= daysInYearMonth(ym); d++){
     const dateStr = `${ym}-${pad2(d)}`;
@@ -39,7 +48,7 @@ function bulkAutoAssign(){
     if(status.type !== 'open') continue;
     const weekday = status.weekday;
 
-    S.students.forEach(s=>{
+    targetStudents.forEach(s=>{
       const processedDual = new Set();
       s.courses.forEach(course=>{
         course.desiredSlots.forEach(ds=>{
@@ -91,9 +100,16 @@ function bulkAutoAssign(){
 
   pending.sort((a, b)=> a.candidateCount - b.candidateCount);
 
-  let filled = 0, skipped = 0;
+  let filled = 0, skipped = 0, skippedNoCandidate = 0;
+  const noCandidateLabels = [];
+  const rememberNoCandidate = (p)=>{
+    skippedNoCandidate++;
+    const label = autoSlotPatternLabel(p);
+    if(!noCandidateLabels.includes(label)) noCandidateLabels.push(label);
+  };
+
   pending.forEach(p=>{
-    if(p.candidateCount === 0){ skipped++; return; }
+    if(p.candidateCount === 0){ skipped++; rememberNoCandidate(p); return; }
     if(p.dual){
       if(p.dualPair.entries.some(({ course })=>
         findEffectiveAssignment(p.studentId, course.id, p.day, p.slot, ym, p.dateStr))){ skipped++; return; }
@@ -125,7 +141,7 @@ function bulkAutoAssign(){
         .sort(compareCandidateInfo);
     }
 
-    if(candidates.length === 0){ skipped++; return; }
+    if(candidates.length === 0){ skipped++; rememberNoCandidate(p); return; }
 
     const result = p.dual
       ? confirmDualAssignment(
@@ -139,7 +155,50 @@ function bulkAutoAssign(){
     if(result.ok) filled++; else skipped++;
   });
 
-  return { filled, skipped, total: pending.length };
+  return { filled, skipped, skippedNoCandidate, noCandidateLabels, total: pending.length };
+}
+
+function formatStudentAutoAssignMessage({ filled, skippedNoCandidate, noCandidateLabels }){
+  if(filled === 0){
+    return 'この月は自動で組めるコマがありません。';
+  }
+  if(skippedNoCandidate === 0){
+    return `✓ 講師なしだった${filled}件を仮決めしました。講師への依頼はまだ出ていません。`;
+  }
+  const preview = noCandidateLabels[0] || '一部のコマ';
+  const labelBit = noCandidateLabels.length === 1
+    ? preview
+    : `${preview}など${noCandidateLabels.length}件`;
+  return `${filled}件を仮決めしました。${labelBit}は、この月に組める講師がいません。`;
+}
+
+async function runStudentMonthAutoAssign(studentId){
+  wireAppConfirmExtras();
+  const student = S.students.find(s=> s.id === studentId);
+  if(!student) return { ok: false, msg: '生徒が見つかりませんでした。' };
+  const ym = getActiveYearMonth();
+  if(!monthHasSubmittedTeachers(ym)){
+    return { ok: false, msg: 'この月は講師のシフト提出がないため、自動で組めません。' };
+  }
+  const unassignedCount = collectUpcomingUnassignedFlat()
+    .filter(item=> item.row?.student?.id === studentId).length;
+  if(unassignedCount === 0){
+    return { ok: false, msg: '講師が決まっていないコマはありません。' };
+  }
+  const result = await runAppConfirmDialog({
+    title: 'この生徒の今月を自動で組みますか？',
+    message: `${student.name}さんの講師なし ${unassignedCount}コマを、次のルールで講師を割り当てます。`,
+    extraHtml: buildMatchingAlgorithmExtraHtml(),
+    confirmLabel: '自動で決める',
+    variant: 'primary',
+  }, async ()=>{
+    const stats = bulkAutoAssign({ studentId });
+    scheduleSave();
+    refreshAfterMatchingChange();
+    return { ok: true, msg: formatStudentAutoAssignMessage(stats) };
+  });
+  if(result?.cancelled) return { ok: false, cancelled: true, msg: '' };
+  return { ok: result?.ok !== false, msg: result?.msg || '' };
 }
 
 // 下書きのうち source==='auto' だけをまとめて解除する（送信済み・確定済みには触れない）
@@ -1498,4 +1557,4 @@ function jumpToCalendarForTeacher(teacherId, dateStr){
 
 // =====================================================================
 
-export { bulkAutoAssign, bulkCancelAuto, buildStudentLevelArea, getSelectedStudentLevel, genCourseId, renderFormCourses, resetStudentForm, fillStudentFormForEdit, handleStudentSave, handleCourseStartDateChange, renderStudentList, deleteStudent, renderMatching, refreshAfterMatchingChange, renderShortageDashboard, expandShortageBar, findNearestFutureDate, jumpToCalendarForStudent, jumpToCalendarForDate, jumpToCalendarForTeacher };
+export { bulkAutoAssign, bulkCancelAuto, runStudentMonthAutoAssign, monthHasSubmittedTeachers, buildStudentLevelArea, getSelectedStudentLevel, genCourseId, renderFormCourses, resetStudentForm, fillStudentFormForEdit, handleStudentSave, handleCourseStartDateChange, renderStudentList, deleteStudent, renderMatching, refreshAfterMatchingChange, renderShortageDashboard, expandShortageBar, findNearestFutureDate, jumpToCalendarForStudent, jumpToCalendarForDate, jumpToCalendarForTeacher };

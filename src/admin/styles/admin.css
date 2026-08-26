@@ -1906,6 +1906,12 @@
   .matching-panel-student-name{font-size:var(--text-xl);font-weight:var(--font-weight-bold);}
   .matching-panel-student-grade{font-size:var(--text-sm);color:var(--ink-soft);}
   .matching-panel-hint{font-size:var(--text-md);color:var(--ink-soft);line-height:var(--leading-relaxed);margin:0 0 var(--space-5);}
+  .matching-panel-student-auto{margin:0 0 var(--space-5);}
+  .matching-panel-student-auto .shortage-actions-toolbar{margin-bottom:var(--space-2);}
+  .matching-panel-student-auto .shortage-action-result{
+    font-size:var(--text-md);font-weight:var(--font-weight-bold);color:var(--ink);
+    line-height:var(--leading-relaxed);min-height:1.2em;
+  }
   .matching-panel-slot-head{margin-bottom:var(--space-5);}
   .matching-panel-slot-title{font-size:var(--text-lg);font-weight:var(--font-weight-bold);margin-top:var(--space-2);}
   .matching-panel-slot-meta{font-size:var(--text-sm);color:var(--ink-soft);margin-top:var(--space-1);}
