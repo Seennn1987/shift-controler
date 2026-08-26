@@ -1820,6 +1820,13 @@
     font-size:var(--text-sm);white-space:normal;line-height:1.35;
     flex:0 1 auto;
   }
+  .matching-drawer-auto-btn.matching-drawer-auto-btn--cancel{
+    background:transparent;color:var(--danger);border:none;box-shadow:none;
+    font-weight:700;
+  }
+  .matching-drawer-auto-btn.matching-drawer-auto-btn--cancel:hover{
+    background:var(--danger-bg);text-decoration:underline;box-shadow:none;
+  }
   .matching-drawer-header-main{flex:1;min-width:0;}
   .matching-drawer-title{margin:0;font-size:var(--text-xl);font-weight:700;}
   .matching-panel-day-head{font-size:var(--text-lg);font-weight:var(--font-weight-bold);margin:var(--space-4) 0 var(--space-2);color:var(--green-900);}

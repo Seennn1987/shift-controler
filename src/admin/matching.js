@@ -186,7 +186,7 @@ async function runStudentMonthAutoAssign(studentId){
     return { ok: false, msg: '講師が決まっていないコマはありません。' };
   }
   const result = await runAppConfirmDialog({
-    title: 'この生徒の今月を自動で組みますか？',
+    title: 'この生徒の今月分を自動で組みますか？',
     message: `${student.name}さんの講師なし ${unassignedCount}コマを、次のルールで講師を割り当てます。`,
     extraHtml: buildMatchingAlgorithmExtraHtml(),
     confirmLabel: '自動で決める',
@@ -196,6 +196,51 @@ async function runStudentMonthAutoAssign(studentId){
     scheduleSave();
     refreshAfterMatchingChange();
     return { ok: true, msg: formatStudentAutoAssignMessage(stats) };
+  });
+  if(result?.cancelled) return { ok: false, cancelled: true, msg: '' };
+  return { ok: result?.ok !== false, msg: result?.msg || '' };
+}
+
+function getStudentMonthAutoDraftIds(studentId){
+  const ids = new Set();
+  collectUpcomingDraftsFlat().forEach(entry=>{
+    if(entry.assignment.source === 'auto' && entry.student.id === studentId){
+      ids.add(entry.assignment.id);
+    }
+  });
+  return ids;
+}
+
+function countStudentMonthAutoDrafts(studentId){
+  return collectUpcomingDraftsFlat().filter(entry=>
+    entry.assignment.source === 'auto' && entry.student.id === studentId
+  ).length;
+}
+
+function cancelStudentMonthAutoDrafts(studentId){
+  const ids = getStudentMonthAutoDraftIds(studentId);
+  const count = S.draftAssignments.filter(a=> ids.has(a.id)).length;
+  S.draftAssignments = S.draftAssignments.filter(a=> !ids.has(a.id));
+  return count;
+}
+
+async function runStudentMonthAutoCancel(studentId){
+  const student = S.students.find(s=> s.id === studentId);
+  if(!student) return { ok: false, msg: '生徒が見つかりませんでした。' };
+  const slotCount = countStudentMonthAutoDrafts(studentId);
+  if(slotCount === 0){
+    return { ok: false, msg: 'この生徒の、解除できる自動の仮決めはありません。' };
+  }
+  const result = await runAppConfirmDialog({
+    title: '自動設定をキャンセルしますか？',
+    message: `${student.name}さんの、自動で決めた仮決め ${slotCount}件を取り消し、講師なしに戻します。\n自分で決めた仮決めはそのままです。`,
+    confirmLabel: 'キャンセルする',
+    variant: 'danger',
+  }, async ()=>{
+    cancelStudentMonthAutoDrafts(studentId);
+    scheduleSave();
+    refreshAfterMatchingChange();
+    return { ok: true, msg: `自動で決めた仮決め ${slotCount}件を解除しました。` };
   });
   if(result?.cancelled) return { ok: false, cancelled: true, msg: '' };
   return { ok: result?.ok !== false, msg: result?.msg || '' };
@@ -1557,4 +1602,4 @@ function jumpToCalendarForTeacher(teacherId, dateStr){
 
 // =====================================================================
 
-export { bulkAutoAssign, bulkCancelAuto, runStudentMonthAutoAssign, monthHasSubmittedTeachers, buildStudentLevelArea, getSelectedStudentLevel, genCourseId, renderFormCourses, resetStudentForm, fillStudentFormForEdit, handleStudentSave, handleCourseStartDateChange, renderStudentList, deleteStudent, renderMatching, refreshAfterMatchingChange, renderShortageDashboard, expandShortageBar, findNearestFutureDate, jumpToCalendarForStudent, jumpToCalendarForDate, jumpToCalendarForTeacher };
+export { bulkAutoAssign, bulkCancelAuto, runStudentMonthAutoAssign, runStudentMonthAutoCancel, countStudentMonthAutoDrafts, monthHasSubmittedTeachers, buildStudentLevelArea, getSelectedStudentLevel, genCourseId, renderFormCourses, resetStudentForm, fillStudentFormForEdit, handleStudentSave, handleCourseStartDateChange, renderStudentList, deleteStudent, renderMatching, refreshAfterMatchingChange, renderShortageDashboard, expandShortageBar, findNearestFutureDate, jumpToCalendarForStudent, jumpToCalendarForDate, jumpToCalendarForTeacher };

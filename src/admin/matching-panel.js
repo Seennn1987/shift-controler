@@ -5,7 +5,7 @@ import { getStudentDateRows } from './absences.js';
 import { getDayStatus, renderCalendar } from './calendar.js';
 import { refreshCalFilterOptions, clearCalFilter, setCalFilterStudent } from './filter-ui.js';
 import { resolveFilterStudent } from './cal-filter.js';
-import { expandShortageBar, fillStudentFormForEdit, monthHasSubmittedTeachers, renderMatching, renderShortageDashboard, renderStudentList, runStudentMonthAutoAssign } from './matching.js';
+import { countStudentMonthAutoDrafts, expandShortageBar, fillStudentFormForEdit, monthHasSubmittedTeachers, renderMatching, renderShortageDashboard, renderStudentList, runStudentMonthAutoAssign, runStudentMonthAutoCancel } from './matching.js';
 import { renderTeacherList } from './teachers.js';
 import { switchCalMode, switchView, renderCalendarWeek } from './finance-ui.js';
 import { getDateSlotState, gradeLabel, subjectColor, teacherHonorific } from './schedule-core.js';
@@ -71,7 +71,12 @@ function updateMatchingReturnBar(){
   }
   if(autoBtn){
     autoBtn.hidden = !showAuto;
-    autoBtn.disabled = !showAuto || !studentAutoBarState.canAuto;
+    const cancelMode = showAuto && studentAutoBarState.canCancel;
+    autoBtn.textContent = cancelMode ? '自動設定をキャンセル' : 'この生徒の今月分を自動で組む';
+    autoBtn.classList.toggle('primary', !cancelMode);
+    autoBtn.classList.toggle('btn-text', cancelMode);
+    autoBtn.classList.toggle('matching-drawer-auto-btn--cancel', cancelMode);
+    autoBtn.disabled = !showAuto || (!cancelMode && !studentAutoBarState.canAuto);
   }
 }
 
@@ -250,7 +255,7 @@ let matchingPanelFutureOffer = null;
 let matchingPanelPrefPairOffer = null;
 let matchingPanelRenderedPeriodKey = '';
 let studentAutoResult = { studentId: '', msg: '' };
-let studentAutoBarState = { canAuto: false };
+let studentAutoBarState = { canAuto: false, canCancel: false };
 
 function getPeriodKey(){
   return `${getActiveYearMonth()}-${S.calMode}-${S.calWeekAnchor || ''}-${S.matchingPanelStudentId || ''}`;
@@ -401,7 +406,9 @@ function bindStudentMonthAuto(){
   document.getElementById('mpStudentAutoBtn')?.addEventListener('click', async ()=>{
     const studentId = S.matchingPanelStudentId;
     if(!studentId) return;
-    const result = await runStudentMonthAutoAssign(studentId);
+    const result = studentAutoBarState.canCancel
+      ? await runStudentMonthAutoCancel(studentId)
+      : await runStudentMonthAutoAssign(studentId);
     if(result?.cancelled) return;
     studentAutoResult = { studentId, msg: result?.msg || '' };
     afterMatchingChange(S.calSelectedDate);
@@ -780,7 +787,7 @@ function closeMatchingPanel(){
   S.matchingReturnToStudentId = null;
   S.calendarDrawerView = 'day';
   studentAutoResult = { studentId: '', msg: '' };
-  studentAutoBarState = { canAuto: false };
+  studentAutoBarState = { canAuto: false, canCancel: false };
   applyPanelLayout();
   renderCalendar();
 }
@@ -832,6 +839,7 @@ function renderStudentPeriodSlots(studentId, scrollToDateStr){
   const monthSubmitted = monthHasSubmittedTeachers(ym);
   const monthLabel = `${Number(ym.slice(5))}月`;
   const canAuto = monthSubmitted && totalPending > 0;
+  const canCancel = countStudentMonthAutoDrafts(student.id) > 0;
   const autoMsg = studentAutoResult.studentId === student.id ? studentAutoResult.msg : '';
   const showAutoBlock = !monthSubmitted || Boolean(autoMsg);
 
@@ -854,7 +862,7 @@ function renderStudentPeriodSlots(studentId, scrollToDateStr){
 
   const resultEl = body.querySelector('#mpStudentAutoResult');
   if(resultEl) resultEl.textContent = autoMsg;
-  studentAutoBarState = { canAuto };
+  studentAutoBarState = { canAuto, canCancel };
   updateMatchingReturnBar();
 
   bindBackToMenu(body);
