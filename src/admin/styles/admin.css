@@ -172,6 +172,9 @@
     font-family:inherit;font-size:var(--text-sm);font-weight:700;padding:6px 14px;border-radius:var(--radius-md);cursor:pointer;
   }
   .change-req-actions .ghost{border:1px solid var(--border);background:var(--surface-card);color:var(--ink-soft);}
+  .change-req-row:has(> .app-inline-confirm) .change-req-actions{display:none;}
+  .change-req-row:has(> .app-inline-confirm) .change-req-main{flex-basis:100%;}
+  .change-req-row > .app-inline-confirm{flex:1 1 100%;width:100%;}
   .approval-badge{font-size:var(--text-xs);font-weight:700;padding:3px 10px;border-radius:var(--radius-pill);flex-shrink:0;}
   .approval-badge.pending{border:1px dashed var(--ink-soft);color:var(--ink-soft);}
   .approval-badge.tentative{background:var(--warning-bg);color:var(--warning-ink);border:1px solid var(--warning-ink);}
