@@ -493,6 +493,24 @@ function teacherWorksOtherSlotOnWeekday(teacherId, weekday, excludeSlot, yearMon
   );
 }
 
+function teacherWorksOtherSlotOnDate(teacherId, dateStr, excludeSlot){
+  return S.assignments.concat(S.pendingAssignments, S.draftAssignments).some(a=>
+    a.teacherId===teacherId && Number(a.slot)!==Number(excludeSlot) &&
+    assignmentAppliesOnDate(a, dateStr)
+  );
+}
+
+function computeAdditionalCost(teacher, used, dateStr, day, slot, yearMonth){
+  if(used > 0) return 0;
+  const rate = teacher.perLessonRate;
+  if(rate == null || !Number.isFinite(rate)) return Infinity;
+  const alreadyThere = dateStr
+    ? teacherWorksOtherSlotOnDate(teacher.id, dateStr, slot)
+    : teacherWorksOtherSlotOnWeekday(teacher.id, day, slot, yearMonth);
+  const transport = alreadyThere ? 0 : (teacher.dailyTransport || 0);
+  return rate + transport;
+}
+
 function countTeacherCourseSlotCoverage(teacher, studentId, courseId, level, subject, yearMonth){
   const student = S.students.find(s=> s.id === studentId);
   if(!student) return { covered: 0, total: 0 };
@@ -530,6 +548,7 @@ function buildCandidateInfo(studentId, courseId, level, subject, day, slot, teac
       : isPreferredDay(teacher, day, slot),
     fillBonus: used > 0,
     dayConsolidation: teacherWorksOtherSlotOnWeekday(teacher.id, day, slot, ym),
+    addCost: computeAdditionalCost(teacher, used, dateStr, day, slot, ym),
   };
 }
 

@@ -12,8 +12,10 @@ import {
 import {
   analyzeDualSubjectAtSlot,
   analyzeSubjectAtSlot,
+  coursePickerMonthHint,
   renderDualSubjectPickerBadge,
   renderSubjectPickerBadge,
+  resolveCoursePickerYearMonth,
   subjectPickerBadgeLabel,
   subjectPickerDualBadgeLabel,
 } from './match-slot-status.js';
@@ -40,8 +42,8 @@ function slotLabel(day, slotId){
   return `${day}曜 ${slot?.label || ''}（${slot?.time || ''}）`;
 }
 
-function cellStatusBadgeHtml(level, subject, day, slotId){
-  const analysis = analyzeSubjectAtSlot(level, subject, day, slotId, S.referenceYearMonth);
+function cellStatusBadgeHtml(level, subject, day, slotId, yearMonth){
+  const analysis = analyzeSubjectAtSlot(level, subject, day, slotId, yearMonth);
   const map = {
     priority: 'is-priority',
     ready: 'is-ready',
@@ -55,8 +57,8 @@ function cellStatusBadgeHtml(level, subject, day, slotId){
   return `<span class="scc-cell-badge match-status-badge ${cls}">${label}</span>`;
 }
 
-function cellDualStatusBadgeHtml(level, subjectA, subjectB, day, slotId){
-  const analysis = analyzeDualSubjectAtSlot(level, subjectA, subjectB, day, slotId, S.referenceYearMonth);
+function cellDualStatusBadgeHtml(level, subjectA, subjectB, day, slotId, yearMonth){
+  const analysis = analyzeDualSubjectAtSlot(level, subjectA, subjectB, day, slotId, yearMonth);
   const map = {
     priority: 'is-priority',
     ready: 'is-ready',
@@ -134,7 +136,7 @@ function mountPopover(anchor, pop){
   setTimeout(()=> document.addEventListener('click', onDocumentClick, true), 0);
 }
 
-function showSubjectPopover(anchor, { level, day, slot, currentSubject, onPick, onClear }){
+function showSubjectPopover(anchor, { level, day, slot, currentSubject, onPick, onClear, yearMonth }){
   closePopover();
   const subjects = SUBJECT_MAP[level] || [];
   const pop = document.createElement('div');
@@ -147,7 +149,7 @@ function showSubjectPopover(anchor, { level, day, slot, currentSubject, onPick, 
     <div class="scp-subjects">${subjects.map(sub=>{
       const c = subjectColor(level, sub);
       const active = sub === currentSubject ? ' scp-subject-active' : '';
-      const analysis = analyzeSubjectAtSlot(level, sub, day, slot, S.referenceYearMonth);
+      const analysis = analyzeSubjectAtSlot(level, sub, day, slot, yearMonth);
       const badge = renderSubjectPickerBadge(analysis);
       return `<button type="button" class="scp-subject-row${active}" data-subject="${sub}">
         <span class="scp-subject-name" style="background:${c.bg};color:${c.text};">${sub}</span>
@@ -170,7 +172,7 @@ function showSubjectPopover(anchor, { level, day, slot, currentSubject, onPick, 
   });
 }
 
-function showElementaryPopover(anchor, { level, day, slot, dualPair, singleSubject, formCourses, genCourseId, onChange }){
+function showElementaryPopover(anchor, { level, day, slot, dualPair, singleSubject, formCourses, genCourseId, onChange, yearMonth }){
   closePopover();
   const subjects = SUBJECT_MAP[level] || [];
   const initialA = dualPair?.subjects[0] || '';
@@ -189,7 +191,7 @@ function showElementaryPopover(anchor, { level, day, slot, dualPair, singleSubje
     <div class="scp-subjects scp-subjects-compact">${subjects.map(sub=>{
       const c = subjectColor(level, sub);
       const active = singleSubject === sub ? ' scp-subject-active' : '';
-      const analysis = analyzeSubjectAtSlot(level, sub, day, slot, S.referenceYearMonth);
+      const analysis = analyzeSubjectAtSlot(level, sub, day, slot, yearMonth);
       const badge = renderSubjectPickerBadge(analysis);
       return `<button type="button" class="scp-subject-row${active}" data-single-subject="${sub}">
         <span class="scp-subject-name" style="background:${c.bg};color:${c.text};">${sub}</span>
@@ -245,7 +247,7 @@ function showElementaryPopover(anchor, { level, day, slot, dualPair, singleSubje
         : '';
       return;
     }
-    const analysis = analyzeDualSubjectAtSlot(level, pickA, pickB, day, slot, S.referenceYearMonth);
+    const analysis = analyzeDualSubjectAtSlot(level, pickA, pickB, day, slot, yearMonth);
     statusEl.innerHTML = renderDualSubjectPickerBadge(analysis);
   }
 
@@ -293,7 +295,9 @@ export function renderStudentCourseCalendar(container, opts){
   if(!container) return;
   closePopover();
 
-  const { formCourses, level, genCourseId, onChange } = opts;
+  const { formCourses, level, genCourseId, onChange, courseStartDate } = opts;
+  const pickerMonth = resolveCoursePickerYearMonth(courseStartDate);
+  const yearMonth = pickerMonth.yearMonth;
   const dualEnabled = supportsDualSubjectSlot(level);
 
   let tableHtml = '<table class="avail-grid student-course-grid"><thead><tr><th class="slot-h">時間割</th>';
@@ -309,7 +313,7 @@ export function renderStudentCourseCalendar(container, opts){
       if(closed){
         tableHtml += `<td class="scc-cell scc-closed" data-day="${day}"><span class="scc-closed-label">休</span></td>`;
       }else if(dualPair){
-        const badge = cellDualStatusBadgeHtml(level, dualPair.subjects[0], dualPair.subjects[1], day, slot.id);
+        const badge = cellDualStatusBadgeHtml(level, dualPair.subjects[0], dualPair.subjects[1], day, slot.id, yearMonth);
         tableHtml += `<td class="scc-cell scc-filled scc-dual" data-day="${day}" data-slot="${slot.id}">
           <button type="button" class="scc-slot-btn scc-slot-filled-btn">
             <span class="scc-dual-tags">${renderDualSubjectTags(level, dualPair.subjects)}</span>
@@ -319,7 +323,7 @@ export function renderStudentCourseCalendar(container, opts){
         </td>`;
       }else if(single){
         const c = subjectColor(level, single.subject);
-        const badge = cellStatusBadgeHtml(level, single.subject, day, slot.id);
+        const badge = cellStatusBadgeHtml(level, single.subject, day, slot.id, yearMonth);
         tableHtml += `<td class="scc-cell scc-filled" data-day="${day}" data-slot="${slot.id}">
           <button type="button" class="scc-slot-btn scc-slot-filled-btn">
             <span class="scc-subject-name" style="background:${c.bg};color:${c.text};">${single.subject}</span>
@@ -347,6 +351,7 @@ export function renderStudentCourseCalendar(container, opts){
   container.innerHTML = `
     <div class="student-course-calendar-wrap">
       ${tableHtml}
+      <p class="field-hint tight">${coursePickerMonthHint(pickerMonth)}</p>
       <div class="scc-summary">${summaryHtml}</div>
     </div>
   `;
@@ -370,6 +375,7 @@ export function renderStudentCourseCalendar(container, opts){
           formCourses,
           genCourseId,
           onChange,
+          yearMonth,
         });
         return;
       }
@@ -387,6 +393,7 @@ export function renderStudentCourseCalendar(container, opts){
           clearSlotSubject(formCourses, day, slot);
           onChange();
         },
+        yearMonth,
       });
     });
   });

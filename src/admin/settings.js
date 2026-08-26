@@ -335,7 +335,7 @@ function renderMatchingPrioritySettings(){
 }
 
 function initMatchingPrioritySettings(){
-  if(!S.matchingPriority) S.matchingPriority = normalizeMatchingPriority(null);
+  S.matchingPriority = normalizeMatchingPriority(S.matchingPriority);
   renderMatchingPrioritySettings();
 }
 

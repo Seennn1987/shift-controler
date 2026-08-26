@@ -1,4 +1,5 @@
 import { SLOTS } from '../shared/constants.js';
+import { getTodayStr } from '../shared/date-utils.js';
 import { S } from './state.js';
 import { shortName } from './calendar.js';
 import { isAvailable, isTeacherAvailableOnDate } from './schedule-core.js';
@@ -14,6 +15,42 @@ import {
 
 function escapeHtml(str){
   return String(str ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/"/g,'&quot;');
+}
+
+function yearMonthFromDateStr(dateStr){
+  if(dateStr && /^\d{4}-\d{2}-\d{2}$/.test(dateStr)) return dateStr.slice(0, 7);
+  return getTodayStr().slice(0, 7);
+}
+
+function latestSubmittedYearMonth(){
+  const months = [...new Set(
+    (S.teacherSchedules || [])
+      .filter(s=> s.status === 'submitted' && s.yearMonth)
+      .map(s=> s.yearMonth),
+  )].sort();
+  return months.length ? months[months.length - 1] : null;
+}
+
+/** 生徒登録の「組める」判定用。開始日の月を優先し、未提出なら直近の提出済み月へ。 */
+export function resolveCoursePickerYearMonth(startDateStr){
+  const requestedYearMonth = yearMonthFromDateStr(startDateStr);
+  if(S.teachers.some(t=> teacherHasSubmittedMonth(t.id, requestedYearMonth))){
+    return { yearMonth: requestedYearMonth, requestedYearMonth, usedFallback: false };
+  }
+  const latest = latestSubmittedYearMonth();
+  if(latest && latest !== requestedYearMonth){
+    return { yearMonth: latest, requestedYearMonth, usedFallback: true };
+  }
+  return { yearMonth: requestedYearMonth, requestedYearMonth, usedFallback: false };
+}
+
+export function coursePickerMonthHint(info){
+  const reqM = Number(info.requestedYearMonth.slice(5));
+  const usedM = Number(info.yearMonth.slice(5));
+  if(info.usedFallback){
+    return `${reqM}月の出勤表はまだないので、${usedM}月で見ています。`;
+  }
+  return `${usedM}月の出勤表で、組める人数を見ています。`;
 }
 
 export function getCapableTeachers(level, subject){
@@ -70,7 +107,7 @@ function analyzePendingDualMatchSlot(student, subjectA, subjectB, day, slotId, y
     };
   }
 
-  const teacherHasSlot = (teacher)=> isAvailable(teacher, day, slotId);
+  const teacherHasSlot = (teacher)=> isAvailable(teacher, day, slotId, ym);
   const teacherUsedCount = (teacherId, excludeId)=> countTeacherSlot(teacherId, day, slotId, excludeId, ym);
 
   const available = capable.filter(t=>{
@@ -218,7 +255,7 @@ export function analyzePendingMatchSlot(student, course, day, slotId, yearMonth,
 
   const teacherHasSlot = (teacher)=>{
     if(dateStr) return isTeacherAvailableOnDate(teacher.id, dateStr, slotId);
-    return isAvailable(teacher, day, slotId);
+    return isAvailable(teacher, day, slotId, ym);
   };
   const teacherUsedCount = (teacherId, excludeId)=>{
     if(dateStr) return countTeacherSlotOnDate(teacherId, dateStr, slotId, excludeId);

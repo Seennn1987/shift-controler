@@ -7,7 +7,7 @@ import { registerCalFilterUiSync, setCalFilterFromSelect } from './cal-filter.js
 import { initSearchComboboxes, refreshAllPersonComboboxes } from './filter-ui.js';
 import { setSearchComboboxValue } from './search-combobox.js';
 import { getWeekMonday, renderCalendarWeek, renderFinance, renderLegend, renderMatrix, switchCalMode, switchView, toggleCalMode } from './finance-ui.js';
-import { buildStudentLevelArea, handleStudentSave, renderFormCourses, renderMatching, renderShortageDashboard, renderStudentList, resetStudentForm } from './matching.js';
+import { buildStudentLevelArea, handleCourseStartDateChange, handleStudentSave, renderFormCourses, renderMatching, renderShortageDashboard, renderStudentList, resetStudentForm } from './matching.js';
 import { initMatchingPanel } from './matching-panel.js';
 import { mountInlineConfirm } from '../shared/inline-confirm.js';
 import { addRaiseRow, buildBaseAvailArea, getOrCreateDraftSchedule, gradeLabel } from './schedule-core.js';
@@ -45,6 +45,7 @@ async function init(){
   document.getElementById('matrixWrap').innerHTML = '<div class="loading">読み込み中…</div>';
 
   buildStudentLevelArea();
+  document.getElementById('studentCourseStartInput').value = getTodayStr();
   renderFormCourses();
   document.getElementById('matchingWrap').innerHTML = '<div class="loading">読み込み中…</div>';
   document.getElementById('shortageWrap').innerHTML = '<div class="loading">読み込み中…</div>';
@@ -270,6 +271,7 @@ async function init(){
   document.getElementById('subjectFilter').addEventListener('change', renderMatrix);
   document.getElementById('studentSaveBtn').addEventListener('click', handleStudentSave);
   document.getElementById('studentCancelBtn').addEventListener('click', resetStudentForm);
+  document.getElementById('studentCourseStartInput').addEventListener('change', handleCourseStartDateChange);
   document.getElementById('teacherCapacityInput').addEventListener('change', (e)=>{
     let v = parseInt(e.target.value, 10);
     if(!Number.isFinite(v) || v < 1) v = 1;

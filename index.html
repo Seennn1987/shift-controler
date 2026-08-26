@@ -321,6 +321,10 @@
       <label class="field-label" for="studentGradeInput">学年（数字、例：小学5年→5、中学3年→3、高校2年→2）</label>
       <input type="text" inputmode="numeric" id="studentGradeInput" style="max-width:100px;" placeholder="例：5">
 
+      <div style="height:18px"></div>
+      <label class="field-label" for="studentCourseStartInput">受講開始日<span class="help-tip" tabindex="0">?<span class="help-tip-text">授業を始める日です。組める／組めないは、この日の月の出勤表で見ます。その月がまだ出ていないときは、いちばん新しい出勤表で見ます。</span></span></label>
+      <input type="date" id="studentCourseStartInput">
+
       <div style="height:22px"></div>
       <label class="field-label">受講科目<span class="help-tip" tabindex="0">?<span class="help-tip-text">まず「基本情報を登録」を押してください。そのあと、空いているマスをクリックして教科を選びます。講師への依頼は、カレンダーでコマをクリックして右パネルから行います。</span></span></label>
       <div id="courseList"></div>

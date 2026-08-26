@@ -38,28 +38,53 @@ export const MATCHING_FACTOR_META = {
     description: '同じ曜日に他のコマも担当している講師を優先します（出勤日をまとめる）。',
     field: 'dayConsolidation',
   },
-  lowRate: {
-    label: 'コマ単価低い',
-    title: 'コマ単価が低い順',
-    description: '上記が同じ場合、1コマあたりの単価が低い講師を優先します。',
-    field: null,
+  lowAddCost: {
+    label: '追加のコストが低い',
+    title: '追加のコストが低い順',
+    description: 'この1コマで増える金額が小さい講師を優先します（新規出勤は交通費込み）。',
+    field: 'addCost',
+    numeric: true,
+    lowerIsBetter: true,
   },
 };
 
-/** 旧設定 id（月内全コマ対応）からの移行用 */
+/** 旧設定 id（月内全コマ対応／コマ単価低い）からの移行用 */
 const LEGACY_MATCHING_FACTOR_IDS = {
   monthFullCoverage: 'courseSlotCoverage',
+  lowRate: 'lowAddCost',
 };
 
 export const DEFAULT_MATCHING_PRIORITY = [
+  { id: 'prefPair', enabled: true },
+  { id: 'fillBonus', enabled: true },
+  { id: 'lowAddCost', enabled: true },
+  { id: 'dayConsolidation', enabled: true },
+  { id: 'courseSlotCoverage', enabled: true },
+  { id: 'prefSubject', enabled: true },
+  { id: 'prefDay', enabled: true },
+];
+
+/** 触っていない教室の旧デフォルト並び → 新デフォルトへ載せ替える判定用 */
+const LEGACY_DEFAULT_MATCHING_PRIORITY = [
   { id: 'prefPair', enabled: true },
   { id: 'courseSlotCoverage', enabled: true },
   { id: 'prefSubject', enabled: true },
   { id: 'prefDay', enabled: true },
   { id: 'fillBonus', enabled: true },
   { id: 'dayConsolidation', enabled: true },
-  { id: 'lowRate', enabled: true },
+  { id: 'lowAddCost', enabled: true },
 ];
+
+function clonePriorityList(list){
+  return list.map(item=> ({ id: item.id, enabled: item.enabled !== false }));
+}
+
+function samePriorityList(a, b){
+  if(a.length !== b.length) return false;
+  return a.every((item, i)=>
+    item.id === b[i].id && (item.enabled !== false) === (b[i].enabled !== false)
+  );
+}
 
 export function normalizeMatchingPriority(raw){
   const list = Array.isArray(raw) ? raw : [];
@@ -76,6 +101,9 @@ export function normalizeMatchingPriority(raw){
     if(seen.has(def.id)) return;
     result.push({ ...def });
   });
+  if(samePriorityList(result, LEGACY_DEFAULT_MATCHING_PRIORITY)){
+    return clonePriorityList(DEFAULT_MATCHING_PRIORITY);
+  }
   return result;
 }
 
@@ -86,19 +114,14 @@ export function getMatchingPriority(){
 export function compareCandidateInfo(a, b){
   for(const item of getMatchingPriority()){
     if(!item.enabled) continue;
-    if(item.id === 'lowRate'){
-      const rateA = a.teacher.perLessonRate ?? Infinity;
-      const rateB = b.teacher.perLessonRate ?? Infinity;
-      if(rateA !== rateB) return rateA - rateB;
-      continue;
-    }
     const meta = MATCHING_FACTOR_META[item.id];
     const field = meta?.field;
     if(!field) continue;
     if(meta.numeric){
-      const va = a[field] ?? 0;
-      const vb = b[field] ?? 0;
-      if(va !== vb) return vb - va;
+      const fallback = meta.lowerIsBetter ? Infinity : 0;
+      const va = a[field] ?? fallback;
+      const vb = b[field] ?? fallback;
+      if(va !== vb) return meta.lowerIsBetter ? va - vb : vb - va;
       continue;
     }
     if(a[field] !== b[field]) return a[field] ? -1 : 1;
@@ -110,7 +133,7 @@ export function buildCandidateBadgeLabels(cand){
   const labels = [];
   for(const item of getMatchingPriority()){
     if(!item.enabled) continue;
-    if(item.id === 'lowRate') continue;
+    if(item.id === 'lowAddCost') continue;
     if(item.id === 'courseSlotCoverage'){
       const covered = cand.courseSlotCoverage ?? 0;
       const total = cand.courseSlotCoverageTotal ?? 0;

@@ -191,8 +191,8 @@ function isTeacherAvailableOnDate(teacherId, dateStr, slot){
 
 // ---- 既存コード互換のためのブリッジ（曜日パターンとして扱う関数群） ----
 // S.referenceYearMonth（対象月）の提出内容をもとに、曜日単位の対応可否を判定する
-function isAvailable(teacher, day, slot){
-  return getWeekdayAvailabilityInMonth(teacher.id, day, slot, S.referenceYearMonth) !== null;
+function isAvailable(teacher, day, slot, yearMonth){
+  return getWeekdayAvailabilityInMonth(teacher.id, day, slot, yearMonth || S.referenceYearMonth) !== null;
 }
 function isPreferredDay(teacher, day, slot){
   return getWeekdayAvailabilityInMonth(teacher.id, day, slot, S.referenceYearMonth) === 'preferred';

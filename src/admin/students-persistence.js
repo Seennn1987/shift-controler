@@ -8,6 +8,7 @@ import { gradeLabel, buildMonthDaysFromBaseAvailability, getOrCreateDraftSchedul
 import { openTeacherScheduleEditor, renderTeacherScheduleTab } from './teacher-schedule-tab.js';
 import { collapseTeacherCalendarEntries, formatDualSubjectLabel } from './dual-subject.js';
 import { collectMakeupEntriesForTeacher, recordTeacherAbsence, studentAbsentDatesForAssignment } from './absences.js';
+import { normalizeMatchingPriority } from './matching-config.js';
 
 
 
@@ -733,7 +734,7 @@ async function loadAppStateFromFirestore(){
     S.teacherCapacity = d.teacherCapacity || 2;
     S.finGradientMin = (d.finGradientMin!=null) ? d.finGradientMin : 25;
     S.finGradientMax = (d.finGradientMax!=null) ? d.finGradientMax : 60;
-    S.matchingPriority = d.matchingPriority || null;
+    S.matchingPriority = normalizeMatchingPriority(d.matchingPriority || null);
   }else{
     // 初回ログイン：実運用として空のデータから始める（テスト用サンプルデータは使わない）
     S.teachers = [];

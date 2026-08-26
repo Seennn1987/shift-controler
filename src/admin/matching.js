@@ -28,7 +28,7 @@ import {
 
 // ---- 一括自動仮組み ----
 // 表示中の月の各開校日について、未確定の希望コマを日付単位で自動的に埋める。
-// 候補が少ない（融通が利かない）枠から優先。講師選定は compareCandidateInfo に従う。
+// 候補が少ない（融通が利かない）枠から優先。講師選定は compareCandidateInfo に従う（追加コストは、その時点の出勤を前提に増える金額）。
 function bulkAutoAssign(){
   const ym = S.referenceYearMonth;
   const pending = [];
@@ -176,6 +176,26 @@ function getSelectedStudentLevel(){
 // S.formCourses: フォーム入力中の作業用データ。保存時に student.courses として確定する。
 function genCourseId(){ return 'c-'+Date.now()+'-'+Math.random().toString(36).slice(2,7); }
 
+function readCourseStartDate(){
+  const el = document.getElementById('studentCourseStartInput');
+  const v = el?.value || '';
+  return /^\d{4}-\d{2}-\d{2}$/.test(v) ? v : getTodayStr();
+}
+
+function setCourseStartDateInput(value){
+  const el = document.getElementById('studentCourseStartInput');
+  if(el) el.value = value || getTodayStr();
+}
+
+async function handleCourseStartDateChange(){
+  if(!S.editingStudentId) return;
+  const idx = S.students.findIndex(s=> s.id === S.editingStudentId);
+  if(idx < 0) return;
+  S.students[idx].courseStartDate = readCourseStartDate();
+  await saveStudents();
+  renderFormCourses();
+}
+
 function renderFormCourses(){
   const level = getSelectedStudentLevel();
   const wrap = document.getElementById('courseList');
@@ -188,6 +208,7 @@ function renderFormCourses(){
     formCourses: S.formCourses,
     level,
     genCourseId,
+    courseStartDate: readCourseStartDate(),
     onChange: async ()=>{
       await persistFormCourses();
       renderFormCourses();
@@ -233,6 +254,7 @@ async function persistFormCourses(){
   if(idx < 0) return;
   const courses = normalizeFormCoursesForSave(S.formCourses);
   S.students[idx].courses = JSON.parse(JSON.stringify(courses));
+  S.students[idx].courseStartDate = readCourseStartDate();
   await saveStudents();
   renderStudentList();
   renderMatching();
@@ -244,6 +266,7 @@ function resetStudentForm(){
   document.getElementById('studentNameInput').value = '';
   document.getElementById('studentNameKanaInput').value = '';
   document.getElementById('studentGradeInput').value = '';
+  setCourseStartDateInput(getTodayStr());
   document.querySelectorAll('input[name=studentLevel]').forEach((r,i)=> r.checked = (i===0));
   S.formCourses = [];
   renderFormCourses();
@@ -258,6 +281,7 @@ function fillStudentFormForEdit(s){
   document.getElementById('studentNameInput').value = s.name;
   document.getElementById('studentNameKanaInput').value = s.nameKana || '';
   document.getElementById('studentGradeInput').value = s.grade ? String(s.grade) : '';
+  setCourseStartDateInput(s.courseStartDate || getTodayStr());
   document.querySelectorAll('input[name=studentLevel]').forEach(r=> r.checked = (r.value===s.level));
   S.formCourses = JSON.parse(JSON.stringify(s.courses));
   renderFormCourses();
@@ -281,16 +305,17 @@ async function handleStudentSave(){
 
   const courses = normalizeFormCoursesForSave(S.formCourses);
   const coursesCopy = JSON.parse(JSON.stringify(courses));
+  const courseStartDate = readCourseStartDate();
 
   if(S.editingStudentId){
     const idx = S.students.findIndex(s=>s.id===S.editingStudentId);
     if(idx>-1){
-      S.students[idx] = { ...S.students[idx], name, nameKana, level, grade, courses: coursesCopy };
+      S.students[idx] = { ...S.students[idx], name, nameKana, level, grade, courseStartDate, courses: coursesCopy };
     }
     msg.textContent = '基本情報を更新しました。';
   }else{
     const id = 's-'+Date.now()+'-'+Math.random().toString(36).slice(2,7);
-    S.students.push({ id, name, nameKana, level, grade, courses: coursesCopy });
+    S.students.push({ id, name, nameKana, level, grade, courseStartDate, courses: coursesCopy });
     S.editingStudentId = id;
     msg.textContent = '基本情報を登録しました。続けて希望コマを選んでください。';
   }
@@ -1473,4 +1498,4 @@ function jumpToCalendarForTeacher(teacherId, dateStr){
 
 // =====================================================================
 
-export { bulkAutoAssign, bulkCancelAuto, buildStudentLevelArea, getSelectedStudentLevel, genCourseId, renderFormCourses, resetStudentForm, fillStudentFormForEdit, handleStudentSave, renderStudentList, deleteStudent, renderMatching, refreshAfterMatchingChange, renderShortageDashboard, expandShortageBar, findNearestFutureDate, jumpToCalendarForStudent, jumpToCalendarForDate, jumpToCalendarForTeacher };
+export { bulkAutoAssign, bulkCancelAuto, buildStudentLevelArea, getSelectedStudentLevel, genCourseId, renderFormCourses, resetStudentForm, fillStudentFormForEdit, handleStudentSave, handleCourseStartDateChange, renderStudentList, deleteStudent, renderMatching, refreshAfterMatchingChange, renderShortageDashboard, expandShortageBar, findNearestFutureDate, jumpToCalendarForStudent, jumpToCalendarForDate, jumpToCalendarForTeacher };
