@@ -48,21 +48,31 @@ function hideCalDetailCard(){
 
 function updateMatchingReturnBar(){
   const bar = document.getElementById('matchingReturnBar');
-  const btn = document.getElementById('matchingReturnToStudentBtn');
-  if(!bar || !btn) return;
-  const id = S.matchingReturnToStudentId;
-  if(!id || !S.matchingPanelOpen){
-    bar.hidden = true;
-    return;
-  }
-  const student = S.students.find(s=> s.id === id);
-  if(!student){
-    S.matchingReturnToStudentId = null;
+  const returnBtn = document.getElementById('matchingReturnToStudentBtn');
+  const autoBtn = document.getElementById('mpStudentAutoBtn');
+  if(!bar || !returnBtn) return;
+  const returnId = S.matchingReturnToStudentId;
+  const returnStudent = returnId ? S.students.find(s=> s.id === returnId) : null;
+  if(!returnStudent && returnId) S.matchingReturnToStudentId = null;
+  const showReturn = Boolean(S.matchingPanelOpen && returnStudent);
+  const showAuto = Boolean(
+    S.matchingPanelOpen
+    && S.calendarDrawerView === 'matching-student'
+    && S.matchingPanelStudentId,
+  );
+  if(!showReturn && !showAuto){
     bar.hidden = true;
     return;
   }
   bar.hidden = false;
-  btn.textContent = `← ${student.name}さんの登録に戻る`;
+  returnBtn.hidden = !showReturn;
+  if(showReturn){
+    returnBtn.textContent = `← ${returnStudent.name}さんの登録に戻る`;
+  }
+  if(autoBtn){
+    autoBtn.hidden = !showAuto;
+    autoBtn.disabled = !showAuto || !studentAutoBarState.canAuto;
+  }
 }
 
 function returnToStudentRegistration(){
@@ -240,6 +250,7 @@ let matchingPanelFutureOffer = null;
 let matchingPanelPrefPairOffer = null;
 let matchingPanelRenderedPeriodKey = '';
 let studentAutoResult = { studentId: '', msg: '' };
+let studentAutoBarState = { canAuto: false };
 
 function getPeriodKey(){
   return `${getActiveYearMonth()}-${S.calMode}-${S.calWeekAnchor || ''}-${S.matchingPanelStudentId || ''}`;
@@ -386,8 +397,10 @@ function refreshPostAssignView(){
   }
 }
 
-function bindStudentMonthAuto(root, studentId){
-  root.querySelector('#mpStudentAutoBtn')?.addEventListener('click', async ()=>{
+function bindStudentMonthAuto(){
+  document.getElementById('mpStudentAutoBtn')?.addEventListener('click', async ()=>{
+    const studentId = S.matchingPanelStudentId;
+    if(!studentId) return;
     const result = await runStudentMonthAutoAssign(studentId);
     if(result?.cancelled) return;
     studentAutoResult = { studentId, msg: result?.msg || '' };
@@ -767,6 +780,7 @@ function closeMatchingPanel(){
   S.matchingReturnToStudentId = null;
   S.calendarDrawerView = 'day';
   studentAutoResult = { studentId: '', msg: '' };
+  studentAutoBarState = { canAuto: false };
   applyPanelLayout();
   renderCalendar();
 }
@@ -819,6 +833,7 @@ function renderStudentPeriodSlots(studentId, scrollToDateStr){
   const monthLabel = `${Number(ym.slice(5))}月`;
   const canAuto = monthSubmitted && totalPending > 0;
   const autoMsg = studentAutoResult.studentId === student.id ? studentAutoResult.msg : '';
+  const showAutoBlock = !monthSubmitted || Boolean(autoMsg);
 
   body.innerHTML = `
     <button type="button" class="ghost mp-back-btn" id="mpBackToMenu">← 閉じる</button>
@@ -828,13 +843,10 @@ function renderStudentPeriodSlots(studentId, scrollToDateStr){
     </div>
     ${buildPostAssignBannersHtml()}
     <p class="matching-panel-hint">${periodLabel}のコマ一覧（${dayCount}日分）${totalPending > 0 ? ` — 講師なし <strong>${totalPending}コマ</strong>` : ''}</p>
-    <div class="matching-panel-student-auto">
+    ${showAutoBlock ? `<div class="matching-panel-student-auto">
       ${!monthSubmitted ? `<div class="shortage-actions-warn">${monthLabel}は講師のシフト提出がまだないため、自動で組めません。</div>` : ''}
-      <div class="shortage-actions-toolbar">
-        <button type="button" class="ghost mp-action shortage-action-btn shortage-action-btn--muted" id="mpStudentAutoBtn"${canAuto ? '' : ' disabled'}>この生徒の今月を自動で組む</button>
-      </div>
       <div id="mpStudentAutoResult" class="shortage-action-result" aria-live="polite"></div>
-    </div>
+    </div>` : ''}
     ${daySectionsHtml
       ? `<div class="matching-panel-period-list">${daySectionsHtml}</div>`
       : `<p class="matching-panel-hint">この期間に表示できるコマがありません。</p>`}
@@ -842,9 +854,10 @@ function renderStudentPeriodSlots(studentId, scrollToDateStr){
 
   const resultEl = body.querySelector('#mpStudentAutoResult');
   if(resultEl) resultEl.textContent = autoMsg;
+  studentAutoBarState = { canAuto };
+  updateMatchingReturnBar();
 
   bindBackToMenu(body);
-  bindStudentMonthAuto(body, student.id);
   bindConfirmButtons(body);
   bindChangeTeacherButtons(body);
   bindPrefPairButtons(body, ()=> afterMatchingChange(S.calSelectedDate));
@@ -932,6 +945,7 @@ function initMatchingPanel(){
   document.getElementById('openMatchingPanelBtn')?.addEventListener('click', openMatchingPanel);
   document.getElementById('matchingPanelCloseBtn')?.addEventListener('click', closeMatchingPanel);
   document.getElementById('matchingReturnToStudentBtn')?.addEventListener('click', returnToStudentRegistration);
+  bindStudentMonthAuto();
   document.addEventListener('keydown', e=>{
     if(e.key === 'Escape' && S.matchingPanelOpen) closeMatchingPanel();
   });
