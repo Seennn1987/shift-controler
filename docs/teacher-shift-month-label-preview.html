@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ピタコマ シフト提出済の月表示 プレビュー</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Zen+Kaku+Gothic+New:wght@400;500;700;900&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="../src/shared/styles/variables.css">
+  <link rel="stylesheet" href="../src/teacher/styles/teacher.css">
+  <link rel="stylesheet" href="teacher-shift-month-label-preview.css">
+</head>
+<body>
+  <header class="preview-header">
+    <div class="preview-header-inner">
+      <h1>シフト「提出済」— 何月分かを分かりやすくする</h1>
+      <p>上のバーは「提出済」だけ、月はカレンダーまで下がらないと見えません。月の出し方を5案並べています。</p>
+    </div>
+  </header>
+
+  <main class="preview-main">
+    <section>
+      <h2>いまの問題</h2>
+      <div class="rule-box">
+        <ol>
+          <li>上のバーは「シフト」と「提出済」だけ。何月分か書いていない</li>
+          <li>月は、長い説明の下にある「2026年8月」まで目を落とさないと分からない</li>
+          <li>「提出済」だと、全体が提出済みに聞こえる（8月だけ、の意味が弱い）</li>
+        </ol>
+      </div>
+      <p class="section-desc">下は<strong>いまの画面の並び</strong>です。赤い点線が、バーと月のあいだの距離です。</p>
+      <div id="currentMock"></div>
+    </section>
+
+    <section>
+      <h2>改善案 5パターン</h2>
+      <div class="recommend-box">おすすめは <strong>A</strong>。見出しを「8月のシフト」にして、バッジは今どおり「提出済／未提出」のままです。月と状態が分かれ、上のバーだけで分かります。</div>
+      <p class="section-desc">8月＝提出済、の見た目です。月を切り替えたときの「9月＝未提出」は各カードの下に小さく出しています。</p>
+      <div id="variantGrid"></div>
+    </section>
+  </main>
+
+  <script src="teacher-shift-month-label-preview.js"></script>
+</body>
+</html>

@@ -117,6 +117,8 @@ function updateShiftFormState(){
   const submitBtn = document.getElementById('submitShiftBtn');
   const sendBtn = document.getElementById('sendRequestBtn');
   if(!submitBtn || !sendBtn || S.curYear == null || S.curMonth == null) return;
+  const titleEl = document.getElementById('shiftDockTitle');
+  if(titleEl) titleEl.textContent = `${S.curMonth + 1}月のシフト`;
   const yearMonth = `${S.curYear}-${pad2(S.curMonth + 1)}`;
   const entry = getMonthEntry(yearMonth);
   const isSubmitted = entry.status === 'submitted';
