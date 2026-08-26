@@ -26,5 +26,8 @@ export const S = {
   responseDrafts: {},
   pendingCancellationRequests: [],
   adminCancelledNotices: [],
+  mySubjects: [],
+  subjectSettingsTimer: null,
+  lastLocalSubjectEditAt: 0,
 };
 

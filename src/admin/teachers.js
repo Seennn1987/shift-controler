@@ -7,7 +7,7 @@ import { refreshSubjectFilterCombobox } from './filter-ui.js';
 import { renderMatrix, switchView } from './finance-ui.js';
 import { renderMatching } from './matching.js';
 import { fillBaseAvailArea, readBaseAvailArea, renderRaiseScheduleList, subjectColor } from './schedule-core.js';
-import { scheduleSave } from './students-persistence.js';
+import { scheduleSave, saveTeacherSubjectsDoc } from './students-persistence.js';
 import { getPreferredPairsForTeacher } from './teacher-schedule-tab.js';
 
 
@@ -226,7 +226,12 @@ async function handleSave(){
   }else{
     S.teachers.push({id:'t-'+Date.now()+'-'+Math.random().toString(36).slice(2,7), name, nameKana, workStartYearMonth, subjects, perLessonRate, dailyTransport, notes, baseAvailability, earlyLessonException, raiseSchedule});
   }
+  const savedTeacher = S.editingId
+    ? S.teachers.find(t=> t.id === S.editingId)
+    : S.teachers[S.teachers.length - 1];
+  S.lastLocalSubjectEditAt = Date.now();
   const ok = await saveTeachers();
+  if(savedTeacher) await saveTeacherSubjectsDoc(savedTeacher, 'admin');
   if(ok){
     resetForm();
     renderTeacherList();

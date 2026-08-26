@@ -40,6 +40,86 @@ function teacherSchedDocRef(teacherId){
   if(!user) return null;
   return fbDb.collection('teacherSchedules').doc(`${user.uid}_${teacherId}`);
 }
+function teacherSubjectsDocRef(teacherId){
+  const user = fbAuth.currentUser;
+  if(!user) return null;
+  return fbDb.collection('teacherSubjects').doc(`${user.uid}_${teacherId}`);
+}
+function subjectsFingerprint(list){
+  return (list || [])
+    .map(s=> `${s.level}\t${s.subject}\t${s.preferred ? '1' : '0'}`)
+    .sort()
+    .join('\n');
+}
+async function saveTeacherSubjectsDoc(teacher, updatedBy = 'admin'){
+  if(!teacher || !teacher.loginUid) return;
+  const ref = teacherSubjectsDocRef(teacher.id);
+  if(!ref) return;
+  try{
+    await ref.set({
+      adminUid: fbAuth.currentUser.uid,
+      teacherId: teacher.id,
+      teacherLoginUid: teacher.loginUid,
+      subjects: teacher.subjects || [],
+      updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
+      updatedBy,
+    }, { merge: true });
+  }catch(err){
+    console.error('担当教科の同期エラー:', err);
+  }
+}
+async function syncMissingTeacherSubjects(){
+  const user = fbAuth.currentUser;
+  if(!user) return;
+  try{
+    const snap = await fbDb.collection('teacherSubjects').where('adminUid','==',user.uid).get();
+    const existing = new Set();
+    snap.forEach(doc=> existing.add(doc.data().teacherId));
+    for(const teacher of S.teachers){
+      if(!teacher.loginUid || existing.has(teacher.id)) continue;
+      await saveTeacherSubjectsDoc(teacher, 'admin');
+    }
+  }catch(err){
+    console.error('担当教科の初期同期エラー:', err);
+  }
+}
+function applyTeacherSubjectsQuerySnap(snap){
+  let changed = false;
+  snap.forEach(doc=>{
+    const d = doc.data();
+    if(S.editingId && S.editingId === d.teacherId) return;
+    const idx = S.teachers.findIndex(t=> t.id === d.teacherId);
+    if(idx < 0) return;
+    const next = d.subjects || [];
+    if(subjectsFingerprint(S.teachers[idx].subjects) === subjectsFingerprint(next)) return;
+    S.teachers[idx] = { ...S.teachers[idx], subjects: next };
+    changed = true;
+  });
+  return changed;
+}
+async function pollTeacherSubjects(){
+  const user = fbAuth.currentUser;
+  if(!user) return;
+  if(Date.now() - (S.lastLocalSubjectEditAt || 0) < 5000) return;
+  try{
+    const snap = await fbDb.collection('teacherSubjects').where('adminUid','==',user.uid).get();
+    const changed = applyTeacherSubjectsQuerySnap(snap);
+    if(!changed) return;
+    scheduleSave();
+    const { renderTeacherList } = await import('./teachers.js');
+    renderTeacherList();
+    renderMatching();
+  }catch(err){
+    console.error('担当教科の読み込みエラー:', err);
+  }
+}
+function startTeacherSubjectsListener(){
+  const user = fbAuth.currentUser;
+  if(!user) return;
+  if(S.teacherSubjectsPollTimer) clearInterval(S.teacherSubjectsPollTimer);
+  pollTeacherSubjects();
+  S.teacherSubjectsPollTimer = setInterval(pollTeacherSubjects, 10000);
+}
 // 講師のログインIDを、紐づく全てのドキュメント（S.teacherSchedules・teacherAssignments）に一括で反映する
 // （どちらか一方だけ更新すると、もう一方が古いままになり権限エラーの原因になるため、必ずこの関数を通す）
 async function syncTeacherLoginUidEverywhere(teacherId, loginUid){
@@ -67,6 +147,11 @@ async function syncTeacherLoginUidEverywhere(teacherId, loginUid){
     await assignRef.set(payload, {merge:true});
   }catch(e){
     console.error('teacherAssignmentsのteacherLoginUid更新エラー:', e);
+  }
+  try{
+    if(teacher) await saveTeacherSubjectsDoc({ ...teacher, loginUid }, 'admin');
+  }catch(e){
+    console.error('teacherSubjectsの更新エラー:', e);
   }
   // 念のため、担当授業一覧そのものも今の状態で作り直しておく
   await syncTeacherAssignments();
@@ -700,6 +785,9 @@ async function loadAppStateFromFirestore(){
 
   await syncClosureSettings(); // 講師側にも休校日設定を同期しておく
   await syncTeacherAssignments(); // 講師のマイカレンダー用データも、ログインのたびに必ず作り直す（過去の同期失敗を自己修復するため）
+  await pollTeacherSubjects();
+  startTeacherSubjectsListener();
+  await syncMissingTeacherSubjects();
   if(matchingWasCleared){
     console.info('[ピタコマ] 授業マッチデータをすべて削除しました。');
   }
@@ -775,4 +863,4 @@ async function clearAllMatchingData(){
 }
 
 
-export { loadStudents, saveStudents, getStateDocRef, teacherSchedDocRef, syncTeacherLoginUidEverywhere, saveTeacherScheduleDoc, loadAllTeacherSchedules, startTeacherScheduleListener, promotePendingAssignment, startApprovalPromotionListener, scheduleSyncClosureSettings, syncClosureSettings, scheduleSyncTeacherAssignments, syncTeacherAssignments, scheduleSave, saveAppState, loadAppStateFromFirestore, clearAllMatchingData, seedTeacherMonthSchedulesFromBase, approveCancellationRequest, approveCancellationRequests, rejectCancellationRequest };
+export { loadStudents, saveStudents, getStateDocRef, teacherSchedDocRef, syncTeacherLoginUidEverywhere, saveTeacherScheduleDoc, loadAllTeacherSchedules, startTeacherScheduleListener, promotePendingAssignment, startApprovalPromotionListener, scheduleSyncClosureSettings, syncClosureSettings, scheduleSyncTeacherAssignments, syncTeacherAssignments, scheduleSave, saveAppState, loadAppStateFromFirestore, clearAllMatchingData, seedTeacherMonthSchedulesFromBase, approveCancellationRequest, approveCancellationRequests, rejectCancellationRequest, saveTeacherSubjectsDoc, startTeacherSubjectsListener };

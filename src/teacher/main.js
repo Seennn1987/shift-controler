@@ -8,4 +8,5 @@ import './approvals.js';
 import './calendar.js';
 import './shift-ui.js';
 import './init.js';
+import './subject-settings.js';
 import './auth.js';

@@ -38,12 +38,14 @@
     </div>
     <div class="header-account">
       <span id="loginUserEmail" class="header-email"></span>
+      <button type="button" id="openSubjectBtn" class="logout-btn">教科設定</button>
       <button type="button" id="logoutBtn" class="logout-btn">ログアウト</button>
     </div>
   </div>
 </header>
 
 <div class="app" id="appRoot" style="display:none;">
+  <div id="viewHome">
   <div class="submit-dock submit-dock-d1" id="submitDock">
     <div class="submit-dock-block is-lesson" id="submitDockLesson" style="display:none;">
       <div class="submit-dock-head">
@@ -98,6 +100,25 @@
       <button type="button" class="today-btn" id="calTodayBtn">今月</button>
     </div>
     <div id="myCalWrap"></div>
+  </div>
+  </div>
+
+  <div id="viewSubjects" hidden>
+    <div class="card">
+      <button type="button" class="ghost mp-back-btn" id="backToHomeBtn">← マイスケジュールに戻る</button>
+      <h2>担当教科設定</h2>
+      <p class="matching-priority-intro">
+        <strong>★</strong>得意科目
+        <span class="matching-priority-intro-sep">·</span>
+        <strong>○</strong>対応可能
+        <span class="matching-priority-intro-sep">·</span>
+        <strong>×</strong>不可
+      </p>
+      <p class="desc">マスを押すと切り替わります。最後に「変更を保存」ボタンを押してください。</p>
+      <div id="teacherMatrixWrap"></div>
+      <p class="form-msg" id="subjectFormMsg"></p>
+      <button type="button" class="primary" id="saveSubjectBtn">変更を保存</button>
+    </div>
   </div>
 </div>
 

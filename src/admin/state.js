@@ -27,6 +27,8 @@ export const S = {
   secondaryFbApp: null,
   teacherSchedulePollTimer: null,
   approvalPromotionPollTimer: null,
+  teacherSubjectsPollTimer: null,
+  lastLocalSubjectEditAt: 0,
   syncClosureSettingsTimer: null,
   syncTeacherAssignmentsTimer: null,
   absences: [],

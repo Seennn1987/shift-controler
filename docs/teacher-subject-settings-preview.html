@@ -1,0 +1,95 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ピタコマ 講師・担当教科設定 プレビュー</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Zen+Kaku+Gothic+New:wght@400;500;700;900&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="../src/shared/styles/variables.css">
+  <link rel="stylesheet" href="teacher-subject-settings-preview.css">
+</head>
+<body>
+  <header class="preview-header">
+    <div class="preview-header-inner">
+      <h1>講師画面 — 担当教科の設定</h1>
+      <p>右上の「教科設定」で別画面に移ります。マスを押して切り替え、最後に「変更」で教室長側にも同じ内容が載る想定です。</p>
+    </div>
+  </header>
+
+  <main class="preview-main">
+    <section>
+      <h2>操作の流れ</h2>
+      <div class="rule-box">
+        <ol>
+          <li>講師画面の右上「教科設定」を押す（別画面に移る）</li>
+          <li>マスを押すたびに <strong>×不可 → ○対応可能 → ★得意科目</strong> と切り替わる</li>
+          <li>「変更を保存」で保存。「← マイスケジュールに戻る」では保存せず戻る</li>
+        </ol>
+      </div>
+    </section>
+
+    <section>
+      <h2>講師画面</h2>
+      <p class="section-desc">本番と同じヘッダーです。ログアウトの左に「教科設定」を置きます。</p>
+      <div class="mock-app">
+        <header class="top">
+          <div class="inner">
+            <div>
+              <h1>ピタコマ</h1>
+              <div class="sub">山田 花子 さん</div>
+            </div>
+            <div class="header-account">
+              <span class="header-email">hana@example.com</span>
+              <button type="button" class="logout-btn" id="openSubjectBtn">教科設定</button>
+              <button type="button" class="logout-btn" disabled>ログアウト</button>
+            </div>
+          </div>
+        </header>
+
+        <div class="app" id="viewHome">
+          <div class="card">
+            <h2>マイスケジュール</h2>
+            <p class="desc">担当授業の確認と、空きコマのシフト提出がこの1画面でできます。</p>
+            <p class="mock-note">カレンダー（このプレビューでは省略）</p>
+            <p class="sync-msg" id="teacherSyncMsg"></p>
+          </div>
+        </div>
+
+        <div class="app" id="viewSubjects" hidden>
+          <div class="card">
+            <button type="button" class="ghost mp-back-btn" id="backToHomeBtn">← マイスケジュールに戻る</button>
+            <h2>担当教科設定</h2>
+            <p class="matching-priority-intro">
+              <strong>★</strong>得意科目
+              <span class="matching-priority-intro-sep">·</span>
+              <strong>○</strong>対応可能
+              <span class="matching-priority-intro-sep">·</span>
+              <strong>×</strong>不可
+            </p>
+            <p class="desc">マスを押すと切り替わります。最後に「変更を保存」ボタンを押してください。</p>
+            <div id="teacherMatrixWrap"></div>
+            <p class="form-msg" id="subjectFormMsg"></p>
+            <button type="button" class="primary" id="saveSubjectBtn">変更を保存</button>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section>
+      <h2>教室長画面（講師一覧の担当教科）</h2>
+      <p class="section-desc">講師が「変更」を押すと、こちらの表も同じ内容になります。下のボタンは「教室長が講師を編集して更新した」ときの連動確認用です。</p>
+      <div class="admin-card">
+        <div class="trow-col-title">担当教科</div>
+        <div class="trow-col-body-table" id="adminMatrixWrap"></div>
+      </div>
+      <div class="preview-controls">
+        <button type="button" class="preview-toggle" id="simulateAdminBtn">教室長側で更新したつもりにする</button>
+      </div>
+      <p class="sync-msg" id="adminSyncMsg"></p>
+    </section>
+  </main>
+
+  <script src="teacher-subject-settings-preview.js"></script>
+</body>
+</html>

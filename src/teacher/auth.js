@@ -16,6 +16,7 @@ import {
   initResponseDraftHandlers,
 } from './approvals.js';
 import { renderMyCalendar } from './calendar.js';
+import { startTeacherSubjectsListener, stopTeacherSubjectsListener } from './subject-settings.js';
 
 function showLogin(msg){
   document.getElementById('loginScreen').style.display = 'flex';
@@ -63,7 +64,8 @@ fbAuth.onAuthStateChanged(async user=>{
   if(user){
     await bootstrap(user);
   }else{
-    S.myAdminUid = null; S.myTeacherId = null;
+    S.myAdminUid = null; S.myTeacherId = null; S.mySubjects = [];
+    stopTeacherSubjectsListener();
     showLogin();
   }
 });
@@ -110,6 +112,7 @@ async function bootstrap(user){
   startScheduleListener();
   startMyAssignmentsListener();
   startClassroomSettingsListener();
+  startTeacherSubjectsListener();
   await loadMyPendingRequests();
   S.newAssignments = await loadNewAssignments();
   S.pendingCancellationRequests = await loadPendingCancellationRequests();
