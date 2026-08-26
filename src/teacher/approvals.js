@@ -479,7 +479,7 @@ function buildSubmitConfirmMessage(drafts){
   if(cancelLines.length) sections.push(`【欠勤申請】\n${cancelLines.join('\n')}`);
 
   return {
-    title: '次の内容を教室長に送信します。',
+    title: '次の内容を教室長に提出します。',
     body: sections.join('\n\n'),
     footer: 'よろしいですか？',
   };
@@ -548,14 +548,13 @@ async function submitResponseDrafts(kind){
 
   const dock = document.getElementById('submitDock');
   if(errors.length){
-    const failLabel = kind === 'absence' ? '欠勤申請' : '承認・辞退';
-    showInlineNotice(dock, `一部の送信に失敗しました。\n${errors.join('\n')}\n\n${failLabel}を送れませんでした。通信状況をご確認ください。`, { variant: 'warn', clear: false });
+    showInlineNotice(dock, `一部を提出できませんでした。\n通信状況をご確認のうえ、もう一度お試しください。`, { variant: 'warn', clear: false });
     return { ok: false };
   }
   if(kind === 'absence'){
     showAppNoticeDialog({
       title: '欠勤を申請しました。',
-      message: '別途、教室長にLINE、もしくは3日後以内の急な欠勤の場合は電話でご連絡をお願いします',
+      message: '急な欠勤（3日以内）の場合は、教室長に電話でご連絡ください。それ以外はLINEでも構いません。',
     });
   }
   return { ok: true };

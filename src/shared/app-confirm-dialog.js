@@ -130,6 +130,6 @@ export async function runAppConfirmDialog(options, onConfirm){
     return { ok: true, ...(result || {}) };
   }catch(err){
     console.error('[app-confirm-dialog]', err);
-    return { ok: false, msg: '処理に失敗しました。' };
+    return { ok: false, msg: 'うまくいきませんでした。もう一度お試しください。' };
   }
 }

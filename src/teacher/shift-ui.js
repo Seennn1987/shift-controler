@@ -54,8 +54,8 @@ function buildShiftPickGroupHtml(dateStr, slotId, entry){
   `).join('');
 
   const statusBadge = isDirty
-    ? '<span class="local-shift-badge">シフト変更送信前</span>'
-    : (isRequested ? '<span class="shift-req-badge">シフト変更承認待ち</span>' : '');
+    ? '<span class="local-shift-badge">シフト変更下書き</span>'
+    : (isRequested ? '<span class="shift-req-badge">教室長の承認待ち</span>' : '');
 
   return `<div class="shift-pick-group shift-pick-s4" role="group" aria-label="${slotNum}講の出勤希望">
     ${statusBadge}
@@ -95,7 +95,7 @@ function buildShiftChangeConfirmMessage(){
     return d || a.slot - b.slot;
   }).map(item=> formatShiftChangeLine(item.dateStr, item.slot, item.from, item.to));
   return {
-    title: '次の内容を教室長に送信します。',
+    title: '次の内容を教室長に提出します。',
     body: `【シフト変更】\n${lines.join('\n')}`,
     footer: 'よろしいですか？',
   };
@@ -109,7 +109,7 @@ function updateShiftDockBadges(isSubmitted, changeCount){
     return;
   }
   const badges = ['<span class="status-badge submitted">提出済</span>'];
-  if(changeCount > 0) badges.push('<span class="status-badge change">シフト変更送信前</span>');
+  if(changeCount > 0) badges.push('<span class="status-badge change">シフト変更下書き</span>');
   wrap.innerHTML = badges.join('');
 }
 
@@ -177,7 +177,7 @@ async function sendPendingChanges(){
   const msg = document.getElementById('formMsg');
   const keys = Object.keys(S.localOverrides);
   if(keys.length === 0) return { rerender: false };
-  if(msg) msg.textContent = '送信中…';
+  if(msg) msg.textContent = '提出中…';
   try{
     for(const key of keys){
       const [dateStr, slotStr] = key.split('|');
@@ -203,7 +203,7 @@ async function sendPendingChanges(){
     return { rerender: true };
   }catch(err){
     console.error('変更リクエストエラー:', err);
-    if(msg) msg.textContent = 'リクエストの送信に失敗しました。通信状況をご確認ください。';
+    if(msg) msg.textContent = 'シフト変更の提出に失敗しました。通信状況をご確認ください。';
     return { rerender: false };
   }
 }

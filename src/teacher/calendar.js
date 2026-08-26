@@ -113,7 +113,7 @@ function buildStudentLineHtml(entry, isLast, showCancelInRow, dateStr){
     return `<div class="mycal-slot-student is-orphan${isLast ? '' : ' has-divider'}">
       ${buildSubjectTagsHtml(entry)}
       <span class="mycal-slot-student-name"><b>${entry.studentName}</b>${gradePart}</span>
-      <span class="mycal-orphan-note">反映待ち</span>
+      <span class="mycal-orphan-note">教室長の確認待ち</span>
     </div>`;
   }
 
@@ -137,7 +137,7 @@ function buildCancelActionHtml(entry, dateStr){
   }
   if(cancelDraft){
     return `<span class="mycal-slot-status">
-      <span class="mycal-draft-label">欠勤申請（送信前）</span>
+      <span class="mycal-draft-label">欠勤申請（下書き）</span>
       <button type="button" class="mycal-undo-btn" data-draft-key="${cancelKey}">取り消す</button>
     </span>`;
   }
@@ -155,10 +155,10 @@ function buildPendingHeaderActionsHtml(dateStr, slotId){
   const slotKey = draftKeyForSlot(dateStr, slotId);
   if(draft){
     if(draft.action === 'approve'){
-      return `<span class="mycal-draft-label">承認（送信前）</span>
+      return `<span class="mycal-draft-label">承認（下書き）</span>
         <button type="button" class="mycal-undo-btn" data-draft-key="${slotKey}">取り消す</button>`;
     }
-    return `<span class="mycal-draft-label">辞退（送信前）</span>
+    return `<span class="mycal-draft-label">辞退（下書き）</span>
       <button type="button" class="mycal-undo-btn" data-draft-key="${slotKey}">取り消す</button>`;
   }
   return `<button type="button" class="mycal-approve-btn" data-slot-date="${dateStr}" data-slot-id="${slotId}">承認</button>
@@ -298,7 +298,7 @@ function updateBanner(){
       rows.push(`<dt>未対応</dt><dd class="is-alert">${unreplied}コマ</dd>`);
     }
     if(lessonDraftCount > 0){
-      rows.push(`<dt>送信前</dt><dd class="is-draft">${formatLessonDraftDetail(lessonDrafts)}</dd>`);
+      rows.push(`<dt>下書き</dt><dd class="is-draft">${formatLessonDraftDetail(lessonDrafts)}</dd>`);
     }
     kvEl.innerHTML = rows.join('');
     kvEl.style.display = rows.length ? '' : 'none';
@@ -306,7 +306,7 @@ function updateBanner(){
 
   if(absenceBadges){
     absenceBadges.innerHTML = absenceDraftCount > 0
-      ? '<span class="status-badge change">欠勤申請送信前</span>'
+      ? '<span class="status-badge change">欠勤申請下書き</span>'
       : '';
   }
   if(absenceBtn){

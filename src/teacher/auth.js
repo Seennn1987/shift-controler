@@ -32,7 +32,7 @@ function handleLogin(){
   if(!email || !password){ msg.textContent = 'メールアドレスとパスワードを入力してください。'; return; }
   msg.textContent = '確認中…';
   fbAuth.signInWithEmailAndPassword(email, password).catch(err=>{
-    let text = 'ログインに失敗しました。';
+    let text = 'ログインできませんでした。もう一度お試しください。';
     if(err.code==='auth/invalid-email') text = 'メールアドレスの形式が正しくありません。';
     if(err.code==='auth/user-not-found' || err.code==='auth/wrong-password' || err.code==='auth/invalid-credential') text = 'メールアドレスまたはパスワードが正しくありません。';
     msg.textContent = text;
@@ -46,7 +46,7 @@ document.getElementById('logoutBtn').addEventListener('click', ()=>{
   const draftCount = uid ? Object.keys(loadResponseDrafts(uid)).length : 0;
   if(draftCount > 0){
     mountInlineConfirm(document.getElementById('appHeader'), logoutBtn, {
-      message: `まだ教室長に送っていない内容が${draftCount}件あります。\nこの端末に保存されたままログアウトします。\n\nよろしいですか？`,
+      message: `まだ教室長に提出していない内容が${draftCount}件あります。\nこの端末に保存されたままログアウトします。\n\nよろしいですか？`,
       confirmLabel: 'ログアウトする',
       variant: 'danger',
       mountSelector: '.header-account',
@@ -80,18 +80,9 @@ async function bootstrap(user){
     return;
   }
   if(!accSnap.exists){
-    let adminHint = '';
-    try{
-      const adminSnap = await fbDb.collection('classroomSettings').doc(user.uid).get();
-      if(adminSnap.exists){
-        adminHint = '教室長用のアカウントでログインしている可能性があります。教室長ページ（index.html）をお使いください。';
-        await fbAuth.signOut();
-      }
-    }catch(e){
-      // 判定に失敗しても、下の一般メッセージを表示する
-    }
     console.error('teacherAccounts lookup failed for uid:', user.uid);
-    showLogin(adminHint || `このアカウントは講師として登録されていません。教室長に「講師登録」画面でログイン再同期を依頼してください。（確認用ID: ${user.uid.slice(0, 8)}…）`);
+    await fbAuth.signOut();
+    showLogin('教室長に連絡してください。');
     return;
   }
   const d = accSnap.data();

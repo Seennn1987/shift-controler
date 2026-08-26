@@ -75,14 +75,14 @@ export function mountInlineConfirm(root, anchorEl, {
     try{
       const result = await onConfirm();
       if(result && result.ok === false){
-        if(textEl) textEl.innerHTML = formatMessage(result.msg || '処理に失敗しました。');
+        if(textEl) textEl.innerHTML = formatMessage(result.msg || 'うまくいきませんでした。もう一度お試しください。');
         confirmBtn.disabled = false;
         return;
       }
       box.remove();
     }catch(err){
       console.error('[inline-confirm]', err);
-      if(textEl) textEl.textContent = '処理に失敗しました。';
+      if(textEl) textEl.textContent = 'うまくいきませんでした。もう一度お試しください。';
       confirmBtn.disabled = false;
     }
   });
