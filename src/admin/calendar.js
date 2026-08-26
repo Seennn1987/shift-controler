@@ -2,7 +2,7 @@ import { SUBJECT_MAP, DAYS, SLOTS, WEEKDAY_JP, WEEK_FULL, SUBJECT_ABBR } from '.
 import { HOLIDAYS_JP } from '../shared/holidays.js';
 import { pad2, daysInYearMonth, toDateStr, getTodayStr } from '../shared/date-utils.js';
 import { firebaseConfig, fbAuth, fbDb, STORAGE_KEY, getSecondaryAuth, S } from './state.js';
-import { findAbsenceFor, getEffectiveDayAssignments, getStudentDateRows, isAssignedTeacherMissingOnDate } from './absences.js';
+import { findAbsenceFor, getAbsenceRecordsOnDate, getEffectiveDayAssignments, getStudentDateRows, isAssignedTeacherMissingOnDate } from './absences.js';
 import { hasCalFocusFilter, registerCalFilterUiSync, resolveFilterStudent, resolveFilterTeacher, setCalFilterStudent } from './cal-filter.js';
 import { refreshCalFilterOptions } from './filter-ui.js';
 import { setSearchComboboxValue } from './search-combobox.js';
@@ -15,9 +15,17 @@ import { findDualPairAtSlot, collapseDualAssignmentDisplayRows, countSlotAssignm
 // カレンダー（トップページ・TimeTree風シンプルUI）
 // =====================================================================
 
-function hasCoveringTeacher(studentId, courseId, day, slot, yearMonth, dateStr){
+function coveringState(studentId, courseId, day, slot, yearMonth, dateStr){
   const eff = findEffectiveAssignment(studentId, courseId, day, slot, yearMonth, dateStr);
-  return !!(eff && !isAssignedTeacherMissingOnDate(eff.entry, dateStr));
+  if(!eff) return { covered: false, missingTeacher: null };
+  if(isAssignedTeacherMissingOnDate(eff.entry, dateStr)){
+    return { covered: false, missingTeacher: eff.entry };
+  }
+  return { covered: true, missingTeacher: null };
+}
+
+function hasCoveringTeacher(studentId, courseId, day, slot, yearMonth, dateStr){
+  return coveringState(studentId, courseId, day, slot, yearMonth, dateStr).covered;
 }
 
 
@@ -68,7 +76,8 @@ function studentRowToCalLine(r, student){
   const sc = subjectColor(student.level, isDual ? r.courses[0].subject : r.course.subject);
   if(r.isMakeupTarget){
     const teacher = S.teachers.find(t=>t.id===r.absence.makeup.teacherId);
-    return {text:`${subAbbr}:${teacher?shortName(teacher.name):'?'}(振替)`, cls:'makeup', bg:sc.bg, color:sc.text};
+    const waiting = r.isPending ? '(振替・待)' : '(振替)';
+    return {text:`${subAbbr}:${teacher?shortName(teacher.name):'?'}${waiting}`, cls: r.isPending ? 'pending' : 'makeup', bg:sc.bg, color:sc.text};
   }
   if(r.absence){
     return {text:`${subAbbr}:欠席`, cls:'absent'};
@@ -119,8 +128,8 @@ function buildDayCellLines(dateStr, filterStudent){
       let text;
       let cls;
       if(a.kind==='makeup'){
-        text = `${subAbbr}:${student?shortName(student.name):'?'}(振替)`;
-        cls = 'makeup';
+        text = `${subAbbr}:${student?shortName(student.name):'?'}(振替${a.pending ? '・待' : ''})`;
+        cls = a.pending ? 'pending' : 'makeup';
       }else if(a.draft){
         text = `${subAbbr}:${student?shortName(student.name):'?'}(仮)`;
         cls = 'draft';
@@ -133,6 +142,16 @@ function buildDayCellLines(dateStr, filterStudent){
         cls = 'confirmed';
       }
       lines.push({text, cls, bg: cls==='confirmed' ? sc.bg : undefined, color: cls==='confirmed' ? sc.text : undefined});
+    });
+    getAbsenceRecordsOnDate(dateStr).forEach(row=>{
+      const student = row.student;
+      const subAbbr = row.isDual
+        ? formatDualSubjectLabel(row.subjects.map(s=> SUBJECT_ABBR[s] || s.slice(0, 1)), '+')
+        : (SUBJECT_ABBR[row.subject] || row.subject.slice(0, 1));
+      lines.push({
+        text: `${subAbbr}:${student?shortName(student.name):'?'}:欠席`,
+        cls: 'absent',
+      });
     });
   }
   return lines;
@@ -194,11 +213,14 @@ function getUnassignedRowsForDate(dateStr){
           const hasAbsence = dualPair.entries.some(({ course: co })=>
             findAbsenceFor(student.id, co.id, dateStr, ds.day, ds.slot));
           if(hasAbsence) return;
-          const allAssigned = dualPair.entries.every(({ course: co })=>
-            hasCoveringTeacher(student.id, co.id, ds.day, ds.slot, yearMonth, dateStr));
-          if(allAssigned) return;
+          const dualStates = dualPair.entries.map(({ course: co })=>
+            coveringState(student.id, co.id, ds.day, ds.slot, yearMonth, dateStr));
+          if(dualStates.every(st=> st.covered)) return;
           const slot = SLOTS.find(sl=> sl.id === ds.slot);
           if(!slot) return;
+          const missingTeacher = dualStates.every(st=> st.missingTeacher)
+            ? dualStates[0].missingTeacher
+            : null;
           rows.push({
             student,
             course: dualPair.entries[0].course,
@@ -206,14 +228,16 @@ function getUnassignedRowsForDate(dateStr){
             dualPair,
             slot,
             weekday,
+            missingTeacher,
           });
           return;
         }
         if(findAbsenceFor(student.id, course.id, dateStr, ds.day, ds.slot)) return;
-        if(hasCoveringTeacher(student.id, course.id, ds.day, ds.slot, yearMonth, dateStr)) return;
+        const cover = coveringState(student.id, course.id, ds.day, ds.slot, yearMonth, dateStr);
+        if(cover.covered) return;
         const slot = SLOTS.find(sl=> sl.id === ds.slot);
         if(!slot) return;
-        rows.push({ student, course, courses: null, dualPair: null, slot, weekday });
+        rows.push({ student, course, courses: null, dualPair: null, slot, weekday, missingTeacher: cover.missingTeacher });
       });
     });
   });
@@ -224,6 +248,7 @@ function getUnassignedRowsForDate(dateStr){
 function heatBoxTitle(h){
   const parts = [`${h.slotLabel} · 生徒${h.count}人`, `定員${S.roomCapacity}人`];
   if(h.pendingCount > 0) parts.push(`講師未決${h.pendingCount}人`);
+  if(h.absenceCount > 0) parts.push(`欠席${h.absenceCount}人`);
   return parts.join(' · ');
 }
 
@@ -233,16 +258,18 @@ function buildDayFlowState(dateStr){
     hasUnassigned: SLOTS.some(slot=> countUnassignedDesiredForSlot(dateStr, slot.id) > 0),
     hasDraft: list.some(a=> a.draft),
     hasWaiting: list.some(a=> a.pending),
+    hasAbsence: getAbsenceRecordsOnDate(dateStr).length > 0,
   };
 }
 
-/** 教室全体表示：日付ヘッダーにフローバッジ最大3つ（案M1） */
+/** 教室全体表示：日付ヘッダーにフローバッジ（講師なし・仮決め・承認待ち・欠席） */
 function buildDayHeadHtml(day, dateStr, isToday){
-  const { hasUnassigned, hasDraft, hasWaiting } = buildDayFlowState(dateStr);
+  const { hasUnassigned, hasDraft, hasWaiting, hasAbsence } = buildDayFlowState(dateStr);
   const badges = [];
   if(hasUnassigned) badges.push('<span class="cal-day-flow-badge is-unassigned">講師なし</span>');
   if(hasDraft) badges.push('<span class="cal-day-flow-badge is-tentative-outline">仮決め</span>');
   if(hasWaiting) badges.push('<span class="cal-day-flow-badge is-waiting">承認待ち</span>');
+  if(hasAbsence) badges.push('<span class="cal-day-flow-badge is-absent">欠席</span>');
   const todayCls = isToday ? ' is-today' : '';
   const badgesHtml = badges.length
     ? `<span class="cal-day-badges">${badges.join('')}</span>`
@@ -263,18 +290,33 @@ function heatBoxHtml(h){
 // 教室全体表示用：その実日付における4コマ(4講〜7講)それぞれの混雑度（確定＋未マッチの希望コマを反映）
 function buildDayHeat(dateStr){
   const list = getEffectiveDayAssignments(dateStr);
+  const absences = getAbsenceRecordsOnDate(dateStr);
   return SLOTS.map(slot=>{
     const slotList = list.filter(a=> a.slot === slot.id);
     const confirmedCount = countSlotAssignmentUnits(slotList);
     const pendingCount = countUnassignedDesiredForSlot(dateStr, slot.id);
-    const count = confirmedCount + pendingCount;
+    const absenceCount = absences.filter(r=> Number(r.slot) === Number(slot.id)).length;
+    const count = confirmedCount + pendingCount + absenceCount;
     const ratio = S.roomCapacity>0 ? Math.min(count/S.roomCapacity, 1) : 0;
-    return {slotLabel:slot.label, confirmedCount, pendingCount, count, ratio};
+    return {slotLabel:slot.label, confirmedCount, pendingCount, absenceCount, count, ratio};
   });
 }
 
+function absenceBelongsToTeacher(row, teacherId){
+  const ab = row.absence;
+  if(!ab) return false;
+  const all = S.assignments.concat(S.pendingAssignments, S.draftAssignments);
+  const hit = all.find(a=>
+    a.studentId === ab.studentId &&
+    a.courseId === ab.courseId &&
+    a.day === ab.day &&
+    Number(a.slot) === Number(ab.slot)
+  );
+  return hit?.teacherId === teacherId;
+}
+
 function buildDayCellLinesForTeacher(dateStr, teacher){
-  return collapseDualAssignmentDisplayRows(getEffectiveDayAssignments(dateStr))
+  const lessonLines = collapseDualAssignmentDisplayRows(getEffectiveDayAssignments(dateStr))
     .filter(a=> a.teacherId === teacher.id)
     .map(a=>{
       const student = S.students.find(s=> s.id === a.studentId);
@@ -282,15 +324,39 @@ function buildDayCellLinesForTeacher(dateStr, teacher){
         ? formatDualSubjectLabel(a.subjects.map(s=> SUBJECT_ABBR[s] || s.slice(0, 1)), '+')
         : (SUBJECT_ABBR[a.subject] || a.subject.slice(0, 1));
       const sc = student ? subjectColor(student.level, a.isDual ? a.subjects[0] : a.subject) : {bg:'#eee', text:'#333'};
-      const suffix = a.kind==='makeup' ? '(振替)' : '';
       const studentLabel = student ? shortName(student.name) : '?';
+      let suffix = '';
+      let cls = 'confirmed';
+      if(a.kind==='makeup'){
+        suffix = a.pending ? '(振替・待)' : '(振替)';
+        cls = a.pending ? 'pending' : 'makeup';
+      }else if(a.draft){
+        suffix = '(仮)';
+        cls = 'draft';
+      }else if(a.pending){
+        suffix = '(待)';
+        cls = 'pending';
+      }
       return {
         text: `${subAbbr}:${studentLabel}${suffix}`,
-        cls: a.kind==='makeup' ? 'makeup' : 'confirmed',
-        bg: sc.bg,
-        color: sc.text,
+        cls,
+        bg: cls==='confirmed' || cls==='makeup' ? sc.bg : undefined,
+        color: cls==='confirmed' || cls==='makeup' ? sc.text : undefined,
       };
     });
+  const absenceLines = getAbsenceRecordsOnDate(dateStr)
+    .filter(row=> absenceBelongsToTeacher(row, teacher.id))
+    .map(row=>{
+      const student = row.student;
+      const subAbbr = row.isDual
+        ? formatDualSubjectLabel(row.subjects.map(s=> SUBJECT_ABBR[s] || s.slice(0, 1)), '+')
+        : (SUBJECT_ABBR[row.subject] || row.subject.slice(0, 1));
+      return {
+        text: `${subAbbr}:${student?shortName(student.name):'?'}:欠席`,
+        cls: 'absent',
+      };
+    });
+  return lessonLines.concat(absenceLines);
 }
 
 function renderCalendar(){

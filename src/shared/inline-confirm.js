@@ -17,7 +17,7 @@ function resolveMountEl(anchorEl, mountSelector){
     return anchorEl.closest(mountSelector) || anchorEl.parentElement;
   }
   return anchorEl.closest(
-    '.match-slot, .change-req-row, .matching-panel-actions, .pending-banner-col, .header-account, .approval-col-head, .shortage-panel-head-split',
+    '.match-slot, .change-req-row, .matching-panel-actions, .pending-banner-col, .header-account, .approval-col-head, .shortage-panel-head-split, .sched-teacher-box, .sched-student-row',
   ) || anchorEl.parentElement;
 }
 

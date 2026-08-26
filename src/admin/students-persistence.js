@@ -7,7 +7,7 @@ import { renderMatching } from './matching.js';
 import { gradeLabel, buildMonthDaysFromBaseAvailability, getOrCreateDraftSchedule } from './schedule-core.js';
 import { openTeacherScheduleEditor, renderTeacherScheduleTab } from './teacher-schedule-tab.js';
 import { collapseTeacherCalendarEntries, formatDualSubjectLabel } from './dual-subject.js';
-import { recordTeacherAbsence } from './absences.js';
+import { collectMakeupEntriesForTeacher, recordTeacherAbsence, studentAbsentDatesForAssignment } from './absences.js';
 
 
 
@@ -545,11 +545,11 @@ function expandAssignmentForTeacherCalendar(a, approvalStatus, teacherId){
     approvalStatus,
     isPreferredPair,
     absentDates,
-    skippedDates: a.skippedDates || [],
+    skippedDates: [...(a.skippedDates || []), ...studentAbsentDatesForAssignment(a)],
   };
   if(a.oneTimeDate){
     if(absentDates.includes(a.oneTimeDate)) return [];
-    if((a.skippedDates || []).includes(a.oneTimeDate)) return [];
+    if(base.skippedDates.includes(a.oneTimeDate)) return [];
     return [{ ...base, oneTimeDate: a.oneTimeDate }];
   }
   // 曜日パターン: シフト提出日に依存せず表示（講師マイカレンダー Phase 0）
@@ -569,6 +569,7 @@ async function syncTeacherAssignments(){
     S.pendingAssignments.filter(a=>a.teacherId===t.id).forEach(a=>{
       expandAssignmentForTeacherCalendar(a, 'pending', t.id).forEach(e=> entries.push(e));
     });
+    collectMakeupEntriesForTeacher(t.id).forEach(e=> entries.push(e));
     // この講師が「代講」として単発で担当する授業（該当日だけの特別枠）
     S.teacherSubstitutions.forEach(sub=>{
       if(sub.substituteTeacherId!==t.id) return;

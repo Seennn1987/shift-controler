@@ -103,15 +103,8 @@ async function loadPendingCancellationRequests(){
   }
 }
 
-function teacherHasSubmittedMonth(yearMonth){
-  const entry = S.scheduleDoc?.months?.[yearMonth];
-  return !!(entry && entry.status === 'submitted');
-}
-
 function approvalAppliesOnDate(ticket, dateStr){
   if(ticket.oneTimeDate) return ticket.oneTimeDate === dateStr;
-  const yearMonth = dateStr.slice(0, 7);
-  if(!teacherHasSubmittedMonth(yearMonth)) return false;
   const wd = WEEKDAY_JP[new Date(`${dateStr}T00:00:00`).getDay()];
   if(ticket.day !== wd) return false;
   return getDayStatus(dateStr).type === 'open';
@@ -121,8 +114,6 @@ function entryAppliesOnDate(entry, dateStr){
   if((entry.absentDates || []).includes(dateStr)) return false;
   if((entry.skippedDates || []).includes(dateStr)) return false;
   if(entry.oneTimeDate) return entry.oneTimeDate === dateStr;
-  const yearMonth = dateStr.slice(0, 7);
-  if(!teacherHasSubmittedMonth(yearMonth)) return false;
   const wd = WEEKDAY_JP[new Date(`${dateStr}T00:00:00`).getDay()];
   if(entry.day !== wd) return false;
   return getDayStatus(dateStr).type === 'open';

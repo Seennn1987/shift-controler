@@ -16,6 +16,86 @@ function candAreaId(teacherId, slotId, studentId){
   return `taCand-${teacherId}-${slotId}-${studentId}`;
 }
 
+export function buildAbsentTeacherFollowupHtml({ dateStr, slotId, studentId, courseId, subject, originalTeacherId }){
+  const areaId = candAreaId(originalTeacherId, slotId, studentId);
+  return `<div class="match-none">この日は決まっていた講師が欠勤です。代講を探すか、生徒を欠席にしてください。</div>
+    <button type="button" class="ghost ta-find-sub-btn" data-teacher="${originalTeacherId}" data-slot="${slotId}" data-student="${studentId}" data-subject="${subject}" data-date="${dateStr}">代講を探す</button>
+    <button type="button" class="no-makeup-btn ta-absent-fallback-btn" data-fallback-teacher="${originalTeacherId}" data-fallback-slot="${slotId}" data-fallback-student="${studentId}" data-fallback-course="${courseId || ''}" data-fallback-subject="${subject || ''}" data-date="${dateStr}">代講せず欠席にする</button>
+    <div class="ta-cand-area" id="${areaId}" style="display:none;"></div>`;
+}
+
+export function bindAbsentTeacherFollowup(container, onRefresh){
+  if(!container) return;
+  container.querySelectorAll('.ta-find-sub-btn').forEach(btn=>{
+    if(btn.dataset.boundFollowup === '1') return;
+    btn.dataset.boundFollowup = '1';
+    btn.addEventListener('click', ()=>{
+      const teacherId = btn.dataset.teacher;
+      const slotId = Number(btn.dataset.slot);
+      const studentId = btn.dataset.student;
+      const subject = btn.dataset.subject;
+      const dateStr = btn.dataset.date;
+      const candArea = container.querySelector(`#${candAreaId(teacherId, slotId, studentId)}`);
+      if(!candArea) return;
+      const isOpen = candArea.style.display !== 'none';
+      if(isOpen){ candArea.style.display = 'none'; return; }
+
+      const candidates = findSubstituteCandidatesForStudent(dateStr, slotId, teacherId, studentId, subject);
+      let html = '';
+      if(candidates.length === 0){
+        html = `<div class="match-none">対応できる代講候補が見つかりませんでした。</div>
+          <button type="button" class="no-makeup-btn" data-fallback-teacher="${teacherId}" data-fallback-slot="${slotId}" data-fallback-student="${studentId}" data-date="${dateStr}">代講せず欠席にする</button>`;
+      }else{
+        candidates.forEach(c=>{
+          html += `<div class="match-cand">
+            <span>${c.name}先生</span>
+            <button type="button" class="confirm-makeup-btn" data-confirm-sub="${slotId}" data-confirm-student="${studentId}" data-sub-teacher="${c.id}" data-teacher="${teacherId}" data-date="${dateStr}">この先生に代講してもらう</button>
+          </div>`;
+        });
+        html += `<button type="button" class="no-makeup-btn" data-fallback-teacher="${teacherId}" data-fallback-slot="${slotId}" data-fallback-student="${studentId}" data-date="${dateStr}" style="margin-top:6px;">代講せず欠席にする</button>`;
+      }
+      candArea.innerHTML = html;
+      candArea.style.display = 'block';
+      bindAbsentTeacherFollowupActions(candArea, onRefresh);
+    });
+  });
+  bindAbsentTeacherFollowupActions(container, onRefresh);
+}
+
+function bindAbsentTeacherFollowupActions(root, onRefresh){
+  root.querySelectorAll('[data-confirm-sub]').forEach(cbtn=>{
+    if(cbtn.dataset.boundFollowup === '1') return;
+    cbtn.dataset.boundFollowup = '1';
+    cbtn.addEventListener('click', ()=>{
+      const teacherId = cbtn.dataset.teacher;
+      const dateStr = cbtn.dataset.date;
+      const slotId = Number(cbtn.dataset.confirmSub);
+      const studentId = cbtn.dataset.confirmStudent;
+      confirmSubstitute(teacherId, dateStr, slotId, cbtn.dataset.subTeacher, studentId);
+      recordTeacherAbsence(teacherId, dateStr, [slotId]);
+      if(typeof onRefresh === 'function') onRefresh();
+    });
+  });
+  root.querySelectorAll('[data-fallback-teacher]').forEach(fbtn=>{
+    if(fbtn.dataset.boundFollowup === '1') return;
+    fbtn.dataset.boundFollowup = '1';
+    fbtn.addEventListener('click', ()=>{
+      const teacherId = fbtn.dataset.fallbackTeacher;
+      const dateStr = fbtn.dataset.date;
+      const slotId = Number(fbtn.dataset.fallbackSlot);
+      const studentId = fbtn.dataset.fallbackStudent;
+      const courseId = fbtn.dataset.fallbackCourse;
+      const subject = fbtn.dataset.fallbackSubject;
+      const lessons = getTeacherLessonsOnDate(teacherId, dateStr);
+      const entry = (lessons[slotId] || []).find(e=> e.studentId === studentId)
+        || (courseId ? { studentId, courseId, subject } : null);
+      if(entry) resolveSlotViaStudentAbsence(teacherId, dateStr, slotId, [entry]);
+      recordTeacherAbsence(teacherId, dateStr, [slotId]);
+      if(typeof onRefresh === 'function') onRefresh();
+    });
+  });
+}
+
 export function renderTeacherAbsencePanel(container, teacherId, dateStr, onRefresh){
   if(!container) return;
   const teacher = S.teachers.find(t=> t.id === teacherId);

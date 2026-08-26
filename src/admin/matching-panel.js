@@ -11,6 +11,7 @@ import { switchCalMode, switchView, renderCalendarWeek } from './finance-ui.js';
 import { getDateSlotState, gradeLabel, subjectColor, teacherHonorific } from './schedule-core.js';
 import { scheduleSave, scheduleSyncTeacherAssignments } from './students-persistence.js';
 import { bindDayDetailEvents, getDayDetailTitle, renderDayDetailPanel } from './day-detail-panel.js';
+import { buildAbsentTeacherFollowupHtml, bindAbsentTeacherFollowup } from './teacher-absence-panel.js';
 import {
   addPreferredPair,
   cancelAssignment,
@@ -608,10 +609,11 @@ function buildMatchingSlotCard(r, student, dateStr, weekday){
 
   if(r.isMakeupTarget){
     const teacher = S.teachers.find(t=> t.id === r.absence.makeup.teacherId);
+    const waiting = r.isPending;
     return `<div class="match-slot mp-slot-readonly">
       <div class="ms-slot-label">${r.slot.label}（${r.slot.time}）</div>
       <div class="confirmed-box makeup-box">
-        <span class="cb-label makeup-label">振替授業</span>
+        <span class="cb-label makeup-label">${waiting ? '振替（承認待ち）' : '振替授業'}</span>
         ${subjectTag}
         <span class="cb-teacher">講師：${teacherHonorific(teacher)}</span>
       </div>
@@ -675,6 +677,21 @@ function buildMatchingSlotCard(r, student, dateStr, weekday){
         <span class="cb-teacher">講師：${teacherHonorific(teacher)}（${used}/${S.teacherCapacity}）</span>
         <div class="confirmed-box-actions">${prefHtml}</div>
       </div>
+    </div>`;
+  }
+
+  if(r.missingTeacher){
+    return `<div class="match-slot">
+      <div class="ms-slot-label">${r.slot.label}（${r.slot.time}）</div>
+      ${buildMpSlotSubjectRow(subjectTag, 'pending')}
+      ${buildAbsentTeacherFollowupHtml({
+        dateStr,
+        slotId: r.slot.id,
+        studentId: student.id,
+        courseId: r.course.id,
+        subject: r.course.subject,
+        originalTeacherId: r.missingTeacher.teacherId,
+      })}
     </div>`;
   }
 
@@ -808,6 +825,7 @@ function renderStudentPeriodSlots(studentId, scrollToDateStr){
   bindPrefPairButtons(body, ()=> afterMatchingChange(S.calSelectedDate));
   bindPrefPairOffer(body);
   bindFutureWeeksOffer(body);
+  bindAbsentTeacherFollowup(body, ()=> afterMatchingChange(S.calSelectedDate));
 
   matchingPanelRenderedPeriodKey = getPeriodKey();
 

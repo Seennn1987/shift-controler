@@ -65,6 +65,8 @@ export const S = {
   matchingReturnToStudentId: null,
   matchingPriority: null,
   calendarDrawerView: 'day',
+  /** 振替先の日をカレンダーで選んでいるとき { absenceId, studentId, fromDate } */
+  makeupPlacement: null,
 };
 
 export function getSecondaryAuth(){

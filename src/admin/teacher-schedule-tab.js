@@ -538,14 +538,14 @@ function findAssignment(studentId, courseId, day, slot){
 }
 
 function assignmentAppliesOnDate(a, dateStr){
+  // カレンダー表示は「この授業の講師は誰か」を見る。出勤表の印・提出有無では消さない。
   if(!dateStr) return true;
   if((a.skippedDates || []).includes(dateStr)) return false;
   const status = getDayStatus(dateStr);
   if(status.type !== 'open') return false;
   if(a.day !== status.weekday) return false;
-  if(!isAssignmentEffectiveInMonth(a, dateStr.slice(0,7))) return false;
   if(a.oneTimeDate) return a.oneTimeDate === dateStr;
-  return getDateSlotState(a.teacherId, dateStr, a.slot) !== 'none';
+  return true;
 }
 
 function countTeacherSlotOnDate(teacherId, dateStr, slot, excludeStudentId){
@@ -618,11 +618,9 @@ function isAssignmentEffectiveInMonth(assignment, yearMonth){
 }
 // 表示・集計用：その月（と任意の日付）に有効な割当だけ返す
 function findEffectiveAssignment(studentId, courseId, day, slot, yearMonth, dateStr){
-  const ym = getActiveYearMonth(yearMonth);
   const pick = (list, flags)=>{
     const hit = list.find(a=>{
       if(a.studentId!==studentId || a.courseId!==courseId || a.day!==day || Number(a.slot)!==Number(slot)) return false;
-      if(!isAssignmentEffectiveInMonth(a, ym)) return false;
       if(dateStr && !assignmentAppliesOnDate(a, dateStr)) return false;
       return true;
     });

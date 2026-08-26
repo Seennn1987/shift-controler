@@ -2,7 +2,7 @@ import { SUBJECT_MAP, DAYS, SLOTS, WEEKDAY_JP, WEEK_FULL, LEVELS_ORDER, SUBJECT_
 import { HOLIDAYS_JP } from '../shared/holidays.js';
 import { pad2, daysInYearMonth, toDateStr, getTodayStr } from '../shared/date-utils.js';
 import { firebaseConfig, fbAuth, fbDb, STORAGE_KEY, getSecondaryAuth, S } from './state.js';
-import { computeDayFinance, computeTeacherOpenings, costRatioColor, getEffectiveDayAssignments, getStudentDateRows } from './absences.js';
+import { computeDayFinance, computeTeacherOpenings, costRatioColor, getEffectiveDayAssignments, getStudentDateRows, getAbsenceRecordsOnDate } from './absences.js';
 import { collapseDualAssignmentDisplayRows, countSlotAssignmentUnits, buildDualSubjectTagsHtml } from './dual-subject.js';
 import { buildFlowStatusBadgeHtml, buildFlowStatusBadgeChipHtml } from './match-candidate-ui.js';
 import { calLinesToEntriesHtml, computeSyncedWeekAnchor, getDayStatus, getUnassignedRowsForDate, refreshCalToolbarSecondary, renderCalendar, studentRowToCalLine, updateCalPeriodLabel } from './calendar.js';
@@ -203,14 +203,15 @@ function renderCalendarWeekGrid(axis){
       }
       const list = getEffectiveDayAssignments(ds).filter(a=>a.slot===slot.id);
       const unassigned = getUnassignedRowsForDate(ds).filter(r=>r.slot.id===slot.id);
-      if(list.length===0 && unassigned.length===0){
+      const absences = getAbsenceRecordsOnDate(ds).filter(r=> Number(r.slot) === slot.id);
+      if(list.length===0 && unassigned.length===0 && absences.length===0){
         tbody += `<td class="sched-cell week-date-cell is-empty" data-date="${ds}"><div class="sched-empty">\u4e88\u5b9a\u306a\u3057</div></td>`;
         return;
       }
-      const totalCount = countSlotAssignmentUnits(list) + unassigned.length;
+      const totalCount = countSlotAssignmentUnits(list) + unassigned.length + absences.length;
       const cellInner = axis==='student'
-        ? buildStudentAxisCell(list) + buildWeekUnassignedStudentBoxes(unassigned)
-        : buildTeacherAxisCell(list) + buildWeekUnassignedTeacherBlock(unassigned);
+        ? buildStudentAxisCell(list) + buildWeekUnassignedStudentBoxes(unassigned) + buildWeekAbsenceStudentBoxes(absences)
+        : buildTeacherAxisCell(list) + buildWeekUnassignedTeacherBlock(unassigned) + buildWeekAbsenceTeacherBlock(absences);
       tbody += `<td class="sched-cell week-date-cell" data-date="${ds}">
         <div class="sched-cell-inner">
           <div class="sched-total">\u5408\u8a08${totalCount}\u540d</div>
@@ -259,7 +260,9 @@ function weekAssignmentStudentCard(a){
       const subjectAbbr = SUBJECT_ABBR[a.subject] || a.subject.slice(0, 1);
       return `<span class="sched-student-tag" style="background:${c.bg};color:${c.text};">${subjectAbbr}</span>`;
     })();
-  const makeupBadge = a.kind==='makeup' ? '<span class="auto-badge" style="background:#fff;color:var(--ink);border:1px dashed var(--ink);">\u632f\u66ff</span>' : '';
+  const makeupBadge = a.kind==='makeup'
+    ? `<span class="auto-badge" style="background:#fff;color:var(--ink);border:1px dashed var(--ink);">${a.pending ? '振替・承認待ち' : '振替'}</span>`
+    : '';
   return buildWeekTeacherStudentCard({
     subjectHtml,
     studentName,
@@ -348,7 +351,9 @@ function buildStudentAxisCell(list){
         return `<span class="sched-student-tag" style="background:${c.bg};color:${c.text};">${subjectAbbr}</span>`;
       })();
     const teacher = S.teachers.find(t=>t.id===a.teacherId);
-    const makeupBadge = a.kind==='makeup' ? '<span class="auto-badge" style="background:#fff;color:var(--ink);border:1px dashed var(--ink);">\u632f\u66ff</span>' : '';
+    const makeupBadge = a.kind==='makeup'
+      ? `<span class="auto-badge" style="background:#fff;color:var(--ink);border:1px dashed var(--ink);">${a.pending ? '振替・承認待ち' : '振替'}</span>`
+      : '';
     const flowBadgeHtml = buildFlowStatusBadgeHtml({ draft: !!a.draft, waiting: !!a.pending });
     const teacherText = a.pending
       ? '<span class="sched-card-meta-value is-pending">—</span>'
@@ -412,7 +417,49 @@ function buildWeekUnassignedTeacherBlock(unassignedRows){
   }).join('');
 }
 
-// \u751f\u5f92\u7d5e\u308a\u8fbc\u307f\u6642\uff1a\u6708\u9593\u30ab\u30ec\u30f3\u30c0\u30fc\u3068\u540c\u3058 cal-entry \u5f62\u5f0f\u3067\u8868\u793a\u3059\u308b
+function weekAbsenceSubjectHtml(row){
+  if(!row.student) return '';
+  if(row.isDual && row.subjects?.length === 2){
+    return buildDualSubjectTagsHtml(row.student.level, row.subjects, subjectColor);
+  }
+  const subject = row.subjects?.[0] || row.subject;
+  const c = subjectColor(row.student.level, subject);
+  const abbr = SUBJECT_ABBR[subject] || String(subject || '').slice(0, 1);
+  return `<span class="sched-student-tag" style="background:${c.bg};color:${c.text};">${abbr}</span>`;
+}
+
+function buildWeekAbsenceStudentBoxes(absenceRows){
+  return absenceRows.map(row=>{
+    if(!row.student) return '';
+    const gLabel = gradeLabel(row.student);
+    const gradeHtml = gLabel ? `<span class="grade-tag">（${gLabel}）</span>` : '';
+    const absenceBadge = '<span class="auto-badge" style="background:var(--surface-page);color:var(--ink-soft);border:1px solid var(--border);">欠席</span>';
+    return `<div class="sched-lesson-card">
+      <div class="sched-card-row1 sched-card-row1--inline">
+        ${weekAbsenceSubjectHtml(row)}
+        <span class="sched-card-name-line">${row.student.name}${gradeHtml}${absenceBadge}</span>
+      </div>
+      <div class="sched-card-row2 sched-card-row2--grid">
+        <span class="sched-card-meta-label">講師</span>
+        <span class="sched-card-meta-value">欠席</span>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+function buildWeekAbsenceTeacherBlock(absenceRows){
+  return absenceRows.map(row=>{
+    if(!row.student) return '';
+    return buildWeekTeacherStudentCard({
+      subjectHtml: weekAbsenceSubjectHtml(row),
+      studentName: row.student.name,
+      gradeLabel: gradeLabel(row.student),
+      makeupBadge: '<span class="auto-badge" style="background:var(--surface-page);color:var(--ink-soft);border:1px solid var(--border);">欠席</span>',
+    });
+  }).join('');
+}
+
+// 生徒絞り込み時：月間カレンダーと同じ cal-entry 形式で表示する
 function buildWeekStudentFilterCell(student, dateStr, slot){
   const rows = getStudentDateRows(student, dateStr).filter(r=>r.slot.id===slot.id);
   if(rows.length===0){
@@ -424,7 +471,18 @@ function buildWeekStudentFilterCell(student, dateStr, slot){
 
 function buildWeekTeacherFilterCell(teacher, dateStr, slot){
   const list = getEffectiveDayAssignments(dateStr).filter(a=>a.teacherId===teacher.id && a.slot===slot.id);
-  if(list.length===0){
+  const absences = getAbsenceRecordsOnDate(dateStr).filter(row=>{
+    if(Number(row.slot) !== slot.id || !row.absence) return false;
+    const all = S.assignments.concat(S.pendingAssignments, S.draftAssignments);
+    const hit = all.find(a=>
+      a.studentId === row.absence.studentId &&
+      a.courseId === row.absence.courseId &&
+      a.day === row.absence.day &&
+      Number(a.slot) === Number(row.absence.slot)
+    );
+    return hit?.teacherId === teacher.id;
+  });
+  if(list.length===0 && absences.length===0){
     return '<div class="sched-empty">—</div>';
   }
   const weekday = getDayStatus(dateStr).weekday;
@@ -435,7 +493,7 @@ function buildWeekTeacherFilterCell(teacher, dateStr, slot){
     dualGroupId: e.dualGroupId || null,
   })));
   const displayRows = collapseDualAssignmentDisplayRows(list);
-  const studentsHtml = displayRows.map(weekAssignmentStudentCard).join('');
+  const studentsHtml = displayRows.map(weekAssignmentStudentCard).join('') + buildWeekAbsenceTeacherBlock(absences);
   return `<div class="sched-teacher-group">
     <div class="sched-teacher-head">${teacherHonorific(teacher)}<span class="sched-cap">（${loadCount}/${S.teacherCapacity}）</span></div>
     <div class="sched-teacher-students">${studentsHtml}</div>

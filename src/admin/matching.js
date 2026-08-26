@@ -2,7 +2,7 @@ import { DAYS, SLOTS, WEEKDAY_JP, WEEK_FULL, LEVELS_ORDER } from '../shared/cons
 import { HOLIDAYS_JP } from '../shared/holidays.js';
 import { pad2, daysInYearMonth, toDateStr, getTodayStr } from '../shared/date-utils.js';
 import { firebaseConfig, fbAuth, fbDb, STORAGE_KEY, getSecondaryAuth, S } from './state.js';
-import { findAbsenceFor } from './absences.js';
+import { findAbsenceFor, listPendingAbsenceWorkItems, setMakeupPlacementFromAbsence } from './absences.js';
 import { getDayStatus, getUnassignedRowsForDate, renderCalendar, syncMonthChange } from './calendar.js';
 import { refreshCalFilterOptions, setCalFilterStudent, setCalFilterTeacher, refreshAllPersonComboboxes } from './filter-ui.js';
 import { sortByNameKana } from '../shared/person-sort.js';
@@ -10,7 +10,7 @@ import { renderCalendarWeek, switchCalMode, switchView } from './finance-ui.js';
 import { gradeLabel, getDateSlotState, isTeacherAvailableOnDate, subjectColor } from './schedule-core.js';
 import { approveCancellationRequest, approveCancellationRequests, rejectCancellationRequest, saveStudents, scheduleSave, scheduleSyncTeacherAssignments, saveAppState } from './students-persistence.js';
 import { renderTeacherList } from './teachers.js';
-import { assignmentAppliesOnDate, approvalAppliesInMonth, buildCandidateInfo, confirmAssignment, confirmDualAssignment, cancelAllDrafts, cancelDraftAuto, findEffectiveAssignment, getActiveYearMonth, getPreferredTeachersForCourse, isAssignmentEffectiveInMonth, loadAssignmentApprovals, loadDismissedApprovalIds, loadPendingCancellationRequests, loadPendingChangeRequests, openMatchingForApprovalTicket, renderApprovalDashboardItem, resolveScheduleChangeRequest, resolveScheduleChangeRequests, saveDismissedApprovalIds, sendDraftAssignments, teacherHasSubmittedMonth } from './teacher-schedule-tab.js';
+import { assignmentAppliesOnDate, approvalAppliesInMonth, buildCandidateInfo, confirmAssignment, confirmDualAssignment, cancelAllDrafts, cancelDraftAuto, findEffectiveAssignment, getActiveYearMonth, getPreferredTeachersForCourse, loadAssignmentApprovals, loadDismissedApprovalIds, loadPendingCancellationRequests, loadPendingChangeRequests, openMatchingForApprovalTicket, renderApprovalDashboardItem, resolveScheduleChangeRequest, resolveScheduleChangeRequests, saveDismissedApprovalIds, sendDraftAssignments, teacherHasSubmittedMonth } from './teacher-schedule-tab.js';
 import { findDualPairAtSlot, teacherTeachesBoth, buildDualSubjectTagsHtml } from './dual-subject.js';
 import { compareCandidateInfo, getMatchingPriority, MATCHING_FACTOR_META } from './matching-config.js';
 import { mountInlineConfirm, showActiveTabNotice } from '../shared/inline-confirm.js';
@@ -496,7 +496,6 @@ function collectUpcomingDraftsFlat(){
     const dateStr = `${ym}-${pad2(d)}`;
     if(getDayStatus(dateStr).type !== 'open') continue;
     S.draftAssignments.forEach(a=>{
-      if(!isAssignmentEffectiveInMonth(a, ym)) return;
       if(!assignmentAppliesOnDate(a, dateStr)) return;
       const eff = findEffectiveAssignment(a.studentId, a.courseId, a.day, a.slot, ym, dateStr);
       if(!eff?.isDraft) return;
@@ -534,7 +533,6 @@ function collectUpcomingPendingFlat(){
     const dateStr = `${ym}-${pad2(d)}`;
     if(getDayStatus(dateStr).type !== 'open') continue;
     S.pendingAssignments.forEach(a=>{
-      if(!isAssignmentEffectiveInMonth(a, ym)) return;
       if(!assignmentAppliesOnDate(a, dateStr)) return;
       const eff = findEffectiveAssignment(a.studentId, a.courseId, a.day, a.slot, ym, dateStr);
       if(!eff?.isPending) return;
@@ -907,6 +905,31 @@ function renderShortageActionsHtml(ym){
   </div>`;
 }
 
+function renderPendingMakeupDashboardItem(item){
+  const { dateStr, student, course, slot, subjects, absence } = {
+    dateStr: item.absence.date,
+    student: item.student,
+    course: item.course,
+    slot: item.slot,
+    subjects: item.subjects,
+    absence: item.absence,
+  };
+  const name = student ? student.name : '(削除された生徒)';
+  const gLabel = student ? gradeLabel(student) : '';
+  const slotDef = slot || { label: `${item.absence.slot}講` };
+  const { md, weekday } = calAlertDateParts(dateStr, getDayStatus);
+  const subjectTag = student
+    ? buildDashboardSubjectTag(student, course, subjects)
+    : '';
+  const aria = `${md}（${weekday}）${slotDef.label} ${name} 未振替`;
+  return buildShortageAlertRowHtml({
+    whenPill: buildCalAlertWhenPill(md, weekday, slotDef.label),
+    personHead: buildCalAlertPersonHead(name, gLabel),
+    subjectTag,
+    dataAttrs: ` data-student="${item.absence.studentId}" data-date="${dateStr}" data-absence="${absence.id}" aria-label="${aria}"`,
+  });
+}
+
 function renderShortageDashboardItem(entry){
   const { dateStr, row } = entry;
   const { student, course, slot, dualPair } = row;
@@ -1247,7 +1270,8 @@ async function renderShortageDashboard(){
   const flatItems = collectUpcomingUnassignedFlat();
   const draftItems = collectUpcomingDraftsFlat();
   const pendingItems = collectUpcomingPendingFlat();
-  const pendingAbsences = S.absences.filter(a=> a.status === 'pending').length;
+  const pendingMakeupItems = listPendingAbsenceWorkItems();
+  const pendingAbsences = pendingMakeupItems.length;
   const draftCount = draftItems.length;
   const unassignedCount = flatItems.length;
   const pendingCount = pendingItems.length;
@@ -1291,7 +1315,7 @@ async function renderShortageDashboard(){
       }).join('')
     : '';
 
-  wrap.innerHTML = `${renderShortageMonthNavHtml()}${renderShortageActionsHtml(ym)}<div class="shortage-four-col">
+  wrap.innerHTML = `${renderShortageMonthNavHtml()}${renderShortageActionsHtml(ym)}<div class="shortage-five-col">
     ${renderShortageListBlock(
       '講師なし', unassignedCount, 'コマ',
       flatItems.length > 0 ? flatItems.map(renderShortageDashboardItem).join('') : '',
@@ -1311,6 +1335,12 @@ async function renderShortageDashboard(){
       '承認待ちはありません',
     )}
     ${renderShortageListBlock(
+      '未振替', pendingAbsences, '件',
+      pendingMakeupItems.length > 0 ? pendingMakeupItems.map(renderPendingMakeupDashboardItem).join('') : '',
+      '欠席してまだ振替していないコマ',
+      '未振替はありません',
+    )}
+    ${renderShortageListBlock(
       '確定', approvedRecent.length, '件',
       approvedScrollHtml,
       '承認済みの履歴',
@@ -1327,6 +1357,10 @@ async function renderShortageDashboard(){
 
   wrap.querySelectorAll('.approval-item-btn[data-student]').forEach(btn=>{
     btn.addEventListener('click', ()=>{
+      if(btn.dataset.absence){
+        const ab = S.absences.find(a=> a.id === btn.dataset.absence);
+        if(ab) setMakeupPlacementFromAbsence(ab);
+      }
       jumpToCalendarForDate(btn.dataset.student, btn.dataset.date);
     });
   });
