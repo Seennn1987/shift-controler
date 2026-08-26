@@ -875,8 +875,6 @@
     .shortage-two-col{grid-template-columns:1fr;}
     .shortage-five-col{grid-template-columns:1fr;}
   }
-  .desired-slot-chip.draft{border-color:var(--border-strong);}
-  .desired-slot-chip.draft .dsc-status{color:var(--ink-soft);}
 
   /* カレンダー上部 — 承認待ち（shortage-panel と同型） */
   .approval-two-col.approval-two-col{
@@ -1809,11 +1807,19 @@
   .matching-drawer-return-bar{
     flex-shrink:0;padding:10px 20px;border-bottom:1px solid var(--border);
     background:var(--brand-50);
+    display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:8px 12px;
   }
   .matching-drawer-return-btn{
     font-size:var(--text-sm);font-weight:700;color:var(--brand-700);padding:6px 0;
+    flex:1 1 auto;min-width:0;text-align:left;
   }
   .matching-drawer-return-btn:hover{color:var(--brand-900);}
+  .matching-drawer-auto-btn{
+    margin-left:auto;
+    min-height:36px;min-width:0;padding:0 14px;
+    font-size:var(--text-sm);white-space:normal;line-height:1.35;
+    flex:0 1 auto;
+  }
   .matching-drawer-header-main{flex:1;min-width:0;}
   .matching-drawer-title{margin:0;font-size:var(--text-xl);font-weight:700;}
   .matching-panel-day-head{font-size:var(--text-lg);font-weight:var(--font-weight-bold);margin:var(--space-4) 0 var(--space-2);color:var(--green-900);}
@@ -1907,7 +1913,6 @@
   .matching-panel-student-grade{font-size:var(--text-sm);color:var(--ink-soft);}
   .matching-panel-hint{font-size:var(--text-md);color:var(--ink-soft);line-height:var(--leading-relaxed);margin:0 0 var(--space-5);}
   .matching-panel-student-auto{margin:0 0 var(--space-5);}
-  .matching-panel-student-auto .shortage-actions-toolbar{margin-bottom:var(--space-2);}
   .matching-panel-student-auto .shortage-action-result{
     font-size:var(--text-md);font-weight:var(--font-weight-bold);color:var(--ink);
     line-height:var(--leading-relaxed);min-height:1.2em;
@@ -1971,21 +1976,6 @@
   }
   .matching-panel-alt-title{font-size:var(--text-sm);font-weight:var(--font-weight-bold);margin:var(--space-4) 0 var(--space-2);}
   .matching-panel-alt-item{font-size:var(--text-sm);color:var(--ink-soft);padding:var(--space-1) 0;}
-  .matching-desired-bar{
-    display:flex;flex-wrap:wrap;align-items:center;gap:6px;
-    margin:0 0 10px;padding:8px 10px;background:var(--bg-soft);border-radius:var(--radius-md);
-  }
-  .desired-bar-label{font-size:var(--text-sm);font-weight:var(--font-weight-bold);color:var(--ink-soft);margin-right:var(--space-1);}
-  .desired-slot-chip{
-    display:inline-flex;align-items:center;gap:var(--space-1);padding:var(--space-1) var(--space-3);border-radius:var(--radius-pill);
-    font-size:var(--text-md);border:1px solid var(--border);background:var(--surface-card);cursor:pointer;
-  }
-  .desired-slot-chip:hover{border-color:var(--brand-500);background:var(--brand-50);}
-  .desired-slot-chip.active{border-color:var(--brand-500);box-shadow:0 0 0 2px var(--brand-100);}
-  .desired-slot-chip.done{opacity:.75;}
-  .desired-slot-chip.waiting{border-color:var(--accent-waiting);}
-  .dsc-sub{font-size:var(--text-xs);padding:1px var(--space-2);border-radius:var(--radius-sm);font-weight:var(--font-weight-bold);}
-  .dsc-status{font-size:var(--text-xs);color:var(--ink-soft);}
   .match-slot.matching-pick-slot{border:1px solid var(--border);border-radius:var(--radius-md);padding:var(--space-5);margin-bottom:var(--space-4);background:var(--surface-card);}
   .match-slot.matching-pick-slot.active{border-color:var(--green-600);background:var(--green-100);}
   .match-slot.mp-slot-card{

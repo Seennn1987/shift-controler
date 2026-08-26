@@ -146,7 +146,6 @@ function showDayDetail(dateStr){
   applyPanelLayout();
   hideCalDetailCard();
   renderDrawerContent();
-  renderMatchingDesiredBar();
 }
 
 function showMatchingStudentView(studentId){
@@ -180,7 +179,6 @@ function showMatchingStudentAtDate(studentId, dateStr){
   refreshCalFilterOptions();
   applyPanelLayout();
   hideCalDetailCard();
-  renderMatchingDesiredBar();
   renderCalendar();
   scrollCalendarIntoView();
   renderDrawerContent();
@@ -770,7 +768,6 @@ function closeMatchingPanel(){
   S.calendarDrawerView = 'day';
   studentAutoResult = { studentId: '', msg: '' };
   applyPanelLayout();
-  renderMatchingDesiredBar();
   renderCalendar();
 }
 
@@ -881,7 +878,6 @@ function selectPanelStudent(studentId){
     if(fallback) S.calSelectedDate = fallback;
   }
 
-  renderMatchingDesiredBar();
   renderCalendar();
   hideCalDetailCard();
   scrollCalendarIntoView();
@@ -922,97 +918,7 @@ function onRefreshDay(e){
   updateDrawerHeader(dateStr);
 }
 
-function renderMatchingDesiredBar(){
-  const bar = document.getElementById('matchingDesiredSlotsBar');
-  if(!bar) return;
-  if(!S.matchingPanelOpen || !S.matchingPanelStudentId){
-    bar.style.display = 'none';
-    bar.innerHTML = '';
-    return;
-  }
-  const student = S.students.find(s=>s.id===S.matchingPanelStudentId);
-  if(!student){
-    bar.style.display = 'none';
-    return;
-  }
-
-  const ym = S.referenceYearMonth;
-  const chips = [];
-  student.courses.forEach(course=>{
-    course.desiredSlots.forEach(ds=>{
-      const slot = SLOTS.find(s=>s.id===ds.slot);
-      const eff = findEffectiveAssignment(student.id, course.id, ds.day, ds.slot, ym);
-      const c = subjectColor(student.level, course.subject);
-      let status = 'pending';
-      let label = '講師なし';
-      if(eff){
-        if(eff.isDraft){
-          status = 'draft';
-          label = '仮決め';
-        }else if(eff.isPending){
-          status = 'waiting';
-          label = '承認待ち';
-        }else{
-          status = 'done';
-          label = '確定';
-        }
-      }
-      const active = !!(S.calSelectedDate &&
-        S.calSelectedDate.startsWith(ym) &&
-        getDayStatus(S.calSelectedDate).weekday === ds.day);
-      chips.push(`<span class="desired-slot-chip ${status}${active?' active':''}" data-course="${course.id}" data-day="${ds.day}" data-slot="${ds.slot}" data-subject="${course.subject}">
-        <span class="dsc-sub" style="background:${c.bg};color:${c.text};">${course.subject}</span>
-        ${ds.day}${slot?.label||''} <span class="dsc-status">${label}</span>
-      </span>`);
-    });
-  });
-
-  if(chips.length===0){
-    bar.style.display = 'none';
-    return;
-  }
-
-  bar.style.display = 'flex';
-  bar.innerHTML = `<span class="desired-bar-label">${student.name}さんの希望コマ：</span>${chips.join('')}`;
-
-  bar.querySelectorAll('.desired-slot-chip').forEach(chip=>{
-    chip.addEventListener('click', ()=>{
-      const dateStr = findNearestDateForWeekday(chip.dataset.day);
-      if(!dateStr) return;
-      S.calSelectedDate = dateStr;
-      syncCalMonthToDate(dateStr);
-      renderCalendar();
-      hideCalDetailCard();
-      showDayDetail(dateStr);
-    });
-  });
-}
-
-function findNearestDateForWeekday(weekday){
-  const ym = S.referenceYearMonth;
-  if(!ym) return null;
-  const total = new Date(Number(ym.slice(0,4)), Number(ym.slice(5,7)), 0).getDate();
-  const today = new Date();
-  today.setHours(0,0,0,0);
-  for(let d=1; d<=total; d++){
-    const dateStr = `${ym}-${String(d).padStart(2,'0')}`;
-    const wd = ['日','月','火','水','木','金','土'][new Date(dateStr+'T00:00:00').getDay()];
-    if(wd!==weekday) continue;
-    if(getDayStatus(dateStr).type !== 'open') continue;
-    const dt = new Date(dateStr+'T00:00:00');
-    if(dt >= today || d===total) return dateStr;
-  }
-  for(let d=1; d<=total; d++){
-    const dateStr = `${ym}-${String(d).padStart(2,'0')}`;
-    const wd = ['日','月','火','水','木','金','土'][new Date(dateStr+'T00:00:00').getDay()];
-    if(wd!==weekday) continue;
-    if(getDayStatus(dateStr).type !== 'open') return dateStr;
-  }
-  return null;
-}
-
 function onCalendarRendered(){
-  renderMatchingDesiredBar();
   if(!S.matchingPanelOpen || S.calendarDrawerView !== 'matching-student' || !S.matchingPanelStudentId) return;
   const key = getPeriodKey();
   if(key !== matchingPanelRenderedPeriodKey){
@@ -1048,4 +954,4 @@ function initMatchingPanel(){
   });
 }
 
-export { initMatchingPanel, openMatchingPanel, closeMatchingPanel, renderMatchingDesiredBar, showDayDetail };
+export { initMatchingPanel, openMatchingPanel, closeMatchingPanel, showDayDetail };
