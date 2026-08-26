@@ -1,0 +1,35 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ピタコマ おすすめの並び順に変更プレビュー</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Zen+Kaku+Gothic+New:wght@400;500;700;900&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="../src/shared/styles/variables.css">
+  <link rel="stylesheet" href="../src/admin/styles/admin.css">
+  <link rel="stylesheet" href="matching-priority-recommend-preview.css">
+</head>
+<body>
+  <header class="preview-page-header">
+    <div class="preview-page-header-inner">
+      <h1>おすすめの並び順に変更</h1>
+      <p>設定の「候補講師の並び順」に足すボタンの試しです。上へ・下へで変えたあと、おすすめ順へ戻せます。</p>
+    </div>
+  </header>
+
+  <main class="preview-main">
+    <p class="preview-note">いまは並びを変えた状態です。「おすすめの並び順に変更」を押すと、番号がおすすめ順になります。本番と同じ見た目です。</p>
+    <div class="card">
+      <h2>候補講師の並び順<span class="help-tip" tabindex="0">?<span class="help-tip-text">候補講師の並び順（自動マッチングも同じ）を決めます。上にある項目ほど優先されます。チェックを外した項目は並び順に使いません。</span></span></h2>
+      <p class="matching-priority-intro">講師が教科・定員・シフト提出などの基本条件を満たしたうえで、次の順に並べます。<span class="matching-priority-intro-sep" aria-hidden="true">｜</span><strong>チェック</strong>で ON/OFF、<strong>上へ・下へ</strong>で順番変更（上ほど優先）</p>
+      <div id="matchingPriorityList" class="matching-priority-list"></div>
+      <div class="form-actions">
+        <button type="button" class="primary" id="matchingPriorityRecommendBtn">おすすめの並び順に変更</button>
+      </div>
+    </div>
+  </main>
+
+  <script src="matching-priority-recommend-preview.js"></script>
+</body>
+</html>

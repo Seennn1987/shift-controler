@@ -6,7 +6,7 @@ import { renderCalendar } from './calendar.js';
 import { renderMatrix } from './finance-ui.js';
 import { renderMatching } from './matching.js';
 import { scheduleSave, scheduleSyncClosureSettings } from './students-persistence.js';
-import { MATCHING_FACTOR_META, normalizeMatchingPriority } from './matching-config.js';
+import { DEFAULT_MATCHING_PRIORITY, MATCHING_FACTOR_META, normalizeMatchingPriority } from './matching-config.js';
 
 // ---- 優先ペアリング（教室長が指定：生徒の教科(コース)単位で講師を優先） ----
 
@@ -294,12 +294,7 @@ function renderMatchingPrioritySettings(){
       const row = S.matchingPriority.find(r=> r.id === input.dataset.id);
       if(!row) return;
       row.enabled = input.checked;
-      scheduleSave();
-      renderMatchingPrioritySettings();
-      renderMatching();
-      if(S.matchingPanelOpen && S.matchingPanelStudentId){
-        document.dispatchEvent(new CustomEvent('matching:refresh-panel'));
-      }
+      applyMatchingPriorityChange();
     });
   });
   wrap.querySelectorAll('.matching-priority-up').forEach(btn=>{
@@ -309,12 +304,7 @@ function renderMatchingPrioritySettings(){
       const tmp = S.matchingPriority[idx - 1];
       S.matchingPriority[idx - 1] = S.matchingPriority[idx];
       S.matchingPriority[idx] = tmp;
-      scheduleSave();
-      renderMatchingPrioritySettings();
-      renderMatching();
-      if(S.matchingPanelOpen && S.matchingPanelStudentId){
-        document.dispatchEvent(new CustomEvent('matching:refresh-panel'));
-      }
+      applyMatchingPriorityChange();
     });
   });
   wrap.querySelectorAll('.matching-priority-down').forEach(btn=>{
@@ -324,19 +314,33 @@ function renderMatchingPrioritySettings(){
       const tmp = S.matchingPriority[idx + 1];
       S.matchingPriority[idx + 1] = S.matchingPriority[idx];
       S.matchingPriority[idx] = tmp;
-      scheduleSave();
-      renderMatchingPrioritySettings();
-      renderMatching();
-      if(S.matchingPanelOpen && S.matchingPanelStudentId){
-        document.dispatchEvent(new CustomEvent('matching:refresh-panel'));
-      }
+      applyMatchingPriorityChange();
     });
   });
+}
+
+function applyMatchingPriorityChange(){
+  scheduleSave();
+  renderMatchingPrioritySettings();
+  renderMatching();
+  if(S.matchingPanelOpen && S.matchingPanelStudentId){
+    document.dispatchEvent(new CustomEvent('matching:refresh-panel'));
+  }
+}
+
+function applyRecommendedMatchingPriority(){
+  S.matchingPriority = DEFAULT_MATCHING_PRIORITY.map(item=> ({ id: item.id, enabled: item.enabled !== false }));
+  applyMatchingPriorityChange();
 }
 
 function initMatchingPrioritySettings(){
   S.matchingPriority = normalizeMatchingPriority(S.matchingPriority);
   renderMatchingPrioritySettings();
+  const recommendBtn = document.getElementById('matchingPriorityRecommendBtn');
+  if(recommendBtn && !recommendBtn.dataset.wired){
+    recommendBtn.dataset.wired = '1';
+    recommendBtn.addEventListener('click', applyRecommendedMatchingPriority);
+  }
 }
 
 // =====================================================================
