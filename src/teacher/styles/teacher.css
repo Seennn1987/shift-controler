@@ -166,7 +166,11 @@
     margin-bottom:var(--space-2);background:var(--surface-card);
   }
   .mycal-slot-card.is-waiting{border:1px solid var(--pending-border);background:var(--surface-card);}
-  .mycal-slot-card.is-confirmed{border:2px solid var(--brand-600);background:var(--brand-50);}
+  .mycal-slot-card.is-confirmed{
+    border:2px solid var(--success);
+    background:color-mix(in srgb, var(--success) 22%, var(--surface-card));
+  }
+  .mycal-slot-card.is-confirmed .mycal-slot-students{border-top-color:var(--accent-success-border);}
   .mycal-slot-card.has-draft{box-shadow:0 0 0 1px var(--warning-ink);}
   .mycal-slot-head{
     display:flex;align-items:center;justify-content:space-between;gap:var(--space-3);flex-wrap:wrap;
@@ -202,8 +206,7 @@
   .mycal-confirmed-pill{
     display:inline-flex;align-items:center;font-size:var(--text-xs);font-weight:var(--font-weight-bold);
     padding:2px 8px;border-radius:var(--radius-pill);white-space:nowrap;line-height:1.35;
-    color:var(--text-on-brand);background:linear-gradient(180deg, var(--brand-500), var(--brand-600));
-    border:1px solid var(--brand-600);
+    color:var(--text-on-brand);background:var(--success);border:1px solid var(--success);
   }
   .mycal-draft-label{
     display:inline-flex;align-items:center;
