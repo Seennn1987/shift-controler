@@ -27,10 +27,13 @@ async function loadAdminCancelledNotices(){
     const list = [];
     snap.forEach(doc=>{
       const data = doc.data();
-      if(data.status !== 'cancelled') return;
-      if(!data.cancelledByAdmin) return;
-      if(data.teacherRead) return;
-      list.push({id:doc.id, ...data});
+      if(data.status === 'cancelled' && data.cancelledByAdmin && !data.teacherRead){
+        list.push({id:doc.id, ...data});
+        return;
+      }
+      if(data.status === 'pending' && data.cancelNoticeUnread && data.lastCancelledDate){
+        list.push({id:doc.id, ...data});
+      }
     });
     list.sort((a,b)=>{
       const ta = (a.cancelledAt && a.cancelledAt.toMillis) ? a.cancelledAt.toMillis() : 0;
@@ -47,7 +50,12 @@ async function loadAdminCancelledNotices(){
 async function markAdminCancelledNoticeRead(ticketId){
   if(!ticketId) return;
   try{
-    await fbDb.collection('assignmentApprovals').doc(ticketId).update({ teacherRead: true });
+    const notice = (S.adminCancelledNotices || []).find(n=> n.id === ticketId);
+    if(notice && notice.status === 'pending'){
+      await fbDb.collection('assignmentApprovals').doc(ticketId).update({ cancelNoticeUnread: false });
+    }else{
+      await fbDb.collection('assignmentApprovals').doc(ticketId).update({ teacherRead: true });
+    }
     S.adminCancelledNotices = S.adminCancelledNotices.filter(n=> n.id !== ticketId);
   }catch(err){
     console.error('お知らせ既読更新エラー:', err);
@@ -57,8 +65,9 @@ async function markAdminCancelledNoticeRead(ticketId){
 function formatAdminCancelledNoticeLine(notice){
   const slotDef = SLOTS.find(s=> Number(s.id) === Number(notice.slot));
   const slotLabel = slotDef ? slotDef.label : `${notice.slot}講`;
-  if(notice.oneTimeDate){
-    const d = new Date(`${notice.oneTimeDate}T00:00:00`);
+  const dateStr = notice.lastCancelledDate || notice.oneTimeDate;
+  if(dateStr){
+    const d = new Date(`${dateStr}T00:00:00`);
     const wd = WEEKDAY_JP[d.getDay()];
     return `${d.getMonth() + 1}/${d.getDate()}（${wd}）${slotLabel} ${notice.subject} ${notice.studentName}さん`;
   }
@@ -113,6 +122,7 @@ function resolveCourseStartDate(item){
 
 function approvalAppliesOnDate(ticket, dateStr){
   if(!isOnOrAfterDate(dateStr, resolveCourseStartDate(ticket))) return false;
+  if((ticket.skippedDates || []).includes(dateStr)) return false;
   if(ticket.oneTimeDate) return ticket.oneTimeDate === dateStr;
   const wd = WEEKDAY_JP[new Date(`${dateStr}T00:00:00`).getDay()];
   if(ticket.day !== wd) return false;

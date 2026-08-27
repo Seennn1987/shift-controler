@@ -931,38 +931,57 @@ async function sendDraftAssignments(){
   };
 }
 
-async function revokePendingApprovalTicket(student, course, day, slot, oneTimeDate){
-  const user = fbAuth.currentUser;
-  if(!user) return;
+function ticketMatchesPendingApproval(a, student, course, day, slot, oneTimeDate, teacherId){
+  if(a.status !== 'pending') return false;
+  if(a.studentName !== student.name) return false;
+  if(teacherId && a.teacherId !== teacherId) return false;
   const subjectLabel = course.subjects?.length === 2
     ? course.subjects.join('・')
     : course.subject;
-  const updates = [];
+  if(a.subjects?.length === 2){
+    if(!course.subjects || a.subject !== subjectLabel) return false;
+  }else if(a.subject !== subjectLabel){
+    return false;
+  }
+  if(a.day !== day || Number(a.slot) !== Number(slot)) return false;
+  if(oneTimeDate){
+    if(a.oneTimeDate !== oneTimeDate) return false;
+  }else if(a.oneTimeDate){
+    return false;
+  }
+  return true;
+}
+
+async function updateMatchingPendingApprovalTickets(student, course, day, slot, oneTimeDate, teacherId, payload){
+  const user = fbAuth.currentUser;
+  if(!user) return;
   const snap = await fbDb.collection('assignmentApprovals').where('adminUid','==', user.uid).get();
+  const updates = [];
   snap.forEach(doc=>{
     const a = doc.data();
-    if(a.status !== 'pending') return;
-    if(a.studentName !== student.name) return;
-    if(a.subjects?.length === 2){
-      if(!course.subjects || a.subject !== subjectLabel) return;
-    }else if(a.subject !== subjectLabel){
-      return;
-    }
-    if(a.day !== day || Number(a.slot) !== Number(slot)) return;
-    if(oneTimeDate){
-      if(a.oneTimeDate !== oneTimeDate) return;
-    }else if(a.oneTimeDate){
-      return;
-    }
-    updates.push(fbDb.collection('assignmentApprovals').doc(doc.id).update({
-      status: 'cancelled',
-      handled: true,
-      cancelledByAdmin: true,
-      cancelledAt: firebase.firestore.FieldValue.serverTimestamp(),
-      teacherRead: false,
-    }));
+    if(!ticketMatchesPendingApproval(a, student, course, day, slot, oneTimeDate, teacherId)) return;
+    updates.push(doc.ref.update(payload));
   });
   await Promise.all(updates);
+}
+
+async function revokePendingApprovalTicket(student, course, day, slot, oneTimeDate, teacherId){
+  await updateMatchingPendingApprovalTickets(student, course, day, slot, oneTimeDate, teacherId, {
+    status: 'cancelled',
+    handled: true,
+    cancelledByAdmin: true,
+    cancelledAt: firebase.firestore.FieldValue.serverTimestamp(),
+    teacherRead: false,
+  });
+}
+
+async function skipPendingApprovalTicketDate(student, course, day, slot, dateStr, teacherId){
+  await updateMatchingPendingApprovalTickets(student, course, day, slot, null, teacherId, {
+    skippedDates: firebase.firestore.FieldValue.arrayUnion(dateStr),
+    lastCancelledDate: dateStr,
+    cancelNoticeUnread: true,
+    cancelledAt: firebase.firestore.FieldValue.serverTimestamp(),
+  });
 }
 
 async function withdrawPendingAssignment(studentId, courseId, day, slot, dateStr){
@@ -986,9 +1005,12 @@ async function withdrawPendingAssignment(studentId, courseId, day, slot, dateStr
     cancelAssignment(studentId, courseId, day, slot, dateStr || null);
   }
   try{
+    const subjects = isDual ? dualPair.subjects : [course.subject];
+    const coursePayload = { subject: subjects.join('・'), subjects };
     if(!dateStr || oneTimeDate){
-      const subjects = isDual ? dualPair.subjects : [course.subject];
-      await revokePendingApprovalTicket(student, { subject: subjects.join('・'), subjects }, day, slot, oneTimeDate);
+      await revokePendingApprovalTicket(student, coursePayload, day, slot, oneTimeDate, teacher?.id);
+    }else{
+      await skipPendingApprovalTicketDate(student, coursePayload, day, slot, dateStr, teacher?.id);
     }
   }catch(err){
     console.error('承認依頼取り消しエラー:', err);
