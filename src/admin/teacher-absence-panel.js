@@ -11,6 +11,7 @@ import {
   resolveSlotViaStudentAbsence,
 } from './absences.js';
 import { teacherHonorific } from './schedule-core.js';
+import { mountInlineConfirm } from '../shared/inline-confirm.js';
 
 function candAreaId(teacherId, slotId, studentId){
   return `taCand-${teacherId}-${slotId}-${studentId}`;
@@ -151,10 +152,12 @@ export function renderTeacherAbsencePanel(container, teacherId, dateStr, onRefre
     </div>`;
   });
 
+  const unmarkedCount = slotIds.filter(slotId=> !(ta && ta.slots.some(s=> Number(s) === Number(slotId)))).length;
+
   container.innerHTML = `<div class="teacher-absence-panel">
     <p class="teacher-absence-desc">1コマに複数の生徒がいる場合は、生徒ごとに個別に代講を探せます。見つからない場合は「代講せず欠席にする」から、その生徒だけ振替の流れに乗せられます。</p>
     <label class="chip teacher-absence-all-chip">
-      <input type="checkbox" id="taAllSlotsCheckbox">
+      <input type="checkbox" id="taAllSlotsCheckbox"${unmarkedCount === 0 ? ' disabled' : ''}>
       <span>全コマ欠勤にする</span>
     </label>
     ${rowsHtml}
@@ -165,8 +168,61 @@ export function renderTeacherAbsencePanel(container, teacherId, dateStr, onRefre
     else renderTeacherAbsencePanel(container, teacherId, dateStr, onRefresh);
   };
 
+  let syncingAll = false;
+  const unmarkedBoxes = ()=> [...container.querySelectorAll('.ta-slot-checkbox:not(:disabled)')];
+  const uncheckAbsenceDraft = ()=>{
+    const allCb = container.querySelector('#taAllSlotsCheckbox');
+    if(allCb) allCb.checked = false;
+    unmarkedBoxes().forEach(cb=>{ cb.checked = false; });
+  };
+
   container.querySelector('#taAllSlotsCheckbox')?.addEventListener('change', (e)=>{
-    container.querySelectorAll('.ta-slot-checkbox:not(:disabled)').forEach(cb=>{ cb.checked = e.target.checked; });
+    const on = e.target.checked;
+    syncingAll = true;
+    unmarkedBoxes().forEach(cb=>{ cb.checked = on; });
+    syncingAll = false;
+    if(!on) return;
+    mountInlineConfirm(container, e.target, {
+      message: `${teacherHonorific(teacher)}の、この日の授業をすべて欠勤にしますか？代講は、欠勤のあとで生徒ごとに付けられます。`,
+      confirmLabel: '欠勤にする',
+      cancelLabel: 'やめる',
+      variant: 'primary',
+      mountSelector: '.teacher-absence-panel, .sched-teacher-box',
+      onConfirm: async ()=>{
+        const slots = unmarkedBoxes().filter(cb=> cb.checked).map(cb=> Number(cb.dataset.slot));
+        if(slots.length) recordTeacherAbsence(teacherId, dateStr, slots);
+        refreshPanel();
+        return { ok: true };
+      },
+    });
+    container.querySelector('.app-inline-confirm [data-action=cancel]')?.addEventListener('click', uncheckAbsenceDraft);
+  });
+
+  unmarkedBoxes().forEach(cb=>{
+    cb.addEventListener('change', ()=>{
+      if(syncingAll) return;
+      if(!cb.checked) return;
+      const slotId = Number(cb.dataset.slot);
+      const slot = SLOTS.find(s=> Number(s.id) === slotId);
+      const slotLabel = slot ? slot.label : `${slotId}講`;
+      mountInlineConfirm(container, cb, {
+        message: `${teacherHonorific(teacher)}の${slotLabel}を欠勤にしますか？代講は、欠勤のあとで生徒ごとに付けられます。`,
+        confirmLabel: '欠勤にする',
+        cancelLabel: 'やめる',
+        variant: 'primary',
+        mountSelector: '.ta-slot-row, .teacher-absence-panel, .sched-teacher-box',
+        onConfirm: async ()=>{
+          recordTeacherAbsence(teacherId, dateStr, [slotId]);
+          refreshPanel();
+          return { ok: true };
+        },
+      });
+      container.querySelector('.app-inline-confirm [data-action=cancel]')?.addEventListener('click', ()=>{
+        cb.checked = false;
+        const allCb = container.querySelector('#taAllSlotsCheckbox');
+        if(allCb) allCb.checked = false;
+      });
+    });
   });
 
   container.querySelectorAll('.ta-find-sub-btn').forEach(btn=>{

@@ -2,9 +2,9 @@ import { DAYS, SLOTS, WEEKDAY_JP, WEEK_FULL, LEVELS_ORDER } from '../shared/cons
 import { HOLIDAYS_JP } from '../shared/holidays.js';
 import { pad2, daysInYearMonth, toDateStr, getTodayStr, isOnOrAfterDate } from '../shared/date-utils.js';
 import { firebaseConfig, fbAuth, fbDb, STORAGE_KEY, getSecondaryAuth, S } from './state.js';
-import { findAbsenceFor, listPendingAbsenceWorkItems, setMakeupPlacementFromAbsence } from './absences.js';
+import { findAbsenceFor, listPendingAbsenceWorkItems, listPendingTeacherAbsenceWorkItems, setMakeupPlacementFromAbsence } from './absences.js';
 import { getDayStatus, getUnassignedRowsForDate, renderCalendar, syncMonthChange } from './calendar.js';
-import { refreshCalFilterOptions, setCalFilterStudent, setCalFilterTeacher, refreshAllPersonComboboxes } from './filter-ui.js';
+import { refreshCalFilterOptions, setCalFilterStudent, setCalFilterTeacher, clearCalFilter, refreshAllPersonComboboxes } from './filter-ui.js';
 import { sortByNameKana } from '../shared/person-sort.js';
 import { renderCalendarWeek, switchCalMode, switchView } from './finance-ui.js';
 import { gradeLabel, getDateSlotState, isTeacherAvailableOnDate, subjectColor } from './schedule-core.js';
@@ -253,6 +253,31 @@ function bulkCancelAuto(){
 }
 
 
+const GRADE_MAX_BY_LEVEL = { '小学': 6, '中学': 3, '高校': 3 };
+
+function buildStudentGradeArea(selectedGrade = null){
+  const area = document.getElementById('studentGradeArea');
+  if(!area) return;
+  const level = getSelectedStudentLevel();
+  const max = GRADE_MAX_BY_LEVEL[level] || 6;
+  const grade = selectedGrade != null && selectedGrade >= 1 && selectedGrade <= max ? selectedGrade : null;
+  area.innerHTML = '';
+  for(let g = 1; g <= max; g++){
+    const id = `sgrade-${g}`;
+    const chip = document.createElement('label');
+    chip.className = 'chip';
+    chip.innerHTML = `<input type="radio" name="studentGrade" id="${id}" value="${g}"${grade === g ? ' checked' : ''}><span>${g}年</span>`;
+    area.appendChild(chip);
+  }
+}
+
+function getSelectedStudentGrade(){
+  const checked = document.querySelector('input[name=studentGrade]:checked');
+  if(!checked) return null;
+  const grade = parseInt(checked.value, 10);
+  return Number.isFinite(grade) ? grade : null;
+}
+
 function buildStudentLevelArea(){
   const area = document.getElementById('studentLevelArea');
   area.innerHTML = '';
@@ -265,11 +290,15 @@ function buildStudentLevelArea(){
   });
   area.querySelectorAll('input[name=studentLevel]').forEach(r=>{
     r.addEventListener('change', ()=>{
+      const prevGrade = getSelectedStudentGrade();
+      const max = GRADE_MAX_BY_LEVEL[getSelectedStudentLevel()] || 6;
+      buildStudentGradeArea(prevGrade && prevGrade <= max ? prevGrade : null);
       // 新規登録だけ、学年変更で未入力の受講科目をリセットする（編集中は希望コマを残す）
       if(!S.editingStudentId) S.formCourses = [];
       renderFormCourses();
     });
   });
+  buildStudentGradeArea();
 }
 
 function getSelectedStudentLevel(){
@@ -370,7 +399,7 @@ function resetStudentForm(){
   resetCourseCalendarSelection();
   document.getElementById('studentNameInput').value = '';
   document.getElementById('studentNameKanaInput').value = '';
-  document.getElementById('studentGradeInput').value = '';
+  buildStudentGradeArea();
   setCourseStartDateInput(getTodayStr());
   document.querySelectorAll('input[name=studentLevel]').forEach((r,i)=> r.checked = (i===0));
   S.formCourses = [];
@@ -385,7 +414,7 @@ function fillStudentFormForEdit(s){
   S.editingStudentId = s.id;
   document.getElementById('studentNameInput').value = s.name;
   document.getElementById('studentNameKanaInput').value = s.nameKana || '';
-  document.getElementById('studentGradeInput').value = s.grade ? String(s.grade) : '';
+  buildStudentGradeArea(s.grade || null);
   setCourseStartDateInput(s.courseStartDate || getTodayStr());
   document.querySelectorAll('input[name=studentLevel]').forEach(r=> r.checked = (r.value===s.level));
   S.formCourses = JSON.parse(JSON.stringify(s.courses));
@@ -405,8 +434,11 @@ async function handleStudentSave(){
   if(!nameKana){ msg.textContent = '読み仮名を入力してください。'; return; }
 
   const level = getSelectedStudentLevel();
-  let grade = parseInt(document.getElementById('studentGradeInput').value, 10);
-  if(!Number.isFinite(grade) || grade<1 || grade>6) grade = null;
+  const grade = getSelectedStudentGrade();
+  if(!grade){
+    msg.textContent = '年数を選んでください。';
+    return;
+  }
 
   const courses = normalizeFormCoursesForSave(S.formCourses);
   const coursesCopy = JSON.parse(JSON.stringify(courses));
@@ -593,7 +625,10 @@ function collectUpcomingUnassignedByDate(){
 function collectUpcomingUnassignedFlat(){
   const flat = [];
   collectUpcomingUnassignedByDate().forEach(group=>{
-    group.rows.forEach(row=> flat.push({ dateStr: group.dateStr, row }));
+    group.rows.forEach(row=>{
+      if(row.missingTeacher) return;
+      flat.push({ dateStr: group.dateStr, row });
+    });
   });
   return flat;
 }
@@ -722,11 +757,11 @@ function expandShiftStatusBar(){
   if(chevron) chevron.textContent = '▴';
 }
 
-function buildShortageSummaryLine({ draftCount, unassignedCount, pendingCount, rejectedCount, pendingAbsences, confirmedCount }){
+function buildShortageSummaryLine({ draftCount, unassignedCount, pendingCount, rejectedCount, pendingAbsences, pendingTeacherAbsences, confirmedCount }){
   const pendingActionCount = pendingCount + rejectedCount;
-  const extras = pendingAbsences > 0
-    ? [{ kind: 'absence', label: '未振替', count: pendingAbsences, unit: '件' }]
-    : [];
+  const extras = [];
+  if(pendingTeacherAbsences > 0) extras.push({ kind: 'absence', label: '欠勤対応', count: pendingTeacherAbsences, unit: '件' });
+  if(pendingAbsences > 0) extras.push({ kind: 'absence', label: '未振替', count: pendingAbsences, unit: '件' });
   return buildCalWorkflowSummaryHtml([
     { kind: 'unassigned', label: '講師なし', count: unassignedCount, unit: 'コマ' },
     { kind: 'tentative', label: '仮決め', count: draftCount, unit: '件' },
@@ -1060,6 +1095,25 @@ function renderPendingMakeupDashboardItem(item){
   });
 }
 
+function renderPendingTeacherAbsenceDashboardItem(item){
+  const teacherName = item.teacher ? item.teacher.name : '(削除された講師)';
+  const name = item.student ? item.student.name : '(削除された生徒)';
+  const gLabel = item.student ? gradeLabel(item.student) : '';
+  const slotDef = item.slot || { label: 'コマ' };
+  const { md, weekday } = calAlertDateParts(item.dateStr, getDayStatus);
+  const subjectTag = item.student
+    ? buildDashboardSubjectTag(item.student, { subject: item.subject }, item.subjects)
+    : '';
+  const aria = `${md}（${weekday}）${slotDef.label} ${teacherName} ${name} 欠勤対応`;
+  return buildApprovalAlertRowHtml({
+    whenPill: buildCalAlertWhenPill(md, weekday, slotDef.label),
+    teacherHead: buildCalAlertTeacherHead(teacherName),
+    personInline: buildCalAlertPersonInline(name, gLabel),
+    subjectTag,
+    dataAttrs: ` data-teacher-absence-date="${item.dateStr}" aria-label="${aria}"`,
+  });
+}
+
 function renderShortageDashboardItem(entry){
   const { dateStr, row } = entry;
   const { student, course, slot, dualPair } = row;
@@ -1311,17 +1365,24 @@ async function renderShiftStatusDashboard(){
   const unsubmitted = collectUnsubmittedTeachers(ym);
   const requests = collectUnassignedSlotChangeRequests(await loadPendingChangeRequests());
   const absences = await loadPendingCancellationRequests();
-  const hasWork = unsubmitted.length > 0 || requests.length > 0 || absences.length > 0;
+  const teacherAbsenceFollowUps = listPendingTeacherAbsenceWorkItems(ym);
+  const absenceWorkCount = absences.length + teacherAbsenceFollowUps.length;
+  const hasWork = unsubmitted.length > 0 || requests.length > 0 || absenceWorkCount > 0;
 
   if(summaryLine){
     summaryLine.innerHTML = buildShiftStatusSummaryLine({
       unsubmittedCount: unsubmitted.length,
       changeSlotCount: requests.length,
-      absenceCount: absences.length,
+      absenceCount: absenceWorkCount,
     });
   }
   statusBar?.classList.toggle('is-warn', hasWork);
   statusBar?.classList.toggle('is-ok', !hasWork);
+
+  const absenceItemsHtml = [
+    ...absences.map(renderAbsenceDashboardItem),
+    ...teacherAbsenceFollowUps.map(renderPendingTeacherAbsenceDashboardItem),
+  ].join('');
 
   wrap.innerHTML = `${renderCalMonthNavHtml({ idPrefix: 'shiftStatusMonth' })}<div class="shortage-three-col">
     ${renderShortageListBlock(
@@ -1342,8 +1403,8 @@ async function renderShiftStatusDashboard(){
       },
     )}
     ${renderShortageListBlock(
-      '欠勤連絡', absences.length, '件',
-      absences.length > 0 ? absences.map(renderAbsenceDashboardItem).join('') : '',
+      '欠勤連絡', absenceWorkCount, '件',
+      absenceWorkCount > 0 ? absenceItemsHtml : '',
       '欠勤連絡',
       '欠勤連絡はありません',
       {
@@ -1355,6 +1416,9 @@ async function renderShiftStatusDashboard(){
   bindShiftStatusMonthNav(wrap);
   bindShiftRequestActions(wrap, requests);
   bindAbsenceRequestActions(wrap, absences);
+  wrap.querySelectorAll('.approval-item-btn[data-teacher-absence-date]').forEach(btn=>{
+    btn.addEventListener('click', ()=> jumpToCalendarDay(btn.dataset.teacherAbsenceDate));
+  });
   bindBulkApproveAction(wrap, 'shiftChangeBulkApproveBtn', requests,
     `追加シフト提出・変更を${requests.length}件、まとめて承認します。\nよろしいですか？`,
     ()=> resolveScheduleChangeRequests(requests, 'approve'),
@@ -1386,6 +1450,7 @@ async function renderShortageDashboard(){
         pendingCount: 0,
         rejectedCount: 0,
         pendingAbsences: 0,
+        pendingTeacherAbsences: 0,
         confirmedCount: 0,
       });
     }
@@ -1401,7 +1466,9 @@ async function renderShortageDashboard(){
   const draftItems = collectUpcomingDraftsFlat();
   const pendingItems = collectUpcomingPendingFlat();
   const pendingMakeupItems = listPendingAbsenceWorkItems();
+  const pendingTeacherAbsenceItems = listPendingTeacherAbsenceWorkItems(ym);
   const pendingAbsences = pendingMakeupItems.length;
+  const pendingTeacherAbsences = pendingTeacherAbsenceItems.length;
   const draftCount = draftItems.length;
   const unassignedCount = flatItems.length;
   const pendingCount = pendingItems.length;
@@ -1414,7 +1481,7 @@ async function renderShortageDashboard(){
     .filter(a=> a.status === 'approved' && !dismissed.has(a.id) && approvalAppliesInMonth(a, ym))
     .slice(0, 10);
 
-  const hasWork = unassignedCount > 0 || draftCount > 0 || pendingCount > 0 || rejectedCount > 0 || pendingAbsences > 0;
+  const hasWork = unassignedCount > 0 || draftCount > 0 || pendingCount > 0 || rejectedCount > 0 || pendingAbsences > 0 || pendingTeacherAbsences > 0;
 
   if(summaryLine){
     summaryLine.innerHTML = buildShortageSummaryLine({
@@ -1423,6 +1490,7 @@ async function renderShortageDashboard(){
       pendingCount,
       rejectedCount,
       pendingAbsences,
+      pendingTeacherAbsences,
       confirmedCount: approvedRecent.length,
     });
   }
@@ -1581,6 +1649,21 @@ function jumpToCalendarForDate(studentId, dateStr){
   refreshCalFilterOptions();
   renderCalendar();
   document.dispatchEvent(new CustomEvent('calendar:show-day', { detail: { dateStr, studentId } }));
+  window.scrollTo({top:0, behavior:'smooth'});
+}
+
+function jumpToCalendarDay(dateStr){
+  if(!dateStr) return;
+  const d = new Date(`${dateStr}T00:00:00`);
+  S.calYear = d.getFullYear();
+  S.calMonth = d.getMonth();
+  clearCalFilter();
+  S.calSelectedDate = dateStr;
+  switchView('calendar');
+  switchCalMode('month');
+  refreshCalFilterOptions();
+  renderCalendar();
+  document.dispatchEvent(new CustomEvent('calendar:show-day', { detail: { dateStr } }));
   window.scrollTo({top:0, behavior:'smooth'});
 }
 

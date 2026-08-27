@@ -304,7 +304,7 @@
   <!-- ===== 生徒登録・マッチング ===== -->
   <section id="view-student" class="view">
     <div class="card">
-      <h2><span id="studentFormModeTitle">生徒を登録</span><span class="help-tip" tabindex="0">?<span class="help-tip-text">氏名・学年を入力し「基本情報を登録」を押してください。そのあと週カレンダーで希望コマと教科を選びます。講師への依頼はカレンダー画面の右パネルで行います。</span></span></h2>
+      <h2><span id="studentFormModeTitle">生徒を登録</span><span class="help-tip" tabindex="0">?<span class="help-tip-text">氏名・学年を選んで「基本情報を登録」を押してください。そのあと週カレンダーで希望コマと教科を選びます。講師への依頼はカレンダー画面の右パネルで行います。</span></span></h2>
 
       <label class="field-label" for="studentNameInput">生徒名</label>
       <input type="text" id="studentNameInput" placeholder="例：山田 花子">
@@ -317,8 +317,8 @@
       <label class="field-label">学年</label>
       <div class="chip-row" id="studentLevelArea"></div>
       <div style="height:12px"></div>
-      <label class="field-label" for="studentGradeInput">学年（数字、例：小学5年→5、中学3年→3、高校2年→2）</label>
-      <input type="text" inputmode="numeric" id="studentGradeInput" style="max-width:100px;" placeholder="例：5">
+      <label class="field-label" for="studentGradeArea">年数</label>
+      <div class="chip-row" id="studentGradeArea"></div>
 
       <div style="height:18px"></div>
       <label class="field-label" for="studentCourseStartInput">受講開始日<span class="help-tip" tabindex="0">?<span class="help-tip-text">授業を始める日です。組める／組めないは、この日の月の出勤表で見ます。その月がまだ出ていないときは、いちばん新しい出勤表で見ます。</span></span></label>

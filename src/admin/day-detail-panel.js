@@ -19,7 +19,7 @@ import {
 } from './absences.js';
 import { resolveFilterStudent, resolveFilterTeacher } from './cal-filter.js';
 import { getDayStatus, getUnassignedRowsForDate } from './calendar.js';
-import { jumpToCalendarForTeacher, renderMatching, renderShortageDashboard } from './matching.js';
+import { renderMatching, renderShortageDashboard } from './matching.js';
 import { gradeLabel, subjectColor, teacherHonorific } from './schedule-core.js';
 import { renderTeacherAbsencePanel, buildAbsentTeacherFollowupHtml, bindAbsentTeacherFollowup } from './teacher-absence-panel.js';
 import {
@@ -512,7 +512,7 @@ export function renderDayDetailPanel(container, dateStr){
         html += `<div class="sched-teacher-box">
           <div class="sched-teacher-head-row">
             <div class="sched-teacher-name">${teacherHonorific(teacher)}<span class="sched-cap">（${loadCount}/${S.teacherCapacity}）</span></div>
-            <button type="button" class="ghost handle-teacher-absence-btn" data-teacher="${teacherId}" data-date="${dateStr}">欠勤・代講</button>
+            <button type="button" class="ghost handle-teacher-absence-btn" data-teacher="${teacherId}" data-date="${dateStr}" aria-expanded="false">欠勤・代講</button>
           </div>
           ${studentsHtml}
         </div>`;
@@ -739,7 +739,22 @@ export function bindDayDetailEvents(container, dateStr, onRefresh){
 
   container.querySelectorAll('.handle-teacher-absence-btn').forEach(btn=>{
     btn.addEventListener('click', ()=>{
-      jumpToCalendarForTeacher(btn.dataset.teacher, btn.dataset.date);
+      const teacherId = btn.dataset.teacher;
+      const box = btn.closest('.sched-teacher-box');
+      if(!box) return;
+      const existing = box.querySelector('.teacher-absence-root');
+      if(existing){
+        existing.remove();
+        btn.setAttribute('aria-expanded', 'false');
+        return;
+      }
+      container.querySelectorAll('.teacher-absence-root').forEach(el=> el.remove());
+      container.querySelectorAll('.handle-teacher-absence-btn').forEach(b=> b.setAttribute('aria-expanded', 'false'));
+      const root = document.createElement('div');
+      root.className = 'teacher-absence-root';
+      box.appendChild(root);
+      btn.setAttribute('aria-expanded', 'true');
+      renderTeacherAbsencePanel(root, teacherId, dateStr, refresh);
     });
   });
 

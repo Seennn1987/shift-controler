@@ -1588,6 +1588,9 @@
   .sched-teacher-head-row{
     display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap;margin-bottom:4px;
   }
+  .sched-teacher-box > .teacher-absence-root{
+    margin-top:8px;padding-top:8px;border-top:1px dashed var(--border);
+  }
   .teacher-absence-panel{padding:0;}
   .teacher-absence-desc{
     font-size:var(--text-sm);color:var(--ink-soft);line-height:1.55;margin:0 0 10px;

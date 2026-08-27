@@ -280,6 +280,48 @@ function getTeacherLessonsOnDate(teacherId, dateStr){
   return bySlot;
 }
 
+/** 欠勤済みで、代講も生徒欠席もまだのコマ（双教科は1件）。日付の古い順 */
+function listPendingTeacherAbsenceWorkItems(yearMonth){
+  const ym = yearMonth || null;
+  const items = [];
+  const seen = new Set();
+  (S.teacherAbsences || []).forEach(ta=>{
+    if(ym && String(ta.date || '').slice(0, 7) !== ym) return;
+    const status = getDayStatus(ta.date);
+    if(status.type !== 'open') return;
+    const lessons = getTeacherLessonsOnDate(ta.teacherId, ta.date);
+    (ta.slots || []).forEach(slot=>{
+      const slotNum = Number(slot);
+      const entries = lessons[slotNum] || lessons[slot] || [];
+      entries.forEach(e=>{
+        const key = `${ta.date}:${ta.teacherId}:${slotNum}:${e.studentId}`;
+        if(seen.has(key)) return;
+        if(findSubstitutionOnDate(ta.teacherId, ta.date, slotNum, e.studentId)) return;
+        if(isAbsentOnDate(e.studentId, e.courseId, ta.date, status.weekday, slotNum)) return;
+        seen.add(key);
+        const student = S.students.find(s=> s.id === e.studentId);
+        items.push({
+          dateStr: ta.date,
+          teacherId: ta.teacherId,
+          teacher: S.teachers.find(t=> t.id === ta.teacherId) || null,
+          student,
+          studentId: e.studentId,
+          courseId: e.courseId,
+          subject: e.subject,
+          subjects: e.subjects,
+          slot: SLOTS.find(s=> Number(s.id) === slotNum) || null,
+        });
+      });
+    });
+  });
+  items.sort((a, b)=>
+    a.dateStr.localeCompare(b.dateStr)
+    || Number(a.slot?.id || 0) - Number(b.slot?.id || 0)
+    || String(a.student?.name || '').localeCompare(String(b.student?.name || ''), 'ja'),
+  );
+  return items;
+}
+
 function findTeacherAbsence(teacherId, dateStr){
   return S.teacherAbsences.find(ta=>ta.teacherId===teacherId && ta.date===dateStr) || null;
 }
@@ -984,4 +1026,4 @@ function getStudentDateRows(student, dateStr){
 }
 
 
-export { findAbsenceFor, recordAbsence, recordStudentSlotAbsence, cancelAbsenceRecord, cancelMakeup, markNoMakeup, setMakeupPlacementFromAbsence, clearMakeupPlacement, getMakeupPlacementAbsence, listPendingAbsenceWorkItems, getAbsenceRecordsOnDate, studentAbsentDatesForAssignment, collectMakeupEntriesForTeacher, getTeacherLessonsOnDate, findTeacherAbsence, isTeacherSlotAbsent, isAssignedTeacherMissingOnDate, recordTeacherAbsence, findSubstituteCandidatesForStudent, confirmSubstitute, cancelSubstitute, resolveSlotViaStudentAbsence, cancelTeacherAbsence, countTeacherLoadOnDate, countRoomLoadOnDate, isTeacherAvailableOnDate, findMakeupCandidates, findDualMakeupCandidates, findMakeupCandidatesOnDate, findDualMakeupCandidatesOnDate, confirmMakeup, getEffectiveDayAssignments, computeTeacherOpenings, countTeacherLessonsBefore, getTeacherRateForDate, computeDayFinance, costRatioColor, getStudentDateRows };
+export { findAbsenceFor, recordAbsence, recordStudentSlotAbsence, cancelAbsenceRecord, cancelMakeup, markNoMakeup, setMakeupPlacementFromAbsence, clearMakeupPlacement, getMakeupPlacementAbsence, listPendingAbsenceWorkItems, listPendingTeacherAbsenceWorkItems, getAbsenceRecordsOnDate, studentAbsentDatesForAssignment, collectMakeupEntriesForTeacher, getTeacherLessonsOnDate, findTeacherAbsence, isTeacherSlotAbsent, isAssignedTeacherMissingOnDate, recordTeacherAbsence, findSubstituteCandidatesForStudent, confirmSubstitute, cancelSubstitute, resolveSlotViaStudentAbsence, cancelTeacherAbsence, countTeacherLoadOnDate, countRoomLoadOnDate, isTeacherAvailableOnDate, findMakeupCandidates, findDualMakeupCandidates, findMakeupCandidatesOnDate, findDualMakeupCandidatesOnDate, confirmMakeup, getEffectiveDayAssignments, computeTeacherOpenings, countTeacherLessonsBefore, getTeacherRateForDate, computeDayFinance, costRatioColor, getStudentDateRows };
