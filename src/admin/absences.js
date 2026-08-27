@@ -4,7 +4,7 @@ import { pad2, daysInYearMonth, toDateStr, getTodayStr, isOnOrAfterDate } from '
 import { firebaseConfig, fbAuth, fbDb, STORAGE_KEY, getSecondaryAuth, S } from './state.js';
 import { getDayStatus } from './calendar.js';
 import { getDateSlotState, gradeLabel, isTeacherAvailableOnDate } from './schedule-core.js';
-import { assignmentAppliesOnDate, findEffectiveAssignment, isPreferredSubjectForTeacher, issueAssignmentApproval } from './teacher-schedule-tab.js';
+import { assignmentAppliesOnDate, findEffectiveAssignment, isPreferredSubjectForTeacher, issueAssignmentApproval, revokePendingApprovalTicket } from './teacher-schedule-tab.js';
 import { findDualPairAtSlot, resolveDualRowAssignmentState, countSlotAssignmentUnits, teacherTeachesBoth } from './dual-subject.js';
 
 // ---- 欠席・振替（特定の実日付にのみ影響。曜日パターン自体は変えない） ----
@@ -101,15 +101,31 @@ function cancelAbsenceRecord(id){
   S.absences = S.absences.filter(a=> !removeIds.has(a.id));
   clearMakeupPlacementIfAbsence(id);
 }
-function cancelMakeup(id){
+async function cancelMakeup(id){
   const ab = S.absences.find(a=> a.id === id);
   if(!ab) return;
-  findDualAbsenceSiblings(ab).forEach(sibling=>{
+  const makeup = ab.makeup;
+  const student = S.students.find(s=> s.id === ab.studentId);
+  const siblings = findDualAbsenceSiblings(ab);
+  const subjects = siblings.map(s=> s.subject);
+  const makeupWeekday = makeup?.date ? getDayStatus(makeup.date).weekday : null;
+  siblings.forEach(sibling=>{
     removeMakeupAssignmentsFor(sibling);
     sibling.makeup = null;
     sibling.status = 'pending';
   });
   setMakeupPlacementFromAbsence(ab);
+  if(!student || !makeup || makeupWeekday == null) return;
+  try{
+    const coursePayload = subjects.length === 2
+      ? { subject: subjects.join('・'), subjects }
+      : { subject: ab.subject };
+    await revokePendingApprovalTicket(
+      student, coursePayload, makeupWeekday, makeup.slot, makeup.date, makeup.teacherId,
+    );
+  }catch(err){
+    console.error('振替依頼取り消しエラー:', err);
+  }
 }
 // 振替を探さず、欠席のみで対応を終える（未振替の集計からは外れる）
 function markNoMakeup(id){

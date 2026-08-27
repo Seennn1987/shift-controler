@@ -10,7 +10,7 @@ import { renderCalendarWeek, switchCalMode, switchView } from './finance-ui.js';
 import { gradeLabel, getDateSlotState, isTeacherAvailableOnDate, subjectColor } from './schedule-core.js';
 import { approveCancellationRequest, approveCancellationRequests, rejectCancellationRequest, saveStudents, scheduleSave, scheduleSyncTeacherAssignments, saveAppState } from './students-persistence.js';
 import { renderTeacherList } from './teachers.js';
-import { assignmentAppliesOnDate, approvalAppliesInMonth, buildCandidateInfo, confirmAssignment, confirmDualAssignment, cancelAllDrafts, cancelDraftAuto, findEffectiveAssignment, getActiveYearMonth, getPreferredTeachersForCourse, loadAssignmentApprovals, loadDismissedApprovalIds, loadPendingCancellationRequests, loadPendingChangeRequests, openMatchingForApprovalTicket, renderApprovalDashboardItem, resolveScheduleChangeRequest, resolveScheduleChangeRequests, saveDismissedApprovalIds, sendDraftAssignments, teacherHasSubmittedMonth } from './teacher-schedule-tab.js';
+import { assignmentAppliesOnDate, approvalAppliesInMonth, buildCandidateInfo, confirmAssignment, confirmDualAssignment, cancelAllDrafts, cancelDraftAuto, findEffectiveAssignment, getActiveYearMonth, getPreferredTeachersForCourse, loadAssignmentApprovals, loadDismissedApprovalIds, loadPendingCancellationRequests, loadPendingChangeRequests, openMatchingForApprovalTicket, renderApprovalDashboardItem, resolveScheduleChangeRequest, resolveScheduleChangeRequests, saveDismissedApprovalIds, sendDraftAssignments, teacherHasSubmittedMonth, revokePendingApprovalTicketsForStudent, revokePendingCancellationRequestsForStudent } from './teacher-schedule-tab.js';
 import { findDualPairAtSlot, teacherTeachesBoth, buildDualSubjectTagsHtml } from './dual-subject.js';
 import { compareCandidateInfo, getMatchingPriority, MATCHING_FACTOR_META } from './matching-config.js';
 import { mountInlineConfirm, showActiveTabNotice } from '../shared/inline-confirm.js';
@@ -463,6 +463,13 @@ async function handleStudentSave(){
   renderMatching();
 }
 
+function isCourseStartAfterMonth(courseStartDate, ym){
+  if(typeof courseStartDate !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(courseStartDate)) return false;
+  if(!ym) return false;
+  const lastDay = `${ym}-${pad2(daysInYearMonth(ym))}`;
+  return !isOnOrAfterDate(lastDay, courseStartDate);
+}
+
 function getStudentListStatus(student){
   const ym = S.referenceYearMonth;
   let totalSlots = 0;
@@ -477,6 +484,9 @@ function getStudentListStatus(student){
   });
   if(totalSlots === 0){
     return { kind:'no-slots', label:'希望未設定', priority:0, pendingSlots:0, totalSlots:0 };
+  }
+  if(isCourseStartAfterMonth(student.courseStartDate, ym)){
+    return { kind:'not-started', label:'開始前', priority:3, pendingSlots:0, totalSlots };
   }
   if(pendingSlots > 0){
     return { kind:'pending', label:`講師なし ${pendingSlots}`, priority:1, pendingSlots, totalSlots };
@@ -576,11 +586,35 @@ function renderStudentList(){
   });
 }
 
+function purgeLocalRecordsForStudent(id){
+  const keep = a=> a.studentId !== id;
+  S.assignments = S.assignments.filter(keep);
+  S.pendingAssignments = S.pendingAssignments.filter(keep);
+  S.draftAssignments = S.draftAssignments.filter(keep);
+  S.absences = S.absences.filter(keep);
+  S.preferredPairs = S.preferredPairs.filter(keep);
+  S.teacherSubstitutions = (S.teacherSubstitutions || []).filter(s=> s.studentId !== id);
+  if(S.makeupPlacement){
+    const still = S.absences.some(a=> a.id === S.makeupPlacement.absenceId);
+    if(!still) S.makeupPlacement = null;
+  }
+  if(S.matchingPanelStudentId === id) S.matchingPanelStudentId = null;
+  if(S.matchingReturnToStudentId === id) S.matchingReturnToStudentId = null;
+  if(S.calFilterStudentId === id) clearCalFilter();
+}
+
 async function deleteStudent(id){
+  const student = S.students.find(s=> s.id === id);
   S.students = S.students.filter(s=>s.id!==id);
-  S.assignments = S.assignments.filter(a=>a.studentId!==id);
-  await saveStudents();
+  purgeLocalRecordsForStudent(id);
   if(S.editingStudentId===id) resetStudentForm();
+  try{
+    await revokePendingApprovalTicketsForStudent(student);
+    await revokePendingCancellationRequestsForStudent(student);
+  }catch(err){
+    console.error('削除した生徒の講師側依頼の取り消しエラー:', err);
+  }
+  await saveStudents();
   renderStudentList();
   renderMatching();
 }

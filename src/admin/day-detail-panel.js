@@ -710,8 +710,8 @@ export function bindDayDetailEvents(container, dateStr, onRefresh){
   });
 
   container.querySelectorAll('.cancel-makeup-btn').forEach(btn=>{
-    btn.addEventListener('click', ()=>{
-      cancelMakeup(btn.dataset.absence);
+    btn.addEventListener('click', async ()=>{
+      await cancelMakeup(btn.dataset.absence);
       refresh();
     });
   });
