@@ -185,7 +185,10 @@ function isTeacherAvailableOnDate(teacherId, dateStr, slot){
   if(!sch || sch.status !== 'submitted') return false;
   if(getDateSlotState(teacherId, dateStr, slot) === 'none') return false;
   const ta = (S.teacherAbsences || []).find(t=> t.teacherId===teacherId && t.date===dateStr);
-  if(ta && ta.slots.some(s=> Number(s)===Number(slot))) return false;
+  if(ta && ta.slots.some(s=> Number(s)===Number(slot))){
+    const ids = ta.studentIdsBySlot && ta.studentIdsBySlot[String(Number(slot))];
+    if(!Array.isArray(ids)) return false;
+  }
   return true;
 }
 

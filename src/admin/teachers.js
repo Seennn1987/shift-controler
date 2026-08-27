@@ -7,8 +7,8 @@ import { refreshSubjectFilterCombobox } from './filter-ui.js';
 import { renderMatrix, switchView } from './finance-ui.js';
 import { renderMatching } from './matching.js';
 import { fillBaseAvailArea, readBaseAvailArea, renderRaiseScheduleList, subjectColor } from './schedule-core.js';
-import { scheduleSave, saveTeacherSubjectsDoc } from './students-persistence.js';
-import { getPreferredPairsForTeacher } from './teacher-schedule-tab.js';
+import { scheduleSave, saveTeacherSubjectsDoc, clearDeletedTeacherCloudDocs } from './students-persistence.js';
+import { getPreferredPairsForTeacher, revokePendingRequestsForTeacher } from './teacher-schedule-tab.js';
 
 
 
@@ -393,10 +393,34 @@ function renderTeacherList(){
 }
 
 async function deleteTeacher(id){
+  const teacher = S.teachers.find(t=> t.id === id);
   S.teachers = S.teachers.filter(t=>t.id!==id);
-  S.assignments = S.assignments.filter(a=>a.teacherId!==id);
-  await saveTeachers();
+  const keep = a=> a.teacherId !== id;
+  S.assignments = S.assignments.filter(keep);
+  S.pendingAssignments = (S.pendingAssignments || []).filter(keep);
+  S.draftAssignments = (S.draftAssignments || []).filter(keep);
+  S.preferredPairs = (S.preferredPairs || []).filter(p=> p.teacherId !== id);
+  S.teacherAbsences = (S.teacherAbsences || []).filter(t=> t.teacherId !== id);
+  S.teacherSubstitutions = (S.teacherSubstitutions || []).filter(s=>
+    s.teacherId !== id && s.substituteTeacherId !== id
+  );
+  S.teacherSchedules = (S.teacherSchedules || []).filter(s=> s.teacherId !== id);
+  (S.absences || []).forEach(ab=>{
+    if(ab.makeup?.teacherId === id){
+      ab.makeup = null;
+      if(ab.status === 'resolved') ab.status = 'pending';
+    }
+  });
+  if(S.tsSelectedTeacherId === id) S.tsSelectedTeacherId = null;
+  if(S.calFilterTeacherId === id) S.calFilterTeacherId = '';
   if(S.editingId===id) resetForm();
+  try{
+    await revokePendingRequestsForTeacher(teacher);
+    await clearDeletedTeacherCloudDocs(teacher);
+  }catch(err){
+    console.error('削除した講師の講師側データの取り消しエラー:', err);
+  }
+  await saveTeachers();
   renderTeacherList();
   renderMatrix();
   renderMatching();

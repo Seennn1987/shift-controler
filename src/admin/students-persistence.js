@@ -7,7 +7,7 @@ import { renderMatching } from './matching.js';
 import { gradeLabel } from './schedule-core.js';
 import { openTeacherScheduleEditor, renderTeacherScheduleTab } from './teacher-schedule-tab.js';
 import { collapseTeacherCalendarEntries, formatDualSubjectLabel } from './dual-subject.js';
-import { collectMakeupEntriesForTeacher, recordTeacherAbsence, studentAbsentDatesForAssignment } from './absences.js';
+import { collectMakeupEntriesForTeacher, isTeacherAbsentForStudent, recordTeacherAbsence, studentAbsentDatesForAssignment } from './absences.js';
 import { normalizeMatchingPriority } from './matching-config.js';
 import { applyGradePromotionsIfNeeded } from './grade-promotion.js';
 
@@ -484,11 +484,12 @@ function expandAssignmentForTeacherCalendar(a, approvalStatus, teacherId){
     p.studentId===a.studentId && p.courseId===a.courseId && p.teacherId===teacherId
   );
   const absentDates = (S.teacherAbsences || [])
-    .filter(ta=> ta.teacherId===teacherId && ta.slots.some(s=> Number(s)===Number(a.slot)))
+    .filter(ta=> isTeacherAbsentForStudent(teacherId, ta.date, a.slot, a.studentId))
     .map(ta=> ta.date);
   const base = {
     day: a.day,
     slot: a.slot,
+    studentId: a.studentId || null,
     studentName: student ? student.name : '(削除された生徒)',
     studentGrade: student ? gradeLabel(student) : '',
     subject: a.subject,
@@ -537,6 +538,7 @@ async function syncTeacherAssignments(){
       entries.push({
         day: getDayStatus(sub.date).weekday, slot: sub.slot,
         studentName: student ? student.name : '(削除された生徒)',
+        studentId: original.studentId || null,
         studentGrade: student ? gradeLabel(student) : '',
         subject: original.subject,
         oneTimeDate: sub.date,
@@ -558,6 +560,36 @@ async function syncTeacherAssignments(){
   await ensureMissingApprovalTickets();
 }
 
+async function clearDeletedTeacherCloudDocs(teacher){
+  const user = fbAuth.currentUser;
+  if(!user || !teacher?.id) return;
+  const teacherId = teacher.id;
+  try{
+    await fbDb.collection('teacherAssignments').doc(`${user.uid}_${teacherId}`).delete();
+  }catch(err){
+    console.error('削除した講師のカレンダーデータの消去エラー:', err);
+  }
+  try{
+    const schedRef = teacherSchedDocRef(teacherId);
+    if(schedRef) await schedRef.delete();
+  }catch(err){
+    console.error('削除した講師の出勤表データの消去エラー:', err);
+  }
+  try{
+    const subjRef = teacherSubjectsDocRef(teacherId);
+    if(subjRef) await subjRef.delete();
+  }catch(err){
+    console.error('削除した講師の担当教科データの消去エラー:', err);
+  }
+  if(teacher.loginUid){
+    try{
+      await fbDb.collection('teacherAccounts').doc(teacher.loginUid).delete();
+    }catch(err){
+      console.error('削除した講師のログイン紐付けの消去エラー:', err);
+    }
+  }
+}
+
 function resolveCancellationDate(req){
   if(req.dateStr) return req.dateStr;
   if(req.oneTimeDate) return req.oneTimeDate;
@@ -573,6 +605,21 @@ function resolveCancellationDate(req){
   return null;
 }
 
+function resolveCancellationStudentId(req, dateStr, slot){
+  if(req.studentId) return req.studentId;
+  const named = (S.students || []).filter(s=> s.name === req.studentName);
+  if(named.length === 1) return named[0].id;
+  if(named.length === 0) return null;
+  const all = S.assignments.concat(S.pendingAssignments || [], S.draftAssignments || []);
+  const hit = all.find(a=>
+    a.teacherId === req.teacherId &&
+    Number(a.slot) === Number(slot) &&
+    named.some(s=> s.id === a.studentId) &&
+    (!req.day || a.day === req.day)
+  );
+  return hit?.studentId || named[0].id;
+}
+
 async function approveCancellationRequest(req, reqId, opts = {}){
   const dateStr = resolveCancellationDate(req);
   const slot = Number(req.slot);
@@ -583,7 +630,8 @@ async function approveCancellationRequest(req, reqId, opts = {}){
           Number(s.slot)===slot)
       );
     }
-    recordTeacherAbsence(req.teacherId, dateStr, [slot]);
+    const studentId = resolveCancellationStudentId(req, dateStr, slot);
+    recordTeacherAbsence(req.teacherId, dateStr, [slot], studentId || undefined);
   }else{
     console.error('欠勤承認に日付がありません', req);
   }
@@ -724,4 +772,4 @@ async function loadAppStateFromFirestore(){
 }
 
 
-export { loadStudents, saveStudents, getStateDocRef, teacherSchedDocRef, syncTeacherLoginUidEverywhere, saveTeacherScheduleDoc, loadAllTeacherSchedules, startTeacherScheduleListener, promotePendingAssignment, startApprovalPromotionListener, syncClosureSettings, syncClosureSettingsNow, scheduleSyncTeacherAssignments, syncTeacherAssignments, scheduleSave, saveAppState, loadAppStateFromFirestore, approveCancellationRequest, approveCancellationRequests, rejectCancellationRequest, saveTeacherSubjectsDoc, startTeacherSubjectsListener };
+export { loadStudents, saveStudents, getStateDocRef, teacherSchedDocRef, syncTeacherLoginUidEverywhere, saveTeacherScheduleDoc, loadAllTeacherSchedules, startTeacherScheduleListener, promotePendingAssignment, startApprovalPromotionListener, syncClosureSettings, syncClosureSettingsNow, scheduleSyncTeacherAssignments, syncTeacherAssignments, scheduleSave, saveAppState, loadAppStateFromFirestore, approveCancellationRequest, approveCancellationRequests, rejectCancellationRequest, saveTeacherSubjectsDoc, startTeacherSubjectsListener, clearDeletedTeacherCloudDocs };

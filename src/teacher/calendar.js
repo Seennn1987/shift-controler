@@ -144,6 +144,7 @@ function buildCancelActionHtml(entry, dateStr){
   }
   const payload = encodeURIComponent(JSON.stringify({
     day: entry.day, slot: entry.slot, subject: entry.subject,
+    studentId: entry.studentId || null,
     studentName: entry.studentName, studentGrade: entry.studentGrade || '',
     oneTimeDate: entry.oneTimeDate || null,
     dateStr,

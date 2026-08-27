@@ -4,8 +4,8 @@ import {
   cancelSubstitute,
   confirmSubstitute,
   findSubstituteCandidatesForStudent,
-  findTeacherAbsence,
   getTeacherLessonsOnDate,
+  isTeacherSlotFullyAbsent,
   recordTeacherAbsence,
   resolveSlotViaStudentAbsence,
 } from './absences.js';
@@ -72,7 +72,7 @@ function bindAbsentTeacherFollowupActions(root, onRefresh){
       const slotId = Number(cbtn.dataset.confirmSub);
       const studentId = cbtn.dataset.confirmStudent;
       confirmSubstitute(teacherId, dateStr, slotId, cbtn.dataset.subTeacher, studentId);
-      recordTeacherAbsence(teacherId, dateStr, [slotId]);
+      recordTeacherAbsence(teacherId, dateStr, [slotId], studentId);
       if(typeof onRefresh === 'function') onRefresh();
     });
   });
@@ -90,7 +90,7 @@ function bindAbsentTeacherFollowupActions(root, onRefresh){
       const entry = (lessons[slotId] || []).find(e=> e.studentId === studentId)
         || (courseId ? { studentId, courseId, subject } : null);
       if(entry) resolveSlotViaStudentAbsence(teacherId, dateStr, slotId, [entry]);
-      recordTeacherAbsence(teacherId, dateStr, [slotId]);
+      recordTeacherAbsence(teacherId, dateStr, [slotId], studentId);
       if(typeof onRefresh === 'function') onRefresh();
     });
   });
@@ -106,7 +106,6 @@ export function renderTeacherAbsencePanel(container, teacherId, dateStr, onRefre
 
   const lessonsBySlot = getTeacherLessonsOnDate(teacherId, dateStr);
   const slotIds = Object.keys(lessonsBySlot).map(Number).sort((a, b)=> a - b);
-  const ta = findTeacherAbsence(teacherId, dateStr);
 
   if(slotIds.length === 0){
     container.innerHTML = `<div class="cal-empty-day">${teacherHonorific(teacher)}は、この日に確定している授業はありません。</div>`;
@@ -117,7 +116,7 @@ export function renderTeacherAbsencePanel(container, teacherId, dateStr, onRefre
   slotIds.forEach(slotId=>{
     const slot = SLOTS.find(s=> s.id === slotId);
     const studentEntries = lessonsBySlot[slotId];
-    const isMarked = !!(ta && ta.slots.some(s=> Number(s) === Number(slotId)));
+    const isMarked = isTeacherSlotFullyAbsent(teacherId, dateStr, slotId);
 
     let studentRowsHtml = '';
     studentEntries.forEach(e=>{
@@ -151,7 +150,7 @@ export function renderTeacherAbsencePanel(container, teacherId, dateStr, onRefre
     </div>`;
   });
 
-  const unmarkedCount = slotIds.filter(slotId=> !(ta && ta.slots.some(s=> Number(s) === Number(slotId)))).length;
+  const unmarkedCount = slotIds.filter(slotId=> !isTeacherSlotFullyAbsent(teacherId, dateStr, slotId)).length;
 
   container.innerHTML = `<div class="teacher-absence-panel">
     <p class="teacher-absence-desc">1コマに複数の生徒がいる場合は、生徒ごとに個別に代講を探せます。見つからない場合は「代講せず欠席にする」から、その生徒だけ振替の流れに乗せられます。</p>
@@ -256,7 +255,7 @@ export function renderTeacherAbsencePanel(container, teacherId, dateStr, onRefre
           const s = Number(cbtn.dataset.confirmSub);
           const sid = cbtn.dataset.confirmStudent;
           confirmSubstitute(teacherId, dateStr, s, cbtn.dataset.subTeacher, sid);
-          recordTeacherAbsence(teacherId, dateStr, [s]);
+          recordTeacherAbsence(teacherId, dateStr, [s], sid);
           refreshPanel();
         });
       });
@@ -266,7 +265,7 @@ export function renderTeacherAbsencePanel(container, teacherId, dateStr, onRefre
           const sid = fbtn.dataset.fallbackStudent;
           const entry = lessonsBySlot[s]?.find(e=> e.studentId === sid);
           if(entry) resolveSlotViaStudentAbsence(teacherId, dateStr, s, [entry]);
-          recordTeacherAbsence(teacherId, dateStr, [s]);
+          recordTeacherAbsence(teacherId, dateStr, [s], sid);
           refreshPanel();
         });
       });
