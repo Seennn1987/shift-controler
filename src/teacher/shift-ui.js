@@ -159,14 +159,29 @@ async function handleShiftPickSelect(dateStr, slotId, priority){
   return { rerender: true };
 }
 
+function monthHasAnyOpenSlot(entry){
+  return Object.values(entry.days || {}).some(list=> Array.isArray(list) && list.length > 0);
+}
+
 async function submitShiftMonth(){
   const yearMonth = `${S.curYear}-${pad2(S.curMonth + 1)}`;
   const entry = getMonthEntry(yearMonth);
+  const msg = document.getElementById('formMsg');
+  if(!monthHasAnyOpenSlot(entry)){
+    if(msg) msg.textContent = '出勤できるコマを1つ以上選んでから提出してください。';
+    return { rerender: false };
+  }
+  const prevStatus = entry.status;
+  const prevSubmittedBy = entry.submittedBy;
   entry.status = 'submitted';
   entry.submittedBy = 'teacher';
-  const msg = document.getElementById('formMsg');
   if(msg) msg.textContent = '提出中…';
-  await saveMonthEntry(yearMonth, entry);
+  const ok = await saveMonthEntry(yearMonth, entry);
+  if(!ok){
+    entry.status = prevStatus || 'draft';
+    entry.submittedBy = prevSubmittedBy || null;
+    return { rerender: true };
+  }
   if(msg) msg.textContent = '✓ シフトを提出しました。';
   return { rerender: true };
 }

@@ -280,6 +280,10 @@ export function renderDayDetailPanel(container, dateStr){
   const detailYearMonth = dateStr.slice(0, 7);
 
   if(filterStudent){
+    if(status.type !== 'open'){
+      container.innerHTML = `<div class="cal-empty-day">${label}は${status.label || status.holidayName || status.closureLabel || '休校日'}です。</div>`;
+      return;
+    }
     const rows = getStudentDateRows(filterStudent, dateStr);
     if(rows.length === 0){
       const placementHtml = buildMakeupPlacementHtml(dateStr);
@@ -462,7 +466,7 @@ export function renderDayDetailPanel(container, dateStr){
     return;
   }
 
-  const absenceRows = getAbsenceRecordsOnDate(dateStr);
+  const absenceRows = getAbsenceRecordsOnDate(dateStr, { includeResolved: true });
   const placementHtml = buildMakeupPlacementHtml(dateStr);
 
   if(list.length === 0 && unassigned.length === 0 && absenceRows.length === 0){

@@ -166,6 +166,8 @@ function buildClosedDayArea(){
       renderMatrix();
       renderMatching();
       renderCalendar();
+      scheduleSave();
+      scheduleSyncClosureSettings();
     });
   });
 }

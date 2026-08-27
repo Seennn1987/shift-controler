@@ -183,11 +183,13 @@ function listPendingAbsenceWorkItems(){
 }
 
 /** その日の欠席（教室全体の日付パネル・月マス用。双教科は1件） */
-function getAbsenceRecordsOnDate(dateStr){
+function getAbsenceRecordsOnDate(dateStr, opts){
+  const includeResolved = !!(opts && opts.includeResolved);
   const seen = new Set();
   const rows = [];
   S.absences.forEach(ab=>{
     if(ab.date !== dateStr) return;
+    if(!includeResolved && ab.status === 'resolved') return;
     const key = pendingAbsenceGroupKey(ab);
     if(seen.has(key)) return;
     seen.add(key);
@@ -689,12 +691,13 @@ function getEffectiveDayAssignments(dateStr){
     if(!assignmentAppliesOnDate(a, dateStr)) return;
     if(isAbsentOnDate(a.studentId, a.courseId, dateStr, a.day, a.slot)) return;
     const sub = findSubstitutionOnDate(a.teacherId, dateStr, a.slot, a.studentId);
-    if(!sub && isTeacherSlotAbsent(a.teacherId, dateStr, a.slot)) return;
+    const teacherAbsent = !sub && isTeacherSlotAbsent(a.teacherId, dateStr, a.slot);
     const effectiveTeacherId = sub ? sub.substituteTeacherId : a.teacherId;
     list.push(enrichAssignmentEntry({
       studentId:a.studentId, courseId:a.courseId, subject:a.subject, slot:a.slot,
       teacherId:effectiveTeacherId, kind: assignmentKind(a), source:a.source,
       substituted: !!sub, originalTeacherId: sub ? a.teacherId : null,
+      teacherAbsent,
       dualGroupId: a.dualGroupId || null,
       oneTimeDate: a.oneTimeDate || null,
     }, weekday));
@@ -703,10 +706,11 @@ function getEffectiveDayAssignments(dateStr){
     if(a.day!==weekday) return;
     if(!assignmentAppliesOnDate(a, dateStr)) return;
     if(isAbsentOnDate(a.studentId, a.courseId, dateStr, a.day, a.slot)) return;
-    if(isTeacherSlotAbsent(a.teacherId, dateStr, a.slot)) return;
+    const teacherAbsent = isTeacherSlotAbsent(a.teacherId, dateStr, a.slot);
     list.push(enrichAssignmentEntry({
       studentId:a.studentId, courseId:a.courseId, subject:a.subject, slot:a.slot,
       teacherId:a.teacherId, kind: assignmentKind(a), source:a.source, pending:true,
+      teacherAbsent,
       dualGroupId: a.dualGroupId || null,
       oneTimeDate: a.oneTimeDate || null,
     }, weekday));
@@ -715,10 +719,11 @@ function getEffectiveDayAssignments(dateStr){
     if(a.day!==weekday) return;
     if(!assignmentAppliesOnDate(a, dateStr)) return;
     if(isAbsentOnDate(a.studentId, a.courseId, dateStr, a.day, a.slot)) return;
-    if(isTeacherSlotAbsent(a.teacherId, dateStr, a.slot)) return;
+    const teacherAbsent = isTeacherSlotAbsent(a.teacherId, dateStr, a.slot);
     list.push(enrichAssignmentEntry({
       studentId:a.studentId, courseId:a.courseId, subject:a.subject, slot:a.slot,
       teacherId:a.teacherId, kind: assignmentKind(a), source:a.source, draft:true,
+      teacherAbsent,
       dualGroupId: a.dualGroupId || null,
       oneTimeDate: a.oneTimeDate || null,
     }, weekday));
@@ -822,7 +827,7 @@ function computeDayFinance(dateStr, includeTransport){
   if(includeTransport===undefined) includeTransport = S.finIncludeTransport;
   const status = getDayStatus(dateStr);
   if(status.type!=='open') return {revenue:0, lessonCost:0, transportCost:0, cost:0, ratio:null, lessonCount:0};
-  const list = getEffectiveDayAssignments(dateStr).filter(a=> !a.pending && !a.draft);
+  const list = getEffectiveDayAssignments(dateStr).filter(a=> !a.pending && !a.draft && !a.teacherAbsent);
   if(list.length===0) return {revenue:0, lessonCost:0, transportCost:0, cost:0, ratio:null, lessonCount:0};
 
   let revenue = 0;
@@ -877,6 +882,7 @@ function costRatioColor(ratio){
 // 生徒フィルター時：その日・その生徒の各コマの状態（通常確定／欠席／振替先／未確定）をまとめる
 function getStudentDateRows(student, dateStr){
   const status = getDayStatus(dateStr);
+  if(status.type !== 'open') return [];
   const weekday = status.weekday;
   const rows = [];
   const processedDual = new Set();
@@ -899,6 +905,7 @@ function getStudentDateRows(student, dateStr){
         const absence = dualPair.entries
           .map(({ course: co })=> findAbsenceFor(student.id, co.id, dateStr, ds.day, ds.slot))
           .find(Boolean) || null;
+        if(absence && absence.status === 'resolved' && absence.makeup) return;
         const state = resolveDualRowAssignmentState(
           student, dualPair, ds.day, ds.slot, yearMonth, dateStr, findEffectiveAssignment,
         );
@@ -921,6 +928,7 @@ function getStudentDateRows(student, dateStr){
       }
 
       const absence = findAbsenceFor(student.id, course.id, dateStr, ds.day, ds.slot);
+      if(absence && absence.status === 'resolved' && absence.makeup) return;
       const eff = findEffectiveAssignment(student.id, course.id, ds.day, ds.slot, yearMonth, dateStr);
       const missingTeacher = eff && isAssignedTeacherMissingOnDate(eff.entry, dateStr)
         ? eff.entry
@@ -944,7 +952,8 @@ function getStudentDateRows(student, dateStr){
     if(ab.studentId!==student.id || !ab.makeup || ab.makeup.date!==dateStr) return;
     const slot = SLOTS.find(sl=>sl.id===ab.makeup.slot);
     const course = student.courses.find(c=>c.id===ab.courseId);
-    if(!course) return;
+    if(!course || !slot) return;
+    if(rows.some(r=> Number(r.slot.id) === Number(ab.makeup.slot) && (r.existing || r.isMakeupTarget))) return;
     const dualGroupId = resolveDualGroupIdForSlot(student.id, ab.courseId, ab.day, ab.slot);
     if(dualGroupId){
       const makeupKey = `${ab.makeup.date}:${ab.makeup.slot}:${dualGroupId}`;

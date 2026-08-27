@@ -14,10 +14,13 @@ function startScheduleListener(){
     try{
       const snap = await ref.get();
       debugLog(`[teacherSchedules] 成功 exists=${snap.exists}`);
+      await loadMyPendingRequests();
       // 直近5秒以内にローカルで編集していた場合、まだサーバー側へ反映しきれていない古いデータで
       // 上書きしてしまう可能性があるため、今回の取得結果の適用を1回スキップする
       if(Date.now() - S.lastLocalScheduleEditAt < 5000){
         debugLog(`[teacherSchedules] 直近の編集があるため、今回の取得結果の適用をスキップしました`);
+        const { renderMyCalendar } = await import('./calendar.js');
+        renderMyCalendar();
         return;
       }
       S.scheduleDoc = snap.exists ? snap.data() : {months:{}};
@@ -58,10 +61,13 @@ async function saveMonthEntry(yearMonth, entry){
       updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
     });
     debugLog(`[保存] ★成功★ yearMonth=${yearMonth}`);
+    return true;
   }catch(err){
     debugLog(`[保存] ★★★失敗★★★ code=${err.code} message=${err.message}`);
     console.error('保存エラー:', err);
-    document.getElementById('formMsg').textContent = '保存に失敗しました。通信状況をご確認ください。';
+    const msg = document.getElementById('formMsg');
+    if(msg) msg.textContent = '保存に失敗しました。通信状況をご確認ください。';
+    return false;
   }
 }
 

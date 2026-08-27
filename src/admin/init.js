@@ -278,6 +278,7 @@ async function init(){
     S.teacherCapacity = v;
     e.target.value = String(v);
     renderMatching();
+    scheduleSave();
   });
   document.getElementById('settingsRoomCapacityInput').addEventListener('change', (e)=>{
     let v = parseInt(e.target.value, 10);
@@ -286,6 +287,7 @@ async function init(){
     e.target.value = String(v);
     document.getElementById('roomCapDisplay').textContent = String(v);
     renderMatching();
+    scheduleSave();
   });
   const tuitionInputMap = [
     ['tuitionSmallInput','小学'], ['tuitionMiddleInput','中学'], ['tuitionHighInput','高校']
@@ -297,6 +299,7 @@ async function init(){
       S.tuitionRates[level] = v;
       e.target.value = String(v);
       if(typeof renderFinance === 'function') renderFinance();
+      scheduleSave();
     });
   });
   document.getElementById('finGradientMinInput').addEventListener('change', (e)=>{
@@ -307,6 +310,7 @@ async function init(){
     e.target.value = String(v);
     document.getElementById('finGradientMaxInput').value = String(S.finGradientMax);
     renderFinance();
+    scheduleSave();
   });
   document.getElementById('finGradientMaxInput').addEventListener('change', (e)=>{
     let v = parseInt(e.target.value, 10);
@@ -314,6 +318,7 @@ async function init(){
     S.finGradientMax = v;
     e.target.value = String(v);
     renderFinance();
+    scheduleSave();
   });
   document.getElementById('calFilter').addEventListener('change', (e)=>{
     setCalFilterFromSelect(e.target.value);

@@ -19,7 +19,7 @@ function coveringState(studentId, courseId, day, slot, yearMonth, dateStr){
   const eff = findEffectiveAssignment(studentId, courseId, day, slot, yearMonth, dateStr);
   if(!eff) return { covered: false, missingTeacher: null };
   if(isAssignedTeacherMissingOnDate(eff.entry, dateStr)){
-    return { covered: false, missingTeacher: eff.entry };
+    return { covered: true, missingTeacher: eff.entry };
   }
   return { covered: true, missingTeacher: null };
 }
