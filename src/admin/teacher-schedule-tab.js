@@ -859,6 +859,70 @@ function cancelAssignment(studentId, courseId, day, slot, dateStr){
   removeAllSlotAssignments(studentId, courseId, day, slot);
 }
 
+function listSlotAssignmentEntries(studentId, courseId, day, slot){
+  const match = a=> a.studentId===studentId && a.courseId===courseId && a.day===day && Number(a.slot)===Number(slot);
+  return S.assignments.concat(S.pendingAssignments, S.draftAssignments).filter(match);
+}
+
+async function dropStudentDesiredSlot(student, course, day, slot){
+  const dualPair = findDualPairAtSlot(student.courses || [], day, slot);
+  const isDual = dualPair && dualPair.entries.some(e=> e.course.id === course.id);
+  const courses = isDual ? dualPair.entries.map(e=> e.course) : [course];
+  const subjects = isDual ? dualPair.subjects : [course.subject];
+  const coursePayload = { subject: subjects.join('・'), subjects };
+  const entries = [];
+  courses.forEach(c=>{
+    listSlotAssignmentEntries(student.id, c.id, day, slot).forEach(e=> entries.push(e));
+  });
+  if(isDual){
+    cancelDualAssignment(student.id, dualPair, day, slot, null);
+  }else{
+    cancelAssignment(student.id, course.id, day, slot, null);
+  }
+  const seen = new Set();
+  try{
+    for(const entry of entries){
+      const oneTimeDate = entry.oneTimeDate || null;
+      const key = `${oneTimeDate || ''}:${entry.teacherId || ''}`;
+      if(seen.has(key)) continue;
+      seen.add(key);
+      await revokePendingApprovalTicket(student, coursePayload, day, slot, oneTimeDate, entry.teacherId);
+    }
+  }catch(err){
+    console.error('希望コマ解除の依頼取り消しエラー:', err);
+  }
+}
+
+async function dropAssignmentsForRemovedDesiredSlots(student, oldCourses, newCourses){
+  if(!student) return;
+  const newKeys = new Set();
+  (newCourses || []).forEach(c=>{
+    (c.desiredSlots || []).forEach(ds=> newKeys.add(`${c.id}:${ds.day}:${Number(ds.slot)}`));
+  });
+  const removed = [];
+  (oldCourses || []).forEach(c=>{
+    (c.desiredSlots || []).forEach(ds=>{
+      if(!newKeys.has(`${c.id}:${ds.day}:${Number(ds.slot)}`)){
+        removed.push({ course: c, day: ds.day, slot: ds.slot, dualGroupId: ds.dualGroupId || null });
+      }
+    });
+  });
+  const snapshot = { ...student, courses: oldCourses || [] };
+  const seenDual = new Set();
+  for(const item of removed){
+    if(item.dualGroupId){
+      const dualKey = `${item.day}:${item.slot}:${item.dualGroupId}`;
+      if(seenDual.has(dualKey)) continue;
+      seenDual.add(dualKey);
+    }
+    await dropStudentDesiredSlot(snapshot, item.course, item.day, item.slot);
+  }
+  const newCourseIds = new Set((newCourses || []).map(c=> c.id));
+  S.preferredPairs = (S.preferredPairs || []).filter(p=>
+    p.studentId !== student.id || newCourseIds.has(p.courseId)
+  );
+}
+
 function countAssignmentsInMonth(list, yearMonth){
   const ym = getActiveYearMonth(yearMonth);
   return list.filter(a=> isAssignmentEffectiveInMonth(a, ym)).length;
@@ -1127,6 +1191,7 @@ async function replaceDesiredSlot(studentId, courseId, oldDay, oldSlot, newDay, 
   if(!course) return;
   const idx = course.desiredSlots.findIndex(ds=>ds.day===oldDay && ds.slot===oldSlot);
   if(idx===-1) return;
+  await dropStudentDesiredSlot(student, course, oldDay, oldSlot);
   course.desiredSlots[idx] = {day:newDay, slot:newSlot};
   await saveStudents();
   renderStudentList();
@@ -1134,4 +1199,4 @@ async function replaceDesiredSlot(studentId, courseId, oldDay, oldSlot, newDay, 
 }
 
 
-export { loadPendingChangeRequests, loadPendingCancellationRequests, resolveScheduleChangeRequest, resolveScheduleChangeRequests, loadAssignmentApprovals, loadDismissedApprovalIds, saveDismissedApprovalIds, approvalAppliesInMonth, openMatchingForApprovalTicket, renderApprovalDashboardItem, renderApprovalStatus, renderTeacherScheduleTab, openTeacherScheduleEditor, renderTeacherScheduleGrid, isPreferredPair, getPreferredTeachersForCourse, getPreferredPairsForTeacher, addPreferredPair, removePreferredPair, removePreferredPairFor, isPreferredSubjectForTeacher, teacherWorksOtherSlotOnWeekday, countTeacherCourseSlotCoverage, buildCandidateInfo, findAssignment, getActiveYearMonth, teacherHasSubmittedMonth, isAssignmentEffectiveInMonth, assignmentAppliesOnDate, findEffectiveAssignment, countCourseConfirmed, countTeacherSlot, countTeacherSlotOnDate, countRoomSlot, countRoomSlotOnDate, issueAssignmentApproval, confirmAssignment, confirmDualAssignment, cancelAssignment, cancelDualAssignment, cancelDraftAuto, cancelAllDrafts, sendDraftAssignments, countAssignmentsInMonth, withdrawPendingAssignment, findAlternativeSlots, replaceDesiredSlot, revokePendingApprovalTicket, revokePendingApprovalTicketsForStudent, revokePendingCancellationRequestsForStudent, revokePendingRequestsForTeacher };
+export { loadPendingChangeRequests, loadPendingCancellationRequests, resolveScheduleChangeRequest, resolveScheduleChangeRequests, loadAssignmentApprovals, loadDismissedApprovalIds, saveDismissedApprovalIds, approvalAppliesInMonth, openMatchingForApprovalTicket, renderApprovalDashboardItem, renderApprovalStatus, renderTeacherScheduleTab, openTeacherScheduleEditor, renderTeacherScheduleGrid, isPreferredPair, getPreferredTeachersForCourse, getPreferredPairsForTeacher, addPreferredPair, removePreferredPair, removePreferredPairFor, isPreferredSubjectForTeacher, teacherWorksOtherSlotOnWeekday, countTeacherCourseSlotCoverage, buildCandidateInfo, findAssignment, getActiveYearMonth, teacherHasSubmittedMonth, isAssignmentEffectiveInMonth, assignmentAppliesOnDate, findEffectiveAssignment, countCourseConfirmed, countTeacherSlot, countTeacherSlotOnDate, countRoomSlot, countRoomSlotOnDate, issueAssignmentApproval, confirmAssignment, confirmDualAssignment, cancelAssignment, cancelDualAssignment, cancelDraftAuto, cancelAllDrafts, sendDraftAssignments, countAssignmentsInMonth, withdrawPendingAssignment, findAlternativeSlots, replaceDesiredSlot, revokePendingApprovalTicket, revokePendingApprovalTicketsForStudent, revokePendingCancellationRequestsForStudent, revokePendingRequestsForTeacher, dropAssignmentsForRemovedDesiredSlots };

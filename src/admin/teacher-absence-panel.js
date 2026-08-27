@@ -273,10 +273,10 @@ export function renderTeacherAbsencePanel(container, teacherId, dateStr, onRefre
   });
 
   container.querySelectorAll('[data-cancel-sub]').forEach(btn=>{
-    btn.addEventListener('click', ()=>{
+    btn.addEventListener('click', async ()=>{
       const slotId = Number(btn.dataset.cancelSub);
       const studentId = btn.dataset.cancelStudent;
-      cancelSubstitute(teacherId, dateStr, slotId, studentId);
+      await cancelSubstitute(teacherId, dateStr, slotId, studentId);
       refreshPanel();
     });
   });

@@ -10,7 +10,7 @@ import { renderCalendarWeek, switchCalMode, switchView } from './finance-ui.js';
 import { gradeLabel, getDateSlotState, isTeacherAvailableOnDate, subjectColor } from './schedule-core.js';
 import { approveCancellationRequest, approveCancellationRequests, rejectCancellationRequest, saveStudents, scheduleSave, scheduleSyncTeacherAssignments, saveAppState } from './students-persistence.js';
 import { renderTeacherList } from './teachers.js';
-import { assignmentAppliesOnDate, approvalAppliesInMonth, buildCandidateInfo, confirmAssignment, confirmDualAssignment, cancelAllDrafts, cancelDraftAuto, findEffectiveAssignment, getActiveYearMonth, getPreferredTeachersForCourse, loadAssignmentApprovals, loadDismissedApprovalIds, loadPendingCancellationRequests, loadPendingChangeRequests, openMatchingForApprovalTicket, renderApprovalDashboardItem, resolveScheduleChangeRequest, resolveScheduleChangeRequests, saveDismissedApprovalIds, sendDraftAssignments, teacherHasSubmittedMonth, revokePendingApprovalTicketsForStudent, revokePendingCancellationRequestsForStudent } from './teacher-schedule-tab.js';
+import { assignmentAppliesOnDate, approvalAppliesInMonth, buildCandidateInfo, confirmAssignment, confirmDualAssignment, cancelAllDrafts, cancelDraftAuto, findEffectiveAssignment, getActiveYearMonth, getPreferredTeachersForCourse, loadAssignmentApprovals, loadDismissedApprovalIds, loadPendingCancellationRequests, loadPendingChangeRequests, openMatchingForApprovalTicket, renderApprovalDashboardItem, resolveScheduleChangeRequest, resolveScheduleChangeRequests, saveDismissedApprovalIds, sendDraftAssignments, teacherHasSubmittedMonth, revokePendingApprovalTicketsForStudent, revokePendingCancellationRequestsForStudent, dropAssignmentsForRemovedDesiredSlots } from './teacher-schedule-tab.js';
 import { findDualPairAtSlot, teacherTeachesBoth, buildDualSubjectTagsHtml } from './dual-subject.js';
 import { compareCandidateInfo, getMatchingPriority, MATCHING_FACTOR_META } from './matching-config.js';
 import { mountInlineConfirm, showActiveTabNotice } from '../shared/inline-confirm.js';
@@ -386,7 +386,10 @@ async function persistFormCourses(){
   if(!S.editingStudentId) return;
   const idx = S.students.findIndex(s=> s.id === S.editingStudentId);
   if(idx < 0) return;
+  const student = S.students[idx];
+  const oldCourses = JSON.parse(JSON.stringify(student.courses || []));
   const courses = normalizeFormCoursesForSave(S.formCourses);
+  await dropAssignmentsForRemovedDesiredSlots(student, oldCourses, courses);
   S.students[idx].courses = JSON.parse(JSON.stringify(courses));
   S.students[idx].courseStartDate = readCourseStartDate();
   await saveStudents();
@@ -447,6 +450,7 @@ async function handleStudentSave(){
   if(S.editingStudentId){
     const idx = S.students.findIndex(s=>s.id===S.editingStudentId);
     if(idx>-1){
+      await dropAssignmentsForRemovedDesiredSlots(S.students[idx], S.students[idx].courses, coursesCopy);
       S.students[idx] = { ...S.students[idx], name, nameKana, level, grade, courseStartDate, courses: coursesCopy };
     }
     msg.textContent = '基本情報を更新しました。';

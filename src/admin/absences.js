@@ -511,9 +511,53 @@ function confirmSubstitute(teacherId, dateStr, slot, substituteTeacherId, studen
     )];
   studentIds.forEach(id=> issueSubstituteApproval(teacherId, dateStr, slot, substituteTeacherId, id));
 }
-function cancelSubstitute(teacherId, dateStr, slot, studentId){
+async function revokeSubstituteApproval(absentTeacherId, dateStr, slot, substituteTeacherId, studentId){
+  const weekday = getDayStatus(dateStr).weekday;
+  const originals = collectSubstituteOriginals(absentTeacherId, dateStr, slot, studentId);
+  const student = S.students.find(s=> s.id === studentId);
+  if(!student) return;
+  const dualPair = findDualPairAtSlot(student.courses || [], weekday, slot);
+  const first = originals[0];
+  const fallbackCourse = (student.courses || []).find(c=>
+    (c.desiredSlots || []).some(ds=> ds.day === weekday && Number(ds.slot) === Number(slot))
+  );
+  const subjects = dualPair?.subjects?.length === 2
+    ? dualPair.subjects
+    : (first ? originals.map(o=> o.subject).filter((s, i, list)=> list.indexOf(s) === i) : (fallbackCourse ? [fallbackCourse.subject] : []));
+  const subject = subjects.length === 2 ? subjects.join('・') : (first?.subject || '');
+  if(!subject) return;
+  const coursePayload = subjects.length === 2 ? { subject, subjects } : { subject };
+  await revokePendingApprovalTicket(student, coursePayload, weekday, slot, dateStr, substituteTeacherId);
+}
+
+async function revokeDroppedSubstitutions(dropped){
+  for(const sub of dropped){
+    const ids = sub.studentId
+      ? [sub.studentId]
+      : [...new Set(
+        S.assignments
+          .filter(a=> a.teacherId===sub.teacherId && Number(a.slot)===Number(sub.slot) && assignmentAppliesOnDate(a, sub.date))
+          .map(a=> a.studentId)
+      )];
+    for(const id of ids){
+      try{
+        await revokeSubstituteApproval(sub.teacherId, sub.date, sub.slot, sub.substituteTeacherId, id);
+      }catch(err){
+        console.error('代講依頼取り消しエラー:', err);
+      }
+    }
+  }
+}
+
+async function cancelSubstitute(teacherId, dateStr, slot, studentId){
   studentId = studentId || null;
-  S.teacherSubstitutions = S.teacherSubstitutions.filter(s=>!(s.teacherId===teacherId && s.date===dateStr && s.slot===slot && s.studentId===studentId));
+  const dropped = S.teacherSubstitutions.filter(s=>
+    s.teacherId===teacherId && s.date===dateStr && Number(s.slot)===Number(slot) && s.studentId===studentId
+  );
+  S.teacherSubstitutions = S.teacherSubstitutions.filter(s=>
+    !(s.teacherId===teacherId && s.date===dateStr && Number(s.slot)===Number(slot) && s.studentId===studentId)
+  );
+  await revokeDroppedSubstitutions(dropped);
 }
 
 // 代講が見つからない・選ばない場合：対象の生徒を、既存の生徒側「欠席」フローに乗せる（1人単位でも複数人まとめてでも使える）
@@ -530,12 +574,17 @@ function resolveSlotViaStudentAbsence(teacherId, dateStr, slot, studentEntries){
   });
 }
 
-function cancelTeacherAbsence(id){
+async function cancelTeacherAbsence(id){
   const ta = S.teacherAbsences.find(t=>t.id===id);
   if(!ta) return;
-  // 紐づく代講記録も一緒に取り消す（生徒都合の欠席として既に処理された分はそのまま維持する）
-  S.teacherSubstitutions = S.teacherSubstitutions.filter(s=>!(s.teacherId===ta.teacherId && s.date===ta.date && ta.slots.includes(s.slot)));
+  const dropped = S.teacherSubstitutions.filter(s=>
+    s.teacherId===ta.teacherId && s.date===ta.date && ta.slots.some(slot=> Number(slot)===Number(s.slot))
+  );
+  S.teacherSubstitutions = S.teacherSubstitutions.filter(s=>
+    !(s.teacherId===ta.teacherId && s.date===ta.date && ta.slots.some(slot=> Number(slot)===Number(s.slot)))
+  );
   S.teacherAbsences = S.teacherAbsences.filter(t=>t.id!==id);
+  await revokeDroppedSubstitutions(dropped);
 }
 
 // 指定日・指定コマにおける講師の実際の負荷（曜日パターンの確定分から、その日欠席の生徒を除き、振替で入る生徒を足す）
