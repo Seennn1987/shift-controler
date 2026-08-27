@@ -4,7 +4,7 @@ import { pad2, daysInYearMonth, toDateStr, getTodayStr } from '../shared/date-ut
 import { firebaseConfig, fbAuth, fbDb, STORAGE_KEY, getSecondaryAuth, S } from './state.js';
 import { getDayStatus, renderCalendar } from './calendar.js';
 import { renderMatching } from './matching.js';
-import { gradeLabel, buildMonthDaysFromBaseAvailability, getOrCreateDraftSchedule } from './schedule-core.js';
+import { gradeLabel } from './schedule-core.js';
 import { openTeacherScheduleEditor, renderTeacherScheduleTab } from './teacher-schedule-tab.js';
 import { collapseTeacherCalendarEntries, formatDualSubjectLabel } from './dual-subject.js';
 import { collectMakeupEntriesForTeacher, recordTeacherAbsence, studentAbsentDatesForAssignment } from './absences.js';
@@ -754,6 +754,19 @@ async function loadAppStateFromFirestore(){
     S.holidayAutoDetect = false;
   }
   S.teacherSchedules = await loadAllTeacherSchedules();
+
+  // 一度だけ：試し用に入れた各講師の月次勤務スケジュールを削除する
+  const TEACHER_SCHEDULE_CLEAR_KEY = 'pitakoma_clear_dummy_teacher_schedules_v1';
+  if(typeof localStorage !== 'undefined' && localStorage.getItem(TEACHER_SCHEDULE_CLEAR_KEY) !== 'done'){
+    try{
+      const clearResult = await clearAllTeacherMonthSchedules();
+      localStorage.setItem(TEACHER_SCHEDULE_CLEAR_KEY, 'done');
+      console.info('[ピタコマ] 試し用の講師勤務スケジュールを削除しました。', clearResult);
+    }catch(err){
+      console.error('[ピタコマ] 試し用の講師勤務スケジュールの削除に失敗しました。再読み込みで再試行します。', err);
+    }
+  }
+
   startTeacherScheduleListener(); // 以降は講師本人による変更もリアルタイムで反映する
   startApprovalPromotionListener(); // 講師が承認したら、承認待ち→確定へ自動的に昇格させる
   S.dataReady = true;
@@ -796,37 +809,32 @@ async function loadAppStateFromFirestore(){
   if(matchingWasCleared){
     console.info('[ピタコマ] 授業マッチデータをすべて削除しました。');
   }
-
-  // 一度だけ：各講師の基本スケジュールから2026年8月の提出済みスケジュールを登録
-  const AUG_SCHEDULE_SEED_KEY = 'pitakoma_seed_aug2026_from_base_v1';
-  if(typeof localStorage !== 'undefined' && localStorage.getItem(AUG_SCHEDULE_SEED_KEY) !== 'done'){
-    const seedResult = await seedTeacherMonthSchedulesFromBase('2026-08');
-    localStorage.setItem(AUG_SCHEDULE_SEED_KEY, 'done');
-    console.info('[ピタコマ] 8月の講師スケジュールを基本スケジュールから登録しました。', seedResult);
-  }
 }
 
 
-async function seedTeacherMonthSchedulesFromBase(yearMonth){
-  const result = { yearMonth, saved: [], skipped: [], noBase: [] };
-  for(const teacher of S.teachers){
-    const base = teacher.baseAvailability || [];
-    if(base.length === 0){
-      result.noBase.push(teacher.name || teacher.id);
-      continue;
+async function clearAllTeacherMonthSchedules(){
+  const user = fbAuth.currentUser;
+  if(!user) return { cleared: 0 };
+  try{
+    const snap = await fbDb.collection('teacherSchedules').where('adminUid','==',user.uid).get();
+    if(snap.empty){
+      S.teacherSchedules = [];
+      return { cleared: 0 };
     }
-    const schedule = getOrCreateDraftSchedule(teacher.id, yearMonth);
-    schedule.days = buildMonthDaysFromBaseAvailability(teacher, yearMonth);
-    if(Object.keys(schedule.days).length === 0){
-      result.skipped.push(teacher.name || teacher.id);
-      continue;
-    }
-    schedule.status = 'submitted';
-    schedule.submittedBy = 'admin';
-    await saveTeacherScheduleDoc(schedule);
-    result.saved.push(teacher.name || teacher.id);
+    const batch = fbDb.batch();
+    snap.forEach(doc=>{
+      batch.update(doc.ref, {
+        months: {},
+        updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
+      });
+    });
+    await batch.commit();
+    S.teacherSchedules = [];
+    return { cleared: snap.size };
+  }catch(err){
+    console.error('講師スケジュール削除エラー:', err);
+    throw err;
   }
-  return result;
 }
 
 
@@ -868,4 +876,4 @@ async function clearAllMatchingData(){
 }
 
 
-export { loadStudents, saveStudents, getStateDocRef, teacherSchedDocRef, syncTeacherLoginUidEverywhere, saveTeacherScheduleDoc, loadAllTeacherSchedules, startTeacherScheduleListener, promotePendingAssignment, startApprovalPromotionListener, scheduleSyncClosureSettings, syncClosureSettings, scheduleSyncTeacherAssignments, syncTeacherAssignments, scheduleSave, saveAppState, loadAppStateFromFirestore, clearAllMatchingData, seedTeacherMonthSchedulesFromBase, approveCancellationRequest, approveCancellationRequests, rejectCancellationRequest, saveTeacherSubjectsDoc, startTeacherSubjectsListener };
+export { loadStudents, saveStudents, getStateDocRef, teacherSchedDocRef, syncTeacherLoginUidEverywhere, saveTeacherScheduleDoc, loadAllTeacherSchedules, startTeacherScheduleListener, promotePendingAssignment, startApprovalPromotionListener, scheduleSyncClosureSettings, syncClosureSettings, scheduleSyncTeacherAssignments, syncTeacherAssignments, scheduleSave, saveAppState, loadAppStateFromFirestore, clearAllMatchingData, approveCancellationRequest, approveCancellationRequests, rejectCancellationRequest, saveTeacherSubjectsDoc, startTeacherSubjectsListener };
