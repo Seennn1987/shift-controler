@@ -2,7 +2,6 @@ import { SLOTS } from '../shared/constants.js';
 import { S } from './state.js';
 import {
   cancelSubstitute,
-  cancelTeacherAbsence,
   confirmSubstitute,
   findSubstituteCandidatesForStudent,
   findTeacherAbsence,
@@ -279,10 +278,6 @@ export function renderTeacherAbsencePanel(container, teacherId, dateStr, onRefre
       const slotId = Number(btn.dataset.cancelSub);
       const studentId = btn.dataset.cancelStudent;
       cancelSubstitute(teacherId, dateStr, slotId, studentId);
-      if(ta){
-        ta.slots = ta.slots.filter(s=> s !== slotId);
-        if(ta.slots.length === 0) cancelTeacherAbsence(ta.id);
-      }
       refreshPanel();
     });
   });

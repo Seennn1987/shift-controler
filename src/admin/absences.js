@@ -415,6 +415,32 @@ function findSubstituteCandidatesForStudent(dateStr, slot, absentTeacherId, stud
   return withKeys.map(k=>k.teacher);
 }
 
+function collectSubstituteOriginals(absentTeacherId, dateStr, slot, studentId){
+  return S.assignments.filter(x=>
+    x.teacherId === absentTeacherId &&
+    Number(x.slot) === Number(slot) &&
+    x.studentId === studentId &&
+    assignmentAppliesOnDate(x, dateStr)
+  );
+}
+
+function issueSubstituteApproval(absentTeacherId, dateStr, slot, substituteTeacherId, studentId){
+  const weekday = getDayStatus(dateStr).weekday;
+  const originals = collectSubstituteOriginals(absentTeacherId, dateStr, slot, studentId);
+  if(originals.length === 0) return;
+  const student = S.students.find(s=> s.id === studentId);
+  const dualPair = findDualPairAtSlot(student?.courses || [], weekday, slot);
+  const first = originals[0];
+  const dualGroupId = first.dualGroupId || dualPair?.dualGroupId || resolveDualGroupIdForSlot(studentId, first.courseId, weekday, slot);
+  const subjects = dualPair?.subjects?.length === 2
+    ? dualPair.subjects
+    : originals.map(o=> o.subject).filter((s, i, list)=> list.indexOf(s) === i);
+  issueAssignmentApproval(
+    first.studentId, first.courseId, first.subject, weekday, slot, substituteTeacherId, dateStr,
+    subjects.length === 2 ? { subjects, dualGroupId } : {},
+  );
+}
+
 // 代講講師を確定する（その日その枠・その生徒だけ担当者が変わる。曜日パターン自体は変更しない）
 // studentIdを省略すると、その枠の全員に一括適用する
 function confirmSubstitute(teacherId, dateStr, slot, substituteTeacherId, studentId){
@@ -422,22 +448,14 @@ function confirmSubstitute(teacherId, dateStr, slot, substituteTeacherId, studen
   S.teacherSubstitutions = S.teacherSubstitutions.filter(s=>!(s.teacherId===teacherId && s.date===dateStr && s.slot===slot && s.studentId===studentId));
   S.teacherSubstitutions.push({id:'tsub-'+Date.now()+'-'+Math.random().toString(36).slice(2,6), teacherId, date:dateStr, slot, substituteTeacherId, studentId});
 
-  // 代講講師にも、既存の「授業の承認」の仕組みで通知する（単発の代講であることが分かるよう日付を添える）
-  const status = getDayStatus(dateStr);
-  const weekday = status.weekday;
-  const targets = studentId
-    ? [{studentId}]
-    : S.assignments.filter(a=>
-      a.teacherId===teacherId && Number(a.slot)===Number(slot) && assignmentAppliesOnDate(a, dateStr)
-    );
-  targets.forEach(a=>{
-    const original = S.assignments.find(x=>
-      x.teacherId===teacherId && Number(x.slot)===Number(slot) && x.studentId===a.studentId &&
-      assignmentAppliesOnDate(x, dateStr)
-    );
-    if(!original) return;
-    issueAssignmentApproval(original.studentId, original.courseId, original.subject, weekday, slot, substituteTeacherId, dateStr);
-  });
+  const studentIds = studentId
+    ? [studentId]
+    : [...new Set(
+      S.assignments
+        .filter(a=> a.teacherId===teacherId && Number(a.slot)===Number(slot) && assignmentAppliesOnDate(a, dateStr))
+        .map(a=> a.studentId)
+    )];
+  studentIds.forEach(id=> issueSubstituteApproval(teacherId, dateStr, slot, substituteTeacherId, id));
 }
 function cancelSubstitute(teacherId, dateStr, slot, studentId){
   studentId = studentId || null;
