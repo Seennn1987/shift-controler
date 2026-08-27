@@ -9,6 +9,7 @@ import { openTeacherScheduleEditor, renderTeacherScheduleTab } from './teacher-s
 import { collapseTeacherCalendarEntries, formatDualSubjectLabel } from './dual-subject.js';
 import { collectMakeupEntriesForTeacher, recordTeacherAbsence, studentAbsentDatesForAssignment } from './absences.js';
 import { normalizeMatchingPriority } from './matching-config.js';
+import { applyGradePromotionsIfNeeded } from './grade-promotion.js';
 
 
 
@@ -638,6 +639,7 @@ async function saveAppState(){
     finGradientMin: S.finGradientMin,
     finGradientMax: S.finGradientMax,
     matchingPriority: S.matchingPriority,
+    lastGradePromotionYear: S.lastGradePromotionYear,
     updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
   };
   try{
@@ -673,6 +675,7 @@ async function loadAppStateFromFirestore(){
     S.finGradientMin = (d.finGradientMin!=null) ? d.finGradientMin : 25;
     S.finGradientMax = (d.finGradientMax!=null) ? d.finGradientMax : 60;
     S.matchingPriority = normalizeMatchingPriority(d.matchingPriority || null);
+    S.lastGradePromotionYear = d.lastGradePromotionYear != null ? d.lastGradePromotionYear : null;
   }else{
     // 初回ログイン：実運用として空のデータから始める（テスト用サンプルデータは使わない）
     S.teachers = [];
@@ -687,6 +690,7 @@ async function loadAppStateFromFirestore(){
     S.customClosures = [];
     S.preferredPairs = [];
     S.holidayAutoDetect = false;
+    S.lastGradePromotionYear = null;
   }
   S.teacherSchedules = await loadAllTeacherSchedules();
 
@@ -695,6 +699,9 @@ async function loadAppStateFromFirestore(){
   S.dataReady = true;
   S.studentDataReady = true;
   S.firestoreReady = true;
+
+  const promo = await applyGradePromotionsIfNeeded();
+  if(promo.didWrite) await saveAppState();
 
   await syncClosureSettings(); // 講師側にも休校日設定を同期しておく
   await syncTeacherAssignments(); // 講師のマイカレンダー用データも、ログインのたびに必ず作り直す（過去の同期失敗を自己修復するため）

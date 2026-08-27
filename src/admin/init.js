@@ -17,6 +17,8 @@ import { authDebugLog, wrapSecondaryAuthForDebug } from './auth-debug.js';
 import { openTeacherScheduleEditor, renderTeacherScheduleTab } from './teacher-schedule-tab.js';
 import { buildSubjectArea, buildSubjectFilterOptions, fillFormForEdit, handleSave, loadTeachers, renderTeacherList, resetForm, saveTeachers } from './teachers.js';
 import { initOnboarding } from './onboarding.js';
+import { takeGradePromotionNotice } from './grade-promotion.js';
+import { showAppNoticeDialog } from '../shared/app-confirm-dialog.js';
 
 function syncWeekAxisTabs(){
   document.querySelectorAll('.week-axis-btn').forEach(b=>{
@@ -442,6 +444,14 @@ async function init(){
   renderCalendar();
   renderFinance();
   initOnboarding();
+  const gradeNotice = takeGradePromotionNotice();
+  if(gradeNotice){
+    showAppNoticeDialog({
+      title: '今年度の進級',
+      message: gradeNotice,
+      confirmLabel: 'OK',
+    });
+  }
 }
 
 

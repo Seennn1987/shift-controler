@@ -64,6 +64,8 @@ export const S = {
   /** 生徒登録画面から「コマを組む」で来たときの戻り先 */
   matchingReturnToStudentId: null,
   matchingPriority: null,
+  lastGradePromotionYear: null,
+  pendingGradePromotionNotice: null,
   calendarDrawerView: 'day',
   /** 振替先の日をカレンダーで選んでいるとき { absenceId, studentId, fromDate } */
   makeupPlacement: null,
