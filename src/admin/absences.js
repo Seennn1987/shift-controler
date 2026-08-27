@@ -94,28 +94,15 @@ function recordStudentSlotAbsence(studentId, courseId, subject, day, slot, dateS
   recordAbsence(studentId, courseId, subject, day, slot, dateStr);
 }
 
-function cancelAbsenceRecord(id){
-  const ab = S.absences.find(a=> a.id === id);
-  if(!ab) return;
-  const removeIds = new Set(findDualAbsenceSiblings(ab).map(a=> a.id));
-  S.absences = S.absences.filter(a=> !removeIds.has(a.id));
-  clearMakeupPlacementIfAbsence(id);
-}
-async function cancelMakeup(id){
-  const ab = S.absences.find(a=> a.id === id);
-  if(!ab) return;
-  const makeup = ab.makeup;
+async function dropMakeupSideEffects(ab){
+  const makeup = ab?.makeup;
+  if(!makeup) return;
   const student = S.students.find(s=> s.id === ab.studentId);
   const siblings = findDualAbsenceSiblings(ab);
   const subjects = siblings.map(s=> s.subject);
-  const makeupWeekday = makeup?.date ? getDayStatus(makeup.date).weekday : null;
-  siblings.forEach(sibling=>{
-    removeMakeupAssignmentsFor(sibling);
-    sibling.makeup = null;
-    sibling.status = 'pending';
-  });
-  setMakeupPlacementFromAbsence(ab);
-  if(!student || !makeup || makeupWeekday == null) return;
+  const makeupWeekday = makeup.date ? getDayStatus(makeup.date).weekday : null;
+  siblings.forEach(sibling=> removeMakeupAssignmentsFor(sibling));
+  if(!student || makeupWeekday == null) return;
   try{
     const coursePayload = subjects.length === 2
       ? { subject: subjects.join('・'), subjects }
@@ -126,6 +113,25 @@ async function cancelMakeup(id){
   }catch(err){
     console.error('振替依頼取り消しエラー:', err);
   }
+}
+
+async function cancelAbsenceRecord(id){
+  const ab = S.absences.find(a=> a.id === id);
+  if(!ab) return;
+  await dropMakeupSideEffects(ab);
+  const removeIds = new Set(findDualAbsenceSiblings(ab).map(a=> a.id));
+  S.absences = S.absences.filter(a=> !removeIds.has(a.id));
+  removeIds.forEach(absenceId=> clearMakeupPlacementIfAbsence(absenceId));
+}
+async function cancelMakeup(id){
+  const ab = S.absences.find(a=> a.id === id);
+  if(!ab) return;
+  await dropMakeupSideEffects(ab);
+  findDualAbsenceSiblings(ab).forEach(sibling=>{
+    sibling.makeup = null;
+    sibling.status = 'pending';
+  });
+  setMakeupPlacementFromAbsence(ab);
 }
 // 振替を探さず、欠席のみで対応を終える（未振替の集計からは外れる）
 function markNoMakeup(id){

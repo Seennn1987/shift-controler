@@ -637,8 +637,8 @@ export function bindDayDetailEvents(container, dateStr, onRefresh){
   });
 
   container.querySelectorAll('.cancel-absence-btn').forEach(btn=>{
-    btn.addEventListener('click', ()=>{
-      cancelAbsenceRecord(btn.dataset.absence);
+    btn.addEventListener('click', async ()=>{
+      await cancelAbsenceRecord(btn.dataset.absence);
       refresh();
     });
   });
