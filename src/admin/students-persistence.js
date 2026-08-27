@@ -711,42 +711,4 @@ async function loadAppStateFromFirestore(){
 }
 
 
-async function deleteFirestoreDocsByAdminUid(collectionName, adminUid){
-  try{
-    const snap = await fbDb.collection(collectionName).where('adminUid', '==', adminUid).get();
-    if(snap.empty) return 0;
-    const batch = fbDb.batch();
-    snap.forEach(doc=> batch.delete(doc.ref));
-    await batch.commit();
-    return snap.size;
-  }catch(err){
-    console.error(`${collectionName}削除エラー:`, err);
-    return 0;
-  }
-}
-
-async function deleteAdminMatchingFirestore(adminUid){
-  await deleteFirestoreDocsByAdminUid('assignmentApprovals', adminUid);
-  await deleteFirestoreDocsByAdminUid('assignmentCancellationRequests', adminUid);
-}
-
-function clearMatchingStateInMemory(){
-  S.assignments = [];
-  S.pendingAssignments = [];
-  S.draftAssignments = [];
-  S.absences = [];
-  S.teacherAbsences = [];
-  S.teacherSubstitutions = [];
-}
-
-async function clearAllMatchingData(){
-  clearMatchingStateInMemory();
-  const user = fbAuth.currentUser;
-  if(user) await deleteAdminMatchingFirestore(user.uid);
-  if(!S.firestoreReady) return;
-  await saveAppState();
-  await syncTeacherAssignments();
-}
-
-
-export { loadStudents, saveStudents, getStateDocRef, teacherSchedDocRef, syncTeacherLoginUidEverywhere, saveTeacherScheduleDoc, loadAllTeacherSchedules, startTeacherScheduleListener, promotePendingAssignment, startApprovalPromotionListener, scheduleSyncClosureSettings, syncClosureSettings, scheduleSyncTeacherAssignments, syncTeacherAssignments, scheduleSave, saveAppState, loadAppStateFromFirestore, clearAllMatchingData, approveCancellationRequest, approveCancellationRequests, rejectCancellationRequest, saveTeacherSubjectsDoc, startTeacherSubjectsListener };
+export { loadStudents, saveStudents, getStateDocRef, teacherSchedDocRef, syncTeacherLoginUidEverywhere, saveTeacherScheduleDoc, loadAllTeacherSchedules, startTeacherScheduleListener, promotePendingAssignment, startApprovalPromotionListener, scheduleSyncClosureSettings, syncClosureSettings, scheduleSyncTeacherAssignments, syncTeacherAssignments, scheduleSave, saveAppState, loadAppStateFromFirestore, approveCancellationRequest, approveCancellationRequests, rejectCancellationRequest, saveTeacherSubjectsDoc, startTeacherSubjectsListener };

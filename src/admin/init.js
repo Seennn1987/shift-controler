@@ -7,12 +7,11 @@ import { registerCalFilterUiSync, setCalFilterFromSelect } from './cal-filter.js
 import { initSearchComboboxes, refreshAllPersonComboboxes } from './filter-ui.js';
 import { setSearchComboboxValue } from './search-combobox.js';
 import { getWeekMonday, renderCalendarWeek, renderFinance, renderLegend, renderMatrix, switchCalMode, switchView, toggleCalMode } from './finance-ui.js';
-import { buildStudentLevelArea, handleCourseStartDateChange, handleStudentSave, renderFormCourses, renderMatching, renderShortageDashboard, renderStudentList, resetStudentForm } from './matching.js';
+import { buildStudentLevelArea, handleCourseStartDateChange, handleStudentSave, renderFormCourses, renderMatching, renderStudentList, resetStudentForm } from './matching.js';
 import { initMatchingPanel } from './matching-panel.js';
-import { mountInlineConfirm } from '../shared/inline-confirm.js';
 import { addRaiseRow, buildBaseAvailArea, getOrCreateDraftSchedule, gradeLabel } from './schedule-core.js';
 import { buildClosedDayArea, handleClosureSave, handleTermSave, initMatchingPrioritySettings, renderClosedDaySettings, renderClosureList, renderMatchingPrioritySettings, renderTermList, resetClosureForm, resetTermForm } from './settings.js';
-import { loadStudents, saveAppState, saveTeacherScheduleDoc, scheduleSave, syncTeacherLoginUidEverywhere, clearAllMatchingData } from './students-persistence.js';
+import { loadStudents, saveAppState, saveTeacherScheduleDoc, scheduleSave, syncTeacherLoginUidEverywhere } from './students-persistence.js';
 import { authDebugLog, wrapSecondaryAuthForDebug } from './auth-debug.js';
 import { openTeacherScheduleEditor, renderTeacherScheduleTab } from './teacher-schedule-tab.js';
 import { buildSubjectArea, buildSubjectFilterOptions, fillFormForEdit, handleSave, loadTeachers, renderTeacherList, resetForm, saveTeachers } from './teachers.js';
@@ -387,31 +386,6 @@ async function init(){
   });
   document.getElementById('closureSaveBtn').addEventListener('click', handleClosureSave);
   document.getElementById('closureCancelBtn').addEventListener('click', resetClosureForm);
-  document.getElementById('settingsClearMatchingBtn')?.addEventListener('click', (ev)=>{
-    const btn = ev.currentTarget;
-    const card = btn.closest('.card');
-    const resultEl = document.getElementById('settingsClearMatchingResult');
-    const totalCount = S.assignments.length + S.pendingAssignments.length + S.draftAssignments.length
-      + S.absences.length + S.teacherAbsences.length + S.teacherSubstitutions.length;
-    if(totalCount === 0){
-      if(resultEl) resultEl.textContent = 'マッチングデータはありません。';
-      return;
-    }
-    if(!card) return;
-    mountInlineConfirm(card, btn, {
-      message: `確定・承認待ち・下書き・欠席・代講を含む${totalCount}件のデータをすべて削除しますか？\n（生徒・講師・シフトの登録は残ります）`,
-      confirmLabel: 'すべて削除',
-      variant: 'danger',
-      onConfirm: async ()=>{
-        await clearAllMatchingData();
-        renderMatching();
-        renderShortageDashboard();
-        renderCalendar();
-        if(resultEl) resultEl.textContent = 'マッチングデータをすべて削除しました。';
-        return { ok: true };
-      },
-    });
-  });
   document.getElementById('shortageToggleBtn').addEventListener('click', ()=>{
     const detail = document.getElementById('shortageDetailWrap');
     const btn = document.getElementById('shortageToggleBtn');

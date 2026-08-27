@@ -996,10 +996,6 @@
   .wl-bar-fill.low{background:var(--accent-warn-bar);}
   .wl-sub{font-size:var(--text-xs);color:var(--ink-soft);margin-top:8px;}
 
-  /* 基本設定 */
-  .settings-candidate-list{margin:0;padding-left:var(--space-7);color:var(--ink-soft);font-size:var(--text-md);line-height:var(--leading-relaxed);}
-  .settings-candidate-list strong{color:var(--ink);}
-
   /* 開校期間管理 */
   .term-form{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:6px;}
   .term-form select, .term-form input[type=date]{
