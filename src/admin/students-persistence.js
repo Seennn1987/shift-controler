@@ -259,50 +259,18 @@ function pendingMatchesTicket(p, ticket){
   return p.subject === ticket.subject;
 }
 
-function slotPendingAssignments(ticket){
-  return S.pendingAssignments.filter(p=>
-    p.teacherId === ticket.teacherId &&
-    p.day === ticket.day &&
-    Number(p.slot) === Number(ticket.slot) &&
-    (ticket.oneTimeDate ? p.oneTimeDate === ticket.oneTimeDate : !p.oneTimeDate)
-  );
+function takePendingMatchingTicket(ticket){
+  const indices = S.pendingAssignments
+    .map((p, i)=> (pendingMatchesTicket(p, ticket) ? i : -1))
+    .filter(i=> i !== -1)
+    .sort((a, b)=> b - a);
+  return indices.map(i=> S.pendingAssignments.splice(i, 1)[0]);
 }
 
 async function promotePendingAssignment(ticket, ticketId){
-  if(ticket.subjects?.length === 2){
-    const indices = S.pendingAssignments
-      .map((p, i)=> (pendingMatchesTicket(p, ticket) ? i : -1))
-      .filter(i=> i !== -1);
-    if(indices.length === 0) return;
-    indices.sort((a, b)=> b - a).forEach(i=>{
-      S.assignments.push(S.pendingAssignments[i]);
-      S.pendingAssignments.splice(i, 1);
-    });
-    try{
-      await fbDb.collection('assignmentApprovals').doc(ticketId).update({promoted:true});
-    }catch(e){
-      console.error('チケットの昇格フラグ更新エラー:', e);
-    }
-    scheduleSyncTeacherAssignments();
-    scheduleSave();
-    renderMatching();
-    renderCalendar();
-    return;
-  }
-  const mates = slotPendingAssignments(ticket);
-  if(mates.length === 0){
-    const idx = S.pendingAssignments.findIndex(p=> pendingMatchesTicket(p, ticket));
-    if(idx === -1) return;
-    S.assignments.push(S.pendingAssignments[idx]);
-    S.pendingAssignments.splice(idx, 1);
-  }else{
-    mates.forEach(entry=>{
-      const idx = S.pendingAssignments.indexOf(entry);
-      if(idx === -1) return;
-      S.assignments.push(S.pendingAssignments[idx]);
-      S.pendingAssignments.splice(idx, 1);
-    });
-  }
+  const taken = takePendingMatchingTicket(ticket);
+  if(taken.length === 0) return;
+  S.assignments.push(...taken);
   try{
     await fbDb.collection('assignmentApprovals').doc(ticketId).update({promoted:true});
   }catch(e){
@@ -315,47 +283,14 @@ async function promotePendingAssignment(ticket, ticketId){
 }
 
 async function rejectPendingAssignment(ticket, ticketId){
-  if(ticket.subjects?.length === 2){
-    const indices = S.pendingAssignments
-      .map((p, i)=> (pendingMatchesTicket(p, ticket) ? i : -1))
-      .filter(i=> i !== -1);
-    if(indices.length === 0){
-      try{
-        await fbDb.collection('assignmentApprovals').doc(ticketId).update({handled:true});
-      }catch(e){
-        console.error('チケットの処理済みフラグ更新エラー:', e);
-      }
-      return;
-    }
-    indices.sort((a, b)=> b - a).forEach(i=> S.pendingAssignments.splice(i, 1));
+  const taken = takePendingMatchingTicket(ticket);
+  if(taken.length === 0){
     try{
       await fbDb.collection('assignmentApprovals').doc(ticketId).update({handled:true});
     }catch(e){
       console.error('チケットの処理済みフラグ更新エラー:', e);
     }
-    scheduleSyncTeacherAssignments();
-    scheduleSave();
-    renderMatching();
-    renderCalendar();
     return;
-  }
-  const mates = slotPendingAssignments(ticket);
-  if(mates.length === 0){
-    const idx = S.pendingAssignments.findIndex(p=> pendingMatchesTicket(p, ticket));
-    if(idx === -1){
-      try{
-        await fbDb.collection('assignmentApprovals').doc(ticketId).update({handled:true});
-      }catch(e){
-        console.error('チケットの処理済みフラグ更新エラー:', e);
-      }
-      return;
-    }
-    S.pendingAssignments.splice(idx, 1);
-  }else{
-    mates.forEach(entry=>{
-      const idx = S.pendingAssignments.indexOf(entry);
-      if(idx !== -1) S.pendingAssignments.splice(idx, 1);
-    });
   }
   try{
     await fbDb.collection('assignmentApprovals').doc(ticketId).update({handled:true});
@@ -755,86 +690,17 @@ async function loadAppStateFromFirestore(){
   }
   S.teacherSchedules = await loadAllTeacherSchedules();
 
-  // 一度だけ：試し用に入れた各講師の月次勤務スケジュールを削除する
-  const TEACHER_SCHEDULE_CLEAR_KEY = 'pitakoma_clear_dummy_teacher_schedules_v1';
-  if(typeof localStorage !== 'undefined' && localStorage.getItem(TEACHER_SCHEDULE_CLEAR_KEY) !== 'done'){
-    try{
-      const clearResult = await clearAllTeacherMonthSchedules();
-      localStorage.setItem(TEACHER_SCHEDULE_CLEAR_KEY, 'done');
-      console.info('[ピタコマ] 試し用の講師勤務スケジュールを削除しました。', clearResult);
-    }catch(err){
-      console.error('[ピタコマ] 試し用の講師勤務スケジュールの削除に失敗しました。再読み込みで再試行します。', err);
-    }
-  }
-
   startTeacherScheduleListener(); // 以降は講師本人による変更もリアルタイムで反映する
   startApprovalPromotionListener(); // 講師が承認したら、承認待ち→確定へ自動的に昇格させる
   S.dataReady = true;
   S.studentDataReady = true;
   S.firestoreReady = true;
 
-  // 一度だけ：古い授業マッチデータをすべて削除（2026-08-14）
-  const MATCHING_RESET_KEY = 'pitakoma_clear_all_matching_v1';
-  let matchingWasCleared = false;
-  if(typeof localStorage !== 'undefined' && localStorage.getItem(MATCHING_RESET_KEY) !== 'done'){
-    S.assignments = [];
-    S.pendingAssignments = [];
-    S.draftAssignments = [];
-    localStorage.setItem(MATCHING_RESET_KEY, 'done');
-    matchingWasCleared = true;
-    await saveAppState();
-  }
-
-  // 一度だけ：担当組み・欠席・代講・承認チケットをすべて削除（日付ベース修正後のリセット）
-  const MATCHING_RESET_V2_KEY = 'pitakoma_clear_all_matching_v2';
-  let matchingV2WasCleared = false;
-  if(typeof localStorage !== 'undefined' && localStorage.getItem(MATCHING_RESET_V2_KEY) !== 'done'){
-    clearMatchingStateInMemory();
-    localStorage.setItem(MATCHING_RESET_V2_KEY, 'done');
-    matchingV2WasCleared = true;
-  }
-
-  if(matchingV2WasCleared){
-    const user = fbAuth.currentUser;
-    if(user) await deleteAdminMatchingFirestore(user.uid);
-    await saveAppState();
-    console.info('[ピタコマ] 授業マッチデータをすべて削除しました（担当・欠席・代講・承認待ち）。');
-  }
-
   await syncClosureSettings(); // 講師側にも休校日設定を同期しておく
   await syncTeacherAssignments(); // 講師のマイカレンダー用データも、ログインのたびに必ず作り直す（過去の同期失敗を自己修復するため）
   await pollTeacherSubjects();
   startTeacherSubjectsListener();
   await syncMissingTeacherSubjects();
-  if(matchingWasCleared){
-    console.info('[ピタコマ] 授業マッチデータをすべて削除しました。');
-  }
-}
-
-
-async function clearAllTeacherMonthSchedules(){
-  const user = fbAuth.currentUser;
-  if(!user) return { cleared: 0 };
-  try{
-    const snap = await fbDb.collection('teacherSchedules').where('adminUid','==',user.uid).get();
-    if(snap.empty){
-      S.teacherSchedules = [];
-      return { cleared: 0 };
-    }
-    const batch = fbDb.batch();
-    snap.forEach(doc=>{
-      batch.update(doc.ref, {
-        months: {},
-        updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
-      });
-    });
-    await batch.commit();
-    S.teacherSchedules = [];
-    return { cleared: snap.size };
-  }catch(err){
-    console.error('講師スケジュール削除エラー:', err);
-    throw err;
-  }
 }
 
 

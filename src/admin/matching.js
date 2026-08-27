@@ -265,8 +265,8 @@ function buildStudentLevelArea(){
   });
   area.querySelectorAll('input[name=studentLevel]').forEach(r=>{
     r.addEventListener('change', ()=>{
-      // 学年を変えると対象教科が変わるため、未確定の受講科目はリセットする
-      S.formCourses = [];
+      // 新規登録だけ、学年変更で未入力の受講科目をリセットする（編集中は希望コマを残す）
+      if(!S.editingStudentId) S.formCourses = [];
       renderFormCourses();
     });
   });
