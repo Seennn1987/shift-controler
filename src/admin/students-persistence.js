@@ -441,13 +441,11 @@ async function ensureMissingApprovalTickets(){
 
 // ---- 休校日設定（定休日・祝日判定・個別休校日）を講師にも同期する ----
 // 祝日データ（HOLIDAYS_JP）自体は静的データなので、講師専用ページ側にも同じものを複製で持たせている
-function scheduleSyncClosureSettings(){
-  if(S.syncClosureSettingsTimer) clearTimeout(S.syncClosureSettingsTimer);
-  S.syncClosureSettingsTimer = setTimeout(syncClosureSettings, 1200);
-}
 async function syncClosureSettings(){
   const user = fbAuth.currentUser;
-  if(!user) return;
+  if(!user){
+    return { ok: false, msg: 'ログイン状態を確認できませんでした。' };
+  }
   try{
     await fbDb.collection('classroomSettings').doc(user.uid).set({
       regularClosedDays: S.regularClosedDays,
@@ -455,9 +453,23 @@ async function syncClosureSettings(){
       customClosures: S.customClosures,
       updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
     }, {merge:true});
+    return { ok: true };
   }catch(err){
     console.error('休校日設定の同期エラー:', err);
+    return { ok: false, msg: '講師画面への休校設定の反映に失敗しました。通信状況をご確認ください。' };
   }
+}
+
+async function syncClosureSettingsNow({ notify = false } = {}){
+  const result = await syncClosureSettings();
+  if(notify && !result.ok){
+    const msgEl = document.getElementById('closureSyncMsg');
+    if(msgEl) msgEl.textContent = result.msg || '講師画面への休校設定の反映に失敗しました。';
+  }else if(notify){
+    const msgEl = document.getElementById('closureSyncMsg');
+    if(msgEl) msgEl.textContent = '';
+  }
+  return result;
 }
 
 // ---- 講師本人が「マイカレンダー」で見るための、担当授業一覧の同期 ----
@@ -644,6 +656,7 @@ async function saveAppState(){
   };
   try{
     await ref.set(state, {merge:true});
+    await syncClosureSettings();
   }catch(err){
     console.error('Firestore保存エラー:', err);
   }
@@ -711,4 +724,4 @@ async function loadAppStateFromFirestore(){
 }
 
 
-export { loadStudents, saveStudents, getStateDocRef, teacherSchedDocRef, syncTeacherLoginUidEverywhere, saveTeacherScheduleDoc, loadAllTeacherSchedules, startTeacherScheduleListener, promotePendingAssignment, startApprovalPromotionListener, scheduleSyncClosureSettings, syncClosureSettings, scheduleSyncTeacherAssignments, syncTeacherAssignments, scheduleSave, saveAppState, loadAppStateFromFirestore, approveCancellationRequest, approveCancellationRequests, rejectCancellationRequest, saveTeacherSubjectsDoc, startTeacherSubjectsListener };
+export { loadStudents, saveStudents, getStateDocRef, teacherSchedDocRef, syncTeacherLoginUidEverywhere, saveTeacherScheduleDoc, loadAllTeacherSchedules, startTeacherScheduleListener, promotePendingAssignment, startApprovalPromotionListener, syncClosureSettings, syncClosureSettingsNow, scheduleSyncTeacherAssignments, syncTeacherAssignments, scheduleSave, saveAppState, loadAppStateFromFirestore, approveCancellationRequest, approveCancellationRequests, rejectCancellationRequest, saveTeacherSubjectsDoc, startTeacherSubjectsListener };

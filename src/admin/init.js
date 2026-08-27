@@ -11,7 +11,7 @@ import { buildStudentLevelArea, handleCourseStartDateChange, handleStudentSave, 
 import { initMatchingPanel } from './matching-panel.js';
 import { addRaiseRow, buildBaseAvailArea, getOrCreateDraftSchedule, gradeLabel } from './schedule-core.js';
 import { buildClosedDayArea, handleClosureSave, handleTermSave, initMatchingPrioritySettings, renderClosedDaySettings, renderClosureList, renderMatchingPrioritySettings, renderTermList, resetClosureForm, resetTermForm } from './settings.js';
-import { loadStudents, saveAppState, saveTeacherScheduleDoc, scheduleSave, syncTeacherLoginUidEverywhere } from './students-persistence.js';
+import { loadStudents, saveAppState, saveTeacherScheduleDoc, scheduleSave, syncClosureSettingsNow, syncTeacherLoginUidEverywhere } from './students-persistence.js';
 import { authDebugLog, wrapSecondaryAuthForDebug } from './auth-debug.js';
 import { openTeacherScheduleEditor, renderTeacherScheduleTab } from './teacher-schedule-tab.js';
 import { buildSubjectArea, buildSubjectFilterOptions, fillFormForEdit, handleSave, loadTeachers, renderTeacherList, resetForm, saveTeachers } from './teachers.js';
@@ -379,10 +379,11 @@ async function init(){
   });
   document.getElementById('termSaveBtn').addEventListener('click', handleTermSave);
   document.getElementById('termCancelBtn').addEventListener('click', resetTermForm);
-  document.getElementById('holidayAutoDetectToggle').addEventListener('change', (e)=>{
+  document.getElementById('holidayAutoDetectToggle').addEventListener('change', async (e)=>{
     S.holidayAutoDetect = e.target.checked;
     renderClosedDaySettings();
     renderCalendar();
+    await syncClosureSettingsNow({ notify: true });
   });
   document.getElementById('closureSaveBtn').addEventListener('click', handleClosureSave);
   document.getElementById('closureCancelBtn').addEventListener('click', resetClosureForm);

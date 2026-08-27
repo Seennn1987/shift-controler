@@ -101,13 +101,12 @@ async function bootstrap(user){
   initResponseDraftHandlers();
   startScheduleListener();
   startMyAssignmentsListener();
-  startClassroomSettingsListener();
   startTeacherSubjectsListener();
   await loadMyPendingRequests();
   S.newAssignments = await loadNewAssignments();
   S.pendingCancellationRequests = await loadPendingCancellationRequests();
   S.adminCancelledNotices = await loadAdminCancelledNotices();
   reloadDraftsFromStorage();
-  renderMyCalendar();
+  await startClassroomSettingsListener();
 }
 export { showLogin, handleLogin, bootstrap };

@@ -5,7 +5,7 @@ import { firebaseConfig, fbAuth, fbDb, STORAGE_KEY, getSecondaryAuth, S } from '
 import { renderCalendar } from './calendar.js';
 import { renderMatrix } from './finance-ui.js';
 import { renderMatching } from './matching.js';
-import { scheduleSave, scheduleSyncClosureSettings } from './students-persistence.js';
+import { scheduleSave, syncClosureSettingsNow } from './students-persistence.js';
 import { DEFAULT_MATCHING_PRIORITY, MATCHING_FACTOR_META, normalizeMatchingPriority } from './matching-config.js';
 
 // ---- 優先ペアリング（教室長が指定：生徒の教科(コース)単位で講師を優先） ----
@@ -113,7 +113,6 @@ function computeHolidaysInTerms(){
 
 function renderClosedDaySettings(){
   scheduleSave();
-  scheduleSyncClosureSettings();
   // 曜日チェックボックスの状態を反映
   document.querySelectorAll('.closed-day-checkbox').forEach(cb=>{
     cb.checked = S.regularClosedDays.includes(cb.dataset.day);
@@ -167,7 +166,7 @@ function buildClosedDayArea(){
       renderMatching();
       renderCalendar();
       scheduleSave();
-      scheduleSyncClosureSettings();
+      syncClosureSettingsNow({ notify: true });
     });
   });
 }
@@ -215,10 +214,10 @@ function handleClosureSave(){
   resetClosureForm();
   renderClosureList();
   renderCalendar();
+  syncClosureSettingsNow({ notify: true });
 }
 function renderClosureList(){
   scheduleSave();
-  scheduleSyncClosureSettings();
   const wrap = document.getElementById('closureList');
   if(!wrap) return;
   if(S.customClosures.length===0){
@@ -251,6 +250,7 @@ function renderClosureList(){
         if(S.editingClosureId===b.dataset.id) resetClosureForm();
         renderClosureList();
         renderCalendar();
+        syncClosureSettingsNow({ notify: true });
       }else{
         b.dataset.confirming = '1';
         b.textContent = '本当に削除しますか？';
