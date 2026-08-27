@@ -139,10 +139,15 @@ function entryAppliesOnDate(entry, dateStr){
   return getDayStatus(dateStr).type === 'open';
 }
 
-function findPendingTicket(day, slot, subject, studentName, oneTimeDate, dateStr){
+function findPendingTicket(day, slot, subject, studentName, oneTimeDate, dateStr, studentId){
   const slotNum = Number(slot);
   return S.newAssignments.find(a=>{
-    if(a.day !== day || Number(a.slot) !== slotNum || a.studentName !== studentName) return false;
+    if(a.day !== day || Number(a.slot) !== slotNum) return false;
+    if(studentId && a.studentId){
+      if(a.studentId !== studentId) return false;
+    }else if(a.studentName !== studentName){
+      return false;
+    }
     if(!ticketSubjectMatchesEntry(a, subject)) return false;
     if(a.oneTimeDate && oneTimeDate) return a.oneTimeDate === oneTimeDate;
     if(a.oneTimeDate && !oneTimeDate) return false;
@@ -160,7 +165,7 @@ function resolveApprovalState(entry, dateStr){
     return dateStr && !entryAppliesOnDate(entry, dateStr) ? 'confirmed' : 'pending';
   }
   if(entry.approvalStatus === 'confirmed') return 'confirmed';
-  return findPendingTicket(entry.day, entry.slot, entry.subject, entry.studentName, entry.oneTimeDate, dateStr)
+  return findPendingTicket(entry.day, entry.slot, entry.subject, entry.studentName, entry.oneTimeDate, dateStr, entry.studentId)
     ? 'pending'
     : 'confirmed';
 }
@@ -592,6 +597,13 @@ function bindSubmitDraftButton(btn, kind, mountSelector){
   });
 }
 
+function stopMyAssignmentsListener(){
+  if(S.myAssignTimer){
+    clearInterval(S.myAssignTimer);
+    S.myAssignTimer = null;
+  }
+}
+
 function startMyAssignmentsListener(){
   if(S.myAssignTimer) clearInterval(S.myAssignTimer);
   const docId = `${S.myAdminUid}_${S.myTeacherId}`;
@@ -669,5 +681,6 @@ export {
   getSlotPendingTickets,
   refreshPendingAndRender,
   startMyAssignmentsListener,
+  stopMyAssignmentsListener,
   initResponseDraftHandlers,
 };

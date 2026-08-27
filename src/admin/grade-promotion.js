@@ -97,17 +97,18 @@ function buildPromotionNotice({ changedCount, high3Count }){
 async function syncPromotedTicketGrades(){
   const user = fbAuth.currentUser;
   if(!user) return;
+  const byId = new Map((S.students || []).map(s=> [s.id, s]));
   const byName = new Map((S.students || []).map(s=> [s.name, s]));
-  if(byName.size === 0) return;
+  if(byId.size === 0) return;
   try{
     const snap = await fbDb.collection('assignmentApprovals')
       .where('adminUid', '==', user.uid).get();
     const updates = [];
     snap.forEach(doc=>{
       const data = doc.data();
-      const student = byName.get(data.studentName);
+      const student = (data.studentId && byId.get(data.studentId)) || byName.get(data.studentName);
       if(!student) return;
-      const payload = { studentGrade: gradeText(student) };
+      const payload = { studentId: student.id, studentGrade: gradeText(student), studentName: student.name };
       if(student.level !== '小学'){
         if(data.subject === '算数') payload.subject = '数学';
         if(Array.isArray(data.subjects) && data.subjects.includes('算数')){

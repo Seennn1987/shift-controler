@@ -7,7 +7,7 @@ import { refreshSubjectFilterCombobox } from './filter-ui.js';
 import { renderMatrix, switchView } from './finance-ui.js';
 import { renderMatching } from './matching.js';
 import { fillBaseAvailArea, readBaseAvailArea, renderRaiseScheduleList, subjectColor } from './schedule-core.js';
-import { scheduleSave, saveTeacherSubjectsDoc, clearDeletedTeacherCloudDocs } from './students-persistence.js';
+import { scheduleSave, saveTeacherSubjectsDoc, clearDeletedTeacherCloudDocs, rememberRetiredTeacherLogin } from './students-persistence.js';
 import { getPreferredPairsForTeacher, revokePendingRequestsForTeacher } from './teacher-schedule-tab.js';
 
 
@@ -117,6 +117,7 @@ function resetForm(){
   document.getElementById('teacherLoginStatus').textContent = '講師情報を先に登録してから発行できます。';
   document.getElementById('teacherLoginStatus').className = 'login-status-box';
   document.getElementById('createTeacherLoginBtn').disabled = true;
+  document.getElementById('createTeacherLoginBtn').textContent = 'このアカウントを発行する';
   document.getElementById('resyncTeacherLoginBtn').style.display = 'none';
   document.getElementById('formModeTitle').textContent = '講師を登録';
   document.getElementById('saveBtn').textContent = '登録する';
@@ -160,14 +161,16 @@ function fillFormForEdit(t){
   document.getElementById('teacherLoginMsg').textContent = '';
   document.getElementById('createTeacherLoginBtn').disabled = false;
   if(t.loginUid){
-    document.getElementById('teacherLoginStatus').textContent = `発行済み（${t.loginEmail}）。パスワードを変更したい場合は、新しいパスワードを入力して再度発行してください。`;
+    document.getElementById('teacherLoginStatus').textContent = `発行済み（${t.loginEmail}）。パスワードを変えたいときは「パスワード再設定メールを送る」を押してください。`;
     document.getElementById('teacherLoginStatus').className = 'login-status-box issued';
+    document.getElementById('createTeacherLoginBtn').textContent = 'パスワード再設定メールを送る';
     document.getElementById('resyncTeacherLoginBtn').style.display = 'inline-block';
     document.getElementById('resyncTeacherLoginBtn').dataset.teacherId = t.id;
     document.getElementById('resyncTeacherLoginBtn').dataset.loginUid = t.loginUid;
   }else{
     document.getElementById('teacherLoginStatus').textContent = 'まだ発行されていません。';
     document.getElementById('teacherLoginStatus').className = 'login-status-box';
+    document.getElementById('createTeacherLoginBtn').textContent = 'このアカウントを発行する';
     document.getElementById('resyncTeacherLoginBtn').style.display = 'none';
   }
   document.getElementById('formModeTitle').textContent = `${t.name} さんを編集`;
@@ -232,6 +235,15 @@ async function handleSave(){
   S.lastLocalSubjectEditAt = Date.now();
   const ok = await saveTeachers();
   if(savedTeacher) await saveTeacherSubjectsDoc(savedTeacher, 'admin');
+  if(ok && savedTeacher?.loginUid){
+    try{
+      await fbDb.collection('teacherAccounts').doc(savedTeacher.loginUid).set({
+        teacherName: savedTeacher.name,
+      }, { merge: true });
+    }catch(err){
+      console.error('講師ログイン表示名の更新エラー:', err);
+    }
+  }
   if(ok){
     resetForm();
     renderTeacherList();
@@ -394,6 +406,7 @@ function renderTeacherList(){
 
 async function deleteTeacher(id){
   const teacher = S.teachers.find(t=> t.id === id);
+  rememberRetiredTeacherLogin(teacher);
   S.teachers = S.teachers.filter(t=>t.id!==id);
   const keep = a=> a.teacherId !== id;
   S.assignments = S.assignments.filter(keep);

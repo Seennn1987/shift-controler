@@ -108,7 +108,7 @@ function buildSubjectTagsHtml(entry){
 function buildStudentLineHtml(entry, isLast, showCancelInRow, dateStr){
   const approvalState = resolveApprovalState(entry, dateStr);
   const isPending = approvalState === 'pending';
-  const ticket = isPending ? findPendingTicket(entry.day, entry.slot, entry.subject, entry.studentName, entry.oneTimeDate, dateStr) : null;
+  const ticket = isPending ? findPendingTicket(entry.day, entry.slot, entry.subject, entry.studentName, entry.oneTimeDate, dateStr, entry.studentId) : null;
   if(isPending && !ticket){
     const gradePart = entry.studentGrade ? `（${entry.studentGrade}）` : '';
     return `<div class="mycal-slot-student is-orphan${isLast ? '' : ' has-divider'}">

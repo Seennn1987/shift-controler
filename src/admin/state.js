@@ -34,6 +34,7 @@ export const S = {
   absences: [],
   teacherAbsences: [],
   teacherSubstitutions: [],
+  retiredTeacherLogins: [],
   finGradientMin: 25,
   finGradientMax: 60,
   preferredPairs: [],

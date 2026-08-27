@@ -2,9 +2,11 @@ import { SLOTS } from '../shared/constants.js';
 import { S } from './state.js';
 import {
   cancelSubstitute,
+  cancelTeacherAbsenceForSlot,
   confirmSubstitute,
   findSubstituteCandidatesForStudent,
   getTeacherLessonsOnDate,
+  isTeacherAbsentForStudent,
   isTeacherSlotFullyAbsent,
   recordTeacherAbsence,
   resolveSlotViaStudentAbsence,
@@ -66,12 +68,12 @@ function bindAbsentTeacherFollowupActions(root, onRefresh){
   root.querySelectorAll('[data-confirm-sub]').forEach(cbtn=>{
     if(cbtn.dataset.boundFollowup === '1') return;
     cbtn.dataset.boundFollowup = '1';
-    cbtn.addEventListener('click', ()=>{
+    cbtn.addEventListener('click', async ()=>{
       const teacherId = cbtn.dataset.teacher;
       const dateStr = cbtn.dataset.date;
       const slotId = Number(cbtn.dataset.confirmSub);
       const studentId = cbtn.dataset.confirmStudent;
-      confirmSubstitute(teacherId, dateStr, slotId, cbtn.dataset.subTeacher, studentId);
+      await confirmSubstitute(teacherId, dateStr, slotId, cbtn.dataset.subTeacher, studentId);
       recordTeacherAbsence(teacherId, dateStr, [slotId], studentId);
       if(typeof onRefresh === 'function') onRefresh();
     });
@@ -130,6 +132,8 @@ export function renderTeacherAbsencePanel(container, teacherId, dateStr, onRefre
       if(sub){
         const subTeacher = S.teachers.find(t=> t.id === sub.substituteTeacherId);
         stStatusHtml = `<span class="ta-resolved-inline">代講：${subTeacher ? subTeacher.name : '?'}先生 <button type="button" class="cancel-absence-btn" data-cancel-sub="${slotId}" data-cancel-student="${e.studentId}">取り消す</button></span>`;
+      }else if(isTeacherAbsentForStudent(teacherId, dateStr, slotId, e.studentId) && !isMarked){
+        stStatusHtml = `<span class="ta-resolved-inline"><button type="button" class="cancel-absence-btn" data-cancel-absence-slot="${slotId}" data-cancel-absence-student="${e.studentId}">取り消す</button></span>`;
       }
       const areaId = candAreaId(teacherId, slotId, e.studentId);
       studentRowsHtml += `<div class="ta-student-row" data-slot="${slotId}" data-student="${e.studentId}" data-subject="${e.subject}">
@@ -146,7 +150,7 @@ export function renderTeacherAbsencePanel(container, teacherId, dateStr, onRefre
         <span><b>${slot.label}（${slot.time}）</b></span>
       </label>
       ${studentRowsHtml}
-      ${isMarked ? '<div class="ta-resolved">この枠は欠勤対応済みです</div>' : ''}
+      ${isMarked ? `<div class="ta-resolved">この枠は欠勤対応済みです <button type="button" class="cancel-absence-btn" data-cancel-absence-slot="${slotId}">取り消す</button></div>` : ''}
     </div>`;
   });
 
@@ -251,10 +255,10 @@ export function renderTeacherAbsencePanel(container, teacherId, dateStr, onRefre
       candArea.style.display = 'block';
 
       candArea.querySelectorAll('[data-confirm-sub]').forEach(cbtn=>{
-        cbtn.addEventListener('click', ()=>{
+        cbtn.addEventListener('click', async ()=>{
           const s = Number(cbtn.dataset.confirmSub);
           const sid = cbtn.dataset.confirmStudent;
-          confirmSubstitute(teacherId, dateStr, s, cbtn.dataset.subTeacher, sid);
+          await confirmSubstitute(teacherId, dateStr, s, cbtn.dataset.subTeacher, sid);
           recordTeacherAbsence(teacherId, dateStr, [s], sid);
           refreshPanel();
         });
@@ -277,6 +281,15 @@ export function renderTeacherAbsencePanel(container, teacherId, dateStr, onRefre
       const slotId = Number(btn.dataset.cancelSub);
       const studentId = btn.dataset.cancelStudent;
       await cancelSubstitute(teacherId, dateStr, slotId, studentId);
+      refreshPanel();
+    });
+  });
+
+  container.querySelectorAll('[data-cancel-absence-slot]').forEach(btn=>{
+    btn.addEventListener('click', async ()=>{
+      const slotId = Number(btn.dataset.cancelAbsenceSlot);
+      const studentId = btn.dataset.cancelAbsenceStudent || null;
+      await cancelTeacherAbsenceForSlot(teacherId, dateStr, slotId, studentId);
       refreshPanel();
     });
   });

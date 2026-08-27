@@ -4,6 +4,13 @@ import { pad2, daysInYearMonth, toDateStr } from '../shared/date-utils.js';
 import { fbAuth, fbDb, S } from './state.js';
 import { debugLog } from './debug.js';
 
+function stopScheduleListener(){
+  if(S.scheduleTimer){
+    clearInterval(S.scheduleTimer);
+    S.scheduleTimer = null;
+  }
+}
+
 function startScheduleListener(){
   if(S.scheduleTimer) clearInterval(S.scheduleTimer);
   const docId = `${S.myAdminUid}_${S.myTeacherId}`;
@@ -87,4 +94,4 @@ async function loadMyPendingRequests(){
     S.pendingRequests = [];
   }
 }
-export { startScheduleListener, saveMonthEntry, loadMyPendingRequests };
+export { startScheduleListener, stopScheduleListener, saveMonthEntry, loadMyPendingRequests };

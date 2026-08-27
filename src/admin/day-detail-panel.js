@@ -32,6 +32,7 @@ import {
   withdrawPendingAssignment,
   findEffectiveAssignment,
   getActiveYearMonth,
+  revokePendingCancellationForSlot,
 } from './teacher-schedule-tab.js';
 import { buildDualMatchCandidatesHtml, buildMatchCandidatesHtml } from './match-candidates-html.js';
 import { buildPrefPairActionHtmlForTeacher, buildDraftSlotCardHtml, buildWaitingSlotCardHtml, buildFlowStatusBadgeChipHtml } from './match-candidate-ui.js';
@@ -560,8 +561,17 @@ export function bindDayDetailEvents(container, dateStr, onRefresh){
   });
 
   container.querySelectorAll('.unconfirm-btn').forEach(btn=>{
-    btn.addEventListener('click', ()=>{
+    btn.addEventListener('click', async ()=>{
       cancelRowDraftOrAssignment(btn);
+      const student = S.students.find(s=> s.id === btn.dataset.student);
+      const dateStr = /^\d{4}-\d{2}-\d{2}$/.test(btn.dataset.date || '') ? btn.dataset.date : null;
+      try{
+        await revokePendingCancellationForSlot(
+          student, btn.dataset.day, Number(btn.dataset.slot), dateStr,
+        );
+      }catch(err){
+        console.error('欠勤申請取り消しエラー:', err);
+      }
       refresh();
     });
   });
@@ -681,10 +691,10 @@ export function bindDayDetailEvents(container, dateStr, onRefresh){
       panel.innerHTML = buildMakeupCandidateRowsHtml(absenceId, makeupCands);
       panel.style.display = 'block';
       panel.querySelectorAll('.confirm-makeup-btn').forEach(cbtn=>{
-        cbtn.addEventListener('click', ()=>{
+        cbtn.addEventListener('click', async ()=>{
           const { absence: abId, date: mDate, teacher } = cbtn.dataset;
           const slot = Number(cbtn.dataset.slot);
-          const result = confirmMakeup(abId, mDate, slot, teacher);
+          const result = await confirmMakeup(abId, mDate, slot, teacher);
           if(!result.ok){
             showInlineNotice(container, result.msg, { variant: 'warn' });
             return;
@@ -696,11 +706,11 @@ export function bindDayDetailEvents(container, dateStr, onRefresh){
   });
 
   container.querySelectorAll('.confirm-makeup-btn').forEach(btn=>{
-    btn.addEventListener('click', ()=>{
+    btn.addEventListener('click', async ()=>{
       if(btn.dataset.confirmSub) return;
       const { absence, date, teacher } = btn.dataset;
       const slot = Number(btn.dataset.slot);
-      const result = confirmMakeup(absence, date, slot, teacher);
+      const result = await confirmMakeup(absence, date, slot, teacher);
       if(!result.ok){
         showInlineNotice(container, result.msg, { variant: 'warn' });
         return;

@@ -3,8 +3,8 @@ import { HOLIDAYS_JP } from '../shared/holidays.js';
 import { pad2, daysInYearMonth, toDateStr } from '../shared/date-utils.js';
 import { fbAuth, fbDb, S } from './state.js';
 import { debugLog } from './debug.js';
-import { startClassroomSettingsListener } from './classroom-settings.js';
-import { startScheduleListener,loadMyPendingRequests } from './schedule.js';
+import { startClassroomSettingsListener, stopClassroomSettingsListener } from './classroom-settings.js';
+import { startScheduleListener, stopScheduleListener, loadMyPendingRequests } from './schedule.js';
 import { loadResponseDrafts } from './response-draft.js';
 import { mountInlineConfirm, showInlineNotice } from '../shared/inline-confirm.js';
 import {
@@ -13,6 +13,7 @@ import {
   loadAdminCancelledNotices,
   reloadDraftsFromStorage,
   startMyAssignmentsListener,
+  stopMyAssignmentsListener,
   initResponseDraftHandlers,
 } from './approvals.js';
 import { renderMyCalendar } from './calendar.js';
@@ -66,6 +67,9 @@ fbAuth.onAuthStateChanged(async user=>{
   }else{
     S.myAdminUid = null; S.myTeacherId = null; S.mySubjects = [];
     stopTeacherSubjectsListener();
+    stopScheduleListener();
+    stopMyAssignmentsListener();
+    stopClassroomSettingsListener();
     showLogin();
   }
 });

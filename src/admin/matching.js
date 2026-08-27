@@ -10,7 +10,7 @@ import { renderCalendarWeek, switchCalMode, switchView } from './finance-ui.js';
 import { gradeLabel, getDateSlotState, isTeacherAvailableOnDate, subjectColor } from './schedule-core.js';
 import { approveCancellationRequest, approveCancellationRequests, rejectCancellationRequest, saveStudents, scheduleSave, scheduleSyncTeacherAssignments, saveAppState } from './students-persistence.js';
 import { renderTeacherList } from './teachers.js';
-import { assignmentAppliesOnDate, approvalAppliesInMonth, buildCandidateInfo, confirmAssignment, confirmDualAssignment, cancelAllDrafts, cancelDraftAuto, findEffectiveAssignment, getActiveYearMonth, getPreferredTeachersForCourse, loadAssignmentApprovals, loadDismissedApprovalIds, loadPendingCancellationRequests, loadPendingChangeRequests, openMatchingForApprovalTicket, renderApprovalDashboardItem, resolveScheduleChangeRequest, resolveScheduleChangeRequests, saveDismissedApprovalIds, sendDraftAssignments, teacherHasSubmittedMonth, revokePendingApprovalTicketsForStudent, revokePendingCancellationRequestsForStudent, dropAssignmentsForRemovedDesiredSlots } from './teacher-schedule-tab.js';
+import { assignmentAppliesOnDate, approvalAppliesInMonth, buildCandidateInfo, confirmAssignment, confirmDualAssignment, cancelAllDrafts, cancelDraftAuto, findEffectiveAssignment, getActiveYearMonth, getPreferredTeachersForCourse, loadAssignmentApprovals, loadDismissedApprovalIds, loadPendingCancellationRequests, loadPendingChangeRequests, openMatchingForApprovalTicket, renderApprovalDashboardItem, resolveScheduleChangeRequest, resolveScheduleChangeRequests, saveDismissedApprovalIds, sendDraftAssignments, teacherHasSubmittedMonth, revokePendingApprovalTicketsForStudent, revokePendingCancellationRequestsForStudent, revokePendingCancellationForSlot, dropAssignmentsForRemovedDesiredSlots, syncStudentIdentityOnTickets } from './teacher-schedule-tab.js';
 import { findDualPairAtSlot, teacherTeachesBoth, buildDualSubjectTagsHtml } from './dual-subject.js';
 import { compareCandidateInfo, getMatchingPriority, MATCHING_FACTOR_META } from './matching-config.js';
 import { mountInlineConfirm, showActiveTabNotice } from '../shared/inline-confirm.js';
@@ -327,6 +327,8 @@ async function handleCourseStartDateChange(){
   if(idx < 0) return;
   S.students[idx].courseStartDate = readCourseStartDate();
   await saveStudents();
+  await syncStudentIdentityOnTickets(S.students[idx]);
+  scheduleSyncTeacherAssignments();
   renderFormCourses();
 }
 
@@ -450,8 +452,13 @@ async function handleStudentSave(){
   if(S.editingStudentId){
     const idx = S.students.findIndex(s=>s.id===S.editingStudentId);
     if(idx>-1){
-      await dropAssignmentsForRemovedDesiredSlots(S.students[idx], S.students[idx].courses, coursesCopy);
-      S.students[idx] = { ...S.students[idx], name, nameKana, level, grade, courseStartDate, courses: coursesCopy };
+      const prev = S.students[idx];
+      const oldName = prev.name;
+      await dropAssignmentsForRemovedDesiredSlots(prev, prev.courses, coursesCopy);
+      S.students[idx] = { ...prev, name, nameKana, level, grade, courseStartDate, courses: coursesCopy };
+      if(oldName !== name || prev.courseStartDate !== courseStartDate){
+        await syncStudentIdentityOnTickets(S.students[idx], oldName);
+      }
     }
     msg.textContent = '基本情報を更新しました。';
   }else{
@@ -1291,7 +1298,8 @@ function renderAbsenceDashboardItem(req){
     md = `${req.day || ''}曜`;
     weekday = '';
   }
-  const student = S.students.find(s=> s.name === req.studentName);
+  const student = (req.studentId && S.students.find(s=> s.id === req.studentId))
+    || S.students.find(s=> s.name === req.studentName);
   const gLabel = req.studentGrade || (student ? gradeLabel(student) : '');
   const level = student?.level
     || (String(gLabel).startsWith('小') ? '小学'

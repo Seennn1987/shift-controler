@@ -246,8 +246,12 @@ function startTeacherScheduleListener(){
 // ---- 講師の承認をもって「承認待ち」から「確定」に昇格させる ----
 // 単発の代講（oneTimeDateあり）は、緊急対応の性質上ここでは対象にしない（teacherSubstitutionsで即時反映済みのため）
 function pendingMatchesTicket(p, ticket){
-  const student = S.students.find(s=> s.id === p.studentId);
-  if(!student || student.name !== ticket.studentName) return false;
+  if(ticket.studentId){
+    if(p.studentId !== ticket.studentId) return false;
+  }else{
+    const student = S.students.find(s=> s.id === p.studentId);
+    if(!student || student.name !== ticket.studentName) return false;
+  }
   if(p.teacherId !== ticket.teacherId || p.day !== ticket.day || Number(p.slot) !== Number(ticket.slot)) return false;
   if(ticket.oneTimeDate){
     if(p.oneTimeDate !== ticket.oneTimeDate) return false;
@@ -258,6 +262,27 @@ function pendingMatchesTicket(p, ticket){
     return ticket.subjects.includes(p.subject);
   }
   return p.subject === ticket.subject;
+}
+
+function findStudentForTicket(ticket){
+  if(ticket?.studentId){
+    const byId = S.students.find(s=> s.id === ticket.studentId);
+    if(byId) return byId;
+  }
+  const named = (S.students || []).filter(s=> s.name === ticket.studentName);
+  return named.length === 1 ? named[0] : null;
+}
+
+function dropRejectedOneTimeSubstitute(ticket){
+  if(!ticket?.oneTimeDate) return;
+  const student = findStudentForTicket(ticket);
+  S.teacherSubstitutions = (S.teacherSubstitutions || []).filter(s=>{
+    if(s.substituteTeacherId !== ticket.teacherId) return true;
+    if(s.date !== ticket.oneTimeDate) return true;
+    if(Number(s.slot) !== Number(ticket.slot)) return true;
+    if(student && s.studentId && s.studentId !== student.id) return true;
+    return false;
+  });
 }
 
 function takePendingMatchingTicket(ticket){
@@ -284,15 +309,8 @@ async function promotePendingAssignment(ticket, ticketId){
 }
 
 async function rejectPendingAssignment(ticket, ticketId){
+  dropRejectedOneTimeSubstitute(ticket);
   const taken = takePendingMatchingTicket(ticket);
-  if(taken.length === 0){
-    try{
-      await fbDb.collection('assignmentApprovals').doc(ticketId).update({handled:true});
-    }catch(e){
-      console.error('チケットの処理済みフラグ更新エラー:', e);
-    }
-    return;
-  }
   try{
     await fbDb.collection('assignmentApprovals').doc(ticketId).update({handled:true});
   }catch(e){
@@ -378,20 +396,24 @@ async function ensureMissingApprovalTickets(){
         const subjects = siblings.map(p=> p.subject).sort((x, y)=> x.localeCompare(y, 'ja'));
         if(a.subject !== subjects[0]) continue;
         const subjectLabel = formatDualSubjectLabel(subjects, '・');
+        const sameStudent = t=> t.studentId ? t.studentId === student.id : t.studentName === student.name;
+        const sameOneTime = t=> (t.oneTimeDate || null) === (a.oneTimeDate || null);
         const hasPending = existing.some(t=>
           t.status==='pending' &&
           t.teacherId===a.teacherId &&
           t.day===a.day &&
           Number(t.slot)===Number(a.slot) &&
-          t.studentName===student.name &&
+          sameStudent(t) &&
+          sameOneTime(t) &&
           (t.subjects?.length === 2 ? t.subject === subjectLabel : t.subject === subjectLabel)
         );
         if(hasPending) continue;
         try{
-          await fbDb.collection('assignmentApprovals').add({
+          const payload = {
             adminUid: user.uid,
             teacherId: a.teacherId,
             teacherLoginUid: teacher.loginUid,
+            studentId: student.id,
             studentName: student.name,
             studentGrade: gradeLabel(student),
             subject: subjectLabel,
@@ -402,7 +424,10 @@ async function ensureMissingApprovalTickets(){
             status: 'pending',
             createdAt: firebase.firestore.FieldValue.serverTimestamp(),
             ...(student.courseStartDate ? { courseStartDate: student.courseStartDate } : {}),
-          });
+            ...(a.oneTimeDate ? { oneTimeDate: a.oneTimeDate } : {}),
+          };
+          await fbDb.collection('assignmentApprovals').add(payload);
+          existing.push(payload);
         }catch(err){
           console.error('承認チケット補完エラー:', err);
         }
@@ -410,20 +435,24 @@ async function ensureMissingApprovalTickets(){
       }
     }
 
+    const sameStudent = t=> t.studentId ? t.studentId === student.id : t.studentName === student.name;
+    const sameOneTime = t=> (t.oneTimeDate || null) === (a.oneTimeDate || null);
     const hasPending = existing.some(t=>
       t.status==='pending' &&
       t.teacherId===a.teacherId &&
       t.day===a.day &&
       Number(t.slot)===Number(a.slot) &&
       t.subject===a.subject &&
-      t.studentName===student.name
+      sameStudent(t) &&
+      sameOneTime(t)
     );
     if(hasPending) continue;
     try{
-      await fbDb.collection('assignmentApprovals').add({
+      const payload = {
         adminUid: user.uid,
         teacherId: a.teacherId,
         teacherLoginUid: teacher.loginUid,
+        studentId: student.id,
         studentName: student.name,
         studentGrade: gradeLabel(student),
         subject: a.subject,
@@ -432,7 +461,10 @@ async function ensureMissingApprovalTickets(){
         status: 'pending',
         createdAt: firebase.firestore.FieldValue.serverTimestamp(),
         ...(student.courseStartDate ? { courseStartDate: student.courseStartDate } : {}),
-      });
+        ...(a.oneTimeDate ? { oneTimeDate: a.oneTimeDate } : {}),
+      };
+      await fbDb.collection('assignmentApprovals').add(payload);
+      existing.push(payload);
     }catch(err){
       console.error('承認チケット補完エラー:', err);
     }
@@ -558,6 +590,22 @@ async function syncTeacherAssignments(){
     }
   }
   await ensureMissingApprovalTickets();
+}
+
+function rememberRetiredTeacherLogin(teacher){
+  if(!teacher?.loginUid || !teacher?.loginEmail) return;
+  const email = String(teacher.loginEmail).trim().toLowerCase();
+  S.retiredTeacherLogins = (S.retiredTeacherLogins || []).filter(x=> x.uid !== teacher.loginUid);
+  S.retiredTeacherLogins.push({ uid: teacher.loginUid, email });
+}
+
+function findRetiredTeacherLogin(email){
+  const key = String(email || '').trim().toLowerCase();
+  return (S.retiredTeacherLogins || []).find(x=> x.email === key) || null;
+}
+
+function dropRetiredTeacherLogin(uid){
+  S.retiredTeacherLogins = (S.retiredTeacherLogins || []).filter(x=> x.uid !== uid);
 }
 
 async function clearDeletedTeacherCloudDocs(teacher){
@@ -688,6 +736,7 @@ async function saveAppState(){
     absences: S.absences,
     teacherAbsences: S.teacherAbsences,
     teacherSubstitutions: S.teacherSubstitutions,
+    retiredTeacherLogins: S.retiredTeacherLogins || [],
     terms: S.terms,
     customClosures: S.customClosures,
     preferredPairs: S.preferredPairs,
@@ -725,6 +774,7 @@ async function loadAppStateFromFirestore(){
     S.absences = d.absences || [];
     S.teacherAbsences = d.teacherAbsences || [];
     S.teacherSubstitutions = d.teacherSubstitutions || [];
+    S.retiredTeacherLogins = d.retiredTeacherLogins || [];
     S.terms = d.terms || [];
     S.customClosures = d.customClosures || [];
     S.preferredPairs = d.preferredPairs || [];
@@ -747,6 +797,7 @@ async function loadAppStateFromFirestore(){
     S.absences = [];
     S.teacherAbsences = [];
     S.teacherSubstitutions = [];
+    S.retiredTeacherLogins = [];
     S.terms = [];
     S.customClosures = [];
     S.preferredPairs = [];
@@ -772,4 +823,4 @@ async function loadAppStateFromFirestore(){
 }
 
 
-export { loadStudents, saveStudents, getStateDocRef, teacherSchedDocRef, syncTeacherLoginUidEverywhere, saveTeacherScheduleDoc, loadAllTeacherSchedules, startTeacherScheduleListener, promotePendingAssignment, startApprovalPromotionListener, syncClosureSettings, syncClosureSettingsNow, scheduleSyncTeacherAssignments, syncTeacherAssignments, scheduleSave, saveAppState, loadAppStateFromFirestore, approveCancellationRequest, approveCancellationRequests, rejectCancellationRequest, saveTeacherSubjectsDoc, startTeacherSubjectsListener, clearDeletedTeacherCloudDocs };
+export { loadStudents, saveStudents, getStateDocRef, teacherSchedDocRef, syncTeacherLoginUidEverywhere, saveTeacherScheduleDoc, loadAllTeacherSchedules, startTeacherScheduleListener, promotePendingAssignment, startApprovalPromotionListener, syncClosureSettings, syncClosureSettingsNow, scheduleSyncTeacherAssignments, syncTeacherAssignments, scheduleSave, saveAppState, loadAppStateFromFirestore, approveCancellationRequest, approveCancellationRequests, rejectCancellationRequest, saveTeacherSubjectsDoc, startTeacherSubjectsListener, clearDeletedTeacherCloudDocs, rememberRetiredTeacherLogin, findRetiredTeacherLogin, dropRetiredTeacherLogin };

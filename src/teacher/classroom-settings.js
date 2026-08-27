@@ -61,6 +61,13 @@ async function loadClassroomSettingsWithRetry(){
   return lastResult;
 }
 
+function stopClassroomSettingsListener(){
+  if(S.classroomSettingsTimer){
+    clearInterval(S.classroomSettingsTimer);
+    S.classroomSettingsTimer = null;
+  }
+}
+
 async function startClassroomSettingsListener(){
   if(S.classroomSettingsTimer) clearInterval(S.classroomSettingsTimer);
 
@@ -85,4 +92,4 @@ async function startClassroomSettingsListener(){
   S.classroomSettingsTimer = setInterval(poll, POLL_MS);
 }
 
-export { startClassroomSettingsListener };
+export { startClassroomSettingsListener, stopClassroomSettingsListener };

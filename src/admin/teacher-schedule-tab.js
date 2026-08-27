@@ -163,8 +163,24 @@ function approvalRowAriaLabel(a, teacherName){
   return `${teacherName} ${datePart} ${a.studentName}（${a.studentGrade||''}）${a.subject}`;
 }
 
+function findStudentForTicket(a){
+  if(!a) return null;
+  if(a.studentId){
+    const byId = S.students.find(s=> s.id === a.studentId);
+    if(byId) return byId;
+  }
+  const named = (S.students || []).filter(s=> s.name === a.studentName);
+  return named.length === 1 ? named[0] : null;
+}
+
+function ticketBelongsToStudent(a, student){
+  if(!a || !student) return false;
+  if(a.studentId) return a.studentId === student.id;
+  return a.studentName === student.name;
+}
+
 function approvalSubjectLevel(a){
-  const student = S.students.find(s=> s.name === a.studentName);
+  const student = findStudentForTicket(a) || S.students.find(s=> s.name === a.studentName);
   return student?.level || '中学';
 }
 
@@ -184,7 +200,7 @@ function approvalAppliesInMonth(ticket, yearMonth){
 }
 
 function openMatchingForApprovalTicket(a){
-  const student = S.students.find(s=> s.name === a.studentName);
+  const student = findStudentForTicket(a) || S.students.find(s=> s.name === a.studentName);
   if(!student){
     const host = document.getElementById('shortageWrap')?.parentElement || document.getElementById('calViewShell');
     showInlineNotice(host, `${a.studentName}さんのデータが見つかりませんでした。`, { variant: 'warn' });
@@ -713,6 +729,7 @@ async function issueAssignmentApproval(studentId, courseId, subject, day, slot, 
     const payload = {
       adminUid: fbAuth.currentUser.uid,
       teacherId, teacherLoginUid: teacher.loginUid,
+      studentId: student.id,
       studentName: student.name, studentGrade: gradeLabel(student),
       subject: subjects?.length === 2 ? subjects.join('・') : subject,
       day, slot,
@@ -888,6 +905,7 @@ async function dropStudentDesiredSlot(student, course, day, slot){
       seen.add(key);
       await revokePendingApprovalTicket(student, coursePayload, day, slot, oneTimeDate, entry.teacherId);
     }
+    await revokePendingCancellationForSlot(student, day, slot, null);
   }catch(err){
     console.error('希望コマ解除の依頼取り消しエラー:', err);
   }
@@ -997,7 +1015,7 @@ async function sendDraftAssignments(){
 
 function ticketMatchesPendingApproval(a, student, course, day, slot, oneTimeDate, teacherId){
   if(a.status !== 'pending') return false;
-  if(a.studentName !== student.name) return false;
+  if(!ticketBelongsToStudent(a, student)) return false;
   if(teacherId && a.teacherId !== teacherId) return false;
   const subjectLabel = course.subjects?.length === 2
     ? course.subjects.join('・')
@@ -1045,13 +1063,13 @@ async function revokePendingApprovalTicket(student, course, day, slot, oneTimeDa
 
 async function revokePendingApprovalTicketsForStudent(student){
   const user = fbAuth.currentUser;
-  if(!user || !student?.name) return;
+  if(!user || !student) return;
   const snap = await fbDb.collection('assignmentApprovals').where('adminUid','==', user.uid).get();
   const updates = [];
   snap.forEach(doc=>{
     const a = doc.data();
     if(a.status !== 'pending') return;
-    if(a.studentName !== student.name) return;
+    if(!ticketBelongsToStudent(a, student)) return;
     updates.push(doc.ref.update({
       ...ADMIN_CANCELLED_TICKET,
       cancelledAt: firebase.firestore.FieldValue.serverTimestamp(),
@@ -1062,13 +1080,13 @@ async function revokePendingApprovalTicketsForStudent(student){
 
 async function revokePendingCancellationRequestsForStudent(student){
   const user = fbAuth.currentUser;
-  if(!user || !student?.name) return;
+  if(!user || !student) return;
   const snap = await fbDb.collection('assignmentCancellationRequests').where('adminUid','==', user.uid).get();
   const updates = [];
   snap.forEach(doc=>{
     const a = doc.data();
     if(a.status !== 'pending') return;
-    if(a.studentName !== student.name) return;
+    if(!ticketBelongsToStudent(a, student)) return;
     updates.push(doc.ref.update({
       status: 'cancelled',
       cancelledByAdmin: true,
@@ -1076,6 +1094,62 @@ async function revokePendingCancellationRequestsForStudent(student){
     }));
   });
   await Promise.all(updates);
+}
+
+async function revokePendingCancellationForSlot(student, day, slot, dateStr){
+  const user = fbAuth.currentUser;
+  if(!user || !student) return;
+  const snap = await fbDb.collection('assignmentCancellationRequests').where('adminUid','==', user.uid).get();
+  const updates = [];
+  snap.forEach(doc=>{
+    const a = doc.data();
+    if(a.status !== 'pending') return;
+    if(!ticketBelongsToStudent(a, student)) return;
+    if(Number(a.slot) !== Number(slot)) return;
+    const reqDate = a.dateStr || a.oneTimeDate || '';
+    if(dateStr){
+      if(reqDate){
+        if(reqDate !== dateStr) return;
+      }else{
+        return;
+      }
+    }else if(a.day && a.day !== day){
+      return;
+    }
+    updates.push(doc.ref.update({
+      status: 'cancelled',
+      cancelledByAdmin: true,
+      cancelledAt: firebase.firestore.FieldValue.serverTimestamp(),
+    }));
+  });
+  await Promise.all(updates);
+}
+
+async function syncStudentIdentityOnTickets(student, oldName){
+  const user = fbAuth.currentUser;
+  if(!user || !student?.id) return;
+  const payload = {
+    studentId: student.id,
+    studentName: student.name,
+    studentGrade: gradeLabel(student),
+  };
+  if(student.courseStartDate) payload.courseStartDate = student.courseStartDate;
+  const nameToMatch = oldName || student.name;
+  try{
+    for(const col of ['assignmentApprovals', 'assignmentCancellationRequests']){
+      const snap = await fbDb.collection(col).where('adminUid','==', user.uid).get();
+      const updates = [];
+      snap.forEach(doc=>{
+        const a = doc.data();
+        if(a.studentId === student.id || (!a.studentId && a.studentName === nameToMatch)){
+          updates.push(doc.ref.update(payload));
+        }
+      });
+      await Promise.all(updates);
+    }
+  }catch(err){
+    console.error('生徒名の講師側表示の更新エラー:', err);
+  }
 }
 
 async function revokePendingRequestsForTeacher(teacher){
@@ -1199,4 +1273,4 @@ async function replaceDesiredSlot(studentId, courseId, oldDay, oldSlot, newDay, 
 }
 
 
-export { loadPendingChangeRequests, loadPendingCancellationRequests, resolveScheduleChangeRequest, resolveScheduleChangeRequests, loadAssignmentApprovals, loadDismissedApprovalIds, saveDismissedApprovalIds, approvalAppliesInMonth, openMatchingForApprovalTicket, renderApprovalDashboardItem, renderApprovalStatus, renderTeacherScheduleTab, openTeacherScheduleEditor, renderTeacherScheduleGrid, isPreferredPair, getPreferredTeachersForCourse, getPreferredPairsForTeacher, addPreferredPair, removePreferredPair, removePreferredPairFor, isPreferredSubjectForTeacher, teacherWorksOtherSlotOnWeekday, countTeacherCourseSlotCoverage, buildCandidateInfo, findAssignment, getActiveYearMonth, teacherHasSubmittedMonth, isAssignmentEffectiveInMonth, assignmentAppliesOnDate, findEffectiveAssignment, countCourseConfirmed, countTeacherSlot, countTeacherSlotOnDate, countRoomSlot, countRoomSlotOnDate, issueAssignmentApproval, confirmAssignment, confirmDualAssignment, cancelAssignment, cancelDualAssignment, cancelDraftAuto, cancelAllDrafts, sendDraftAssignments, countAssignmentsInMonth, withdrawPendingAssignment, findAlternativeSlots, replaceDesiredSlot, revokePendingApprovalTicket, revokePendingApprovalTicketsForStudent, revokePendingCancellationRequestsForStudent, revokePendingRequestsForTeacher, dropAssignmentsForRemovedDesiredSlots };
+export { loadPendingChangeRequests, loadPendingCancellationRequests, resolveScheduleChangeRequest, resolveScheduleChangeRequests, loadAssignmentApprovals, loadDismissedApprovalIds, saveDismissedApprovalIds, approvalAppliesInMonth, openMatchingForApprovalTicket, renderApprovalDashboardItem, renderApprovalStatus, renderTeacherScheduleTab, openTeacherScheduleEditor, renderTeacherScheduleGrid, isPreferredPair, getPreferredTeachersForCourse, getPreferredPairsForTeacher, addPreferredPair, removePreferredPair, removePreferredPairFor, isPreferredSubjectForTeacher, teacherWorksOtherSlotOnWeekday, countTeacherCourseSlotCoverage, buildCandidateInfo, findAssignment, getActiveYearMonth, teacherHasSubmittedMonth, isAssignmentEffectiveInMonth, assignmentAppliesOnDate, findEffectiveAssignment, countCourseConfirmed, countTeacherSlot, countTeacherSlotOnDate, countRoomSlot, countRoomSlotOnDate, issueAssignmentApproval, confirmAssignment, confirmDualAssignment, cancelAssignment, cancelDualAssignment, cancelDraftAuto, cancelAllDrafts, sendDraftAssignments, countAssignmentsInMonth, withdrawPendingAssignment, findAlternativeSlots, replaceDesiredSlot, revokePendingApprovalTicket, revokePendingApprovalTicketsForStudent, revokePendingCancellationRequestsForStudent, revokePendingCancellationForSlot, revokePendingRequestsForTeacher, dropAssignmentsForRemovedDesiredSlots, syncStudentIdentityOnTickets };

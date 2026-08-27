@@ -11,7 +11,7 @@ import { buildStudentLevelArea, handleCourseStartDateChange, handleStudentSave, 
 import { initMatchingPanel } from './matching-panel.js';
 import { addRaiseRow, buildBaseAvailArea, getOrCreateDraftSchedule, gradeLabel } from './schedule-core.js';
 import { buildClosedDayArea, handleClosureSave, handleTermSave, initMatchingPrioritySettings, renderClosedDaySettings, renderClosureList, renderMatchingPrioritySettings, renderTermList, resetClosureForm, resetTermForm } from './settings.js';
-import { loadStudents, saveAppState, saveTeacherScheduleDoc, scheduleSave, syncClosureSettingsNow, syncTeacherLoginUidEverywhere } from './students-persistence.js';
+import { loadStudents, saveAppState, saveTeacherScheduleDoc, scheduleSave, syncClosureSettingsNow, syncTeacherLoginUidEverywhere, findRetiredTeacherLogin, dropRetiredTeacherLogin } from './students-persistence.js';
 import { authDebugLog, wrapSecondaryAuthForDebug } from './auth-debug.js';
 import { openTeacherScheduleEditor, renderTeacherScheduleTab } from './teacher-schedule-tab.js';
 import { buildSubjectArea, buildSubjectFilterOptions, fillFormForEdit, handleSave, loadTeachers, renderTeacherList, resetForm, saveTeachers } from './teachers.js';
@@ -164,6 +164,19 @@ async function init(){
     const email = document.getElementById('teacherLoginEmail').value.trim();
     const password = document.getElementById('teacherLoginPassword').value;
     if(!email){ msg.textContent = 'メールアドレスを入力してください。'; return; }
+    const editing = S.teachers.find(t=> t.id === S.editingId);
+    if(editing?.loginUid){
+      const sendTo = editing.loginEmail || email;
+      msg.textContent = '送信中…';
+      try{
+        await fbAuth.sendPasswordResetEmail(sendTo);
+        msg.textContent = '✓ パスワード再設定用のメールを送りました。講師のメールを確認してください。';
+      }catch(err){
+        console.error('パスワード再設定メール送信エラー:', err);
+        msg.textContent = 'メールを送れませんでした。メールアドレスをご確認ください。';
+      }
+      return;
+    }
     if(!password || password.length<6){ msg.textContent = 'パスワードは6文字以上で入力してください。'; return; }
     msg.textContent = '発行中…';
     try{
@@ -172,7 +185,7 @@ async function init(){
       const cred = await secAuth.createUserWithEmailAndPassword(email, password);
       const newUid = cred.user.uid;
       authDebugLog('講師アカウント発行完了', { newUid: newUid.slice(0, 8) + '…' });
-      await secAuth.signOut(); // 一時的な接続からはサインアウトする（教室長のログインには影響しない）
+      await secAuth.signOut();
 
       const adminUid = fbAuth.currentUser.uid;
       await fbDb.collection('teacherAccounts').doc(newUid).set({
@@ -184,36 +197,46 @@ async function init(){
         S.teachers[idx].loginUid = newUid;
         S.teachers[idx].loginEmail = email;
       }
-      // ここは通常のデバウンス保存（scheduleSave）ではなく、即座に確実な保存を行う
-      // （デバウンス中にページを離れると、講師一覧側のloginUidだけが保存されず取り残されるため）
+      dropRetiredTeacherLogin(newUid);
       await saveAppState();
       await syncTeacherLoginUidEverywhere(S.editingId, newUid);
       renderTeacherList();
+      fillFormForEdit(S.teachers[idx]);
       msg.textContent = '✓ アカウントを発行しました。URLとログイン情報を講師ご本人に共有してください。';
-      document.getElementById('teacherLoginStatus').textContent = `発行済み（${email}）。パスワードを変更したい場合は、新しいパスワードを入力して再度発行してください。`;
-      document.getElementById('teacherLoginStatus').className = 'login-status-box issued';
     }catch(err){
       let text = 'アカウントの発行に失敗しました。';
       if(err.code==='auth/email-already-in-use'){
-        // 既にこのメールアドレスでアカウントが存在する場合、teacherAccountsから
-        // 「この講師に紐づくログインID」を逆引きし、教室長側のデータを自動修復できないか試みる
         text = 'このメールアドレスは既に使われています。';
         try{
           const adminUid = fbAuth.currentUser.uid;
           const snap = await fbDb.collection('teacherAccounts')
             .where('adminUid','==',adminUid).where('teacherId','==',S.editingId).get();
-          if(!snap.empty){
-            const foundUid = snap.docs[0].id;
+          let foundUid = !snap.empty ? snap.docs[0].id : null;
+          if(!foundUid){
+            const retired = findRetiredTeacherLogin(email);
+            if(retired) foundUid = retired.uid;
+          }
+          if(foundUid){
             const idx = S.teachers.findIndex(t=>t.id===S.editingId);
             if(idx>-1){
               S.teachers[idx].loginUid = foundUid;
               S.teachers[idx].loginEmail = email;
             }
+            await fbDb.collection('teacherAccounts').doc(foundUid).set({
+              adminUid, teacherId: S.editingId, teacherName: document.getElementById('nameInput').value.trim(),
+            }, { merge: true });
+            dropRetiredTeacherLogin(foundUid);
             await saveAppState();
             await syncTeacherLoginUidEverywhere(S.editingId, foundUid);
             renderTeacherList();
             fillFormForEdit(S.teachers[idx]);
-            text = '✓ 既存のアカウントとの紐付けを自動的に復元しました。';
+            try{
+              await fbAuth.sendPasswordResetEmail(email);
+              text = '✓ 以前のログインをこの講師に付け直しました。パスワード再設定メールを送りました。';
+            }catch(e3){
+              console.error('パスワード再設定メール送信エラー:', e3);
+              text = '✓ 以前のログインをこの講師に付け直しました。パスワード再設定メールは送れませんでした。';
+            }
           }
         }catch(e2){
           console.error('自動復旧エラー:', e2);
