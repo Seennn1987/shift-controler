@@ -757,7 +757,7 @@ function expandShiftStatusBar(){
   if(chevron) chevron.textContent = '▴';
 }
 
-function buildShortageSummaryLine({ draftCount, unassignedCount, pendingCount, rejectedCount, pendingAbsences, pendingTeacherAbsences, confirmedCount }){
+function buildShortageSummaryLine({ draftCount, unassignedCount, pendingCount, rejectedCount, pendingAbsences, pendingTeacherAbsences = 0, confirmedCount }){
   const pendingActionCount = pendingCount + rejectedCount;
   const extras = [];
   if(pendingTeacherAbsences > 0) extras.push({ kind: 'absence', label: '欠勤対応', count: pendingTeacherAbsences, unit: '件' });

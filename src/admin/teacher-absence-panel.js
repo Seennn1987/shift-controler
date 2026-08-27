@@ -118,7 +118,7 @@ export function renderTeacherAbsencePanel(container, teacherId, dateStr, onRefre
   slotIds.forEach(slotId=>{
     const slot = SLOTS.find(s=> s.id === slotId);
     const studentEntries = lessonsBySlot[slotId];
-    const isMarked = ta && ta.slots.includes(slotId);
+    const isMarked = !!(ta && ta.slots.some(s=> Number(s) === Number(slotId)));
 
     let studentRowsHtml = '';
     studentEntries.forEach(e=>{
