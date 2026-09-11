@@ -1,0 +1,145 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ピタコマ お知らせボタン 3案</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Zen+Kaku+Gothic+New:wght@400;500;700;900&display=swap" rel="stylesheet">
+  <link rel="icon" href="data:,">
+  <link rel="stylesheet" href="/src/shared/styles/variables.css">
+  <link rel="stylesheet" href="/src/shared/styles/inline-confirm.css">
+  <link rel="stylesheet" href="/src/admin/styles/admin.css">
+  <link rel="stylesheet" href="update-notice-preview.css">
+</head>
+<body>
+  <header class="preview-header">
+    <div class="preview-header-inner">
+      <h1>機能の更新を見る場所 — 3案</h1>
+      <p>本番と同じ上段・タブ・ポップアップです。各案のボタンを押して、開き方の違いを見てください。おすすめは A です。</p>
+    </div>
+  </header>
+
+  <main class="preview-main">
+    <div class="recommend-box">
+      <strong>おすすめは A</strong>です。ログアウトと同じ場所・同じ形なので、押し方がすぐ分かります。名前が短いので、スマホ幅でも折れにくいです。未読のときは「新」と出ます。
+    </div>
+
+    <section class="pattern-block is-rec">
+      <h2>A. 上段右「お知らせ」＋「新」（おすすめ）</h2>
+      <p class="pattern-note">講師ページの「教科設定」と同じ置き方です。押すと中央にカードが開きます。×・外側・Esc・「閉じる」で閉じられます。</p>
+      <div class="pattern-chrome">
+        <div class="app-chrome">
+          <header class="top">
+            <div class="inner">
+              <div class="brand"><h1>ピタコマ</h1></div>
+              <div class="header-account">
+                <span class="header-email">you@example.com</span>
+                <button type="button" class="logout-btn" data-open="a">お知らせ<span class="match-status-badge is-priority">新</span></button>
+                <button type="button" class="logout-btn" disabled>ログアウト</button>
+              </div>
+            </div>
+          </header>
+          <div class="tabs">
+            <button type="button" class="tab-btn tab-btn-home active">カレンダー</button>
+            <button type="button" class="tab-btn">生徒登録</button>
+            <button type="button" class="tab-btn">講師登録</button>
+            <button type="button" class="tab-btn">シフト管理</button>
+            <button type="button" class="tab-btn">分析</button>
+            <button type="button" class="tab-btn">給与集計</button>
+            <button type="button" class="tab-btn">設定</button>
+          </div>
+        </div>
+        <p class="pattern-hint">「お知らせ」を押してください（この試しページだけの見本です）。</p>
+      </div>
+    </section>
+
+    <section class="pattern-block">
+      <h2>B. 上段右「機能アップデート情報」</h2>
+      <p class="pattern-note">最初のご指定どおり、長い名前を上段に置きます。意味ははっきりしますが、幅が狭いと「ログアウト」と並んで折り返しやすいです。</p>
+      <div class="pattern-chrome">
+        <div class="app-chrome">
+          <header class="top">
+            <div class="inner">
+              <div class="brand"><h1>ピタコマ</h1></div>
+              <div class="header-account">
+                <span class="header-email">you@example.com</span>
+                <button type="button" class="logout-btn" data-open="b">機能アップデート情報</button>
+                <button type="button" class="logout-btn" disabled>ログアウト</button>
+              </div>
+            </div>
+          </header>
+          <div class="tabs">
+            <button type="button" class="tab-btn tab-btn-home active">カレンダー</button>
+            <button type="button" class="tab-btn">生徒登録</button>
+            <button type="button" class="tab-btn">講師登録</button>
+            <button type="button" class="tab-btn">シフト管理</button>
+            <button type="button" class="tab-btn">分析</button>
+            <button type="button" class="tab-btn">給与集計</button>
+            <button type="button" class="tab-btn">設定</button>
+          </div>
+        </div>
+        <p class="pattern-hint">「機能アップデート情報」を押してください。</p>
+      </div>
+    </section>
+
+    <section class="pattern-block">
+      <h2>C. タブの列に「お知らせ」</h2>
+      <p class="pattern-note">カレンダーや生徒登録と同じ並びです。作業のタブと混ざり、「今どの画面か」が分かりにくくなることがあります。押すと A と同じ中央カードが開きます（画面は切り替わりません）。</p>
+      <div class="pattern-chrome">
+        <div class="app-chrome">
+          <header class="top">
+            <div class="inner">
+              <div class="brand"><h1>ピタコマ</h1></div>
+              <div class="header-account">
+                <span class="header-email">you@example.com</span>
+                <button type="button" class="logout-btn" disabled>ログアウト</button>
+              </div>
+            </div>
+          </header>
+          <div class="tabs">
+            <button type="button" class="tab-btn tab-btn-home active">カレンダー</button>
+            <button type="button" class="tab-btn">生徒登録</button>
+            <button type="button" class="tab-btn">講師登録</button>
+            <button type="button" class="tab-btn">シフト管理</button>
+            <button type="button" class="tab-btn">分析</button>
+            <button type="button" class="tab-btn">給与集計</button>
+            <button type="button" class="tab-btn">設定</button>
+            <button type="button" class="tab-btn" data-open="c">お知らせ<span class="match-status-badge is-priority">新</span></button>
+          </div>
+        </div>
+        <p class="pattern-hint">タブ列のいちばん右「お知らせ」を押してください。</p>
+      </div>
+    </section>
+  </main>
+
+  <div id="appConfirmOverlay" class="app-confirm-overlay" hidden aria-hidden="true" role="dialog" aria-modal="true" aria-labelledby="appConfirmTitle">
+    <div class="app-confirm-card">
+      <button type="button" class="app-confirm-close" id="appConfirmCloseBtn" aria-label="閉じる">×</button>
+      <h2 class="app-confirm-title" id="appConfirmTitle">機能の更新</h2>
+      <p class="app-confirm-body" id="appConfirmBody"></p>
+      <div class="app-confirm-extra" id="appConfirmExtra">
+        <div class="app-confirm-algorithm">
+          <ol class="app-confirm-algorithm-picks">
+            <li class="app-confirm-algorithm-pick">
+              <span class="update-item-date">2026年9月12日</span>
+              <span class="app-confirm-algorithm-pick-title">最初◯コマ無料を、生徒登録で付けられる</span>
+              <span class="app-confirm-algorithm-pick-desc">入塾キャンペーン用です。チェックしたコマ数だけ、分析タブの売上を0円にします。講師へのお給料は今までどおりです。欠席は数えません。</span>
+            </li>
+            <li class="app-confirm-algorithm-pick">
+              <span class="update-item-date">2026年9月11日</span>
+              <span class="app-confirm-algorithm-pick-title">給与集計タブを追加</span>
+              <span class="app-confirm-algorithm-pick-desc">確定した授業のコマ給・交通費に事務給を足し、クラウド給与に取り込むファイルを保存できます。</span>
+            </li>
+          </ol>
+        </div>
+      </div>
+      <div class="app-confirm-actions">
+        <button type="button" class="app-confirm-submit primary" id="appConfirmSubmitBtn">閉じる</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="update-notice-preview.js"></script>
+</body>
+</html>

@@ -68,6 +68,7 @@ export function showAppConfirmDialog({
 
   titleEl.textContent = title || '';
   bodyEl.innerHTML = message ? formatMessage(message) : '';
+  bodyEl.hidden = !message;
   if(extraHtml){
     extraEl.innerHTML = extraHtml;
     extraEl.hidden = false;
@@ -110,8 +111,8 @@ export function showAppConfirmDialog({
 }
 
 /** 知らせ専用（OK または右上の × で閉じる） */
-export function showAppNoticeDialog({ title, message, confirmLabel = 'OK' }){
-  return showAppConfirmDialog({ title, message, confirmLabel, ackOnly: true });
+export function showAppNoticeDialog({ title, message, extraHtml = '', confirmLabel = 'OK' }){
+  return showAppConfirmDialog({ title, message, extraHtml, confirmLabel, ackOnly: true });
 }
 
 /** 開いている確認ポップアップを閉じる */

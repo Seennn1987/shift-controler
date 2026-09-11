@@ -34,6 +34,8 @@
     padding:6px 12px;border-radius:var(--radius-md);cursor:pointer;
   }
   .logout-btn:hover{background:rgba(255,255,255,.1);}
+  .logout-btn .match-status-badge{margin-left:6px;vertical-align:middle;}
+  #updateNoticeNewBadge[hidden]{display:none;}
 
   /* ログイン画面 */
   .login-screen{

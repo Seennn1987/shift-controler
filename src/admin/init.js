@@ -19,6 +19,7 @@ import { buildSubjectArea, buildSubjectFilterOptions, fillFormForEdit, handleSav
 import { initOnboarding } from './onboarding.js';
 import { takeGradePromotionNotice } from './grade-promotion.js';
 import { showAppNoticeDialog } from '../shared/app-confirm-dialog.js';
+import { initUpdateNotice } from './update-notice.js';
 
 function syncWeekAxisTabs(){
   document.querySelectorAll('.week-axis-btn').forEach(b=>{
@@ -72,6 +73,7 @@ async function init(){
   document.querySelectorAll('.tab-btn').forEach(b=>{
     b.addEventListener('click', ()=>switchView(b.dataset.view));
   });
+  initUpdateNotice();
   document.getElementById('calModeToggleBtn').addEventListener('click', toggleCalMode);
   document.getElementById('calPrevBtn').addEventListener('click', ()=>{
     if(S.calMode==='week'){
