@@ -1,0 +1,48 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ピタコマ 教室長が授業を持つ プレビュー</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Zen+Kaku+Gothic+New:wght@400;500;700;900&display=swap" rel="stylesheet">
+  <link rel="icon" href="data:,">
+  <link rel="stylesheet" href="/src/shared/styles/variables.css">
+  <link rel="stylesheet" href="/src/admin/styles/admin.css">
+  <link rel="stylesheet" href="owner-teacher-preview.css">
+</head>
+<body>
+  <header class="preview-header">
+    <div class="preview-header-inner">
+      <h1>教室長が授業を持つ — 試しページ</h1>
+      <p>講師登録も講師ログインも使いません。コマを組むときの一番下から、必要なときだけ自分が持ちます。本番の教室長画面でも、同じ並び・同じボタンです。</p>
+    </div>
+  </header>
+
+  <main class="app preview-app">
+    <section class="view active">
+      <div class="card">
+        <h2>こうなります</h2>
+        <ul class="preview-rule-list">
+          <li>講師の名簿には足しません。シフト提出も、講師用のログインも不要です。</li>
+          <li>費用は0円です。自動で組むときは使いません。</li>
+          <li>人がいないコマ、または自分が持ちたいコマで、一番下の「教室長」を押します。</li>
+        </ul>
+      </div>
+
+      <div class="card">
+        <h2>講師がいるとき</h2>
+        <p class="preview-compare-label">講師が上、教室長は一番下。「教室長」の「この講師に依頼」を押すと、その場で確定します。仮決めや講師への送信はしません。</p>
+        <div id="hasTeachersSlot"></div>
+      </div>
+
+      <div class="card">
+        <h2>講師がいないとき</h2>
+        <p class="preview-compare-label">候補がいなくても、教室長を押すとその場で確定します。やめるときは今と同じ「確定を解除」です。</p>
+        <div id="noTeachersSlot"></div>
+      </div>
+    </section>
+  </main>
+  <script src="owner-teacher-preview.js"></script>
+</body>
+</html>

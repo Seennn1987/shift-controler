@@ -6,6 +6,7 @@ import { computeDayFinance, computeTeacherOpenings, costRatioColor, getEffective
 import { collapseDualAssignmentDisplayRows, countSlotAssignmentUnits, buildDualSubjectTagsHtml } from './dual-subject.js';
 import { buildFlowStatusBadgeHtml, buildFlowStatusBadgeChipHtml } from './match-candidate-ui.js';
 import { calLinesToEntriesHtml, computeSyncedWeekAnchor, getDayStatus, getUnassignedRowsForDate, refreshCalToolbarSecondary, renderCalendar, studentRowToCalLine, updateCalPeriodLabel } from './calendar.js';
+import { findTeacher } from './owner-teacher.js';
 import { resolveFilterTeacher } from './cal-filter.js';
 import { renderMatching } from './matching.js';
 import { abbr, gradeLabel, subjectColor, teacherHonorific } from './schedule-core.js';
@@ -295,7 +296,7 @@ function buildTeacherAxisCell(list){
   });
   let boxesHtml = '';
   Object.keys(byTeacher).forEach(teacherId=>{
-    const teacher = S.teachers.find(t=>t.id===teacherId);
+    const teacher = findTeacher(teacherId);
     const entries = byTeacher[teacherId];
     const weekday = entries[0]?.day || '';
     const loadCount = countSlotAssignmentUnits(entries.map(e=>({
@@ -350,7 +351,7 @@ function buildStudentAxisCell(list){
         const subjectAbbr = SUBJECT_ABBR[a.subject] || a.subject.slice(0, 1);
         return `<span class="sched-student-tag" style="background:${c.bg};color:${c.text};">${subjectAbbr}</span>`;
       })();
-    const teacher = S.teachers.find(t=>t.id===a.teacherId);
+    const teacher = findTeacher(a.teacherId);
     const makeupBadge = a.kind==='makeup'
       ? `<span class="auto-badge" style="background:#fff;color:var(--ink);border:1px dashed var(--ink);">${a.pending ? '振替・承認待ち' : '振替'}</span>`
       : '';

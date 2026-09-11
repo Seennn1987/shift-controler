@@ -6,6 +6,7 @@ import { getDayStatus } from './calendar.js';
 import { getDateSlotState, gradeLabel, isTeacherAvailableOnDate } from './schedule-core.js';
 import { assignmentAppliesOnDate, findEffectiveAssignment, isPreferredSubjectForTeacher, issueAssignmentApproval, revokePendingApprovalTicket } from './teacher-schedule-tab.js';
 import { findDualPairAtSlot, resolveDualRowAssignmentState, countSlotAssignmentUnits, teacherTeachesBoth } from './dual-subject.js';
+import { findTeacher, getOwnerTeacher } from './owner-teacher.js';
 
 // ---- 欠席・振替（特定の実日付にのみ影響。曜日パターン自体は変えない） ----
 // {id, studentId, courseId, subject, day, slot, date, status:'pending'|'resolved', makeup:null|{date,slot,teacherId}}
@@ -328,7 +329,7 @@ function listPendingTeacherAbsenceWorkItems(yearMonth){
         items.push({
           dateStr: ta.date,
           teacherId: ta.teacherId,
-          teacher: S.teachers.find(t=> t.id === ta.teacherId) || null,
+          teacher: findTeacher(ta.teacherId) || null,
           student,
           studentId: e.studentId,
           courseId: e.courseId,
@@ -472,6 +473,20 @@ function findSubstituteCandidatesForStudent(dateStr, slot, absentTeacherId, stud
     if(a.prefSubject !== b.prefSubject) return a.prefSubject ? -1 : 1;
     return a.rate - b.rate;
   });
+  const owner = getOwnerTeacher();
+  if(owner.id !== absentTeacherId){
+    const ownerUsed = countSlotAssignmentUnits(
+      dayList.filter(a=> a.teacherId === owner.id && a.slot === slot).map(a=>({
+        studentId: a.studentId,
+        day: weekday,
+        slot,
+        dualGroupId: a.dualGroupId || null,
+      })),
+    );
+    if(ownerUsed < S.teacherCapacity){
+      withKeys.push({ teacher: owner, group: 99, prefSubject: false, rate: Infinity });
+    }
+  }
   return withKeys.map(k=>k.teacher);
 }
 
@@ -699,9 +714,11 @@ function originalAbsenceSlotOnDate(studentId, dateStr){
 
 function collectMakeupSlotsOnDate(studentId, dateStr, teacherFilter){
   const status = getDayStatus(dateStr);
-  if(status.type !== 'open') return [];
+  if(status.type !== 'open') return { teacherSlots: [], ownerOnlySlots: [] };
   const skipSlot = originalAbsenceSlotOnDate(studentId, dateStr);
-  const results = [];
+  const teacherSlots = [];
+  const ownerOnlySlots = [];
+  const owner = getOwnerTeacher();
   for(const slot of SLOTS){
     if(skipSlot !== null && Number(slot.id) === skipSlot) continue;
     const roomLoad = countRoomLoadOnDate(dateStr, slot.id, studentId);
@@ -712,63 +729,92 @@ function collectMakeupSlotsOnDate(studentId, dateStr, teacherFilter){
       .map(t=>({teacher:t, used: countTeacherLoadOnDate(t.id, dateStr, slot.id, studentId)}))
       .filter(c=> c.used < S.teacherCapacity)
       .sort((a,b)=> a.used - b.used);
+    const ownerUsed = countTeacherLoadOnDate(owner.id, dateStr, slot.id, studentId);
+    const ownerCand = ownerUsed < S.teacherCapacity
+      ? { teacher: owner, used: ownerUsed }
+      : null;
     if(cands.length > 0){
-      results.push({ date: dateStr, slot, candidates: cands });
+      if(ownerCand) cands.push(ownerCand);
+      teacherSlots.push({ date: dateStr, slot, candidates: cands });
+    }else if(ownerCand){
+      ownerOnlySlots.push({ date: dateStr, slot, candidates: [ownerCand] });
     }
   }
+  return { teacherSlots, ownerOnlySlots };
+}
+
+function flattenMakeupSlotsOnDate(grouped){
+  return grouped.teacherSlots.concat(grouped.ownerOnlySlots);
+}
+
+function collectMakeupCandidatesInRange(afterDateStr, dayCollector, limit){
+  limit = limit || 6;
+  const teacherRows = [];
+  const ownerRows = [];
+  const start = new Date(afterDateStr+'T00:00:00');
+  for(let i=0; i<=45; i++){
+    const d = new Date(start);
+    d.setDate(start.getDate()+i);
+    const dateStr = toDateStr(d.getFullYear(), d.getMonth(), d.getDate());
+    const grouped = dayCollector(dateStr);
+    grouped.teacherSlots.forEach(row=>{
+      if(teacherRows.length < limit) teacherRows.push(row);
+    });
+    grouped.ownerOnlySlots.forEach(row=>{
+      if(ownerRows.length < limit) ownerRows.push(row);
+    });
+    if(teacherRows.length >= limit) break;
+  }
+  if(teacherRows.length >= limit) return teacherRows;
+  const results = teacherRows.slice();
+  ownerRows.forEach(row=>{
+    if(results.length >= limit) return;
+    results.push(row);
+  });
   return results;
 }
 
 function findMakeupCandidatesOnDate(studentId, level, subject, dateStr){
-  return collectMakeupSlotsOnDate(
+  return flattenMakeupSlotsOnDate(collectMakeupSlotsOnDate(
     studentId,
     dateStr,
     t=> t.subjects.some(ts=> ts.level === level && ts.subject === subject),
-  );
+  ));
 }
 
 function findDualMakeupCandidatesOnDate(studentId, level, subjects, dateStr){
   const [subjectA, subjectB] = subjects;
-  return collectMakeupSlotsOnDate(
+  return flattenMakeupSlotsOnDate(collectMakeupSlotsOnDate(
     studentId,
     dateStr,
     t=> teacherTeachesBoth(t, level, subjectA, subjectB),
-  );
+  ));
 }
 
 // 欠席日当日の別コマも含め、対応可能な振替候補を日付順に探す
 function findMakeupCandidates(studentId, level, subject, afterDateStr, limit){
-  limit = limit || 6;
-  const results = [];
-  const start = new Date(afterDateStr+'T00:00:00');
-  for(let i=0; i<=45 && results.length<limit; i++){
-    const d = new Date(start);
-    d.setDate(start.getDate()+i);
-    const dateStr = toDateStr(d.getFullYear(), d.getMonth(), d.getDate());
-    const dayRows = findMakeupCandidatesOnDate(studentId, level, subject, dateStr);
-    for(const row of dayRows){
-      if(results.length >= limit) break;
-      results.push(row);
-    }
-  }
-  return results;
+  return collectMakeupCandidatesInRange(
+    afterDateStr,
+    dateStr=> collectMakeupSlotsOnDate(
+      studentId,
+      dateStr,
+      t=> t.subjects.some(ts=> ts.level === level && ts.subject === subject),
+    ),
+    limit,
+  );
 }
 
 function findDualMakeupCandidates(studentId, level, subjects, afterDateStr, limit){
-  limit = limit || 6;
-  const results = [];
-  const start = new Date(afterDateStr+'T00:00:00');
-  for(let i=0; i<=45 && results.length<limit; i++){
-    const d = new Date(start);
-    d.setDate(start.getDate()+i);
-    const dateStr = toDateStr(d.getFullYear(), d.getMonth(), d.getDate());
-    const dayRows = findDualMakeupCandidatesOnDate(studentId, level, subjects, dateStr);
-    for(const row of dayRows){
-      if(results.length >= limit) break;
-      results.push(row);
-    }
-  }
-  return results;
+  const [subjectA, subjectB] = subjects;
+  return collectMakeupCandidatesInRange(
+    afterDateStr,
+    dateStr=> collectMakeupSlotsOnDate(
+      studentId,
+      dateStr,
+      t=> teacherTeachesBoth(t, level, subjectA, subjectB),
+    ),
+    limit,
+  );
 }
 
 async function confirmMakeup(absenceId, makeupDate, makeupSlot, teacherId){
@@ -785,7 +831,7 @@ async function confirmMakeup(absenceId, makeupDate, makeupSlot, teacherId){
   siblings.forEach((sibling, idx)=>{
     sibling.makeup = {date:makeupDate, slot:makeupSlot, teacherId};
     sibling.status = 'resolved';
-    const teacher = S.teachers.find(t=> t.id === teacherId);
+    const teacher = findTeacher(teacherId);
     const makeupEntry = {
       id: 'asg-'+Date.now()+'-'+idx+'-'+Math.random().toString(36).slice(2,6),
       studentId: sibling.studentId,
@@ -1098,13 +1144,13 @@ function computeDayFinance(dateStr, includeTransport){
   });
   teacherSlotSet.forEach(key=>{
     const tid = key.split('|')[0];
-    const teacher = S.teachers.find(t=>t.id===tid);
+    const teacher = findTeacher(tid);
     lessonCost += teacher ? getTeacherRateForDate(teacher, dateStr) : 0;
   });
   // 交通費（出勤日1回だけ）は別集計にしておき、含める/含めないを切り替えられるようにする
   let transportCost = 0;
   teacherIdsToday.forEach(tid=>{
-    const teacher = S.teachers.find(t=>t.id===tid);
+    const teacher = findTeacher(tid);
     transportCost += teacher ? (teacher.dailyTransport || 0) : 0;
   });
 

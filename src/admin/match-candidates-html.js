@@ -11,6 +11,13 @@ import {
 import { compareCandidateInfo } from './matching-config.js';
 import { renderMatchCandidateList } from './match-candidate-ui.js';
 import { teacherTeachesBoth } from './dual-subject.js';
+import { getOwnerTeacher } from './owner-teacher.js';
+
+function withOwnerCandidate(candidates, student, courseId, subject, day, slot, dateStr){
+  const info = buildCandidateInfo(student.id, courseId, student.level, subject, day, slot, getOwnerTeacher(), dateStr);
+  if(info.full) return candidates;
+  return [...candidates, info];
+}
 
 export function buildMatchCandidatesHtml(student, courseId, subject, day, slot, dateStr, opts = {}){
   const {
@@ -18,16 +25,21 @@ export function buildMatchCandidatesHtml(student, courseId, subject, day, slot, 
     showConfirm = true,
   } = opts;
   const detailYearMonth = dateStr ? dateStr.slice(0, 7) : getActiveYearMonth();
-  const candidates = S.teachers
-    .filter(t=> dateStr ? isTeacherAvailableOnDate(t.id, dateStr, slot) : isAvailable(t, day, slot))
-    .filter(t=> t.subjects.some(ts=> ts.level === student.level && ts.subject === subject))
-    .map(t=> buildCandidateInfo(student.id, courseId, student.level, subject, day, slot, t, dateStr))
-    .sort(compareCandidateInfo);
+  const candidates = withOwnerCandidate(
+    S.teachers
+      .filter(t=> dateStr ? isTeacherAvailableOnDate(t.id, dateStr, slot) : isAvailable(t, day, slot))
+      .filter(t=> t.subjects.some(ts=> ts.level === student.level && ts.subject === subject))
+      .map(t=> buildCandidateInfo(student.id, courseId, student.level, subject, day, slot, t, dateStr))
+      .sort(compareCandidateInfo),
+    student, courseId, subject, day, slot, dateStr,
+  );
 
   const roomUsed = dateStr ? countRoomSlotOnDate(dateStr, slot, student.id) : countRoomSlot(day, slot, student.id, detailYearMonth);
   const roomFull = roomUsed >= S.roomCapacity;
+  const teacherCandidates = candidates.filter(c=> !c.teacher?.isOwner);
+  const ownerOnly = teacherCandidates.length === 0 && candidates.length > 0;
 
-  if(candidates.length === 0){
+  if(teacherCandidates.length === 0){
     const course = student.courses?.find(co=> co.id === courseId);
     const alternatives = course ? findAlternativeSlots(student.level, subject, course.desiredSlots) : [];
     let html = `<div class="match-none">候補講師がいません。</div>`;
@@ -36,6 +48,19 @@ export function buildMatchCandidatesHtml(student, courseId, subject, day, slot, 
       alternatives.forEach(alt=>{
         const altSlot = SLOTS.find(sl=> sl.id === alt.slot);
         html += `<div class="matching-panel-alt-item">${alt.day}曜 ${altSlot?.label || ''}（${altSlot?.time || ''}）</div>`;
+      });
+    }
+    if(ownerOnly && !roomFull){
+      html += renderMatchCandidateList(candidates, {
+        studentId: student.id,
+        courseId,
+        subject,
+        day,
+        slot,
+        dateStr,
+        btnClass,
+        roomFull,
+        showConfirm,
       });
     }
     return html;
@@ -67,17 +92,37 @@ export function buildDualMatchCandidatesHtml(student, dualPair, day, slot, dateS
   const courseId = dualPair.entries[0].course.id;
   const detailYearMonth = dateStr ? dateStr.slice(0, 7) : getActiveYearMonth();
 
-  const candidates = S.teachers
-    .filter(t=> dateStr ? isTeacherAvailableOnDate(t.id, dateStr, slot) : isAvailable(t, day, slot))
-    .filter(t=> teacherTeachesBoth(t, student.level, subjectA, subjectB))
-    .map(t=> buildCandidateInfo(student.id, courseId, student.level, subjectA, day, slot, t, dateStr))
-    .sort(compareCandidateInfo);
+  const candidates = withOwnerCandidate(
+    S.teachers
+      .filter(t=> dateStr ? isTeacherAvailableOnDate(t.id, dateStr, slot) : isAvailable(t, day, slot))
+      .filter(t=> teacherTeachesBoth(t, student.level, subjectA, subjectB))
+      .map(t=> buildCandidateInfo(student.id, courseId, student.level, subjectA, day, slot, t, dateStr))
+      .sort(compareCandidateInfo),
+    student, courseId, subjectA, day, slot, dateStr,
+  );
 
   const roomUsed = dateStr ? countRoomSlotOnDate(dateStr, slot, student.id) : countRoomSlot(day, slot, student.id, detailYearMonth);
   const roomFull = roomUsed >= S.roomCapacity;
+  const teacherCandidates = candidates.filter(c=> !c.teacher?.isOwner);
+  const ownerOnly = teacherCandidates.length === 0 && candidates.length > 0;
 
-  if(candidates.length === 0){
+  if(teacherCandidates.length === 0){
     let html = `<div class="match-none">${subjectA}と${subjectB}の両方を教えられる候補講師がいません。</div>`;
+    if(ownerOnly && !roomFull){
+      html += renderMatchCandidateList(candidates, {
+        studentId: student.id,
+        courseId,
+        subject: `${subjectA}・${subjectB}`,
+        subjects: dualPair.subjects,
+        day,
+        slot,
+        dateStr,
+        btnClass,
+        roomFull,
+        showConfirm,
+        dual: true,
+      });
+    }
     return html;
   }
 

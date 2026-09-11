@@ -13,6 +13,7 @@ import {
   buildCalAlertSubjectTag, buildCalAlertTeacherHead, buildCalAlertWhenPill, calAlertDateParts,
 } from '../shared/cal-alert-row.js';
 import { countSlotAssignmentUnits, findDualPairAtSlot, buildDualSubjectTagsHtml } from './dual-subject.js';
+import { findTeacher, isOwnerTeacher, isOwnerTeacherId } from './owner-teacher.js';
 
 // 講師スケジュール（月次提出）タブ
 // =====================================================================
@@ -482,6 +483,7 @@ function getPreferredPairsForTeacher(teacherId){
     .filter(Boolean);
 }
 function addPreferredPair(studentId, courseId, teacherId){
+  if(isOwnerTeacherId(teacherId)) return;
   if(isPreferredPair(studentId, courseId, teacherId)) return;
   S.preferredPairs.push({id:'pref-'+Date.now()+'-'+Math.random().toString(36).slice(2,6), studentId, courseId, teacherId});
 }
@@ -495,6 +497,7 @@ function removePreferredPairFor(studentId, courseId, teacherId){
   if(hit) removePreferredPair(hit.id);
 }
 function isPreferredSubjectForTeacher(teacher, level, subject){
+  if(isOwnerTeacher(teacher) || !teacher?.subjects) return false;
   const s = teacher.subjects.find(ts=>ts.level===level && ts.subject===subject);
   return !!(s && s.preferred);
 }
@@ -750,27 +753,28 @@ async function issueAssignmentApproval(studentId, courseId, subject, day, slot, 
   }
 }
 
-// 教室長が選んだ担当は、まず仮決めとして保存する（送信後に講師承認）
+// 教室長が選んだ担当は、まず仮決めとして保存する（送信後に講師承認）。教室長自身は仮決めせず確定する。
 function confirmAssignment(studentId, courseId, subject, day, slot, teacherId, source, opts){
   source = source || 'manual';
   opts = opts || {};
   const dateStr = opts.dateStr || null;
   const recurring = !!opts.recurring;
-  const teacher = S.teachers.find(t=>t.id===teacherId);
+  const teacher = findTeacher(teacherId);
   if(!teacher) return {ok:false, msg:'講師が見つかりません。'};
   const student = S.students.find(s=>s.id===studentId);
   if(dateStr && student && !isOnOrAfterDate(dateStr, student.courseStartDate)){
     return {ok:false, msg:'受講開始日より前の日付には組めません。'};
   }
+  const owner = isOwnerTeacher(teacher);
 
   if(dateStr && !recurring){
-    if(!isTeacherAvailableOnDate(teacherId, dateStr, slot)){
+    if(!owner && !isTeacherAvailableOnDate(teacherId, dateStr, slot)){
       return {ok:false, msg:`${teacher.name}先生はこの日のシフト未登録です。`};
     }
     const teacherUsed = countTeacherSlotOnDate(teacherId, dateStr, slot, studentId);
     if(teacherUsed >= S.teacherCapacity){
       const slotLabel = SLOTS.find(s=>s.id===slot)?.label || slot+'講';
-      return {ok:false, msg:`${teacher.name}先生は${dateStr} ${slotLabel}の定員（${S.teacherCapacity}人）に達しています。`};
+      return {ok:false, msg:`${owner ? teacher.name : teacher.name+'先生'}は${dateStr} ${slotLabel}の定員（${S.teacherCapacity}人）に達しています。`};
     }
     const roomUsed = countRoomSlotOnDate(dateStr, slot, studentId);
     if(roomUsed >= S.roomCapacity){
@@ -781,7 +785,7 @@ function confirmAssignment(studentId, courseId, subject, day, slot, teacherId, s
   }else{
     const teacherUsed = countTeacherSlot(teacherId, day, slot, studentId);
     if(teacherUsed >= S.teacherCapacity){
-      return {ok:false, msg:`${teacher.name}先生は${day}曜${SLOTS.find(s=>s.id===slot).label}の定員（${S.teacherCapacity}人）に達しています。`};
+      return {ok:false, msg:`${owner ? teacher.name : teacher.name+'先生'}は${day}曜${SLOTS.find(s=>s.id===slot).label}の定員（${S.teacherCapacity}人）に達しています。`};
     }
     const roomUsed = countRoomSlot(day, slot, studentId);
     if(roomUsed >= S.roomCapacity){
@@ -796,6 +800,10 @@ function confirmAssignment(studentId, courseId, subject, day, slot, teacherId, s
   };
   if(dateStr && !recurring) entry.oneTimeDate = dateStr;
 
+  if(owner){
+    S.assignments.push(entry);
+    return {ok:true, draft:false, pending:false};
+  }
   S.draftAssignments.push(entry);
   return {ok:true, draft:true, pending:false};
 }
@@ -804,30 +812,34 @@ function confirmDualAssignment(studentId, dualPair, day, slot, teacherId, source
   source = source || 'manual';
   opts = opts || {};
   const dateStr = opts.dateStr || null;
-  const teacher = S.teachers.find(t=> t.id === teacherId);
+  const teacher = findTeacher(teacherId);
   if(!teacher) return { ok: false, msg: '講師が見つかりません。' };
   const student = S.students.find(s=> s.id === studentId);
   if(!student) return { ok: false, msg: '生徒が見つかりません。' };
   if(dateStr && !isOnOrAfterDate(dateStr, student.courseStartDate)){
     return { ok: false, msg: '受講開始日より前の日付には組めません。' };
   }
+  const owner = isOwnerTeacher(teacher);
+  const teacherLabel = owner ? teacher.name : `${teacher.name}先生`;
   const courses = dualPair.entries.map(e=> e.course);
   if(courses.length !== 2) return { ok: false, msg: '2教科の登録が見つかりません。' };
 
-  for(const course of courses){
-    if(!teacher.subjects.some(ts=> ts.level === student.level && ts.subject === course.subject)){
-      return { ok: false, msg: `${teacher.name}先生は${course.subject}と${courses.find(c=> c.id !== course.id)?.subject || 'もう1教科'}の両方を教えられません。` };
+  if(!owner){
+    for(const course of courses){
+      if(!teacher.subjects.some(ts=> ts.level === student.level && ts.subject === course.subject)){
+        return { ok: false, msg: `${teacherLabel}は${course.subject}と${courses.find(c=> c.id !== course.id)?.subject || 'もう1教科'}の両方を教えられません。` };
+      }
     }
   }
 
   if(dateStr){
-    if(!isTeacherAvailableOnDate(teacherId, dateStr, slot)){
-      return { ok: false, msg: `${teacher.name}先生はこの日のシフト未登録です。` };
+    if(!owner && !isTeacherAvailableOnDate(teacherId, dateStr, slot)){
+      return { ok: false, msg: `${teacherLabel}はこの日のシフト未登録です。` };
     }
     const teacherUsed = countTeacherSlotOnDate(teacherId, dateStr, slot, studentId);
     if(teacherUsed >= S.teacherCapacity){
       const slotLabel = SLOTS.find(s=> s.id === slot)?.label || `${slot}講`;
-      return { ok: false, msg: `${teacher.name}先生は${dateStr} ${slotLabel}の定員（${S.teacherCapacity}人）に達しています。` };
+      return { ok: false, msg: `${teacherLabel}は${dateStr} ${slotLabel}の定員（${S.teacherCapacity}人）に達しています。` };
     }
     const roomUsed = countRoomSlotOnDate(dateStr, slot, studentId);
     if(roomUsed >= S.roomCapacity){
@@ -840,7 +852,7 @@ function confirmDualAssignment(studentId, dualPair, day, slot, teacherId, source
   }else{
     const teacherUsed = countTeacherSlot(teacherId, day, slot, studentId);
     if(teacherUsed >= S.teacherCapacity){
-      return { ok: false, msg: `${teacher.name}先生は${day}曜${SLOTS.find(s=> s.id === slot).label}の定員（${S.teacherCapacity}人）に達しています。` };
+      return { ok: false, msg: `${teacherLabel}は${day}曜${SLOTS.find(s=> s.id === slot).label}の定員（${S.teacherCapacity}人）に達しています。` };
     }
     const roomUsed = countRoomSlot(day, slot, studentId);
     if(roomUsed >= S.roomCapacity){
@@ -852,15 +864,16 @@ function confirmDualAssignment(studentId, dualPair, day, slot, teacherId, source
   }
 
   const dualGroupId = dualPair.dualGroupId;
+  const list = owner ? S.assignments : S.draftAssignments;
   courses.forEach(course=>{
     const entry = {
       id: 'asg-' + Date.now() + '-' + Math.random().toString(36).slice(2, 6),
       studentId, courseId: course.id, subject: course.subject, day, slot, teacherId, source, dualGroupId,
     };
     if(dateStr) entry.oneTimeDate = dateStr;
-    S.draftAssignments.push(entry);
+    list.push(entry);
   });
-  return { ok: true, draft: true, pending: false, dual: true, subjects: courses.map(c=> c.subject) };
+  return { ok: true, draft: !owner, pending: false, dual: true, subjects: courses.map(c=> c.subject) };
 }
 
 function cancelDualAssignment(studentId, dualPair, day, slot, dateStr){

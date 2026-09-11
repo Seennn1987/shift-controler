@@ -11,6 +11,7 @@ import { renderMatching } from './matching.js';
 import { subjectColor } from './schedule-core.js';
 import { findEffectiveAssignment, renderApprovalStatus, renderTeacherScheduleTab } from './teacher-schedule-tab.js';
 import { findDualPairAtSlot, collapseDualAssignmentDisplayRows, countSlotAssignmentUnits, formatDualSubjectLabel } from './dual-subject.js';
+import { findTeacher } from './owner-teacher.js';
 
 // カレンダー（トップページ・TimeTree風シンプルUI）
 // =====================================================================
@@ -75,7 +76,7 @@ function studentRowToCalLine(r, student){
     : (SUBJECT_ABBR[r.course.subject] || r.course.subject.slice(0, 1));
   const sc = subjectColor(student.level, isDual ? r.courses[0].subject : r.course.subject);
   if(r.isMakeupTarget){
-    const teacher = S.teachers.find(t=>t.id===r.absence.makeup.teacherId);
+    const teacher = findTeacher(r.absence.makeup.teacherId);
     const waiting = r.isPending ? '(振替・待)' : '(振替)';
     return {text:`${subAbbr}:${teacher?shortName(teacher.name):'?'}${waiting}`, cls: r.isPending ? 'pending' : 'makeup', bg:sc.bg, color:sc.text};
   }
@@ -84,16 +85,16 @@ function studentRowToCalLine(r, student){
   }
   if(r.existing){
     if(r.isPending){
-      const teacher = S.teachers.find(t=>t.id===r.existing.teacherId);
+      const teacher = findTeacher(r.existing.teacherId);
       const tName = teacher ? shortName(teacher.name) : '?';
       return {text:`${subAbbr}:${tName}(待)`, cls:'pending'};
     }
     if(r.isDraft){
-      const teacher = S.teachers.find(t=>t.id===r.existing.teacherId);
+      const teacher = findTeacher(r.existing.teacherId);
       const tName = teacher ? shortName(teacher.name) : '?';
       return {text:`${subAbbr}:${tName}(仮)`, cls:'draft'};
     }
-    const teacher = S.teachers.find(t=>t.id===r.existing.teacherId);
+    const teacher = findTeacher(r.existing.teacherId);
     return {text:`${subAbbr}:${teacher?shortName(teacher.name):'?'}`, cls:'confirmed', bg:sc.bg, color:sc.text};
   }
   return {text:`${subAbbr}:講師なし`, cls:'pending'};
@@ -134,7 +135,7 @@ function buildDayCellLines(dateStr, filterStudent){
         text = `${subAbbr}:${student?shortName(student.name):'?'}(仮)`;
         cls = 'draft';
       }else if(a.pending){
-        const teacher = S.teachers.find(t=>t.id===a.teacherId);
+        const teacher = findTeacher(a.teacherId);
         text = `${subAbbr}:${student?shortName(student.name):'?'}(${teacher?shortName(teacher.name):'?'}待)`;
         cls = 'pending';
       }else{

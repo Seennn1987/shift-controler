@@ -11,6 +11,7 @@ import {
   setupSearchCombobox,
 } from './search-combobox.js';
 import { S } from './state.js';
+import { teachersForCalendarFilter } from './owner-teacher.js';
 
 let initialized = false;
 
@@ -60,7 +61,7 @@ export function refreshCalFilterCombobox(){
   if(!cur && S.matchingPanelOpen && S.matchingPanelStudentId){
     cur = `s:${S.matchingPanelStudentId}`;
   }
-  const groups = calFilterGroups(S.students, S.teachers);
+  const groups = calFilterGroups(S.students, teachersForCalendarFilter());
   const hasOption = !cur || groups.some(g=> g.items.some(it=> it.value === cur));
   if(!hasOption && cur){
     S.calFilterStudentId = '';

@@ -40,6 +40,7 @@ import { mountWithdrawConfirm } from './withdraw-pending-ui.js';
 import { mountInlineConfirm, showInlineNotice } from '../shared/inline-confirm.js';
 import { analyzePendingMatchSlot } from './match-slot-status.js';
 import { buildDualSubjectTagsHtml, findDualPairForStudent, collapseDualAssignmentDisplayRows, countSlotAssignmentUnits } from './dual-subject.js';
+import { findTeacher } from './owner-teacher.js';
 
 function dualMakeupDataAttrs(isDual, subjects){
   return isDual && subjects?.length === 2
@@ -87,7 +88,7 @@ function buildAbsenceStatusBoxHtml(r, student, dateStr, { showStudentName = fals
 
   if(r.absence.status === 'resolved' && r.absence.makeup){
     const mDate = new Date(r.absence.makeup.date + 'T00:00:00');
-    const teacher = S.teachers.find(t=> t.id === r.absence.makeup.teacherId);
+    const teacher = findTeacher(r.absence.makeup.teacherId);
     return `<div class="absence-box">
       <span class="cb-label absence-label">欠席</span>
       ${subjectTag}
@@ -308,7 +309,7 @@ export function renderDayDetailPanel(container, dateStr){
       const dualAttr = isDual ? ' data-dual="1"' : '';
 
       if(r.isMakeupTarget){
-        const teacher = S.teachers.find(t=> t.id === r.absence.makeup.teacherId);
+        const teacher = findTeacher(r.absence.makeup.teacherId);
         const waitingLabel = r.isPending ? '振替（承認待ち）' : '振替授業';
         html += `<div class="match-slot">
           <div class="ms-slot-label">${r.slot.label}（${r.slot.time}）</div>
@@ -332,7 +333,7 @@ export function renderDayDetailPanel(container, dateStr){
       }
 
       if(r.existing){
-        const teacher = S.teachers.find(t=> t.id === r.existing.teacherId);
+        const teacher = findTeacher(r.existing.teacherId);
         const used = teacher ? countTeacherSlotOnDate(teacher.id, dateStr, r.slot.id, null) : 0;
         const autoBadge = r.existing.source === 'auto' ? '<span class="auto-badge">自動</span>' : '';
         if(r.isDraft){
@@ -497,7 +498,7 @@ export function renderDayDetailPanel(container, dateStr){
         slotByTeacher[a.teacherId].push(a);
       });
       Object.keys(slotByTeacher).forEach(teacherId=>{
-        const teacher = S.teachers.find(t=> t.id === teacherId);
+        const teacher = findTeacher(teacherId);
         const entries = slotByTeacher[teacherId];
         const loadCount = countSlotAssignmentUnits(entries.map(e=>({
           studentId: e.studentId,
@@ -596,7 +597,7 @@ export function bindDayDetailEvents(container, dateStr, onRefresh){
             ym,
             btn.dataset.date || dateStr || null,
           );
-          return S.teachers.find(t=> t.id === eff?.entry?.teacherId)?.name || '';
+          return findTeacher(eff?.entry?.teacherId)?.name || '';
         })(),
         onConfirm: async ()=>{
           const result = await withdrawPendingAssignment(

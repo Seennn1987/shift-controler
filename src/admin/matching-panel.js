@@ -9,6 +9,7 @@ import { countStudentMonthAutoDrafts, expandShortageBar, fillStudentFormForEdit,
 import { renderTeacherList } from './teachers.js';
 import { switchCalMode, switchView, renderCalendarWeek } from './finance-ui.js';
 import { getDateSlotState, gradeLabel, subjectColor, teacherHonorific } from './schedule-core.js';
+import { findTeacher, isOwnerTeacher, isOwnerTeacherId } from './owner-teacher.js';
 import { scheduleSave, scheduleSyncTeacherAssignments } from './students-persistence.js';
 import { bindDayDetailEvents, getDayDetailTitle, renderDayDetailPanel } from './day-detail-panel.js';
 import { buildAbsentTeacherFollowupHtml, bindAbsentTeacherFollowup } from './teacher-absence-panel.js';
@@ -304,6 +305,7 @@ function highlightSelectedDaySection(dateStr){
 }
 
 function shouldOfferPrefPair(studentId, courseId, teacherId){
+  if(isOwnerTeacherId(teacherId)) return false;
   if(isPreferredPair(studentId, courseId, teacherId)) return false;
   const existing = S.preferredPairs.find(p=> p.studentId === studentId && p.courseId === courseId);
   if(existing) return false;
@@ -457,8 +459,11 @@ function cancelRowDraftOrAssignment(btn){
   cancelAssignment(btn.dataset.student, btn.dataset.course, btn.dataset.day, Number(btn.dataset.slot), dateStr);
 }
 
-function buildAssignmentFlashMessage({slotLabel, subject, teacherName, draft, pending}){
+function buildAssignmentFlashMessage({slotLabel, subject, teacherName, draft, pending, owner}){
   const detail = `${slotLabel || ''}（${subject}）`;
+  if(owner){
+    return `✓ ${detail}を教室長で確定しました。`;
+  }
   if(draft){
     return `✓ ${detail}を${teacherName}先生で下書き保存しました。「講師にスケジュールを送信」で依頼できます。`;
   }
@@ -501,8 +506,19 @@ function resolvePendingTeacherName(btn, dateStr){
     ym,
     btn.dataset.date || dateStr || null,
   );
-  const teacher = S.teachers.find(t=> t.id === eff?.entry?.teacherId);
+  const teacher = findTeacher(eff?.entry?.teacherId);
   return teacher?.name || '';
+}
+
+function bindUnconfirmButtons(root){
+  root.querySelectorAll('.unconfirm-btn').forEach(btn=>{
+    btn.addEventListener('click', ()=>{
+      cancelRowDraftOrAssignment(btn);
+      scheduleSave();
+      matchingPanelFlashMsg = '確定を解除しました。';
+      afterMatchingChange(btn.dataset.date || null);
+    });
+  });
 }
 
 function bindChangeTeacherButtons(root){
@@ -539,7 +555,7 @@ function bindChangeTeacherButtons(root){
 function bindConfirmButtons(root){
   root.querySelectorAll('.mp-confirm-btn').forEach(btn=>{
     btn.addEventListener('click', ()=>{
-      const teacher = S.teachers.find(t=> t.id === btn.dataset.teacher);
+      const teacher = findTeacher(btn.dataset.teacher);
       let result;
       if(btn.dataset.dual === '1'){
         const student = S.students.find(s=> s.id === btn.dataset.student);
@@ -592,8 +608,11 @@ function bindConfirmButtons(root){
         teacherName: ctx.teacherName,
         draft: result.draft,
         pending: result.pending,
+        owner: isOwnerTeacher(teacher),
       });
-      const future = countFutureWeeksForTeacher(ctx.teacherId, ctx.day, ctx.slot, ctx.dateStr);
+      const future = isOwnerTeacher(teacher)
+        ? { dateCount: 0, monthLabels: [] }
+        : countFutureWeeksForTeacher(ctx.teacherId, ctx.day, ctx.slot, ctx.dateStr);
       matchingPanelFutureOffer = future.dateCount > 0 ? { ...ctx, ...future } : null;
       matchingPanelPrefPairOffer = shouldOfferPrefPair(ctx.studentId, ctx.courseId, ctx.teacherId)
         ? { ...ctx }
@@ -636,7 +655,7 @@ function buildMatchingSlotCard(r, student, dateStr, weekday){
   const isDual = !!r.dualPair;
 
   if(r.isMakeupTarget){
-    const teacher = S.teachers.find(t=> t.id === r.absence.makeup.teacherId);
+    const teacher = findTeacher(r.absence.makeup.teacherId);
     const waiting = r.isPending;
     return `<div class="match-slot mp-slot-readonly">
       <div class="ms-slot-label">${r.slot.label}（${r.slot.time}）</div>
@@ -660,7 +679,7 @@ function buildMatchingSlotCard(r, student, dateStr, weekday){
   }
 
   if(r.existing){
-    const teacher = S.teachers.find(t=> t.id === r.existing.teacherId);
+    const teacher = findTeacher(r.existing.teacherId);
     const autoBadge = r.existing.source === 'auto' ? '<span class="auto-badge">自動</span>' : '';
     if(r.isDraft){
       return buildDraftSlotCardHtml({
@@ -697,13 +716,16 @@ function buildMatchingSlotCard(r, student, dateStr, weekday){
     }
     const used = teacher ? countTeacherSlotOnDate(teacher.id, dateStr, r.slot.id, null) : 0;
     const prefHtml = buildPrefPairActionHtmlForTeacher(student.id, r.course.id, r.existing.teacherId);
+    const ownerUnconfirm = isOwnerTeacher(teacher)
+      ? `<button type="button" class="unconfirm-btn" data-student="${student.id}" data-course="${r.course.id}" data-day="${weekday}" data-slot="${r.slot.id}" data-date="${dateStr}"${isDual ? ' data-dual="1"' : ''}>確定を解除</button>`
+      : '';
     return `<div class="match-slot mp-slot-readonly">
       <div class="ms-slot-label">${r.slot.label}（${r.slot.time}）</div>
       <div class="confirmed-box">
         <span class="cb-label">確定</span>
         ${subjectTag}
         <span class="cb-teacher">講師：${teacherHonorific(teacher)}（${used}/${S.teacherCapacity}）</span>
-        <div class="confirmed-box-actions">${prefHtml}</div>
+        <div class="confirmed-box-actions">${prefHtml}${ownerUnconfirm}</div>
       </div>
     </div>`;
   }
@@ -868,6 +890,7 @@ function renderStudentPeriodSlots(studentId, scrollToDateStr){
   bindBackToMenu(body);
   bindConfirmButtons(body);
   bindChangeTeacherButtons(body);
+  bindUnconfirmButtons(body);
   bindPrefPairButtons(body, ()=> afterMatchingChange(S.calSelectedDate));
   bindPrefPairOffer(body);
   bindFutureWeeksOffer(body);

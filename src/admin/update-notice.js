@@ -4,6 +4,12 @@ const STORAGE_KEY = 'pitacoma_admin_update_notice_seen';
 
 const UPDATES = [
   {
+    id: '2026-09-12-owner-teacher',
+    date: '2026年9月12日',
+    title: '教室長が、自分で授業を持てる',
+    body: '講師登録は不要です。コマを組むときの候補の一番下に「教室長」が出ます。「この講師に依頼」を押すと、その場で確定します。費用は0円で、自動で組むときは使いません。やめるときは今までどおり「確定を解除」です。',
+  },
+  {
     id: '2026-09-12-free-lessons',
     date: '2026年9月12日',
     title: '最初◯コマ無料を、生徒登録で付けられる',

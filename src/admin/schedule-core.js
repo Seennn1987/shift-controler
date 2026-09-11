@@ -3,6 +3,7 @@ import { HOLIDAYS_JP } from '../shared/holidays.js';
 import { pad2, daysInYearMonth, toDateStr, getTodayStr } from '../shared/date-utils.js';
 import { firebaseConfig, fbAuth, fbDb, STORAGE_KEY, getSecondaryAuth, S } from './state.js';
 import { shortName, getDayStatus } from './calendar.js';
+import { isOwnerTeacher } from './owner-teacher.js';
 
 // ---- 講師スケジュール（月次提出・実日付ベース） ----
 // teacher.availability（曜日パターン）は廃止し、月ごとに実際の日付で提出する方式に変更。
@@ -219,6 +220,7 @@ function gradeLabel(student){
 // 講師名を「姓＋先生」の形式にする（例：鈴木 先生）。フルネームは出さない
 function teacherHonorific(teacher){
   if(!teacher) return '(削除された講師)';
+  if(isOwnerTeacher(teacher)) return teacher.name;
   return `${shortName(teacher.name)} 先生`;
 }
 

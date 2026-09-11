@@ -12,7 +12,7 @@ import { approveCancellationRequest, approveCancellationRequests, rejectCancella
 import { renderTeacherList } from './teachers.js';
 import { assignmentAppliesOnDate, approvalAppliesInMonth, buildCandidateInfo, confirmAssignment, confirmDualAssignment, cancelAllDrafts, cancelDraftAuto, findEffectiveAssignment, getActiveYearMonth, getPreferredTeachersForCourse, loadAssignmentApprovals, loadDismissedApprovalIds, loadPendingCancellationRequests, loadPendingChangeRequests, openMatchingForApprovalTicket, renderApprovalDashboardItem, resolveScheduleChangeRequest, resolveScheduleChangeRequests, saveDismissedApprovalIds, sendDraftAssignments, teacherHasSubmittedMonth, revokePendingApprovalTicketsForStudent, revokePendingCancellationRequestsForStudent, revokePendingCancellationForSlot, dropAssignmentsForRemovedDesiredSlots, syncStudentIdentityOnTickets } from './teacher-schedule-tab.js';
 import { findDualPairAtSlot, teacherTeachesBoth, buildDualSubjectTagsHtml } from './dual-subject.js';
-import { compareCandidateInfo, getMatchingPriority, MATCHING_FACTOR_META } from './matching-config.js';
+import { findTeacher } from './owner-teacher.js';
 import { mountInlineConfirm, showActiveTabNotice } from '../shared/inline-confirm.js';
 import { dismissAppConfirmDialog, runAppConfirmDialog } from '../shared/app-confirm-dialog.js';
 import {
@@ -754,7 +754,7 @@ function collectUpcomingDraftsFlat(){
       }
       const slot = SLOTS.find(sl=> sl.id === a.slot);
       if(!slot) return;
-      const teacher = S.teachers.find(t=> t.id === a.teacherId);
+      const teacher = findTeacher(a.teacherId);
       flat.push({ dateStr, student, course, slot, teacher, assignment: a, subjects });
     });
   }
@@ -791,7 +791,7 @@ function collectUpcomingPendingFlat(){
       }
       const slot = SLOTS.find(sl=> sl.id === a.slot);
       if(!slot) return;
-      const teacher = S.teachers.find(t=> t.id === a.teacherId);
+      const teacher = findTeacher(a.teacherId);
       flat.push({ dateStr, student, course, slot, teacher, assignment: a, subjects });
     });
   }
@@ -1292,7 +1292,7 @@ function renderUnsubmittedTeacherItem(teacher){
 }
 
 function renderShiftRequestDashboardItem(req){
-  const teacher = S.teachers.find(t=> t.id === req.teacherId);
+  const teacher = findTeacher(req.teacherId);
   const teacherName = teacher ? teacher.name : '(削除された講師)';
   const slot = Number(req.slot);
   const slotLabel = SLOTS.find(s=> s.id === slot)?.label || `${slot}講`;
@@ -1317,7 +1317,7 @@ function renderShiftRequestDashboardItem(req){
 }
 
 function renderAbsenceDashboardItem(req){
-  const teacher = S.teachers.find(t=> t.id === req.teacherId);
+  const teacher = findTeacher(req.teacherId);
   const teacherName = teacher ? teacher.name : '(削除された講師)';
   const slot = Number(req.slot);
   const slotLabel = SLOTS.find(s=> s.id === slot)?.label || `${slot}講`;
@@ -1578,7 +1578,7 @@ async function renderShortageDashboard(){
   const pendingActionCount = pendingCount + rejectedCount;
   const pendingScrollHtml = [
     ...rejectedInMonth.map(a=>{
-      const teacher = S.teachers.find(t=> t.id === a.teacherId);
+      const teacher = findTeacher(a.teacherId);
       return renderApprovalDashboardItem(a, teacher ? teacher.name : '(削除された講師)', 'rejected', { action: true });
     }),
     ...pendingItems.map(renderPendingDashboardItem),
@@ -1586,7 +1586,7 @@ async function renderShortageDashboard(){
 
   const approvedScrollHtml = approvedRecent.length
     ? approvedRecent.map(a=>{
-        const teacher = S.teachers.find(t=> t.id === a.teacherId);
+        const teacher = findTeacher(a.teacherId);
         return renderApprovalDashboardItem(a, teacher ? teacher.name : '(削除された講師)', 'approved');
       }).join('')
     : '';
@@ -1746,7 +1746,7 @@ function jumpToCalendarDay(dateStr){
 }
 
 function jumpToCalendarForTeacher(teacherId, dateStr){
-  const teacher = S.teachers.find(t=> t.id === teacherId);
+  const teacher = findTeacher(teacherId);
   if(!teacher || !dateStr) return;
   const d = new Date(`${dateStr}T00:00:00`);
   S.calYear = d.getFullYear();

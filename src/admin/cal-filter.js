@@ -1,4 +1,5 @@
 import { S } from './state.js';
+import { findTeacher } from './owner-teacher.js';
 
 let uiSyncHandler = null;
 
@@ -57,7 +58,7 @@ export function resolveFilterStudent(){
 
 export function resolveFilterTeacher(){
   if(S.calFilterTeacherId){
-    return S.teachers.find(t=> t.id === S.calFilterTeacherId) || null;
+    return findTeacher(S.calFilterTeacherId) || null;
   }
   return null;
 }

@@ -1,6 +1,7 @@
 /** 小学生・90分2教科（45分×2）のデータ操作 */
 
 import { SUBJECT_ABBR } from '../shared/constants.js';
+import { isOwnerTeacher } from './owner-teacher.js';
 
 export const ELEMENTARY_DUAL_LEVEL = '小学';
 
@@ -131,6 +132,7 @@ export function findDualPairForStudent(student, day, slot){
 
 export function teacherTeachesBoth(teacher, level, subjectA, subjectB){
   if(!teacher || !subjectA || !subjectB || subjectA === subjectB) return false;
+  if(isOwnerTeacher(teacher)) return true;
   return teacher.subjects.some(ts=> ts.level === level && ts.subject === subjectA) &&
     teacher.subjects.some(ts=> ts.level === level && ts.subject === subjectB);
 }

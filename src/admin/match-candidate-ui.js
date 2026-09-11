@@ -1,6 +1,7 @@
 import { S } from './state.js';
 import { buildCandidateBadgeLabels } from './matching-config.js';
 import { isPreferredPair } from './teacher-schedule-tab.js';
+import { isOwnerTeacher } from './owner-teacher.js';
 
 function escapeAttr(v){
   return String(v ?? '').replace(/"/g, '&quot;');
@@ -8,7 +9,7 @@ function escapeAttr(v){
 
 export function buildPrefPairActionHtmlForTeacher(studentId, courseId, teacherId, opts = {}){
   const { allowSet = true } = opts;
-  if(!teacherId) return '';
+  if(!teacherId || isOwnerTeacher(teacherId)) return '';
   const common = `data-student="${escapeAttr(studentId)}" data-course="${escapeAttr(courseId)}" data-teacher="${escapeAttr(teacherId)}"`;
   if(isPreferredPair(studentId, courseId, teacherId)){
     return `<span class="pref-pair-assigned-badge">担当生徒</span>
@@ -19,6 +20,7 @@ export function buildPrefPairActionHtmlForTeacher(studentId, courseId, teacherId
 }
 
 function buildPrefPairActionHtml(cand, studentId, courseId, allowSet){
+  if(isOwnerTeacher(cand.teacher)) return '';
   return buildPrefPairActionHtmlForTeacher(studentId, courseId, cand.teacher.id, { allowSet });
 }
 

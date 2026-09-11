@@ -12,6 +12,7 @@ import {
   resolveSlotViaStudentAbsence,
 } from './absences.js';
 import { teacherHonorific } from './schedule-core.js';
+import { findTeacher } from './owner-teacher.js';
 import { mountInlineConfirm } from '../shared/inline-confirm.js';
 
 function candAreaId(teacherId, slotId, studentId){
@@ -50,7 +51,7 @@ export function bindAbsentTeacherFollowup(container, onRefresh){
       }else{
         candidates.forEach(c=>{
           html += `<div class="match-cand">
-            <span>${c.name}先生</span>
+            <span>${teacherHonorific(c)}</span>
             <button type="button" class="confirm-makeup-btn" data-confirm-sub="${slotId}" data-confirm-student="${studentId}" data-sub-teacher="${c.id}" data-teacher="${teacherId}" data-date="${dateStr}">この先生に代講してもらう</button>
           </div>`;
         });
@@ -100,7 +101,7 @@ function bindAbsentTeacherFollowupActions(root, onRefresh){
 
 export function renderTeacherAbsencePanel(container, teacherId, dateStr, onRefresh){
   if(!container) return;
-  const teacher = S.teachers.find(t=> t.id === teacherId);
+  const teacher = findTeacher(teacherId);
   if(!teacher){
     container.innerHTML = '<div class="cal-empty-day">講師が見つかりません。</div>';
     return;
@@ -130,8 +131,8 @@ export function renderTeacherAbsencePanel(container, teacherId, dateStr, onRefre
       );
       let stStatusHtml = '';
       if(sub){
-        const subTeacher = S.teachers.find(t=> t.id === sub.substituteTeacherId);
-        stStatusHtml = `<span class="ta-resolved-inline">代講：${subTeacher ? subTeacher.name : '?'}先生 <button type="button" class="cancel-absence-btn" data-cancel-sub="${slotId}" data-cancel-student="${e.studentId}">取り消す</button></span>`;
+        const subTeacher = findTeacher(sub.substituteTeacherId);
+        stStatusHtml = `<span class="ta-resolved-inline">代講：${teacherHonorific(subTeacher)} <button type="button" class="cancel-absence-btn" data-cancel-sub="${slotId}" data-cancel-student="${e.studentId}">取り消す</button></span>`;
       }else if(isTeacherAbsentForStudent(teacherId, dateStr, slotId, e.studentId) && !isMarked){
         stStatusHtml = `<span class="ta-resolved-inline"><button type="button" class="cancel-absence-btn" data-cancel-absence-slot="${slotId}" data-cancel-absence-student="${e.studentId}">取り消す</button></span>`;
       }
@@ -245,7 +246,7 @@ export function renderTeacherAbsencePanel(container, teacherId, dateStr, onRefre
       }else{
         candidates.forEach(c=>{
           html += `<div class="match-cand">
-            <span>${c.name}先生</span>
+            <span>${teacherHonorific(c)}</span>
             <button type="button" class="confirm-makeup-btn" data-confirm-sub="${slotId}" data-confirm-student="${studentId}" data-sub-teacher="${c.id}">この先生に代講してもらう</button>
           </div>`;
         });
