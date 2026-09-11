@@ -653,12 +653,16 @@ function switchView(name){
   document.getElementById('view-teacherSchedule').classList.toggle('active', name==='teacherSchedule');
   document.getElementById('view-student').classList.toggle('active', name==='student');
   document.getElementById('view-finance').classList.toggle('active', name==='finance');
+  document.getElementById('view-payroll').classList.toggle('active', name==='payroll');
   document.getElementById('view-settings').classList.toggle('active', name==='settings');
   if(name==='calendar') renderCalendar();
   if(name==='student') renderMatching();
   if(name==='manage'){ renderTeacherList(); renderMatrix(); }
   if(name==='teacherSchedule') renderTeacherScheduleTab();
   if(name==='finance') renderFinance();
+  if(name==='payroll'){
+    import('./payroll-ui.js').then(mod=> mod.renderPayroll());
+  }
 }
 
 // カレンダー内の表示モード切替（月間予定／週間予定／講師空き状況）

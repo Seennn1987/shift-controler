@@ -749,6 +749,9 @@ async function saveAppState(){
     finGradientMax: S.finGradientMax,
     matchingPriority: S.matchingPriority,
     lastGradePromotionYear: S.lastGradePromotionYear,
+    officeHourlyRate: S.officeHourlyRate,
+    payrollOfficeHours: S.payrollOfficeHours || {},
+    payrollLocks: S.payrollLocks || {},
     updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
   };
   try{
@@ -787,6 +790,9 @@ async function loadAppStateFromFirestore(){
     S.finGradientMax = (d.finGradientMax!=null) ? d.finGradientMax : 60;
     S.matchingPriority = normalizeMatchingPriority(d.matchingPriority || null);
     S.lastGradePromotionYear = d.lastGradePromotionYear != null ? d.lastGradePromotionYear : null;
+    S.officeHourlyRate = d.officeHourlyRate != null ? d.officeHourlyRate : 1300;
+    S.payrollOfficeHours = d.payrollOfficeHours && typeof d.payrollOfficeHours === 'object' ? d.payrollOfficeHours : {};
+    S.payrollLocks = d.payrollLocks && typeof d.payrollLocks === 'object' ? d.payrollLocks : {};
   }else{
     // 初回ログイン：実運用として空のデータから始める（テスト用サンプルデータは使わない）
     S.teachers = [];
@@ -803,6 +809,9 @@ async function loadAppStateFromFirestore(){
     S.preferredPairs = [];
     S.holidayAutoDetect = false;
     S.lastGradePromotionYear = null;
+    S.officeHourlyRate = 1300;
+    S.payrollOfficeHours = {};
+    S.payrollLocks = {};
   }
   S.teacherSchedules = await loadAllTeacherSchedules();
 

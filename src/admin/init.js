@@ -2,6 +2,7 @@ import { SUBJECT_MAP, DAYS, SLOTS, WEEKDAY_JP, WEEK_FULL } from '../shared/const
 import { HOLIDAYS_JP } from '../shared/holidays.js';
 import { pad2, daysInYearMonth, toDateStr, getTodayStr } from '../shared/date-utils.js';
 import { firebaseConfig, fbAuth, fbDb, STORAGE_KEY, getSecondaryAuth, S } from './state.js';
+import { bindPayrollUi, renderPayroll } from './payroll-ui.js';
 import { renderCalendar, syncMonthChange, refreshCalToolbarSecondary } from './calendar.js';
 import { registerCalFilterUiSync, setCalFilterFromSelect } from './cal-filter.js';
 import { initSearchComboboxes, refreshAllPersonComboboxes } from './filter-ui.js';
@@ -60,6 +61,7 @@ async function init(){
   document.getElementById('tuitionHighInput').value = String(S.tuitionRates['高校']);
   document.getElementById('finGradientMinInput').value = String(S.finGradientMin);
   document.getElementById('finGradientMaxInput').value = String(S.finGradientMax);
+  document.getElementById('officeHourlyRateInput').value = String(S.officeHourlyRate ?? 1300);
   document.getElementById('roomCapDisplay').textContent = String(S.roomCapacity);
   buildClosedDayArea();
   renderClosedDaySettings();
@@ -139,6 +141,15 @@ async function init(){
     S.finYear = t.getFullYear();
     S.finMonth = t.getMonth();
     renderFinance();
+  });
+  bindPayrollUi();
+  document.getElementById('officeHourlyRateInput').addEventListener('change', (e)=>{
+    let v = parseInt(e.target.value, 10);
+    if(!Number.isFinite(v) || v < 0) v = 0;
+    S.officeHourlyRate = v;
+    e.target.value = String(v);
+    renderPayroll();
+    scheduleSave();
   });
   document.querySelectorAll('.fin-transport-btn').forEach(b=>{
     b.addEventListener('click', ()=>{

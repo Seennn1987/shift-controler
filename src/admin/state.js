@@ -67,6 +67,11 @@ export const S = {
   matchingPriority: null,
   lastGradePromotionYear: null,
   pendingGradePromotionNotice: null,
+  officeHourlyRate: 1300,
+  payrollOfficeHours: {},
+  payrollLocks: {},
+  payYear: undefined,
+  payMonth: undefined,
   calendarDrawerView: 'day',
   /** 振替先の日をカレンダーで選んでいるとき { absenceId, studentId, fromDate } */
   makeupPlacement: null,

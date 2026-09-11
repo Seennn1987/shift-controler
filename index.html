@@ -53,6 +53,7 @@
     <button class="tab-btn" data-view="manage">講師登録</button>
     <button class="tab-btn" data-view="teacherSchedule">シフト管理</button>
     <button class="tab-btn" data-view="finance">分析</button>
+    <button class="tab-btn" data-view="payroll">給与集計</button>
     <button class="tab-btn" data-view="settings">設定</button>
   </div>
 </div>
@@ -142,6 +143,10 @@
       <div style="height:14px"></div>
       <label class="field-label" for="nameKanaInput">読み仮名<span class="help-tip" tabindex="0">?<span class="help-tip-text">ひらがなで入力します。絞り込みの並び順と検索に使います。</span></span></label>
       <input type="text" id="nameKanaInput" placeholder="例：たなか たろう">
+
+      <div style="height:14px"></div>
+      <label class="field-label" for="employeeNumberInput">従業員番号<span class="help-tip" tabindex="0">?<span class="help-tip-text">マネーフォワード クラウド給与に登録した従業員番号です。給与ファイルの取り込みに使います。</span></span></label>
+      <input type="text" id="employeeNumberInput" placeholder="例：001" autocomplete="off">
 
       <div style="height:14px"></div>
       <label class="field-label" for="workStartYearMonthInput">勤務開始年月<span class="help-tip" tabindex="0">?<span class="help-tip-text">面接・採用時の勤務開始月を記録します。一覧で在籍時期が一目で分かります。</span></span></label>
@@ -378,6 +383,26 @@
     </div>
   </section>
 
+  <!-- ===== 給与集計 ===== -->
+  <section id="view-payroll" class="view">
+    <div class="card fin-summary-card">
+      <h2>今月の給与サマリー<span class="match-status-badge is-pending" id="payMonthBadge">未確定</span></h2>
+      <div id="payMonthSummary" class="fin-summary-grid"></div>
+    </div>
+    <div class="card cal-card">
+      <div class="cal-header">
+        <button type="button" class="cal-nav-btn" id="payPrevBtn" aria-label="前の月">‹</button>
+        <div class="cal-title" id="payTitle">2026年9月</div>
+        <button type="button" class="cal-nav-btn" id="payNextBtn" aria-label="次の月">›</button>
+        <button type="button" class="cal-today-btn" id="payTodayBtn">今月</button>
+        <span class="help-tip" tabindex="0">?<span class="help-tip-text">確定した授業のコマ給・交通費に、入力した事務時間の事務給を足します。確定したあとに「CSVをダウンロード」を押すと、クラウド給与に取り込むファイルが保存されます。</span></span>
+      </div>
+      <div id="payrollNotice"></div>
+      <div class="student-list" id="payTeacherList"></div>
+      <div id="payrollActionCard"></div>
+    </div>
+  </section>
+
   <!-- ===== 基本設定 ===== -->
   <section id="view-settings" class="view">
     <div class="card">
@@ -409,6 +434,17 @@
         <div class="pay-input-item">
           <label for="tuitionHighInput">高校（円/コマ）</label>
           <input type="text" inputmode="numeric" id="tuitionHighInput">
+        </div>
+      </div>
+
+      <div style="height:22px"></div>
+
+      <label class="field-label">事務給（円/時間）<span class="help-tip" tabindex="0">?<span class="help-tip-text">授業以外の事務作業の時給です。給与集計で入力した時間に掛けます。教室全体で共通です。</span></span></label>
+      <div class="field-hint tight">講師によらず一律です。給与集計タブで、講師ごとにその月の事務時間を入れます。</div>
+      <div class="tuition-input-row">
+        <div class="pay-input-item">
+          <label for="officeHourlyRateInput">事務給（円/時間）</label>
+          <input type="text" inputmode="numeric" id="officeHourlyRateInput">
         </div>
       </div>
 

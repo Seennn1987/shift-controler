@@ -94,6 +94,7 @@ function resetForm(){
   S.editingId = null;
   document.getElementById('nameInput').value = '';
   document.getElementById('nameKanaInput').value = '';
+  document.getElementById('employeeNumberInput').value = '';
   document.getElementById('workStartYearMonthInput').value = defaultWorkStartYearMonth();
   document.getElementById('perLessonRateInput').value = '1500';
   document.getElementById('dailyTransportInput').value = '500';
@@ -129,6 +130,7 @@ function fillFormForEdit(t){
   S.editingId = t.id;
   document.getElementById('nameInput').value = t.name;
   document.getElementById('nameKanaInput').value = t.nameKana || '';
+  document.getElementById('employeeNumberInput').value = t.employeeNumber || '';
   document.getElementById('workStartYearMonthInput').value = t.workStartYearMonth || '';
   document.getElementById('perLessonRateInput').value = String(t.perLessonRate!=null ? t.perLessonRate : 1500);
   document.getElementById('dailyTransportInput').value = String(t.dailyTransport!=null ? t.dailyTransport : 500);
@@ -187,6 +189,7 @@ async function handleSave(){
   if(!name){ msg.textContent = '講師名を入力してください。'; return; }
   const nameKana = document.getElementById('nameKanaInput').value.trim();
   if(!nameKana){ msg.textContent = '読み仮名を入力してください。'; return; }
+  const employeeNumber = document.getElementById('employeeNumberInput').value.trim();
   const workStartYearMonth = document.getElementById('workStartYearMonthInput').value;
   if(!workStartYearMonth){ msg.textContent = '勤務開始年月を選んでください。'; return; }
 
@@ -225,9 +228,9 @@ async function handleSave(){
   msg.textContent = '保存中…';
   if(S.editingId){
     const idx = S.teachers.findIndex(t=>t.id===S.editingId);
-    if(idx>-1) S.teachers[idx] = {...S.teachers[idx], id:S.editingId, name, nameKana, workStartYearMonth, subjects, perLessonRate, dailyTransport, notes, baseAvailability, earlyLessonException, raiseSchedule};
+    if(idx>-1) S.teachers[idx] = {...S.teachers[idx], id:S.editingId, name, nameKana, employeeNumber, workStartYearMonth, subjects, perLessonRate, dailyTransport, notes, baseAvailability, earlyLessonException, raiseSchedule};
   }else{
-    S.teachers.push({id:'t-'+Date.now()+'-'+Math.random().toString(36).slice(2,7), name, nameKana, workStartYearMonth, subjects, perLessonRate, dailyTransport, notes, baseAvailability, earlyLessonException, raiseSchedule});
+    S.teachers.push({id:'t-'+Date.now()+'-'+Math.random().toString(36).slice(2,7), name, nameKana, employeeNumber, workStartYearMonth, subjects, perLessonRate, dailyTransport, notes, baseAvailability, earlyLessonException, raiseSchedule});
   }
   const savedTeacher = S.editingId
     ? S.teachers.find(t=> t.id === S.editingId)
@@ -311,6 +314,7 @@ function workStartSummaryText(t){
 // 講師一覧に表示する給与条件の要約テキストを組み立てる
 function paySummaryText(t){
   const parts = [];
+  if(t.employeeNumber) parts.push(`従業員番号 ${t.employeeNumber}`);
   parts.push(`コマ単価 ${(t.perLessonRate||0).toLocaleString()}円`);
   parts.push(`交通費 ${(t.dailyTransport||0).toLocaleString()}円/日`);
   if(t.earlyLessonException && t.earlyLessonException.lessonCount>0){
