@@ -1,0 +1,88 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ピタコマ 最初◯コマ無料 プレビュー</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Zen+Kaku+Gothic+New:wght@400;500;700;900&display=swap" rel="stylesheet">
+  <link rel="icon" href="data:,">
+  <link rel="stylesheet" href="/src/shared/styles/variables.css">
+  <link rel="stylesheet" href="/src/shared/styles/inline-confirm.css">
+  <link rel="stylesheet" href="/src/admin/styles/admin.css">
+  <link rel="stylesheet" href="student-free-lessons-preview.css">
+</head>
+<body>
+  <header class="preview-header">
+    <div class="preview-header-inner">
+      <h1>生徒登録 — 最初◯コマ無料（試しページ）</h1>
+      <p>本番と同じ見た目です。受講開始日の下でチェックし、コマ数を入れてください。一覧には「最初2コマ無料」と出ます。数字は見本です。</p>
+    </div>
+  </header>
+
+  <main class="app preview-app">
+    <section id="view-student" class="view active">
+      <div class="card">
+        <h2><span id="studentFormModeTitle">生徒を登録</span><span class="help-tip" tabindex="0">?<span class="help-tip-text">氏名・学年を選んで「基本情報を登録」を押してください。そのあと週カレンダーで希望コマと教科を選びます。講師への依頼はカレンダー画面の右パネルで行います。</span></span></h2>
+
+        <label class="field-label" for="studentNameInput">生徒名</label>
+        <input type="text" id="studentNameInput" placeholder="例：山田 花子">
+
+        <div style="height:14px"></div>
+        <label class="field-label" for="studentNameKanaInput">読み仮名<span class="help-tip" tabindex="0">?<span class="help-tip-text">ひらがなで入力します。絞り込みの並び順と検索に使います。</span></span></label>
+        <input type="text" id="studentNameKanaInput" placeholder="例：やまだ はなこ">
+
+        <div style="height:18px"></div>
+        <label class="field-label">学年</label>
+        <div class="chip-row" id="studentLevelArea">
+          <label class="chip"><input type="radio" name="studentLevel" value="小学"><span>小学</span></label>
+          <label class="chip"><input type="radio" name="studentLevel" value="中学" checked><span>中学</span></label>
+          <label class="chip"><input type="radio" name="studentLevel" value="高校"><span>高校</span></label>
+        </div>
+        <div style="height:12px"></div>
+        <label class="field-label" for="studentGradeArea">年数</label>
+        <div class="chip-row" id="studentGradeArea">
+          <label class="chip"><input type="radio" name="studentGrade" value="1"><span>1年</span></label>
+          <label class="chip"><input type="radio" name="studentGrade" value="2" checked><span>2年</span></label>
+          <label class="chip"><input type="radio" name="studentGrade" value="3"><span>3年</span></label>
+        </div>
+
+        <div style="height:18px"></div>
+        <label class="field-label" for="studentCourseStartInput">受講開始日<span class="help-tip" tabindex="0">?<span class="help-tip-text">授業を始める日です。組める／組めないは、この日の月の出勤表で見ます。その月がまだ出ていないときは、いちばん新しい出勤表で見ます。</span></span></label>
+        <input type="date" id="studentCourseStartInput" value="2026-09-14">
+
+        <div style="height:18px"></div>
+        <label class="chip" style="display:inline-flex;">
+          <input type="checkbox" id="freeLessonToggle">
+          <span>最初の◯コマを無料にする</span>
+        </label>
+        <span class="help-tip" tabindex="0">?<span class="help-tip-text">入塾キャンペーン用です。チェックしたコマ数だけ、分析タブの売上を0円にします。講師へのお給料は今までどおりです。欠席は数えません。</span></span>
+        <div id="freeLessonArea" class="pay-input-row" style="display:none;margin-top:10px;">
+          <div class="pay-input-item">
+            <label for="freeLessonCount">無料にするコマ数（最初から何コマ分か）</label>
+            <input type="text" inputmode="numeric" id="freeLessonCount" placeholder="例：2">
+          </div>
+        </div>
+
+        <div style="height:22px"></div>
+        <label class="field-label">受講科目<span class="help-tip" tabindex="0">?<span class="help-tip-text">まず「基本情報を登録」を押してください。そのあと、空いているマスをクリックして教科を選びます。講師への依頼は、カレンダーでコマをクリックして右パネルから行います。</span></span></label>
+        <div id="courseList">
+          <p class="scc-locked-hint">先に「基本情報を登録」を押してください。登録後、ここで希望コマを選べます。</p>
+        </div>
+
+        <div class="form-actions">
+          <button type="button" class="primary" id="studentSaveBtn">基本情報を登録</button>
+          <button type="button" class="ghost" id="studentCancelBtn" style="display:none;">キャンセル</button>
+          <span class="form-msg" id="studentFormMsg"></span>
+        </div>
+      </div>
+
+      <div class="card">
+        <h2>登録済み生徒一覧</h2>
+        <div class="teacher-list student-list" id="studentList"></div>
+      </div>
+    </section>
+  </main>
+  <script type="module" src="student-free-lessons-preview.js"></script>
+</body>
+</html>

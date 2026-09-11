@@ -164,6 +164,9 @@ async function init(){
   document.getElementById('earlyExceptionToggle').addEventListener('change', (e)=>{
     document.getElementById('earlyExceptionArea').style.display = e.target.checked ? 'flex' : 'none';
   });
+  document.getElementById('freeLessonToggle').addEventListener('change', (e)=>{
+    document.getElementById('freeLessonArea').style.display = e.target.checked ? 'flex' : 'none';
+  });
   document.getElementById('raiseScheduleToggle').addEventListener('change', (e)=>{
     document.getElementById('raiseScheduleArea').style.display = e.target.checked ? 'block' : 'none';
     if(e.target.checked && S.formRaiseSchedule.length===0) addRaiseRow();

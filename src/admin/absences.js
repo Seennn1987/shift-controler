@@ -1022,6 +1022,53 @@ function getTeacherRateForDate(teacher, dateStr){
   return teacher.perLessonRate || 0;
 }
 
+function countStudentLessonsBefore(student, dateStr){
+  const cap = Number(student?.freeLessonCount) || 0;
+  if(cap <= 0) return 0;
+  const startStr = (typeof student.courseStartDate === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(student.courseStartDate))
+    ? student.courseStartDate
+    : null;
+  let d;
+  if(startStr){
+    d = new Date(startStr + 'T00:00:00');
+  }else{
+    d = new Date(dateStr + 'T00:00:00');
+    d.setDate(d.getDate() - 370);
+  }
+  const end = new Date(dateStr + 'T00:00:00');
+  if(Number.isNaN(d.getTime()) || Number.isNaN(end.getTime())) return 0;
+  let count = 0;
+  let guard = 0;
+  while(d < end && count < cap && guard < 2000){
+    const ds = toDateStr(d.getFullYear(), d.getMonth(), d.getDate());
+    const weekday = getDayStatus(ds).weekday;
+    const list = getEffectiveDayAssignments(ds).filter(a=>
+      a.studentId === student.id && !a.pending && !a.draft && !a.teacherAbsent
+    );
+    count += countSlotAssignmentUnits(
+      list.map(a=>({
+        studentId: a.studentId,
+        day: weekday,
+        slot: a.slot,
+        dualGroupId: a.dualGroupId || null,
+      })),
+    );
+    d.setDate(d.getDate() + 1);
+    guard++;
+  }
+  return count;
+}
+
+function getStudentTuitionForDate(student, dateStr){
+  if(!student) return 0;
+  const rate = S.tuitionRates[student.level] || 0;
+  const freeCount = Number(student.freeLessonCount) || 0;
+  if(freeCount <= 0) return rate;
+  const before = countStudentLessonsBefore(student, dateStr);
+  if(before < freeCount) return 0;
+  return rate;
+}
+
 function computeDayFinance(dateStr, includeTransport){
   if(includeTransport===undefined) includeTransport = S.finIncludeTransport;
   const status = getDayStatus(dateStr);
@@ -1038,7 +1085,7 @@ function computeDayFinance(dateStr, includeTransport){
       seenDual.add(key);
     }
     const student = S.students.find(s=>s.id===a.studentId);
-    revenue += student ? (S.tuitionRates[student.level] || 0) : 0;
+    revenue += getStudentTuitionForDate(student, dateStr);
   });
 
   // 講師コスト（コマ給）は「講師×コマ」単位で1回だけ支払う（同じコマに生徒が2人いても、講師が受け取るのは1コマ分）
@@ -1183,4 +1230,4 @@ function getStudentDateRows(student, dateStr){
 }
 
 
-export { findAbsenceFor, recordAbsence, recordStudentSlotAbsence, cancelAbsenceRecord, cancelMakeup, markNoMakeup, setMakeupPlacementFromAbsence, clearMakeupPlacement, getMakeupPlacementAbsence, listPendingAbsenceWorkItems, listPendingTeacherAbsenceWorkItems, getAbsenceRecordsOnDate, studentAbsentDatesForAssignment, collectMakeupEntriesForTeacher, getTeacherLessonsOnDate, findTeacherAbsence, isTeacherSlotAbsent, isTeacherSlotFullyAbsent, isTeacherAbsentForStudent, isAssignedTeacherMissingOnDate, recordTeacherAbsence, findSubstituteCandidatesForStudent, confirmSubstitute, cancelSubstitute, resolveSlotViaStudentAbsence, cancelTeacherAbsence, cancelTeacherAbsenceForSlot, countTeacherLoadOnDate, countRoomLoadOnDate, isTeacherAvailableOnDate, findMakeupCandidates, findDualMakeupCandidates, findMakeupCandidatesOnDate, findDualMakeupCandidatesOnDate, confirmMakeup, getEffectiveDayAssignments, computeTeacherOpenings, countTeacherLessonsBefore, getTeacherRateForDate, computeDayFinance, costRatioColor, getStudentDateRows };
+export { findAbsenceFor, recordAbsence, recordStudentSlotAbsence, cancelAbsenceRecord, cancelMakeup, markNoMakeup, setMakeupPlacementFromAbsence, clearMakeupPlacement, getMakeupPlacementAbsence, listPendingAbsenceWorkItems, listPendingTeacherAbsenceWorkItems, getAbsenceRecordsOnDate, studentAbsentDatesForAssignment, collectMakeupEntriesForTeacher, getTeacherLessonsOnDate, findTeacherAbsence, isTeacherSlotAbsent, isTeacherSlotFullyAbsent, isTeacherAbsentForStudent, isAssignedTeacherMissingOnDate, recordTeacherAbsence, findSubstituteCandidatesForStudent, confirmSubstitute, cancelSubstitute, resolveSlotViaStudentAbsence, cancelTeacherAbsence, cancelTeacherAbsenceForSlot, countTeacherLoadOnDate, countRoomLoadOnDate, isTeacherAvailableOnDate, findMakeupCandidates, findDualMakeupCandidates, findMakeupCandidatesOnDate, findDualMakeupCandidatesOnDate, confirmMakeup, getEffectiveDayAssignments, computeTeacherOpenings, countTeacherLessonsBefore, getTeacherRateForDate, countStudentLessonsBefore, getStudentTuitionForDate, computeDayFinance, costRatioColor, getStudentDateRows };

@@ -326,11 +326,24 @@
       <div class="chip-row" id="studentGradeArea"></div>
 
       <div style="height:18px"></div>
-      <label class="field-label" for="studentCourseStartInput">受講開始日<span class="help-tip" tabindex="0">?<span class="help-tip-text">授業を始める日です。組める／組めないは、この日の月の出勤表で見ます。その月がまだ出ていないときは、いちばん新しい出勤表で見ます。</span></span></label>
-      <input type="date" id="studentCourseStartInput">
+        <label class="field-label" for="studentCourseStartInput">受講開始日<span class="help-tip" tabindex="0">?<span class="help-tip-text">授業を始める日です。組める／組めないは、この日の月の出勤表で見ます。その月がまだ出ていないときは、いちばん新しい出勤表で見ます。</span></span></label>
+        <input type="date" id="studentCourseStartInput">
 
-      <div style="height:22px"></div>
-      <label class="field-label">受講科目<span class="help-tip" tabindex="0">?<span class="help-tip-text">まず「基本情報を登録」を押してください。そのあと、空いているマスをクリックして教科を選びます。講師への依頼は、カレンダーでコマをクリックして右パネルから行います。</span></span></label>
+        <div style="height:18px"></div>
+        <label class="chip" style="display:inline-flex;">
+          <input type="checkbox" id="freeLessonToggle">
+          <span>最初の◯コマを無料にする</span>
+        </label>
+        <span class="help-tip" tabindex="0">?<span class="help-tip-text">入塾キャンペーン用です。チェックしたコマ数だけ、分析タブの売上を0円にします。講師へのお給料は今までどおりです。欠席は数えません。</span></span>
+        <div id="freeLessonArea" class="pay-input-row" style="display:none;margin-top:10px;">
+          <div class="pay-input-item">
+            <label for="freeLessonCount">無料にするコマ数（最初から何コマ分か）</label>
+            <input type="text" inputmode="numeric" id="freeLessonCount" placeholder="例：2">
+          </div>
+        </div>
+
+        <div style="height:22px"></div>
+        <label class="field-label">受講科目<span class="help-tip" tabindex="0">?<span class="help-tip-text">まず「基本情報を登録」を押してください。そのあと、空いているマスをクリックして教科を選びます。講師への依頼は、カレンダーでコマをクリックして右パネルから行います。</span></span></label>
       <div id="courseList"></div>
       <div id="studentMatchingAction" class="student-matching-action" hidden></div>
 

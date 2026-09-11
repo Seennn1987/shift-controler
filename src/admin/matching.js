@@ -321,6 +321,27 @@ function setCourseStartDateInput(value){
   if(el) el.value = value || getTodayStr();
 }
 
+function syncFreeLessonArea(){
+  const on = document.getElementById('freeLessonToggle')?.checked;
+  const area = document.getElementById('freeLessonArea');
+  if(area) area.style.display = on ? 'flex' : 'none';
+}
+
+function readFreeLessonCount(){
+  if(!document.getElementById('freeLessonToggle')?.checked) return 0;
+  const n = parseInt(document.getElementById('freeLessonCount').value, 10);
+  return Number.isFinite(n) && n > 0 ? n : 0;
+}
+
+function fillFreeLessonFields(count){
+  const has = Number(count) > 0;
+  const toggle = document.getElementById('freeLessonToggle');
+  const input = document.getElementById('freeLessonCount');
+  if(toggle) toggle.checked = has;
+  if(input) input.value = has ? String(count) : '';
+  syncFreeLessonArea();
+}
+
 async function handleCourseStartDateChange(){
   if(!S.editingStudentId) return;
   const idx = S.students.findIndex(s=> s.id === S.editingStudentId);
@@ -404,9 +425,10 @@ function resetStudentForm(){
   resetCourseCalendarSelection();
   document.getElementById('studentNameInput').value = '';
   document.getElementById('studentNameKanaInput').value = '';
+  document.querySelectorAll('input[name=studentLevel]').forEach((r,i)=> r.checked = (i===0));
   buildStudentGradeArea();
   setCourseStartDateInput(getTodayStr());
-  document.querySelectorAll('input[name=studentLevel]').forEach((r,i)=> r.checked = (i===0));
+  fillFreeLessonFields(0);
   S.formCourses = [];
   renderFormCourses();
   document.getElementById('studentFormMsg').textContent = '';
@@ -419,9 +441,10 @@ function fillStudentFormForEdit(s){
   S.editingStudentId = s.id;
   document.getElementById('studentNameInput').value = s.name;
   document.getElementById('studentNameKanaInput').value = s.nameKana || '';
+  document.querySelectorAll('input[name=studentLevel]').forEach(r=> r.checked = (r.value===s.level));
   buildStudentGradeArea(s.grade || null);
   setCourseStartDateInput(s.courseStartDate || getTodayStr());
-  document.querySelectorAll('input[name=studentLevel]').forEach(r=> r.checked = (r.value===s.level));
+  fillFreeLessonFields(s.freeLessonCount || 0);
   S.formCourses = JSON.parse(JSON.stringify(s.courses));
   renderFormCourses();
   document.getElementById('studentFormMsg').textContent = '';
@@ -448,6 +471,14 @@ async function handleStudentSave(){
   const courses = normalizeFormCoursesForSave(S.formCourses);
   const coursesCopy = JSON.parse(JSON.stringify(courses));
   const courseStartDate = readCourseStartDate();
+  if(document.getElementById('freeLessonToggle')?.checked){
+    const cnt = parseInt(document.getElementById('freeLessonCount').value, 10);
+    if(!Number.isFinite(cnt) || cnt <= 0){
+      msg.textContent = '無料にするコマ数を入力してください。';
+      return;
+    }
+  }
+  const freeLessonCount = readFreeLessonCount();
 
   if(S.editingStudentId){
     const idx = S.students.findIndex(s=>s.id===S.editingStudentId);
@@ -455,7 +486,7 @@ async function handleStudentSave(){
       const prev = S.students[idx];
       const oldName = prev.name;
       await dropAssignmentsForRemovedDesiredSlots(prev, prev.courses, coursesCopy);
-      S.students[idx] = { ...prev, name, nameKana, level, grade, courseStartDate, courses: coursesCopy };
+      S.students[idx] = { ...prev, name, nameKana, level, grade, courseStartDate, freeLessonCount, courses: coursesCopy };
       if(oldName !== name || prev.courseStartDate !== courseStartDate){
         await syncStudentIdentityOnTickets(S.students[idx], oldName);
       }
@@ -463,7 +494,7 @@ async function handleStudentSave(){
     msg.textContent = '基本情報を更新しました。';
   }else{
     const id = 's-'+Date.now()+'-'+Math.random().toString(36).slice(2,7);
-    S.students.push({ id, name, nameKana, level, grade, courseStartDate, courses: coursesCopy });
+    S.students.push({ id, name, nameKana, level, grade, courseStartDate, freeLessonCount, courses: coursesCopy });
     S.editingStudentId = id;
     msg.textContent = '基本情報を登録しました。続けて希望コマを選んでください。';
   }
@@ -563,6 +594,7 @@ function renderStudentList(){
         <div class="student-row-head">
           <span class="student-row-name">${s.name}</span>
           <span class="student-level-badge">${gradeLabel(s)}</span>
+          ${Number(s.freeLessonCount) > 0 ? `<span class="student-row-pref">最初${s.freeLessonCount}コマ無料</span>` : ''}
           ${isEditing ? '<span class="student-row-editing-badge">編集中</span>' : ''}
         </div>
         ${tagsHtml}
