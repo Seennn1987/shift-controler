@@ -64,6 +64,7 @@ function renderPayrollRow(row, locked, missingEmp){
 }
 
 export function renderPayroll(){
+  clearTimeout(payrollRerenderTimer);
   ensurePayrollMonth();
   const title = document.getElementById('payTitle');
   const badge = document.getElementById('payMonthBadge');
@@ -151,7 +152,12 @@ export function renderPayroll(){
           <button type="button" class="confirm-btn" id="payLockBtn"${missing.length ? ' disabled' : ''}>今月を確定する</button>
         </div>
       `;
-      actions.querySelector('#payLockBtn')?.addEventListener('click', ()=>{
+      const lockBtn = actions.querySelector('#payLockBtn');
+      lockBtn?.addEventListener('pointerdown', ()=>{
+        flushFocusedOfficeHours(model.yearMonth, notice);
+      });
+      lockBtn?.addEventListener('click', ()=>{
+        flushFocusedOfficeHours(model.yearMonth, notice);
         const result = lockPayrollMonth(S.payYear, S.payMonth);
         renderPayroll();
         const afterNotice = document.getElementById('payrollNotice');
@@ -166,22 +172,40 @@ export function renderPayroll(){
 
   list.querySelectorAll('.payroll-hours-input').forEach(input=>{
     input.addEventListener('change', ()=>{
-      const parsed = parseOfficeHours(input.value);
-      if(parsed == null){
-        input.value = hoursLabel(getHoursFallback(input.dataset.teacherId));
-        if(notice) showInlineNotice(notice, '事務時間は0以上の数字で入力してください。', { variant: 'warn' });
-        return;
-      }
-      setOfficeHours(model.yearMonth, input.dataset.teacherId, parsed);
-      renderPayroll();
+      if(!applyOfficeHoursFromInput(input, model.yearMonth, notice)) return;
+      schedulePayrollRerender();
     });
   });
+}
+
+let payrollRerenderTimer = 0;
+
+function schedulePayrollRerender(){
+  clearTimeout(payrollRerenderTimer);
+  payrollRerenderTimer = setTimeout(()=> renderPayroll(), 0);
 }
 
 function getHoursFallback(teacherId){
   const model = buildPayrollViewModel(S.payYear, S.payMonth);
   const row = model.rows.find(r=> r.teacherId === teacherId);
   return row?.officeHours || 0;
+}
+
+function applyOfficeHoursFromInput(input, yearMonth, notice){
+  const parsed = parseOfficeHours(input.value);
+  if(parsed == null){
+    input.value = hoursLabel(getHoursFallback(input.dataset.teacherId));
+    if(notice) showInlineNotice(notice, '事務時間は0以上の数字で入力してください。', { variant: 'warn' });
+    return false;
+  }
+  setOfficeHours(yearMonth, input.dataset.teacherId, parsed);
+  return true;
+}
+
+function flushFocusedOfficeHours(yearMonth, notice){
+  const focused = document.activeElement;
+  if(!(focused instanceof HTMLInputElement) || !focused.classList.contains('payroll-hours-input')) return;
+  applyOfficeHoursFromInput(focused, yearMonth, notice);
 }
 
 export function bindPayrollUi(){

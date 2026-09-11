@@ -63,6 +63,7 @@ function downloadCsv(){
 }
 
 function render(){
+  clearTimeout(previewRerenderTimer);
   const title = document.getElementById('payTitle');
   const badge = document.getElementById('payMonthBadge');
   const summary = document.getElementById('payMonthSummary');
@@ -147,7 +148,10 @@ function render(){
     actions.innerHTML = `<div class="form-actions">
       <button type="button" class="confirm-btn" id="payLockBtn"${missing.length ? ' disabled' : ''}>今月を確定する</button>
     </div>`;
-    actions.querySelector('#payLockBtn')?.addEventListener('click', ()=>{
+    const lockBtn = actions.querySelector('#payLockBtn');
+    lockBtn?.addEventListener('pointerdown', flushFocusedOfficeHours);
+    lockBtn?.addEventListener('click', ()=>{
+      flushFocusedOfficeHours();
       if(missingEmp().length) return;
       state.locked = true;
       render();
@@ -157,17 +161,36 @@ function render(){
 
   list.querySelectorAll('.payroll-hours-input').forEach(input=>{
     input.addEventListener('change', ()=>{
-      const n = Number(input.value);
-      const row = state.rows.find(r=> r.teacherId === input.dataset.teacherId);
-      if(!row || !Number.isFinite(n) || n < 0){
-        showInlineNotice(notice, '事務時間は0以上の数字で入力してください。', { variant: 'warn' });
-        render();
-        return;
-      }
-      row.officeHours = n;
-      render();
+      if(!applyOfficeHoursFromInput(input, notice)) return;
+      schedulePreviewRerender();
     });
   });
+}
+
+let previewRerenderTimer = 0;
+
+function schedulePreviewRerender(){
+  clearTimeout(previewRerenderTimer);
+  previewRerenderTimer = setTimeout(()=> render(), 0);
+}
+
+function applyOfficeHoursFromInput(input, notice){
+  const n = Number(input.value);
+  const row = state.rows.find(r=> r.teacherId === input.dataset.teacherId);
+  if(!row || !Number.isFinite(n) || n < 0){
+    input.value = row && row.officeHours ? String(row.officeHours) : '';
+    showInlineNotice(notice, '事務時間は0以上の数字で入力してください。', { variant: 'warn' });
+    return false;
+  }
+  row.officeHours = n;
+  return true;
+}
+
+function flushFocusedOfficeHours(){
+  const focused = document.activeElement;
+  const notice = document.getElementById('payrollNotice');
+  if(!(focused instanceof HTMLInputElement) || !focused.classList.contains('payroll-hours-input')) return;
+  applyOfficeHoursFromInput(focused, notice);
 }
 
 document.getElementById('payPrevBtn').addEventListener('click', ()=>{

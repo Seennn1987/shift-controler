@@ -756,6 +756,11 @@ async function saveAppState(){
   };
   try{
     await ref.set(state, {merge:true});
+    // 月ごとの入れ子は merge:true だと消したキーがクラウドに残るため、フィールドごと置き換える
+    await ref.update({
+      payrollLocks: S.payrollLocks || {},
+      payrollOfficeHours: S.payrollOfficeHours || {},
+    });
     await syncClosureSettings();
   }catch(err){
     console.error('Firestore保存エラー:', err);
