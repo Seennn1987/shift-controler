@@ -90,6 +90,11 @@ async function bootstrap(user){
     return;
   }
   const d = accSnap.data();
+  if(d.left){
+    await fbAuth.signOut();
+    showLogin('退社済みのためログインできません。教室長に連絡してください。');
+    return;
+  }
   S.myAdminUid = d.adminUid;
   S.myTeacherId = d.teacherId;
   S.myTeacherName = d.teacherName || '';

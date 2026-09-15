@@ -30,5 +30,5 @@ export function findTeacher(id){
 }
 
 export function teachersForCalendarFilter(){
-  return [...(S.teachers || []), getOwnerTeacher()];
+  return [...(S.teachers || []).filter(t=> !t.left), getOwnerTeacher()];
 }

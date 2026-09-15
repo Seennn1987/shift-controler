@@ -3,6 +3,7 @@ import { getTodayStr } from '../shared/date-utils.js';
 import { S } from './state.js';
 import { shortName } from './calendar.js';
 import { isAvailable, isTeacherAvailableOnDate } from './schedule-core.js';
+import { isActivePerson } from './active-people.js';
 import {
   countRoomSlot,
   countRoomSlotOnDate,
@@ -34,7 +35,7 @@ function latestSubmittedYearMonth(){
 /** 生徒登録の「組める」判定用。開始日の月を優先し、未提出なら直近の提出済み月へ。 */
 export function resolveCoursePickerYearMonth(startDateStr){
   const requestedYearMonth = yearMonthFromDateStr(startDateStr);
-  if(S.teachers.some(t=> teacherHasSubmittedMonth(t.id, requestedYearMonth))){
+  if(S.teachers.filter(isActivePerson).some(t=> teacherHasSubmittedMonth(t.id, requestedYearMonth))){
     return { yearMonth: requestedYearMonth, requestedYearMonth, usedFallback: false };
   }
   const latest = latestSubmittedYearMonth();
@@ -54,12 +55,12 @@ export function coursePickerMonthHint(info){
 }
 
 export function getCapableTeachers(level, subject){
-  return S.teachers.filter(t=> t.subjects.some(ts=> ts.level === level && ts.subject === subject));
+  return S.teachers.filter(isActivePerson).filter(t=> t.subjects.some(ts=> ts.level === level && ts.subject === subject));
 }
 
 export function getCapableTeachersForBoth(level, subjectA, subjectB){
   if(!subjectA || !subjectB || subjectA === subjectB) return [];
-  return S.teachers.filter(t=>
+  return S.teachers.filter(isActivePerson).filter(t=>
     t.subjects.some(ts=> ts.level === level && ts.subject === subjectA) &&
     t.subjects.some(ts=> ts.level === level && ts.subject === subjectB)
   );
@@ -357,7 +358,7 @@ export function renderMatchSlotStatusBlock(analysis){
 export function collectPendingSlotSummary(yearMonth){
   const ym = getActiveYearMonth(yearMonth);
   const summary = { priority:0, ready:0, noShift:0, total:0 };
-  S.students.forEach(s=>{
+  S.students.filter(isActivePerson).forEach(s=>{
     s.courses.forEach(course=>{
       course.desiredSlots.forEach(ds=>{
         if(findEffectiveAssignment(s.id, course.id, ds.day, ds.slot, ym)) return;

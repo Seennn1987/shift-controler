@@ -12,6 +12,7 @@ import {
 } from './search-combobox.js';
 import { S } from './state.js';
 import { teachersForCalendarFilter } from './owner-teacher.js';
+import { activeStudents, activeTeachers } from './active-people.js';
 
 let initialized = false;
 
@@ -61,7 +62,7 @@ export function refreshCalFilterCombobox(){
   if(!cur && S.matchingPanelOpen && S.matchingPanelStudentId){
     cur = `s:${S.matchingPanelStudentId}`;
   }
-  const groups = calFilterGroups(S.students, teachersForCalendarFilter());
+  const groups = calFilterGroups(activeStudents(), teachersForCalendarFilter());
   const hasOption = !cur || groups.some(g=> g.items.some(it=> it.value === cur));
   if(!hasOption && cur){
     S.calFilterStudentId = '';
@@ -91,7 +92,7 @@ export function refreshSubjectFilterCombobox(){
 export function refreshTeacherListFilterCombobox(){
   initSearchComboboxes();
   const cur = document.getElementById('teacherListFilter')?.value || '';
-  const groups = teacherComboboxGroups(S.teachers);
+  const groups = teacherComboboxGroups(S.hideLeftTeachers ? activeTeachers() : S.teachers);
   const hasOption = !cur || groups.some(g=> g.items.some(it=> it.value === cur));
   refreshSearchCombobox('teacherListFilter', {
     ...COMBOBOX_DEFAULTS.teacherListFilter,
@@ -103,7 +104,7 @@ export function refreshTeacherListFilterCombobox(){
 export function refreshStudentListFilterCombobox(){
   initSearchComboboxes();
   const cur = document.getElementById('studentListFilter')?.value || '';
-  const groups = studentComboboxGroups(S.students);
+  const groups = studentComboboxGroups(S.hideLeftStudents ? activeStudents() : S.students);
   const hasOption = !cur || groups.some(g=> g.items.some(it=> it.value === cur));
   refreshSearchCombobox('studentListFilter', {
     ...COMBOBOX_DEFAULTS.studentListFilter,

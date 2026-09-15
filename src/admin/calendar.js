@@ -12,6 +12,7 @@ import { subjectColor } from './schedule-core.js';
 import { findEffectiveAssignment, renderApprovalStatus, renderTeacherScheduleTab } from './teacher-schedule-tab.js';
 import { findDualPairAtSlot, collapseDualAssignmentDisplayRows, countSlotAssignmentUnits, formatDualSubjectLabel } from './dual-subject.js';
 import { findTeacher } from './owner-teacher.js';
+import { isActivePerson } from './active-people.js';
 
 // カレンダー（トップページ・TimeTree風シンプルUI）
 // =====================================================================
@@ -166,6 +167,7 @@ function countUnassignedDesiredForSlot(dateStr, slotId){
   const yearMonth = dateStr.slice(0, 7);
   let count = 0;
   S.students.forEach(student=>{
+    if(!isActivePerson(student)) return;
     if(!isOnOrAfterDate(dateStr, student.courseStartDate)) return;
     const processedDual = new Set();
     student.courses.forEach(course=>{
@@ -202,6 +204,7 @@ function getUnassignedRowsForDate(dateStr){
   const yearMonth = dateStr.slice(0, 7);
   const rows = [];
   S.students.forEach(student=>{
+    if(!isActivePerson(student)) return;
     if(!isOnOrAfterDate(dateStr, student.courseStartDate)) return;
     const processedDual = new Set();
     student.courses.forEach(course=>{

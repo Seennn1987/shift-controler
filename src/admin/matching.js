@@ -15,6 +15,7 @@ import { findDualPairAtSlot, teacherTeachesBoth, buildDualSubjectTagsHtml } from
 import { findTeacher } from './owner-teacher.js';
 import { mountInlineConfirm, showActiveTabNotice } from '../shared/inline-confirm.js';
 import { dismissAppConfirmDialog, runAppConfirmDialog } from '../shared/app-confirm-dialog.js';
+import { activeStudents, isActivePerson, markPersonLeft, renderLeaveFlash } from './active-people.js';
 import {
   buildApprovalAlertRowHtml, buildCalAlertPersonHead, buildCalAlertPersonInline,
   buildCalAlertSubjectTag, buildCalAlertTeacherHead, buildCalAlertWhenPill,
@@ -38,9 +39,9 @@ function autoSlotPatternLabel(p){
 function bulkAutoAssign({ studentId } = {}){
   const ym = S.referenceYearMonth;
   const pending = [];
-  const targetStudents = studentId
+  const targetStudents = (studentId
     ? S.students.filter(s=> s.id === studentId)
-    : S.students;
+    : S.students).filter(isActivePerson);
 
   for(let d = 1; d <= daysInYearMonth(ym); d++){
     const dateStr = `${ym}-${pad2(d)}`;
@@ -69,6 +70,7 @@ function bulkAutoAssign({ studentId } = {}){
 
             const [subjectA, subjectB] = dualPair.subjects;
             const candidateCount = S.teachers
+              .filter(isActivePerson)
               .filter(t=> isTeacherAvailableOnDate(t.id, dateStr, ds.slot) &&
                 teacherTeachesBoth(t, s.level, subjectA, subjectB))
               .map(t=> buildCandidateInfo(s.id, dualPair.entries[0].course.id, s.level, subjectA, ds.day, ds.slot, t, dateStr))
@@ -85,6 +87,7 @@ function bulkAutoAssign({ studentId } = {}){
           if(findEffectiveAssignment(s.id, course.id, ds.day, ds.slot, ym, dateStr)) return;
 
           const candidateCount = S.teachers
+            .filter(isActivePerson)
             .filter(t=> isTeacherAvailableOnDate(t.id, dateStr, ds.slot) &&
               t.subjects.some(ts=> ts.level === s.level && ts.subject === course.subject))
             .map(t=> buildCandidateInfo(s.id, course.id, s.level, course.subject, ds.day, ds.slot, t, dateStr))
@@ -128,6 +131,7 @@ function bulkAutoAssign({ studentId } = {}){
     if(p.dual){
       const [subjectA, subjectB] = p.subjects;
       candidates = S.teachers
+        .filter(isActivePerson)
         .filter(t=> isTeacherAvailableOnDate(t.id, p.dateStr, p.slot) &&
           teacherTeachesBoth(t, student.level, subjectA, subjectB))
         .map(t=> buildCandidateInfo(p.studentId, p.dualPair.entries[0].course.id, student.level, subjectA, p.day, p.slot, t, p.dateStr))
@@ -135,6 +139,7 @@ function bulkAutoAssign({ studentId } = {}){
         .sort(compareCandidateInfo);
     }else{
       candidates = S.teachers
+        .filter(isActivePerson)
         .filter(t=> isTeacherAvailableOnDate(t.id, p.dateStr, p.slot) &&
           t.subjects.some(ts=> ts.level === student.level && ts.subject === p.subject))
         .map(t=> buildCandidateInfo(p.studentId, p.courseId, student.level, p.subject, p.day, p.slot, t, p.dateStr))
@@ -548,22 +553,28 @@ function openStudentMatching(studentId){
 function renderStudentList(){
   scheduleSave();
   const wrap = document.getElementById('studentList');
+  if(!wrap) return;
   const sorted = sortByNameKana(S.students, s=> s.nameKana, s=> s.name);
+  const pool = S.hideLeftStudents ? sorted.filter(isActivePerson) : sorted;
   const filterId = document.getElementById('studentListFilter')?.value || '';
   const visible = filterId
-    ? sorted.filter(s=> s.id === filterId)
-    : sorted;
+    ? pool.filter(s=> s.id === filterId)
+    : pool;
   if(S.students.length===0){
     wrap.innerHTML = '<div class="empty-note">まだ生徒が登録されていません。上のフォームから登録してください。</div>';
+    renderLeaveFlash(document.getElementById('studentListFlash'), S.studentLeaveFlash);
     return;
   }
   if(visible.length===0){
-    wrap.innerHTML = '<div class="empty-note">検索に一致する生徒がいません。</div>';
+    wrap.innerHTML = S.hideLeftStudents && sorted.some(s=> s.left)
+      ? '<div class="empty-note">表示する生徒がいません。「退会者を非表示」をオフにすると、退会した生徒を確認できます。</div>'
+      : '<div class="empty-note">検索に一致する生徒がいません。</div>';
+    renderLeaveFlash(document.getElementById('studentListFlash'), S.studentLeaveFlash);
     return;
   }
 
   const rows = visible
-    .map(student=>({ student, status: getStudentListStatus(student) }))
+    .map(student=>({ student, status: student.left ? { kind:'no-slots', label:'退会', priority:9, pendingSlots:0 } : getStudentListStatus(student) }))
     .sort((a, b)=>{
       if(a.status.priority !== b.status.priority) return a.status.priority - b.status.priority;
       return sorted.indexOf(a.student) - sorted.indexOf(b.student);
@@ -585,10 +596,13 @@ function renderStudentList(){
     const tagsHtml = tags
       ? `<div class="student-row-tags">${tags}</div>`
       : '<div class="student-row-tags is-empty"><span class="student-row-no-tags">希望コマ未設定</span></div>';
-    const matchBtn = status.pendingSlots > 0
+    const matchBtn = !s.left && status.pendingSlots > 0
       ? `<button type="button" class="match-btn" data-id="${s.id}">講師を決める</button>`
       : '';
-    return `<div class="student-row${isEditing ? ' is-editing' : ''}${status.priority < 2 ? ' needs-action' : ''}">
+    const leaveBtn = s.left
+      ? `<button type="button" class="edit-btn" data-action="restore" data-id="${s.id}">在籍に戻す</button>`
+      : `<button type="button" class="edit-btn" data-action="leave" data-id="${s.id}">退会</button>`;
+    return `<div class="student-row${isEditing ? ' is-editing' : ''}${s.left ? ' is-disabled' : ''}${!s.left && status.priority < 2 ? ' needs-action' : ''}">
       <span class="student-row-status is-${status.kind}">${status.label}</span>
       <div class="student-row-main">
         <div class="student-row-head">
@@ -602,12 +616,13 @@ function renderStudentList(){
       <div class="row-actions student-row-actions">
         <button type="button" class="edit-btn" data-id="${s.id}">編集</button>
         ${matchBtn}
+        ${leaveBtn}
         <button type="button" class="del-btn" data-id="${s.id}">削除</button>
       </div>
     </div>`;
   }).join('');
 
-  wrap.querySelectorAll('.edit-btn').forEach(b=>{
+  wrap.querySelectorAll('.edit-btn:not([data-action])').forEach(b=>{
     b.addEventListener('click', ()=>{
       const s = S.students.find(x=>x.id===b.dataset.id);
       if(s) fillStudentFormForEdit(s);
@@ -615,6 +630,12 @@ function renderStudentList(){
   });
   wrap.querySelectorAll('.match-btn').forEach(b=>{
     b.addEventListener('click', ()=> openStudentMatching(b.dataset.id));
+  });
+  wrap.querySelectorAll('[data-action=leave]').forEach(b=>{
+    b.addEventListener('click', ()=> setStudentLeft(b.dataset.id, true));
+  });
+  wrap.querySelectorAll('[data-action=restore]').forEach(b=>{
+    b.addEventListener('click', ()=> setStudentLeft(b.dataset.id, false));
   });
   wrap.querySelectorAll('.del-btn').forEach(b=>{
     b.addEventListener('click', ()=>{
@@ -627,6 +648,43 @@ function renderStudentList(){
       }
     });
   });
+  renderLeaveFlash(document.getElementById('studentListFlash'), S.studentLeaveFlash);
+}
+
+async function setStudentLeft(id, left){
+  const student = S.students.find(s=> s.id === id);
+  if(!student) return;
+  markPersonLeft(student, left);
+  if(left){
+    if(S.matchingPanelStudentId === id){
+      S.matchingPanelOpen = false;
+      S.matchingPanelStudentId = null;
+      S.matchingPanelSlot = null;
+      S.matchingReturnToStudentId = null;
+    }
+    if(S.calFilterStudentId === id) clearCalFilter();
+    try{
+      await revokePendingApprovalTicketsForStudent(student);
+      await revokePendingCancellationRequestsForStudent(student);
+    }catch(err){
+      console.error('退会した生徒の講師側依頼の取り消しエラー:', err);
+    }
+    S.studentLeaveFlash = {
+      message: `${student.name}さんを退会にしました。授業を組む画面には出ません。`,
+      restoreLabel: '在籍に戻す',
+      onRestore: ()=> setStudentLeft(id, false),
+      onDismiss: ()=>{
+        S.studentLeaveFlash = null;
+        renderStudentList();
+      },
+    };
+  }else{
+    S.studentLeaveFlash = {
+      message: `${student.name}さんを在籍に戻しました。`,
+    };
+  }
+  await saveStudents();
+  renderMatching();
 }
 
 function purgeLocalRecordsForStudent(id){
@@ -811,7 +869,7 @@ function shortageRowAriaLabel(dateStr, slot, student, course, subjects){
 }
 
 function monthHasSubmittedTeachers(yearMonth){
-  return S.teachers.some(t=> teacherHasSubmittedMonth(t.id, yearMonth));
+  return S.teachers.filter(isActivePerson).some(t=> teacherHasSubmittedMonth(t.id, yearMonth));
 }
 
 function expandShortageBar(){
@@ -1280,7 +1338,7 @@ function cancellationRecurringDateStr(day){
 }
 
 function collectUnsubmittedTeachers(yearMonth){
-  return sortByNameKana(S.teachers.filter(t=> !teacherHasSubmittedMonth(t.id, yearMonth)), t=> t.nameKana, t=> t.name);
+  return sortByNameKana(S.teachers.filter(isActivePerson).filter(t=> !teacherHasSubmittedMonth(t.id, yearMonth)), t=> t.nameKana, t=> t.name);
 }
 
 function renderUnsubmittedTeacherItem(teacher){

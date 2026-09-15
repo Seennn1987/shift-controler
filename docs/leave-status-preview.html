@@ -1,0 +1,79 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ピタコマ 退会・退社 プレビュー</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Zen+Kaku+Gothic+New:wght@400;500;700;900&display=swap" rel="stylesheet">
+  <link rel="icon" href="data:,">
+  <link rel="stylesheet" href="/src/shared/styles/variables.css">
+  <link rel="stylesheet" href="/src/shared/styles/inline-confirm.css">
+  <link rel="stylesheet" href="/src/admin/styles/admin.css">
+  <link rel="stylesheet" href="leave-status-preview.css">
+</head>
+<body>
+  <header class="preview-header">
+    <div class="preview-header-inner">
+      <h1>生徒の退会・講師の退社（試しページ）</h1>
+      <p>本番と同じ一覧の部品です。行の「退会」「退社」を1回押すと設定できます。上の登録フォームは今までどおりです。数字・名前は見本です。</p>
+    </div>
+  </header>
+
+  <main class="app preview-app">
+    <section id="view-student" class="view active">
+      <div class="card">
+        <h2>登録済み生徒一覧</h2>
+        <p class="preview-note">「退会者を非表示」がオンのあいだ、退会した生徒はここに出ません。オフにすると、グレーの行で残ります。</p>
+        <div class="list-filter-bar">
+          <label for="studentListFilter-trigger">絞り込み：</label>
+          <div class="search-combobox-wrap">
+            <div class="search-combobox">
+              <button type="button" class="search-combobox-trigger" id="studentListFilter-trigger">すべて表示</button>
+            </div>
+            <button type="button" class="search-combobox-clear is-active-filter" id="hideLeftStudentsBtn" aria-pressed="true">退会者を非表示</button>
+          </div>
+        </div>
+        <div id="studentFlash"></div>
+        <div class="teacher-list student-list" id="studentList"></div>
+      </div>
+    </section>
+
+    <section id="view-manage" class="view active">
+      <div class="card">
+        <h2>登録済み講師一覧</h2>
+        <p class="preview-note">生徒と同じ操作です。退社した講師は、授業を組む画面の候補にも出ません。</p>
+        <div class="list-filter-bar">
+          <label for="teacherListFilter-trigger">絞り込み：</label>
+          <div class="search-combobox-wrap">
+            <div class="search-combobox">
+              <button type="button" class="search-combobox-trigger" id="teacherListFilter-trigger">すべて表示</button>
+            </div>
+            <button type="button" class="search-combobox-clear is-active-filter" id="hideLeftTeachersBtn" aria-pressed="true">退職者を非表示</button>
+          </div>
+        </div>
+        <div id="teacherFlash"></div>
+        <div class="teacher-list" id="teacherList"></div>
+      </div>
+    </section>
+
+    <section class="view active">
+      <div class="card">
+        <h2>授業を組むときの絞り込み（見本）</h2>
+        <p class="preview-note">退会・退社した人は、カレンダーや担当決めの名前一覧に出ません。過去の授業記録と給与の集計には残します。</p>
+        <div class="list-filter-bar">
+          <label for="calFilter-trigger">絞り込み：</label>
+          <div class="search-combobox-wrap">
+            <div class="search-combobox">
+              <button type="button" class="search-combobox-trigger" id="calFilter-trigger">すべて（教室全体）</button>
+            </div>
+          </div>
+        </div>
+        <p class="field-hint" id="otherScreenNote"></p>
+      </div>
+    </section>
+  </main>
+
+  <script type="module" src="leave-status-preview.js"></script>
+</body>
+</html>

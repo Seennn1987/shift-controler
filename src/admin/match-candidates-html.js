@@ -12,6 +12,7 @@ import { compareCandidateInfo } from './matching-config.js';
 import { renderMatchCandidateList } from './match-candidate-ui.js';
 import { teacherTeachesBoth } from './dual-subject.js';
 import { getOwnerTeacher } from './owner-teacher.js';
+import { isActivePerson } from './active-people.js';
 
 function withOwnerCandidate(candidates, student, courseId, subject, day, slot, dateStr){
   const info = buildCandidateInfo(student.id, courseId, student.level, subject, day, slot, getOwnerTeacher(), dateStr);
@@ -27,6 +28,7 @@ export function buildMatchCandidatesHtml(student, courseId, subject, day, slot, 
   const detailYearMonth = dateStr ? dateStr.slice(0, 7) : getActiveYearMonth();
   const candidates = withOwnerCandidate(
     S.teachers
+      .filter(isActivePerson)
       .filter(t=> dateStr ? isTeacherAvailableOnDate(t.id, dateStr, slot) : isAvailable(t, day, slot))
       .filter(t=> t.subjects.some(ts=> ts.level === student.level && ts.subject === subject))
       .map(t=> buildCandidateInfo(student.id, courseId, student.level, subject, day, slot, t, dateStr))
@@ -94,6 +96,7 @@ export function buildDualMatchCandidatesHtml(student, dualPair, day, slot, dateS
 
   const candidates = withOwnerCandidate(
     S.teachers
+      .filter(isActivePerson)
       .filter(t=> dateStr ? isTeacherAvailableOnDate(t.id, dateStr, slot) : isAvailable(t, day, slot))
       .filter(t=> teacherTeachesBoth(t, student.level, subjectA, subjectB))
       .map(t=> buildCandidateInfo(student.id, courseId, student.level, subjectA, day, slot, t, dateStr))

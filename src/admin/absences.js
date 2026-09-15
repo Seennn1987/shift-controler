@@ -7,6 +7,7 @@ import { getDateSlotState, gradeLabel, isTeacherAvailableOnDate } from './schedu
 import { assignmentAppliesOnDate, findEffectiveAssignment, isPreferredSubjectForTeacher, issueAssignmentApproval, revokePendingApprovalTicket } from './teacher-schedule-tab.js';
 import { findDualPairAtSlot, resolveDualRowAssignmentState, countSlotAssignmentUnits, teacherTeachesBoth } from './dual-subject.js';
 import { findTeacher, getOwnerTeacher } from './owner-teacher.js';
+import { isActivePerson, personAppliesOnDate } from './active-people.js';
 
 // ---- 欠席・振替（特定の実日付にのみ影響。曜日パターン自体は変えない） ----
 // {id, studentId, courseId, subject, day, slot, date, status:'pending'|'resolved', makeup:null|{date,slot,teacherId}}
@@ -436,6 +437,7 @@ function findSubstituteCandidatesForStudent(dateStr, slot, absentTeacherId, stud
   const dualSubjects = dualPair?.subjects;
 
   const qualified = S.teachers.filter(t=>{
+    if(!isActivePerson(t)) return false;
     if(t.id===absentTeacherId) return false;
     if(dualSubjects?.length === 2){
       if(!teacherTeachesBoth(t, student.level, dualSubjects[0], dualSubjects[1])) return false;
@@ -724,6 +726,7 @@ function collectMakeupSlotsOnDate(studentId, dateStr, teacherFilter){
     const roomLoad = countRoomLoadOnDate(dateStr, slot.id, studentId);
     if(roomLoad >= S.roomCapacity) continue;
     const cands = S.teachers
+      .filter(isActivePerson)
       .filter(teacherFilter)
       .filter(t=> isTeacherAvailableOnDate(t.id, dateStr, slot.id))
       .map(t=>({teacher:t, used: countTeacherLoadOnDate(t.id, dateStr, slot.id, studentId)}))
@@ -996,7 +999,7 @@ function computeTeacherOpenings(dateStr, onlyTeacherId){
   const status = getDayStatus(dateStr);
   if(status.type!=='open') return {partialCount:0, emptyCount:0, rows:[]};
   const dayList = getEffectiveDayAssignments(dateStr);
-  const targetTeachers = onlyTeacherId ? S.teachers.filter(t=>t.id===onlyTeacherId) : S.teachers;
+  const targetTeachers = onlyTeacherId ? S.teachers.filter(t=>t.id===onlyTeacherId) : S.teachers.filter(isActivePerson);
   let partialCount = 0, emptyCount = 0;
   const rows = [];
   targetTeachers.forEach(t=>{
@@ -1175,6 +1178,7 @@ function costRatioColor(ratio){
 function getStudentDateRows(student, dateStr){
   const status = getDayStatus(dateStr);
   if(status.type !== 'open') return [];
+  if(!personAppliesOnDate(student, dateStr)) return [];
   const weekday = status.weekday;
   const rows = [];
   const processedDual = new Set();

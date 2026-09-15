@@ -7,8 +7,9 @@ import { refreshSubjectFilterCombobox } from './filter-ui.js';
 import { renderMatrix, switchView } from './finance-ui.js';
 import { renderMatching } from './matching.js';
 import { fillBaseAvailArea, readBaseAvailArea, renderRaiseScheduleList, subjectColor } from './schedule-core.js';
-import { scheduleSave, saveTeacherSubjectsDoc, clearDeletedTeacherCloudDocs, rememberRetiredTeacherLogin } from './students-persistence.js';
-import { getPreferredPairsForTeacher, revokePendingRequestsForTeacher } from './teacher-schedule-tab.js';
+import { scheduleSave, saveTeacherSubjectsDoc, clearDeletedTeacherCloudDocs, rememberRetiredTeacherLogin, scheduleSyncTeacherAssignments } from './students-persistence.js';
+import { getPreferredPairsForTeacher, revokePendingRequestsForTeacher, renderTeacherScheduleTab } from './teacher-schedule-tab.js';
+import { isActivePerson, markPersonLeft, renderLeaveFlash } from './active-people.js';
 
 
 
@@ -331,40 +332,51 @@ function paySummaryText(t){
 function renderTeacherList(){
   scheduleSave();
   const wrap = document.getElementById('teacherList');
+  if(!wrap) return;
   const sorted = sortByNameKana(S.teachers, t=> t.nameKana, t=> t.name);
+  const pool = S.hideLeftTeachers ? sorted.filter(isActivePerson) : sorted;
   const filterId = document.getElementById('teacherListFilter')?.value || '';
   const visible = filterId
-    ? sorted.filter(t=> t.id === filterId)
-    : sorted;
+    ? pool.filter(t=> t.id === filterId)
+    : pool;
   if(S.teachers.length===0){
     wrap.innerHTML = '<div class="empty-note">まだ講師が登録されていません。上のフォームから登録してください。</div>';
+    renderLeaveFlash(document.getElementById('teacherListFlash'), S.teacherLeaveFlash);
     return;
   }
   if(visible.length===0){
-    wrap.innerHTML = '<div class="empty-note">検索に一致する講師がいません。</div>';
+    wrap.innerHTML = S.hideLeftTeachers && sorted.some(t=> t.left)
+      ? '<div class="empty-note">表示する講師がいません。「退職者を非表示」をオフにすると、退社した講師を確認できます。</div>'
+      : '<div class="empty-note">検索に一致する講師がいません。</div>';
+    renderLeaveFlash(document.getElementById('teacherListFlash'), S.teacherLeaveFlash);
     return;
   }
   wrap.innerHTML = '';
   visible.forEach(t=>{
-    const prefPairs = getPreferredPairsForTeacher(t.id);
+    const prefPairs = getPreferredPairsForTeacher(t.id).filter(({ student })=> isActivePerson(student));
     const prefHtml = prefPairs.length
       ? prefPairs.map(({ student, course })=>{
         const c = subjectColor(student.level, course.subject);
         return `<span class="pref-student-chip" style="background:${c.bg};color:${c.text};border:1px solid ${c.border};">${student.name}（${course.subject}）</span>`;
       }).join('')
       : '<span class="pref-student-chip is-empty">担当生徒なし</span>';
+    const leaveBtn = t.left
+      ? `<button type="button" class="edit-btn" data-action="restore" data-id="${t.id}">在籍に戻す</button>`
+      : `<button type="button" class="edit-btn" data-action="leave" data-id="${t.id}">退社</button>`;
+    const workStart = t.left ? `退社 · ${workStartSummaryText(t)}` : workStartSummaryText(t);
     const row = document.createElement('div');
-    row.className = 'teacher-row';
+    row.className = `teacher-row${t.left ? ' is-disabled' : ''}`;
     row.innerHTML = `
       <div class="trow-top">
         <div class="trow-head-main">
           <span class="name">${t.name}</span>
-          <span class="trow-work-start${t.workStartYearMonth ? '' : ' trow-work-start-empty'}">${workStartSummaryText(t)}</span>
+          <span class="trow-work-start${t.workStartYearMonth ? '' : ' trow-work-start-empty'}">${workStart}</span>
           <span class="trow-pay-inline">${paySummaryText(t)}</span>
         </div>
         <div class="row-actions">
-          <button class="edit-btn" data-id="${t.id}">編集</button>
-          <button class="del-btn" data-id="${t.id}">削除</button>
+          <button type="button" class="edit-btn" data-id="${t.id}">編集</button>
+          ${leaveBtn}
+          <button type="button" class="del-btn" data-id="${t.id}">削除</button>
         </div>
       </div>
       <div class="trow-pref-students">
@@ -389,11 +401,17 @@ function renderTeacherList(){
       </div>`;
     wrap.appendChild(row);
   });
-  wrap.querySelectorAll('.edit-btn').forEach(b=>{
+  wrap.querySelectorAll('.edit-btn:not([data-action])').forEach(b=>{
     b.addEventListener('click', ()=>{
       const t = S.teachers.find(x=>x.id===b.dataset.id);
       if(t) fillFormForEdit(t);
     });
+  });
+  wrap.querySelectorAll('[data-action=leave]').forEach(b=>{
+    b.addEventListener('click', ()=> setTeacherLeft(b.dataset.id, true));
+  });
+  wrap.querySelectorAll('[data-action=restore]').forEach(b=>{
+    b.addEventListener('click', ()=> setTeacherLeft(b.dataset.id, false));
   });
   wrap.querySelectorAll('.del-btn').forEach(b=>{
     b.addEventListener('click', ()=>{
@@ -406,6 +424,55 @@ function renderTeacherList(){
       }
     });
   });
+  renderLeaveFlash(document.getElementById('teacherListFlash'), S.teacherLeaveFlash);
+}
+
+async function syncTeacherLoginLeftFlag(teacher, left){
+  if(!teacher?.loginUid) return;
+  try{
+    await fbDb.collection('teacherAccounts').doc(teacher.loginUid).set({ left: !!left }, { merge: true });
+  }catch(err){
+    console.error('講師ログインの退社状態の更新エラー:', err);
+  }
+}
+
+async function setTeacherLeft(id, left){
+  const teacher = S.teachers.find(t=> t.id === id);
+  if(!teacher) return;
+  markPersonLeft(teacher, left);
+  if(left){
+    if(S.calFilterTeacherId === id) S.calFilterTeacherId = '';
+    if(S.tsSelectedTeacherId === id){
+      S.tsSelectedTeacherId = null;
+      const editCard = document.getElementById('tsEditCard');
+      if(editCard) editCard.style.display = 'none';
+    }
+    try{
+      await revokePendingRequestsForTeacher(teacher);
+    }catch(err){
+      console.error('退社した講師の講師側依頼の取り消しエラー:', err);
+    }
+    S.teacherLeaveFlash = {
+      message: `${teacher.name}さんを退社にしました。授業を組む画面には出ません。`,
+      restoreLabel: '在籍に戻す',
+      onRestore: ()=> setTeacherLeft(id, false),
+      onDismiss: ()=>{
+        S.teacherLeaveFlash = null;
+        renderTeacherList();
+      },
+    };
+  }else{
+    S.teacherLeaveFlash = {
+      message: `${teacher.name}さんを在籍に戻しました。`,
+    };
+  }
+  await syncTeacherLoginLeftFlag(teacher, left);
+  await saveTeachers();
+  scheduleSyncTeacherAssignments();
+  renderTeacherList();
+  renderMatrix();
+  renderMatching();
+  renderTeacherScheduleTab();
 }
 
 async function deleteTeacher(id){

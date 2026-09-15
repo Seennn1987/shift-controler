@@ -513,12 +513,14 @@ function scheduleSyncTeacherAssignments(){
 }
 function expandAssignmentForTeacherCalendar(a, approvalStatus, teacherId){
   const student = S.students.find(s=>s.id===a.studentId);
+  const teacher = S.teachers.find(t=> t.id === teacherId);
   const isPreferredPair = S.preferredPairs.some(p=>
     p.studentId===a.studentId && p.courseId===a.courseId && p.teacherId===teacherId
   );
   const absentDates = (S.teacherAbsences || [])
     .filter(ta=> isTeacherAbsentForStudent(teacherId, ta.date, a.slot, a.studentId))
     .map(ta=> ta.date);
+  const leaveDates = [student?.leftDate, teacher?.leftDate].filter(d=> typeof d === 'string').sort();
   const base = {
     day: a.day,
     slot: a.slot,
@@ -532,6 +534,7 @@ function expandAssignmentForTeacherCalendar(a, approvalStatus, teacherId){
     absentDates,
     skippedDates: [...(a.skippedDates || []), ...studentAbsentDatesForAssignment(a)],
     courseStartDate: student?.courseStartDate || null,
+    leftDate: leaveDates[0] || null,
   };
   if(a.oneTimeDate){
     if(absentDates.includes(a.oneTimeDate)) return [];

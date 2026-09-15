@@ -131,6 +131,7 @@ function approvalAppliesOnDate(ticket, dateStr){
 
 function entryAppliesOnDate(entry, dateStr){
   if(!isOnOrAfterDate(dateStr, resolveCourseStartDate(entry))) return false;
+  if(entry.leftDate && dateStr >= entry.leftDate) return false;
   if((entry.absentDates || []).includes(dateStr)) return false;
   if((entry.skippedDates || []).includes(dateStr)) return false;
   if(entry.oneTimeDate) return entry.oneTimeDate === dateStr;

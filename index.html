@@ -233,12 +233,14 @@
       <div class="list-filter-bar">
         <label for="teacherListFilter-trigger">絞り込み：</label>
         <select id="teacherListFilter"><option value="">すべて表示</option></select>
+        <button type="button" class="search-combobox-clear is-active-filter" id="hideLeftTeachersBtn" aria-pressed="true">退職者を非表示</button>
       </div>
+      <div class="list-leave-flash" id="teacherListFlash"></div>
       <div class="teacher-list" id="teacherList"></div>
     </div>
 
     <div class="card">
-      <h2>全講師の給与を一括設定<span class="help-tip" tabindex="0">?<span class="help-tip-text">現在登録されているすべての講師のコマ単価・特別単価をまとめて上書きします。教科・希望曜日・備考などはそのまま維持されます。</span></span></h2>
+      <h2>全講師の給与を一括設定<span class="help-tip" tabindex="0">?<span class="help-tip-text">在籍中の講師のコマ単価・特別単価をまとめて上書きします。退社した講師には適用しません。教科・希望曜日・備考などはそのまま維持されます。</span></span></h2>
       <div class="pay-input-row">
         <div class="pay-input-item">
           <label for="bulkPayRateInput">コマ単価（円/コマ）</label>
@@ -360,7 +362,9 @@
       <div class="list-filter-bar">
         <label for="studentListFilter-trigger">絞り込み：</label>
         <select id="studentListFilter"><option value="">すべて表示</option></select>
+        <button type="button" class="search-combobox-clear is-active-filter" id="hideLeftStudentsBtn" aria-pressed="true">退会者を非表示</button>
       </div>
+      <div class="list-leave-flash" id="studentListFlash"></div>
       <div class="teacher-list student-list" id="studentList"></div>
     </div>
 

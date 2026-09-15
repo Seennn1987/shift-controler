@@ -14,6 +14,7 @@ import {
 } from '../shared/cal-alert-row.js';
 import { countSlotAssignmentUnits, findDualPairAtSlot, buildDualSubjectTagsHtml } from './dual-subject.js';
 import { findTeacher, isOwnerTeacher, isOwnerTeacherId } from './owner-teacher.js';
+import { isActivePerson, personAppliesOnDate } from './active-people.js';
 
 // 講師スケジュール（月次提出）タブ
 // =====================================================================
@@ -345,14 +346,15 @@ function renderTeacherScheduleTab(){
     wrap.innerHTML = '<div class="loading">読み込み中…</div>';
     return;
   }
-  if(S.teachers.length===0){
+  const listTeachers = S.teachers.filter(isActivePerson);
+  if(listTeachers.length===0){
     wrap.innerHTML = '<div class="empty-note">講師登録タブから講師を登録すると、ここにスケジュール提出状況が表示されます。</div>';
     return;
   }
 
   const yearMonth = `${S.calYear}-${pad2(S.calMonth+1)}`;
   const daysInMonth = new Date(S.calYear, S.calMonth+1, 0).getDate();
-  wrap.innerHTML = S.teachers.map(t=>{
+  wrap.innerHTML = listTeachers.map(t=>{
     const sch = findTeacherSchedule(t.id, yearMonth);
     let statusClass, statusLabel;
     if(!sch){ statusClass='none'; statusLabel='未提出'; }
@@ -467,7 +469,7 @@ function getPreferredTeachersForCourse(studentId, courseId){
   return S.preferredPairs
     .filter(p=> p.studentId === studentId && p.courseId === courseId)
     .map(p=> S.teachers.find(t=> t.id === p.teacherId))
-    .filter(Boolean);
+    .filter(t=> t && isActivePerson(t));
 }
 
 function getPreferredPairsForTeacher(teacherId){
@@ -580,6 +582,9 @@ function assignmentAppliesOnDate(a, dateStr){
   if(!dateStr) return true;
   const student = S.students.find(s=> s.id === a.studentId);
   if(student && !isOnOrAfterDate(dateStr, student.courseStartDate)) return false;
+  if(!personAppliesOnDate(student, dateStr)) return false;
+  const teacher = findTeacher(a.teacherId);
+  if(teacher && !isOwnerTeacher(teacher) && !personAppliesOnDate(teacher, dateStr)) return false;
   if((a.skippedDates || []).includes(dateStr)) return false;
   const status = getDayStatus(dateStr);
   if(status.type !== 'open') return false;

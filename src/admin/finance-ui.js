@@ -13,6 +13,7 @@ import { abbr, gradeLabel, subjectColor, teacherHonorific } from './schedule-cor
 import { scheduleSave } from './students-persistence.js';
 import { renderTeacherScheduleTab } from './teacher-schedule-tab.js';
 import { renderTeacherList } from './teachers.js';
+import { isActivePerson } from './active-people.js';
 
 // 収支タブ（講師コスト率の可視化：日・週・月）
 // =====================================================================
@@ -564,7 +565,7 @@ function renderMatrix(){
     wrap.innerHTML = '<div class="loading">読み込み中…</div>';
     return;
   }
-  if(S.teachers.length===0){
+  if(S.teachers.filter(isActivePerson).length===0){
     wrap.innerHTML = '<div class="empty-state">講師が登録されるとここに一覧表が表示されます。<br>まずは「講師登録」タブから登録してください。</div>';
     return;
   }
@@ -589,7 +590,7 @@ function renderMatrix(){
         return;
       }
       // その曜日・コマに「基本的に対応可能」と登録時に申告している講師を抽出（実際の月次提出とは無関係）
-      let avail = S.teachers.filter(t => (t.baseAvailability||[]).some(e=>e.day===day && e.slot===slot.id));
+      let avail = S.teachers.filter(isActivePerson).filter(t => (t.baseAvailability||[]).some(e=>e.day===day && e.slot===slot.id));
       if(filterVal){
         avail = avail.filter(t => t.subjects.some(s=>s.level===filterLevel && s.subject===filterSubject));
       }

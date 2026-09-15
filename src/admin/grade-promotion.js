@@ -1,6 +1,7 @@
 import { LEVEL_ABBR } from '../shared/constants.js';
 import { getTodayStr } from '../shared/date-utils.js';
 import { fbAuth, fbDb, S } from './state.js';
+import { isActivePerson } from './active-people.js';
 
 /** 4月始まりの年度。2026-04-01 → 2026、2026-03-31 → 2025 */
 function schoolYearOf(dateStr){
@@ -69,7 +70,7 @@ function renameSansuForStudent(studentId){
 function promoteAllStudentsOneYear(){
   let changedCount = 0;
   let high3Count = 0;
-  (S.students || []).forEach(student=>{
+  (S.students || []).filter(isActivePerson).forEach(student=>{
     const next = nextSchoolGrade(student.level, student.grade);
     if(next.stayedHigh3) high3Count++;
     if(!next.changed) return;

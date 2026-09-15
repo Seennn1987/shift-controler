@@ -18,6 +18,7 @@ import { initOnboarding } from './onboarding.js';
 import { takeGradePromotionNotice } from './grade-promotion.js';
 import { showAppNoticeDialog } from '../shared/app-confirm-dialog.js';
 import { initUpdateNotice } from './update-notice.js';
+import { isActivePerson, syncHideButton } from './active-people.js';
 
 function syncWeekAxisTabs(){
   document.querySelectorAll('.week-axis-btn').forEach(b=>{
@@ -282,6 +283,8 @@ async function init(){
   document.getElementById('bulkPayApplyBtn').addEventListener('click', async ()=>{
     const msg = document.getElementById('bulkPayMsg');
     if(S.teachers.length===0){ msg.textContent = '講師が1人も登録されていません。'; return; }
+    const targets = S.teachers.filter(isActivePerson);
+    if(targets.length===0){ msg.textContent = '在籍中の講師がいません。'; return; }
     let rate = parseInt(document.getElementById('bulkPayRateInput').value, 10);
     if(!Number.isFinite(rate) || rate<0){ msg.textContent = 'コマ単価を入力してください。'; return; }
 
@@ -294,7 +297,7 @@ async function init(){
       earlyLessonException = {lessonCount: cnt, rate: earlyRate};
     }
 
-    S.teachers.forEach(t=>{
+    targets.forEach(t=>{
       t.perLessonRate = rate;
       t.earlyLessonException = earlyLessonException;
     });
@@ -303,7 +306,7 @@ async function init(){
     renderTeacherList();
     renderMatrix();
     renderMatching();
-    msg.textContent = `${S.teachers.length}名に適用しました。`;
+    msg.textContent = `${targets.length}名に適用しました。`;
   });
   document.getElementById('cancelBtn').addEventListener('click', resetForm);
   document.getElementById('subjectFilter').addEventListener('change', renderMatrix);
@@ -371,6 +374,18 @@ async function init(){
   });
   document.getElementById('studentListFilter')?.addEventListener('change', ()=>{
     renderStudentList();
+  });
+  document.getElementById('hideLeftStudentsBtn')?.addEventListener('click', ()=>{
+    S.hideLeftStudents = !S.hideLeftStudents;
+    syncHideButton(document.getElementById('hideLeftStudentsBtn'), S.hideLeftStudents);
+    refreshAllPersonComboboxes();
+    renderStudentList();
+  });
+  document.getElementById('hideLeftTeachersBtn')?.addEventListener('click', ()=>{
+    S.hideLeftTeachers = !S.hideLeftTeachers;
+    syncHideButton(document.getElementById('hideLeftTeachersBtn'), S.hideLeftTeachers);
+    refreshAllPersonComboboxes();
+    renderTeacherList();
   });
   document.getElementById('tsPrevBtn').addEventListener('click', ()=>{
     S.calMonth--;
@@ -443,6 +458,8 @@ async function init(){
 
   await loadTeachers();
   await loadStudents();
+  syncHideButton(document.getElementById('hideLeftStudentsBtn'), S.hideLeftStudents);
+  syncHideButton(document.getElementById('hideLeftTeachersBtn'), S.hideLeftTeachers);
   refreshAllPersonComboboxes();
   renderTeacherList();
   renderStudentList();

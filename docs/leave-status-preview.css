@@ -1,0 +1,36 @@
+.preview-header{
+  background:var(--brand-900);
+  color:var(--text-on-brand);
+  padding:16px 20px;
+  margin-bottom:12px;
+}
+.preview-header-inner{max-width:960px;margin:0 auto;}
+.preview-header h1{margin:0 0 6px;font-size:var(--text-xl);font-weight:700;}
+.preview-header p{margin:0;font-size:var(--text-md);color:rgba(255,255,255,.78);line-height:var(--leading-relaxed);}
+.preview-app{padding-top:0;}
+.preview-note{
+  font-size:var(--text-md);color:var(--ink-soft);line-height:var(--leading-relaxed);
+  margin:0 0 12px;
+}
+
+/* 絞り込み中の名前欄と同じ「オン」色を、横のボタンにも使う */
+.search-combobox-clear.is-active-filter{
+  border-color:var(--green-700);
+  background:var(--green-50);
+  color:var(--green-900);
+}
+
+/* 休校日の無効行と同じグレー */
+.student-row.is-disabled,
+.teacher-row.is-disabled{
+  opacity:.55;
+  background:var(--bg-soft);
+}
+.student-row.is-disabled:hover{
+  border-color:var(--border);
+  background:var(--surface-muted);
+}
+
+@media (prefers-reduced-motion: reduce){
+  *{transition:none !important;animation:none !important;}
+}

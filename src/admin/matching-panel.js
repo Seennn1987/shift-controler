@@ -33,6 +33,7 @@ import { buildDraftSlotCardHtml, buildPrefPairActionHtmlForTeacher, buildWaiting
 import { buildDualSubjectTagsHtml, findDualPairForStudent } from './dual-subject.js';
 import { mountWithdrawConfirm } from './withdraw-pending-ui.js';
 import { mountInlineConfirm, showInlineNotice } from '../shared/inline-confirm.js';
+import { isActivePerson } from './active-people.js';
 
 function refreshPrefPairViews(){
   renderStudentList();
@@ -817,7 +818,7 @@ function closeMatchingPanel(){
 function renderStudentPeriodSlots(studentId, scrollToDateStr){
   const body = document.getElementById('matchingPanelBody');
   const student = S.students.find(s=> s.id === studentId);
-  if(!body || !student) return;
+  if(!body || !student || !isActivePerson(student)) return;
 
   S.matchingPanelSlot = null;
 
