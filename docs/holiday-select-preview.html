@@ -1,0 +1,70 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ピタコマ 祝日の休校を日ごとに選ぶ</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Zen+Kaku+Gothic+New:wght@400;500;700;900&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="../src/shared/styles/variables.css">
+  <link rel="stylesheet" href="../src/admin/styles/admin.css">
+  <link rel="stylesheet" href="holiday-select-preview.css">
+</head>
+<body>
+  <header class="preview-page-header">
+    <div class="preview-page-header-inner">
+      <h1>祝日の休校を、日ごとに選べるようにする</h1>
+      <p>いまは「全部休校」か「全部授業」の2択です。一括チェックはそのまま、一覧で一部だけ外せます。</p>
+    </div>
+  </header>
+
+  <main class="preview-main">
+    <p class="preview-note">上はいまの画面、下は変更案です。変更案はクリックして試せます（例：こどもの日だけ外す）。本番の設定画面は、見てOKと言ってから直します。</p>
+
+    <p class="preview-now-label">いま（見た目だけ・押せません）</p>
+    <div class="card preview-now-card">
+      <h2>休校日設定</h2>
+      <label class="field-label">祝日<span class="help-tip" tabindex="0">?<span class="help-tip-text">ONにすると、祝日（内閣府発表データ）をすべて休校扱いにします。個別の祝日ごとの設定はできません。</span></span></label>
+      <div class="chip-row">
+        <label class="chip">
+          <input type="checkbox" checked disabled>
+          <span>祝日をまとめて休校にする</span>
+        </label>
+      </div>
+      <div>
+        <div class="holiday-row">
+          <span class="holiday-date">2026-01-01</span>
+          <span class="holiday-name">元日</span>
+          <span class="holiday-status-badge">休校</span>
+        </div>
+        <div class="holiday-row">
+          <span class="holiday-date">2026-05-05</span>
+          <span class="holiday-name">こどもの日</span>
+          <span class="holiday-status-badge">休校</span>
+        </div>
+        <div class="holiday-row">
+          <span class="holiday-date">2026-11-23</span>
+          <span class="holiday-name">勤労感謝の日</span>
+          <span class="holiday-status-badge">休校</span>
+        </div>
+        <div class="empty-note">一覧は見るだけです。1日だけ外すことはできません。</div>
+      </div>
+    </div>
+
+    <p class="preview-next-label">変更案（クリックして試せます）</p>
+    <div class="card">
+      <h2>休校日設定</h2>
+      <label class="field-label">祝日<span class="help-tip" tabindex="0">?<span class="help-tip-text">上のチェックで祝日をまとめて休校にできます。一覧のチェックを外せば、その日だけ授業日にできます。</span></span></label>
+      <div class="chip-row">
+        <label class="chip" id="holidayAutoDetectChip">
+          <input type="checkbox" id="holidayAutoDetectToggle">
+          <span>祝日をまとめて休校にする</span>
+        </label>
+      </div>
+      <div id="holidayListWrap"></div>
+    </div>
+  </main>
+
+  <script src="holiday-select-preview.js"></script>
+</body>
+</html>

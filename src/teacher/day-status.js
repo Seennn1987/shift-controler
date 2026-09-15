@@ -1,5 +1,5 @@
 import { SLOTS, WEEKDAY_JP } from '../shared/constants.js';
-import { HOLIDAYS_JP } from '../shared/holidays.js';
+import { findHoliday, isClosedHoliday } from '../shared/holidays.js';
 import { pad2, daysInYearMonth, toDateStr } from '../shared/date-utils.js';
 import { fbAuth, fbDb, S } from './state.js';
 
@@ -14,8 +14,8 @@ function getDayStatus(dateStr){
   const closure = findCustomClosure(dateStr);
   if(closure) return {type:'custom-closed', label:closure.label, weekday};
   if(S.regularClosedDays.includes(weekday)) return {type:'closed-weekday', label:'定休日', weekday};
-  if(S.holidayAutoDetect){
-    const h = HOLIDAYS_JP.find(x=>x.date===dateStr);
+  if(isClosedHoliday(dateStr, S.closedHolidayDates)){
+    const h = findHoliday(dateStr);
     if(h) return {type:'holiday', label:h.name, weekday};
   }
   return {type:'open', label:'', weekday};

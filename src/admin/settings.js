@@ -1,8 +1,8 @@
 import { SUBJECT_MAP, DAYS, SLOTS, WEEKDAY_JP, WEEK_FULL } from '../shared/constants.js';
-import { HOLIDAYS_JP } from '../shared/holidays.js';
+import { HOLIDAYS_JP, areAllHolidaysClosed } from '../shared/holidays.js';
 import { pad2, daysInYearMonth, toDateStr, getTodayStr } from '../shared/date-utils.js';
 import { firebaseConfig, fbAuth, fbDb, STORAGE_KEY, getSecondaryAuth, S } from './state.js';
-import { renderCalendar } from './calendar.js';
+import { renderCalendar, refreshAfterDayStatusChange } from './calendar.js';
 import { renderMatrix } from './finance-ui.js';
 import { renderMatching } from './matching.js';
 import { scheduleSave, syncClosureSettingsNow } from './students-persistence.js';
@@ -117,24 +117,63 @@ function renderClosedDaySettings(){
   document.querySelectorAll('.closed-day-checkbox').forEach(cb=>{
     cb.checked = S.regularClosedDays.includes(cb.dataset.day);
   });
-  document.getElementById('holidayAutoDetectToggle').checked = S.holidayAutoDetect;
+  if(!Array.isArray(S.closedHolidayDates)) S.closedHolidayDates = [];
+  S.holidayAutoDetect = areAllHolidaysClosed(S.closedHolidayDates);
+
+  const bulk = document.getElementById('holidayAutoDetectToggle');
+  if(bulk){
+    const allOn = S.holidayAutoDetect;
+    const noneOn = S.closedHolidayDates.length === 0;
+    bulk.checked = allOn;
+    bulk.indeterminate = !allOn && !noneOn;
+  }
 
   const wrap = document.getElementById('holidayListWrap');
   if(!wrap) return;
-  if(!S.holidayAutoDetect){
-    wrap.innerHTML = '<div class="empty-note">「祝日をまとめて休校にする」をONにすると、祝日が一覧表示されます。</div>';
-    return;
-  }
   const holidays = computeHolidaysInTerms();
   if(holidays.length===0){
     wrap.innerHTML = '<div class="empty-note">祝日データが見つかりませんでした。</div>';
     return;
   }
-  wrap.innerHTML = holidays.map(h=>`<div class="holiday-row">
+  const closedSet = new Set(S.closedHolidayDates);
+  wrap.innerHTML = holidays.map(h=>{
+    const closed = closedSet.has(h.date);
+    const rowClass = closed ? '' : ' is-disabled';
+    const checked = closed ? ' checked' : '';
+    const badge = closed ? '<span class="holiday-status-badge">休校</span>' : '';
+    return `<label class="holiday-row${rowClass}">
+      <input type="checkbox" class="holiday-closed-checkbox" data-date="${h.date}"${checked} aria-label="${h.name}を休校にする">
       <span class="holiday-date">${h.date}</span>
       <span class="holiday-name">${h.name}</span>
-      <span class="holiday-status-badge">休校</span>
-    </div>`).join('');
+      ${badge}
+    </label>`;
+  }).join('');
+  wrap.querySelectorAll('.holiday-closed-checkbox').forEach(cb=>{
+    cb.addEventListener('change', ()=>{
+      toggleClosedHolidayDate(cb.dataset.date, cb.checked);
+    });
+  });
+}
+
+function applyHolidaySelectionChange(){
+  renderClosedDaySettings();
+  refreshAfterDayStatusChange();
+  syncClosureSettingsNow({ notify: true });
+}
+
+function handleHolidayBulkToggle(checked){
+  S.closedHolidayDates = checked ? HOLIDAYS_JP.map(h=> h.date) : [];
+  applyHolidaySelectionChange();
+}
+
+function toggleClosedHolidayDate(dateStr, closed){
+  if(!Array.isArray(S.closedHolidayDates)) S.closedHolidayDates = [];
+  if(closed){
+    if(!S.closedHolidayDates.includes(dateStr)) S.closedHolidayDates.push(dateStr);
+  }else{
+    S.closedHolidayDates = S.closedHolidayDates.filter(d=> d !== dateStr);
+  }
+  applyHolidaySelectionChange();
 }
 
 // 登録フォームの曜日グリッド（講師・生徒）に定休日の視覚的な警告をつける（入力はブロックしない）
@@ -162,9 +201,7 @@ function buildClosedDayArea(){
         S.regularClosedDays = S.regularClosedDays.filter(d=>d!==cb.dataset.day);
       }
       applyClosedDayStyling();
-      renderMatrix();
-      renderMatching();
-      renderCalendar();
+      refreshAfterDayStatusChange();
       scheduleSave();
       syncClosureSettingsNow({ notify: true });
     });
@@ -213,7 +250,7 @@ function handleClosureSave(){
   addOrUpdateClosure({label: label || '休校日', startDate, endDate});
   resetClosureForm();
   renderClosureList();
-  renderCalendar();
+  refreshAfterDayStatusChange();
   syncClosureSettingsNow({ notify: true });
 }
 function renderClosureList(){
@@ -249,7 +286,7 @@ function renderClosureList(){
         deleteClosure(b.dataset.id);
         if(S.editingClosureId===b.dataset.id) resetClosureForm();
         renderClosureList();
-        renderCalendar();
+        refreshAfterDayStatusChange();
         syncClosureSettingsNow({ notify: true });
       }else{
         b.dataset.confirming = '1';
@@ -347,4 +384,4 @@ function initMatchingPrioritySettings(){
 
 // =====================================================================
 
-export { addOrUpdateTerm, deleteTerm, resetTermForm, fillTermFormForEdit, handleTermSave, renderTermList, computeHolidaysInTerms, renderClosedDaySettings, applyClosedDayStyling, buildClosedDayArea, addOrUpdateClosure, deleteClosure, resetClosureForm, fillClosureFormForEdit, handleClosureSave, renderClosureList, renderMatchingPrioritySettings, initMatchingPrioritySettings };
+export { addOrUpdateTerm, deleteTerm, resetTermForm, fillTermFormForEdit, handleTermSave, renderTermList, computeHolidaysInTerms, renderClosedDaySettings, applyClosedDayStyling, buildClosedDayArea, handleHolidayBulkToggle, addOrUpdateClosure, deleteClosure, resetClosureForm, fillClosureFormForEdit, handleClosureSave, renderClosureList, renderMatchingPrioritySettings, initMatchingPrioritySettings };

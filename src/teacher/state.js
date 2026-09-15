@@ -8,6 +8,7 @@ export const DAY_ORDER = {'月':0,'火':1,'水':2,'木':3,'金':4,'土':5,'日':
 export const S = {
   regularClosedDays: ['日'],
   holidayAutoDetect: false,
+  closedHolidayDates: [],
   customClosures: [],
   classroomSettingsTimer: null,
   myAdminUid: null,

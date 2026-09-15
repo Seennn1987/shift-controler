@@ -1,5 +1,5 @@
 import { SUBJECT_MAP, DAYS, SLOTS, WEEKDAY_JP, WEEK_FULL, LEVELS_ORDER, LEVEL_ABBR, SUBJECT_ABBR } from '../shared/constants.js';
-import { HOLIDAYS_JP } from '../shared/holidays.js';
+import { isClosedHoliday } from '../shared/holidays.js';
 import { pad2, daysInYearMonth, toDateStr, getTodayStr } from '../shared/date-utils.js';
 import { firebaseConfig, fbAuth, fbDb, STORAGE_KEY, getSecondaryAuth, S } from './state.js';
 import { shortName, getDayStatus } from './calendar.js';
@@ -135,7 +135,7 @@ function addRaiseRow(yearMonth, rate){
 function isScheduleDateClosed(dateStr){
   const wd = WEEKDAY_JP[new Date(dateStr + 'T00:00:00').getDay()];
   if(S.regularClosedDays.includes(wd)) return true;
-  if(S.holidayAutoDetect && HOLIDAYS_JP.some(h=> h.date === dateStr)) return true;
+  if(isClosedHoliday(dateStr, S.closedHolidayDates)) return true;
   return S.customClosures.some(c=> dateStr >= c.startDate && dateStr <= c.endDate);
 }
 

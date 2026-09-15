@@ -42,6 +42,7 @@ export const S = {
   editingTermId: null,
   regularClosedDays: ['日'],
   holidayAutoDetect: false,
+  closedHolidayDates: [],
   customClosures: [],
   editingClosureId: null,
   calYear: undefined,

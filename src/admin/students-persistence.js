@@ -1,5 +1,5 @@
 import { SUBJECT_MAP, DAYS, SLOTS, WEEKDAY_JP, WEEK_FULL } from '../shared/constants.js';
-import { HOLIDAYS_JP } from '../shared/holidays.js';
+import { normalizeClosedHolidayDates, areAllHolidaysClosed } from '../shared/holidays.js';
 import { pad2, daysInYearMonth, toDateStr, getTodayStr } from '../shared/date-utils.js';
 import { firebaseConfig, fbAuth, fbDb, STORAGE_KEY, getSecondaryAuth, S } from './state.js';
 import { getDayStatus, renderCalendar } from './calendar.js';
@@ -482,6 +482,7 @@ async function syncClosureSettings(){
     await fbDb.collection('classroomSettings').doc(user.uid).set({
       regularClosedDays: S.regularClosedDays,
       holidayAutoDetect: S.holidayAutoDetect,
+      closedHolidayDates: S.closedHolidayDates || [],
       customClosures: S.customClosures,
       updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
     }, {merge:true});
@@ -743,6 +744,7 @@ async function saveAppState(){
     tuitionRates: S.tuitionRates,
     regularClosedDays: S.regularClosedDays,
     holidayAutoDetect: S.holidayAutoDetect,
+    closedHolidayDates: S.closedHolidayDates || [],
     roomCapacity: S.roomCapacity,
     teacherCapacity: S.teacherCapacity,
     finGradientMin: S.finGradientMin,
@@ -788,7 +790,8 @@ async function loadAppStateFromFirestore(){
     S.preferredPairs = d.preferredPairs || [];
     S.tuitionRates = d.tuitionRates || {'小学':2900, '中学':3900, '高校':5200};
     S.regularClosedDays = d.regularClosedDays || ['日'];
-    S.holidayAutoDetect = !!d.holidayAutoDetect;
+    S.closedHolidayDates = normalizeClosedHolidayDates(d);
+    S.holidayAutoDetect = areAllHolidaysClosed(S.closedHolidayDates);
     S.roomCapacity = d.roomCapacity || 12;
     S.teacherCapacity = d.teacherCapacity || 2;
     S.finGradientMin = (d.finGradientMin!=null) ? d.finGradientMin : 25;
@@ -812,6 +815,7 @@ async function loadAppStateFromFirestore(){
     S.terms = [];
     S.customClosures = [];
     S.preferredPairs = [];
+    S.closedHolidayDates = [];
     S.holidayAutoDetect = false;
     S.lastGradePromotionYear = null;
     S.officeHourlyRate = 1300;

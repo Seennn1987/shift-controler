@@ -1,5 +1,5 @@
 import { SUBJECT_MAP, DAYS, SLOTS, WEEKDAY_JP, WEEK_FULL, SUBJECT_ABBR } from '../shared/constants.js';
-import { HOLIDAYS_JP } from '../shared/holidays.js';
+import { findHoliday, isClosedHoliday } from '../shared/holidays.js';
 import { pad2, daysInYearMonth, toDateStr, getTodayStr, isOnOrAfterDate } from '../shared/date-utils.js';
 import { firebaseConfig, fbAuth, fbDb, STORAGE_KEY, getSecondaryAuth, S } from './state.js';
 import { findAbsenceFor, getAbsenceRecordsOnDate, getEffectiveDayAssignments, getStudentDateRows, isAssignedTeacherMissingOnDate } from './absences.js';
@@ -48,8 +48,8 @@ function getDayStatus(dateStr){
   if(S.regularClosedDays.includes(weekday)){
     return {type:'closed-weekday', label:'定休日', weekday};
   }
-  if(S.holidayAutoDetect){
-    const h = HOLIDAYS_JP.find(x=>x.date===dateStr);
+  if(isClosedHoliday(dateStr, S.closedHolidayDates)){
+    const h = findHoliday(dateStr);
     if(h){
       return {type:'holiday', label:h.name, weekday, holidayName:h.name};
     }
@@ -481,15 +481,19 @@ function computeSyncedWeekAnchor(year, month){
   return getWeekMonday(toDateStr(year, month, 1));
 }
 
-function syncMonthChange(){
-  S.referenceYearMonth = `${S.calYear}-${pad2(S.calMonth+1)}`;
-  // 週間予定の表示週（S.calWeekAnchor）は独立した状態のため、月間側の見出しとズレないよう毎回同期する
-  S.calWeekAnchor = computeSyncedWeekAnchor(S.calYear, S.calMonth);
+function refreshAfterDayStatusChange(){
   renderCalendar();
   if(S.calMode==='week') renderCalendarWeek();
   renderTeacherScheduleTab();
   renderMatrix();
   renderMatching();
+}
+
+function syncMonthChange(){
+  S.referenceYearMonth = `${S.calYear}-${pad2(S.calMonth+1)}`;
+  // 週間予定の表示週（S.calWeekAnchor）は独立した状態のため、月間側の見出しとズレないよう毎回同期する
+  S.calWeekAnchor = computeSyncedWeekAnchor(S.calYear, S.calMonth);
+  refreshAfterDayStatusChange();
 }
 
 function updateCalPeriodLabel(){
@@ -530,6 +534,6 @@ function refreshCalToolbarSecondary(){
 
 // =====================================================================
 
-export { findCustomClosure, getDayStatus, shortName, studentRowToCalLine, calLineToHtml, calLinesToEntriesHtml, buildDayCellLines, buildDayCellLinesForTeacher, buildDayHeat, getUnassignedRowsForDate, renderCalendar, computeSyncedWeekAnchor, syncMonthChange, updateCalPeriodLabel, refreshCalToolbarSecondary };
+export { findCustomClosure, getDayStatus, shortName, studentRowToCalLine, calLineToHtml, calLinesToEntriesHtml, buildDayCellLines, buildDayCellLinesForTeacher, buildDayHeat, getUnassignedRowsForDate, renderCalendar, computeSyncedWeekAnchor, syncMonthChange, refreshAfterDayStatusChange, updateCalPeriodLabel, refreshCalToolbarSecondary };
 export { getCalFilterValue, setCalFilterFromSelect, setCalFilterStudent, clearCalFilter, hasCalFocusFilter, resolveFilterStudent, resolveFilterTeacher } from './cal-filter.js';
 export { refreshCalFilterOptions, refreshCalFilterOptions as refreshCalStudentFilterOptions } from './filter-ui.js';

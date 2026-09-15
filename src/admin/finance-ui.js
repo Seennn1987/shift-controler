@@ -656,7 +656,10 @@ function switchView(name){
   document.getElementById('view-finance').classList.toggle('active', name==='finance');
   document.getElementById('view-payroll').classList.toggle('active', name==='payroll');
   document.getElementById('view-settings').classList.toggle('active', name==='settings');
-  if(name==='calendar') renderCalendar();
+  if(name==='calendar'){
+    renderCalendar();
+    if(S.calMode==='week') renderCalendarWeek();
+  }
   if(name==='student') renderMatching();
   if(name==='manage'){ renderTeacherList(); renderMatrix(); }
   if(name==='teacherSchedule') renderTeacherScheduleTab();

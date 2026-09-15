@@ -4,6 +4,12 @@ const STORAGE_KEY = 'pitacoma_admin_update_notice_seen';
 
 const UPDATES = [
   {
+    id: '2026-09-15-holiday-select',
+    date: '2026年9月15日',
+    title: '祝日の休校を、1日ずつ選べる',
+    body: '「設定」の休校日設定です。これまで祝日は全部休校か全部授業の2択でした。「まとめて休校」はそのまま使え、一覧のチェックを外せばその日だけ授業日にできます。カレンダーと講師画面にも届きます。',
+  },
+  {
     id: '2026-09-12-owner-teacher',
     date: '2026年9月12日',
     title: '教室長が、自分で授業を持てる',

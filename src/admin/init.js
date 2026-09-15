@@ -1,6 +1,4 @@
-import { SUBJECT_MAP, DAYS, SLOTS, WEEKDAY_JP, WEEK_FULL } from '../shared/constants.js';
-import { HOLIDAYS_JP } from '../shared/holidays.js';
-import { pad2, daysInYearMonth, toDateStr, getTodayStr } from '../shared/date-utils.js';
+import { pad2, toDateStr, getTodayStr } from '../shared/date-utils.js';
 import { firebaseConfig, fbAuth, fbDb, STORAGE_KEY, getSecondaryAuth, S } from './state.js';
 import { bindPayrollUi, renderPayroll } from './payroll-ui.js';
 import { renderCalendar, syncMonthChange, refreshCalToolbarSecondary } from './calendar.js';
@@ -11,8 +9,8 @@ import { getWeekMonday, renderCalendarWeek, renderFinance, renderLegend, renderM
 import { buildStudentLevelArea, handleCourseStartDateChange, handleStudentSave, renderFormCourses, renderMatching, renderStudentList, resetStudentForm } from './matching.js';
 import { initMatchingPanel } from './matching-panel.js';
 import { addRaiseRow, buildBaseAvailArea, getOrCreateDraftSchedule, gradeLabel } from './schedule-core.js';
-import { buildClosedDayArea, handleClosureSave, handleTermSave, initMatchingPrioritySettings, renderClosedDaySettings, renderClosureList, renderMatchingPrioritySettings, renderTermList, resetClosureForm, resetTermForm } from './settings.js';
-import { loadStudents, saveAppState, saveTeacherScheduleDoc, scheduleSave, syncClosureSettingsNow, syncTeacherLoginUidEverywhere, findRetiredTeacherLogin, dropRetiredTeacherLogin } from './students-persistence.js';
+import { buildClosedDayArea, handleClosureSave, handleHolidayBulkToggle, handleTermSave, initMatchingPrioritySettings, renderClosedDaySettings, renderClosureList, renderMatchingPrioritySettings, renderTermList, resetClosureForm, resetTermForm } from './settings.js';
+import { loadStudents, saveAppState, saveTeacherScheduleDoc, scheduleSave, syncTeacherLoginUidEverywhere, findRetiredTeacherLogin, dropRetiredTeacherLogin } from './students-persistence.js';
 import { authDebugLog, wrapSecondaryAuthForDebug } from './auth-debug.js';
 import { openTeacherScheduleEditor, renderTeacherScheduleTab } from './teacher-schedule-tab.js';
 import { buildSubjectArea, buildSubjectFilterOptions, fillFormForEdit, handleSave, loadTeachers, renderTeacherList, resetForm, saveTeachers } from './teachers.js';
@@ -418,11 +416,8 @@ async function init(){
   });
   document.getElementById('termSaveBtn').addEventListener('click', handleTermSave);
   document.getElementById('termCancelBtn').addEventListener('click', resetTermForm);
-  document.getElementById('holidayAutoDetectToggle').addEventListener('change', async (e)=>{
-    S.holidayAutoDetect = e.target.checked;
-    renderClosedDaySettings();
-    renderCalendar();
-    await syncClosureSettingsNow({ notify: true });
+  document.getElementById('holidayAutoDetectToggle').addEventListener('change', (e)=>{
+    handleHolidayBulkToggle(e.target.checked);
   });
   document.getElementById('closureSaveBtn').addEventListener('click', handleClosureSave);
   document.getElementById('closureCancelBtn').addEventListener('click', resetClosureForm);

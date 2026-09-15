@@ -1,5 +1,5 @@
 import { SUBJECT_MAP, DAYS, SLOTS, WEEKDAY_JP, WEEK_FULL } from '../shared/constants.js';
-import { HOLIDAYS_JP } from '../shared/holidays.js';
+import { isClosedHoliday } from '../shared/holidays.js';
 import { pad2, daysInYearMonth, toDateStr, getTodayStr, isOnOrAfterDate } from '../shared/date-utils.js';
 import { firebaseConfig, fbAuth, fbDb, STORAGE_KEY, getSecondaryAuth, S } from './state.js';
 import { findCustomClosure, getDayStatus, renderCalendar } from './calendar.js';
@@ -430,7 +430,7 @@ function renderTeacherScheduleGrid(schedule){
     const dateStr = `${yearMonth}-${pad2(d)}`;
     const wd = WEEKDAY_JP[new Date(dateStr+'T00:00:00').getDay()];
     const closed = S.regularClosedDays.includes(wd) ||
-      (S.holidayAutoDetect && HOLIDAYS_JP.some(h=>h.date===dateStr)) ||
+      isClosedHoliday(dateStr, S.closedHolidayDates) ||
       !!findCustomClosure(dateStr);
     tbody += `<tr class="${closed?'ts-row-closed':''}"><th>${d}日<span class="ts-wd">(${wd})</span></th>`;
     SLOTS.forEach(slot=>{

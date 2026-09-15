@@ -37,3 +37,34 @@ export const HOLIDAYS_JP = [
   {date:'2027-11-03', name:'文化の日'},
   {date:'2027-11-23', name:'勤労感謝の日'},
 ];
+
+function holidayDateSet(){
+  return new Set(HOLIDAYS_JP.map(h=> h.date));
+}
+
+export function findHoliday(dateStr){
+  return HOLIDAYS_JP.find(h=> h.date === dateStr) || null;
+}
+
+export function isClosedHoliday(dateStr, closedHolidayDates){
+  return Array.isArray(closedHolidayDates) && closedHolidayDates.includes(dateStr);
+}
+
+export function areAllHolidaysClosed(closedHolidayDates){
+  if(!Array.isArray(closedHolidayDates) || HOLIDAYS_JP.length === 0) return false;
+  const set = new Set(closedHolidayDates);
+  return HOLIDAYS_JP.every(h=> set.has(h.date));
+}
+
+/** 保存データから、休校にする祝日の日付一覧を取り出す。古い「全部ON/OFF」も引き継ぐ。 */
+export function normalizeClosedHolidayDates(data){
+  const allowed = holidayDateSet();
+  // 一括ONは「いま載っている祝日を全部休校」の意味。祝日データを足したあとも全部休校のままにする
+  if(data && data.holidayAutoDetect){
+    return HOLIDAYS_JP.map(h=> h.date);
+  }
+  if(data && Array.isArray(data.closedHolidayDates)){
+    return data.closedHolidayDates.filter(d=> typeof d === 'string' && allowed.has(d));
+  }
+  return [];
+}

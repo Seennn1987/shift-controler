@@ -137,7 +137,13 @@
     background:var(--chip-bg,var(--green-700));border-color:var(--chip-border,var(--green-700));
     color:var(--chip-text,var(--text-on-brand));font-weight:700;
   }
+  .chip input:indeterminate + span{
+    background:var(--brand-50);border-color:var(--green-700);color:var(--green-800);font-weight:700;
+  }
   .chip input:focus-visible + span{outline:2px solid var(--brand-500);outline-offset:2px;}
+  @media (prefers-reduced-motion: reduce){
+    .chip span{transition:none;}
+  }
 
   table.avail-grid{border-collapse:collapse;margin-top:6px;}
   table.avail-grid th, table.avail-grid td{
@@ -1038,10 +1044,17 @@
   .term-row .term-range{font-size:var(--text-sm);color:var(--ink-soft);}
 
   /* 休校日設定 */
+  #holidayListWrap{margin-top:12px;}
   .holiday-row{
     display:flex;align-items:center;gap:12px;flex-wrap:wrap;
     border:1px solid var(--border);border-radius:var(--radius-lg);padding:10px 14px;margin-bottom:8px;background:var(--surface-card);
+    cursor:pointer;
   }
+  .holiday-row:hover{background:var(--surface-muted);}
+  .holiday-row input.holiday-closed-checkbox{margin:0;flex-shrink:0;}
+  .holiday-row.is-disabled{opacity:.55;background:var(--bg-soft);}
+  .holiday-row.is-disabled:hover{background:var(--surface-muted);}
+  .holiday-row:focus-within{outline:2px solid var(--brand-500);outline-offset:2px;}
   .holiday-row .holiday-date{font-size:var(--text-sm);color:var(--ink-soft);min-width:92px;}
   .holiday-row .holiday-name{font-weight:700;font-size:var(--text-base);flex:1;}
   .holiday-status-badge{

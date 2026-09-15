@@ -1,0 +1,71 @@
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  font-family: var(--font-family);
+  background: var(--cream);
+  color: var(--ink);
+  -webkit-font-smoothing: antialiased;
+}
+
+.preview-page-header {
+  background: var(--green-900);
+  color: var(--text-on-brand);
+  padding: 24px 20px;
+}
+
+.preview-page-header-inner { max-width: 54rem; margin: 0 auto; }
+.preview-page-header h1 { margin: 0; font-size: var(--text-xl); font-weight: 700; }
+.preview-page-header p {
+  margin: 8px 0 0;
+  font-size: var(--text-md);
+  color: rgba(255, 255, 255, 0.8);
+  line-height: var(--leading-relaxed);
+}
+
+.preview-main { max-width: 54rem; margin: 0 auto; padding: 28px 20px 64px; }
+.preview-note {
+  margin: 0 0 var(--space-5);
+  font-size: var(--text-md);
+  color: var(--ink-soft);
+  line-height: var(--leading-relaxed);
+}
+
+.preview-now-card { opacity: .88; margin-bottom: 20px; }
+.preview-now-label,
+.preview-next-label {
+  font-size: var(--text-sm);
+  font-weight: 700;
+  color: var(--green-800);
+  margin: 0 0 8px;
+}
+
+#holidayListWrap { margin-top: 12px; }
+
+.holiday-row { cursor: pointer; }
+.holiday-row:hover { background: var(--surface-muted); }
+.holiday-row input.holiday-closed-checkbox {
+  margin: 0;
+  flex-shrink: 0;
+}
+.holiday-row.is-disabled {
+  opacity: .55;
+  background: var(--bg-soft);
+}
+.holiday-row.is-disabled:hover { background: var(--surface-muted); }
+
+.chip input:indeterminate + span {
+  background: var(--brand-50);
+  border-color: var(--green-700);
+  color: var(--green-800);
+  font-weight: 700;
+}
+
+.holiday-row:focus-within {
+  outline: 2px solid var(--brand-500);
+  outline-offset: 2px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .chip span { transition: none; }
+}

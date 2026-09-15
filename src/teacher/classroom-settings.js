@@ -1,3 +1,4 @@
+import { normalizeClosedHolidayDates, areAllHolidaysClosed } from '../shared/holidays.js';
 import { fbAuth, fbDb, S } from './state.js';
 import { debugLog } from './debug.js';
 import { renderMyCalendar } from './calendar.js';
@@ -8,7 +9,8 @@ const INITIAL_RETRY_DELAYS_MS = [0, 2000, 2000];
 
 function applyClassroomSettingsData(data){
   S.regularClosedDays = data.regularClosedDays || ['日'];
-  S.holidayAutoDetect = !!data.holidayAutoDetect;
+  S.closedHolidayDates = normalizeClosedHolidayDates(data);
+  S.holidayAutoDetect = areAllHolidaysClosed(S.closedHolidayDates);
   S.customClosures = data.customClosures || [];
 }
 
