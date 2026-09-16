@@ -1,10 +1,16 @@
 import { SLOTS, WEEKDAY_JP } from '../shared/constants.js';
 import { HOLIDAYS_JP } from '../shared/holidays.js';
 import { pad2, daysInYearMonth, toDateStr } from '../shared/date-utils.js';
+import { POLL_INTERVAL_MS, startVisiblePoll } from '../shared/poll-while-visible.js';
 import { fbAuth, fbDb, S } from './state.js';
 import { debugLog } from './debug.js';
 
 function stopScheduleListener(){
+  if(typeof S.scheduleTimer === 'function'){
+    S.scheduleTimer();
+    S.scheduleTimer = null;
+    return;
+  }
   if(S.scheduleTimer){
     clearInterval(S.scheduleTimer);
     S.scheduleTimer = null;
@@ -12,7 +18,7 @@ function stopScheduleListener(){
 }
 
 function startScheduleListener(){
-  if(S.scheduleTimer) clearInterval(S.scheduleTimer);
+  stopScheduleListener();
   const docId = `${S.myAdminUid}_${S.myTeacherId}`;
   const ref = fbDb.collection('teacherSchedules').doc(docId);
   const poll = async ()=>{
@@ -40,8 +46,7 @@ function startScheduleListener(){
       console.error('スケジュール読み込みエラー:', err);
     }
   };
-  poll();
-  S.scheduleTimer = setInterval(poll, 10000);
+  S.scheduleTimer = startVisiblePoll(poll, POLL_INTERVAL_MS.DEFAULT);
 }
 
  // ローカルで編集した直後は、ポーリングによる古いデータでの上書きを一定時間避けるための記録

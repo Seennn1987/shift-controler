@@ -1,0 +1,37 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ピタコマ 分析サマリー（先月比）プレビュー</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Zen+Kaku+Gothic+New:wght@400;500;700;900&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="../src/shared/styles/variables.css">
+  <link rel="stylesheet" href="../src/admin/styles/admin.css">
+  <link rel="stylesheet" href="finance-summary-mom-preview.css">
+</head>
+<body>
+  <header class="preview-page-header">
+    <div class="preview-page-header-inner">
+      <h1>分析サマリー（先月比）</h1>
+      <p>開いた瞬間に「先月と比べてどうか」が分かるようにします。本番の分析タブと同じカードの形です。</p>
+    </div>
+  </header>
+
+  <main class="preview-main">
+    <p class="preview-note">数字はサンプルです。交通費の切り替えで、コスト率と粗利の先月比が変わります。</p>
+
+    <div class="card fin-summary-card">
+      <h2>今月の分析サマリー</h2>
+      <div class="week-axis-tabs" style="margin-bottom:10px;">
+        <button type="button" class="fin-transport-btn active" data-transport="include">交通費込</button>
+        <button type="button" class="fin-transport-btn" data-transport="exclude">交通費別</button>
+      </div>
+      <div id="finMonthSummary" class="fin-summary-grid"></div>
+      <p class="field-hint tight fin-summary-note">数字はいまの組み方をもとに計算しています。先月比は前の月との差です。</p>
+    </div>
+  </main>
+
+  <script src="finance-summary-mom-preview.js"></script>
+</body>
+</html>

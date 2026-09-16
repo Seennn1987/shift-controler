@@ -1,4 +1,5 @@
 import { firebaseConfig, initPrimaryFirebase } from '../shared/firebase-config.js';
+import { emptyGoogleCalendarState } from './google-calendar-events.js';
 
 export { firebaseConfig };
 export const { fbAuth, fbDb } = initPrimaryFirebase();
@@ -75,6 +76,7 @@ export const S = {
   officeHourlyRate: 1300,
   payrollOfficeHours: {},
   payrollLocks: {},
+  googleCalendar: emptyGoogleCalendarState(),
   payYear: undefined,
   payMonth: undefined,
   calendarDrawerView: 'day',

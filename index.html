@@ -17,6 +17,7 @@
 <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-auth-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore-compat.js"></script>
+<script src="https://accounts.google.com/gsi/client" async defer></script>
 
 <!-- ===== ログイン画面 ===== -->
 <div id="loginScreen" class="login-screen">
@@ -43,6 +44,7 @@
     </div>
     <div class="header-account">
                 <span id="loginUserEmail" class="header-email"></span>
+                <button type="button" id="gcalHeaderBtn" class="logout-btn">カレンダーにつなぐ</button>
                 <button type="button" id="updateNoticeBtn" class="logout-btn">お知らせ<span class="match-status-badge is-priority" id="updateNoticeNewBadge" hidden>新</span></button>
                 <button type="button" id="logoutBtn" class="logout-btn">ログアウト</button>
     </div>
@@ -385,6 +387,7 @@
         <button type="button" class="fin-transport-btn" data-transport="exclude">交通費別</button>
       </div>
       <div id="finMonthSummary" class="fin-summary-grid"></div>
+      <p class="field-hint tight fin-summary-note">数字はいまの組み方をもとに計算しています。先月比は前の月との差です。</p>
     </div>
     <div class="card cal-card">
       <div class="cal-header">
@@ -480,6 +483,23 @@
           <input type="text" inputmode="numeric" id="finGradientMaxInput">
         </div>
       </div>
+    </div>
+
+    <div class="card">
+      <h2>Googleカレンダー<span class="help-tip" tabindex="0">?<span class="help-tip-text">確定した授業だけを、教室長のGoogleカレンダーへ送ります。普段の予定とは別の「ピタコマ」カレンダーに入ります。つなぐ・送り直すは、画面右上のボタンから行います。</span></span></h2>
+      <label class="field-label">出す授業の範囲</label>
+      <div class="field-hint tight">今月から先2ヶ月ぶんの確定授業を送ります。承認待ち・下書きは出しません。右上のボタンは、ここで選んだ範囲を送ります。</div>
+      <div class="chip-row" id="gcalScopeRow">
+        <label class="chip">
+          <input type="radio" name="gcalScope" value="all" checked>
+          <span>教室全体</span>
+        </label>
+        <label class="chip">
+          <input type="radio" name="gcalScope" value="owner">
+          <span>自分の担当だけ</span>
+        </label>
+      </div>
+      <p class="field-hint" id="gcalSyncStatus">まだつながっていません。右上の「カレンダーにつなぐ」を押してください。</p>
     </div>
 
     <div class="card">

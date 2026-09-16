@@ -14,9 +14,18 @@ import { scheduleSave } from './students-persistence.js';
 import { renderTeacherScheduleTab } from './teacher-schedule-tab.js';
 import { renderTeacherList } from './teachers.js';
 import { isActivePerson } from './active-people.js';
+import { buildMonthFinanceCompare, formatFinanceDelta, formatYen } from './finance-metrics.js';
 
 // 収支タブ（講師コスト率の可視化：日・週・月）
 // =====================================================================
+
+function buildFinSummaryItemHtml(label, valueHtml, deltaText, valueStyle=''){
+  return `<div class="fin-summary-item">
+      <div class="fin-label">${label}</div>
+      <div class="fin-value"${valueStyle ? ` style="${valueStyle}"` : ''}>${valueHtml}</div>
+      <div class="fin-delta">${deltaText}</div>
+    </div>`;
+}
 
 function renderFinance(){
   scheduleSave();
@@ -33,6 +42,8 @@ function renderFinance(){
 
   if(!S.dataReady || !S.studentDataReady){
     grid.innerHTML = '<div class="loading">読み込み中…</div>';
+    const summaryLoading = document.getElementById('finMonthSummary');
+    if(summaryLoading) summaryLoading.innerHTML = '<div class="loading">読み込み中…</div>';
     return;
   }
 
@@ -41,9 +52,6 @@ function renderFinance(){
   const startWeekday = firstDay.getDay(); // 0=日
 
   let html = WEEKDAY_JP.map(w=>`<div class="fin-dow">${w}</div>`).join('') + `<div class="fin-dow week-col">週計</div>`;
-
-  // 月全体の集計
-  let monthRevenue = 0, monthLessonCost = 0, monthTransportCost = 0;
 
   // 週ごとの集計をしながらセルを描画するため、7日分ずつバッファする
   let weekBuf = [];
@@ -73,9 +81,6 @@ function renderFinance(){
     if(status.type==='open'){
       const fin = computeDayFinance(dateStr);
       cellData = fin;
-      monthRevenue += fin.revenue;
-      monthLessonCost += fin.lessonCost;
-      monthTransportCost += fin.transportCost;
       const col = costRatioColor(fin.ratio);
       const style = col ? `background:${col.bg};color:${col.text};` : '';
       html += `<div class="fin-cell" style="${style}">
@@ -99,28 +104,34 @@ function renderFinance(){
 
   grid.innerHTML = html;
 
-  // 月次サマリー（講師コスト・交通費を分けて常時表示。コスト率のみトグルに応じて増減）
-  const monthCostForRatio = monthLessonCost + (S.finIncludeTransport ? monthTransportCost : 0);
-  const monthRatio = monthRevenue>0 ? (monthCostForRatio/monthRevenue*100) : null;
-  const col = costRatioColor(monthRatio);
-  document.getElementById('finMonthSummary').innerHTML = `
-    <div class="fin-summary-item">
-      <div class="fin-label">今月の売上</div>
-      <div class="fin-value">¥${monthRevenue.toLocaleString()}</div>
-    </div>
-    <div class="fin-summary-item">
-      <div class="fin-label">今月の講師コスト（コマ給）</div>
-      <div class="fin-value">¥${monthLessonCost.toLocaleString()}</div>
-    </div>
-    <div class="fin-summary-item">
-      <div class="fin-label">今月の交通費</div>
-      <div class="fin-value">¥${monthTransportCost.toLocaleString()}</div>
-    </div>
-    <div class="fin-summary-item ratio">
-      <div class="fin-label">コスト率（${S.finIncludeTransport?'交通費込':'交通費別'}）</div>
-      <div class="fin-value" style="${col ? `color:${col.bg};` : ''}">${monthRatio!=null ? monthRatio.toFixed(1)+'%' : '−'}</div>
-    </div>
-  `;
+  // 月次サマリー（規模・収益＋先月比。コスト率・粗利は交通費トグルに連動）
+  const compare = buildMonthFinanceCompare(S.finYear, S.finMonth, S.finIncludeTransport);
+  const m = compare.current;
+  const d = compare.deltas;
+  const transportLabel = S.finIncludeTransport ? '交通費込' : '交通費別';
+  const col = costRatioColor(m.ratio);
+  const ratioStyle = col ? `color:${col.bg};` : '';
+  const summaryEl = document.getElementById('finMonthSummary');
+  if(summaryEl){
+    summaryEl.innerHTML = [
+      buildFinSummaryItemHtml('在籍生徒数', `${m.studentCount}人`, formatFinanceDelta(d.studentCount, 'count')),
+      buildFinSummaryItemHtml('実施コマ数', `${m.lessonCount}コマ`, formatFinanceDelta(d.lessonCount, 'lesson')),
+      buildFinSummaryItemHtml('売上', formatYen(m.revenue), formatFinanceDelta(d.revenue, 'yen')),
+      buildFinSummaryItemHtml('講師コスト（コマ給）', formatYen(m.lessonCost), formatFinanceDelta(d.lessonCost, 'yen')),
+      buildFinSummaryItemHtml('交通費', formatYen(m.transportCost), formatFinanceDelta(d.transportCost, 'yen')),
+      buildFinSummaryItemHtml(
+        `コスト率（${transportLabel}）`,
+        m.ratio != null ? `${m.ratio.toFixed(1)}%` : '−',
+        formatFinanceDelta(d.ratio, 'ratio'),
+        ratioStyle,
+      ),
+      buildFinSummaryItemHtml(
+        `粗利（${transportLabel}）`,
+        formatYen(m.gross),
+        formatFinanceDelta(d.gross, 'yen'),
+      ),
+    ].join('');
+  }
 }
 
 // ---------- 週間時間割（確定済みのみ） ----------

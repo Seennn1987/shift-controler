@@ -1,10 +1,10 @@
 import { normalizeClosedHolidayDates, areAllHolidaysClosed } from '../shared/holidays.js';
+import { POLL_INTERVAL_MS, startVisiblePoll } from '../shared/poll-while-visible.js';
 import { fbAuth, fbDb, S } from './state.js';
 import { debugLog } from './debug.js';
 import { renderMyCalendar } from './calendar.js';
 import { showInlineNotice } from '../shared/inline-confirm.js';
 
-const POLL_MS = 3000;
 const INITIAL_RETRY_DELAYS_MS = [0, 2000, 2000];
 
 function applyClassroomSettingsData(data){
@@ -64,6 +64,11 @@ async function loadClassroomSettingsWithRetry(){
 }
 
 function stopClassroomSettingsListener(){
+  if(typeof S.classroomSettingsTimer === 'function'){
+    S.classroomSettingsTimer();
+    S.classroomSettingsTimer = null;
+    return;
+  }
   if(S.classroomSettingsTimer){
     clearInterval(S.classroomSettingsTimer);
     S.classroomSettingsTimer = null;
@@ -71,7 +76,7 @@ function stopClassroomSettingsListener(){
 }
 
 async function startClassroomSettingsListener(){
-  if(S.classroomSettingsTimer) clearInterval(S.classroomSettingsTimer);
+  stopClassroomSettingsListener();
 
   const first = await loadClassroomSettingsWithRetry();
   if(!first.ok){
@@ -91,7 +96,7 @@ async function startClassroomSettingsListener(){
     renderMyCalendar();
   };
 
-  S.classroomSettingsTimer = setInterval(poll, POLL_MS);
+  S.classroomSettingsTimer = startVisiblePoll(poll, POLL_INTERVAL_MS.SLOW, { runImmediately: false });
 }
 
 export { startClassroomSettingsListener, stopClassroomSettingsListener };

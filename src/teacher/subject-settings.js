@@ -1,5 +1,6 @@
 import { SUBJECT_MAP, LEVELS_ORDER, LEVEL_ABBR, SUBJECT_ABBR } from '../shared/constants.js';
 import { subjectColor } from '../admin/schedule-core.js';
+import { POLL_INTERVAL_MS, startVisiblePoll } from '../shared/poll-while-visible.js';
 import { fbAuth, fbDb, S } from './state.js';
 import { debugLog } from './debug.js';
 
@@ -126,8 +127,18 @@ async function saveDraft(){
   }
 }
 
+function clearSubjectSettingsTimer(){
+  if(typeof S.subjectSettingsTimer === 'function'){
+    S.subjectSettingsTimer();
+    S.subjectSettingsTimer = null;
+  }else if(S.subjectSettingsTimer){
+    clearInterval(S.subjectSettingsTimer);
+    S.subjectSettingsTimer = null;
+  }
+}
+
 function startTeacherSubjectsListener(){
-  if(S.subjectSettingsTimer) clearInterval(S.subjectSettingsTimer);
+  clearSubjectSettingsTimer();
   const poll = async ()=>{
     const ref = teacherSubjectsRef();
     if(!ref) return;
@@ -140,15 +151,11 @@ function startTeacherSubjectsListener(){
       console.error('担当教科の読み込みエラー:', err);
     }
   };
-  poll();
-  S.subjectSettingsTimer = setInterval(poll, 10000);
+  S.subjectSettingsTimer = startVisiblePoll(poll, POLL_INTERVAL_MS.DEFAULT);
 }
 
 function stopTeacherSubjectsListener(){
-  if(S.subjectSettingsTimer){
-    clearInterval(S.subjectSettingsTimer);
-    S.subjectSettingsTimer = null;
-  }
+  clearSubjectSettingsTimer();
   draftSubjects = [];
   showHome();
 }

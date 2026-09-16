@@ -1,0 +1,35 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ピタコマ 確定コマの見せ方 5パターン</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Zen+Kaku+Gothic+New:wght@400;500;700;900&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="teacher-confirmed-slot-preview.css">
+</head>
+<body>
+  <header class="preview-header">
+    <div class="preview-header-inner">
+      <h1>確定した授業コマ — 見せ方 5パターン</h1>
+      <p>本番と同じカードの形です。色の塗り方だけ変えています。番号（A〜E）で選んでください。</p>
+    </div>
+  </header>
+
+  <main class="preview-main">
+    <section>
+      <h2>いまの見た目と評価</h2>
+      <div id="evalBox" class="recommend-box"></div>
+      <div id="nowSample" class="now-sample"></div>
+    </section>
+
+    <section>
+      <h2>改善案 A〜E</h2>
+      <p class="section-desc">各案とも、上から「確定した授業」「お願いが来ている授業」「空き（シフト）」の3コマです。ちら見したときに、確定がすぐ分かるか見てください。</p>
+      <div id="patternList"></div>
+    </section>
+  </main>
+
+  <script src="teacher-confirmed-slot-preview.js"></script>
+</body>
+</html>

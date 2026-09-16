@@ -19,6 +19,7 @@ import { takeGradePromotionNotice } from './grade-promotion.js';
 import { showAppNoticeDialog } from '../shared/app-confirm-dialog.js';
 import { initUpdateNotice } from './update-notice.js';
 import { isActivePerson, syncHideButton } from './active-people.js';
+import { initGoogleCalendarSettings } from './google-calendar.js';
 
 function syncWeekAxisTabs(){
   document.querySelectorAll('.week-axis-btn').forEach(b=>{
@@ -66,6 +67,7 @@ async function init(){
   buildClosedDayArea();
   renderClosedDaySettings();
   initMatchingPrioritySettings();
+  initGoogleCalendarSettings();
   renderCalendar();
   document.getElementById('tsTeacherListWrap').innerHTML = '<div class="loading">読み込み中…</div>';
 

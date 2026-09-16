@@ -27,7 +27,7 @@
   }
   header.top .inner{max-width:none;width:100%;margin:0;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;}
   .brand h1{font-size:var(--text-xl);margin:0;font-weight:700;letter-spacing:.01em;line-height:1.2;}
-  .header-account{display:flex;align-items:center;gap:10px;}
+  .header-account{display:flex;align-items:center;gap:10px;flex-wrap:wrap;}
   .header-email{font-size:var(--text-sm);color:rgba(255,255,255,.75);}
   .logout-btn{
     border:1px solid rgba(255,255,255,.4);background:transparent;color:var(--text-on-brand);font-size:var(--text-sm);font-weight:700;
@@ -213,6 +213,14 @@
   }
   .fin-summary-item .fin-label{font-size:var(--text-xs);color:var(--ink-soft);font-weight:700;}
   .fin-summary-item .fin-value{font-size:var(--text-2xl);font-weight:900;color:var(--green-900);margin-top:2px;}
+  .fin-summary-item .fin-delta{
+    margin-top:4px;
+    font-size:var(--text-xs);
+    font-weight:700;
+    color:var(--ink-soft);
+    line-height:var(--leading-tight);
+  }
+  .fin-summary-note{margin-top:12px;margin-bottom:0;}
 
   .fin-grid{
     display:grid;grid-template-columns:repeat(7,1fr) 0.9fr;

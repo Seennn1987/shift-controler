@@ -1,0 +1,32 @@
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  font-family: var(--font-family);
+  background: var(--cream);
+  color: var(--ink);
+  -webkit-font-smoothing: antialiased;
+}
+
+.preview-page-header {
+  background: var(--green-900);
+  color: var(--text-on-brand);
+  padding: 24px 20px;
+}
+
+.preview-page-header-inner { max-width: 54rem; margin: 0 auto; }
+.preview-page-header h1 { margin: 0; font-size: var(--text-xl); font-weight: 700; }
+.preview-page-header p {
+  margin: 8px 0 0;
+  font-size: var(--text-md);
+  color: rgba(255, 255, 255, 0.8);
+  line-height: var(--leading-relaxed);
+}
+
+.preview-main { max-width: 54rem; margin: 0 auto; padding: 28px 20px 64px; }
+.preview-note {
+  margin: 0 0 var(--space-5);
+  font-size: var(--text-md);
+  color: var(--ink-soft);
+  line-height: var(--leading-relaxed);
+}

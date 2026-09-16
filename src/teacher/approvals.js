@@ -2,6 +2,7 @@ import { SLOTS, WEEKDAY_JP } from '../shared/constants.js';
 import { showAppNoticeDialog } from '../shared/app-confirm-dialog.js';
 import { mountInlineConfirm, showInlineNotice } from '../shared/inline-confirm.js';
 import { pad2, daysInYearMonth, isOnOrAfterDate } from '../shared/date-utils.js';
+import { POLL_INTERVAL_MS, startVisiblePoll } from '../shared/poll-while-visible.js';
 import { fbAuth, fbDb, S } from './state.js';
 import { debugLog } from './debug.js';
 import { getDayStatus } from './day-status.js';
@@ -18,29 +19,35 @@ import {
 } from './response-draft.js';
 import { ticketSubjectMatchesEntry } from '../admin/dual-subject.js';
 
+function collectApprovalNoticesFromSnap(snap){
+  const pending = [];
+  const cancelledNotices = [];
+  snap.forEach(doc=>{
+    const data = doc.data();
+    if(data.status === 'pending') pending.push({id:doc.id, ...data});
+    if(data.status === 'cancelled' && data.cancelledByAdmin && !data.teacherRead){
+      cancelledNotices.push({id:doc.id, ...data});
+      return;
+    }
+    if(data.status === 'pending' && data.cancelNoticeUnread && data.lastCancelledDate){
+      cancelledNotices.push({id:doc.id, ...data});
+    }
+  });
+  cancelledNotices.sort((a,b)=>{
+    const ta = (a.cancelledAt && a.cancelledAt.toMillis) ? a.cancelledAt.toMillis() : 0;
+    const tb = (b.cancelledAt && b.cancelledAt.toMillis) ? b.cancelledAt.toMillis() : 0;
+    return tb - ta;
+  });
+  return { pending, cancelledNotices };
+}
+
 async function loadAdminCancelledNotices(){
   const uid = fbAuth.currentUser ? fbAuth.currentUser.uid : null;
   if(!uid) return [];
   try{
     const snap = await fbDb.collection('assignmentApprovals')
       .where('teacherLoginUid','==',uid).get();
-    const list = [];
-    snap.forEach(doc=>{
-      const data = doc.data();
-      if(data.status === 'cancelled' && data.cancelledByAdmin && !data.teacherRead){
-        list.push({id:doc.id, ...data});
-        return;
-      }
-      if(data.status === 'pending' && data.cancelNoticeUnread && data.lastCancelledDate){
-        list.push({id:doc.id, ...data});
-      }
-    });
-    list.sort((a,b)=>{
-      const ta = (a.cancelledAt && a.cancelledAt.toMillis) ? a.cancelledAt.toMillis() : 0;
-      const tb = (b.cancelledAt && b.cancelledAt.toMillis) ? b.cancelledAt.toMillis() : 0;
-      return tb - ta;
-    });
-    return list;
+    return collectApprovalNoticesFromSnap(snap).cancelledNotices;
   }catch(err){
     console.error('取り消しお知らせ読み込みエラー:', err);
     return [];
@@ -80,17 +87,29 @@ async function loadNewAssignments(){
   try{
     const snap = await fbDb.collection('assignmentApprovals')
       .where('teacherLoginUid','==',uid).get();
-    const list = [];
-    snap.forEach(doc=>{
-      const data = doc.data();
-      if(data.status === 'pending') list.push({id:doc.id, ...data});
-    });
-    debugLog(`[assignmentApprovals] 成功 pending=${list.length}件`);
-    return list;
+    const { pending } = collectApprovalNoticesFromSnap(snap);
+    debugLog(`[assignmentApprovals] 成功 pending=${pending.length}件`);
+    return pending;
   }catch(err){
     debugLog(`[assignmentApprovals] ★失敗★ code=${err.code} message=${err.message}`);
     console.error('新しい授業の読み込みエラー:', err);
     return [];
+  }
+}
+
+async function loadAssignmentApprovalBundles(){
+  const uid = fbAuth.currentUser ? fbAuth.currentUser.uid : null;
+  if(!uid) return { pending: [], cancelledNotices: [] };
+  try{
+    const snap = await fbDb.collection('assignmentApprovals')
+      .where('teacherLoginUid','==',uid).get();
+    const bundles = collectApprovalNoticesFromSnap(snap);
+    debugLog(`[assignmentApprovals] 成功 pending=${bundles.pending.length}件`);
+    return bundles;
+  }catch(err){
+    debugLog(`[assignmentApprovals] ★失敗★ code=${err.code} message=${err.message}`);
+    console.error('新しい授業の読み込みエラー:', err);
+    return { pending: [], cancelledNotices: [] };
   }
 }
 
@@ -599,6 +618,11 @@ function bindSubmitDraftButton(btn, kind, mountSelector){
 }
 
 function stopMyAssignmentsListener(){
+  if(typeof S.myAssignTimer === 'function'){
+    S.myAssignTimer();
+    S.myAssignTimer = null;
+    return;
+  }
   if(S.myAssignTimer){
     clearInterval(S.myAssignTimer);
     S.myAssignTimer = null;
@@ -606,30 +630,31 @@ function stopMyAssignmentsListener(){
 }
 
 function startMyAssignmentsListener(){
-  if(S.myAssignTimer) clearInterval(S.myAssignTimer);
+  stopMyAssignmentsListener();
   const docId = `${S.myAdminUid}_${S.myTeacherId}`;
   const ref = fbDb.collection('teacherAssignments').doc(docId);
   const poll = async ()=>{
     try{
       const snap = await ref.get();
       S.myAssignmentEntries = snap.exists ? (snap.data().entries || []) : [];
-      S.newAssignments = await loadNewAssignments();
+      const approvalBundles = await loadAssignmentApprovalBundles();
+      S.newAssignments = approvalBundles.pending;
+      S.adminCancelledNotices = approvalBundles.cancelledNotices;
       S.pendingCancellationRequests = await loadPendingCancellationRequests();
-      S.adminCancelledNotices = await loadAdminCancelledNotices();
       pruneStaleResponseDrafts();
       rerenderSchedule();
     }catch(err){
       console.error('担当授業の読み込みエラー:', err);
     }
   };
-  poll();
-  S.myAssignTimer = setInterval(poll, 10000);
+  S.myAssignTimer = startVisiblePoll(poll, POLL_INTERVAL_MS.APPROVAL);
 }
 
 async function refreshPendingAndRender(){
-  S.newAssignments = await loadNewAssignments();
+  const approvalBundles = await loadAssignmentApprovalBundles();
+  S.newAssignments = approvalBundles.pending;
+  S.adminCancelledNotices = approvalBundles.cancelledNotices;
   S.pendingCancellationRequests = await loadPendingCancellationRequests();
-  S.adminCancelledNotices = await loadAdminCancelledNotices();
   pruneStaleResponseDrafts();
   rerenderSchedule();
 }

@@ -1,0 +1,47 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ピタコマ Googleカレンダー連携 プレビュー</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Zen+Kaku+Gothic+New:wght@400;500;700;900&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="../src/shared/styles/variables.css">
+  <link rel="stylesheet" href="../src/admin/styles/admin.css">
+  <link rel="stylesheet" href="google-calendar-settings-preview.css">
+</head>
+<body>
+  <header class="preview-page-header">
+    <div class="preview-page-header-inner">
+      <h1>Googleカレンダー連携</h1>
+      <p>設定タブに足す欄の試しです。範囲を選んで「送る」を押すと、本番ではGoogleの許可画面が開きます。</p>
+    </div>
+  </header>
+
+  <main class="preview-main">
+    <p class="preview-note">本番の設定画面と同じ見た目です。このページでは実際にはGoogleへ送りません。</p>
+    <div class="card">
+      <h2>Googleカレンダー<span class="help-tip" tabindex="0">?<span class="help-tip-text">確定した授業だけを、教室長のGoogleカレンダーへ送ります。普段の予定とは別の「ピタコマ」カレンダーに入ります。コマを組み直したあとは、もう一度送って最新に合わせてください。</span></span></h2>
+      <label class="field-label">出す授業の範囲</label>
+      <div class="field-hint tight">今月から先2ヶ月ぶんの確定授業を送ります。承認待ち・下書きは出しません。</div>
+      <div class="chip-row" id="gcalScopeRow">
+        <label class="chip">
+          <input type="radio" name="gcalScope" value="all" checked>
+          <span>教室全体</span>
+        </label>
+        <label class="chip">
+          <input type="radio" name="gcalScope" value="owner">
+          <span>自分の担当だけ</span>
+        </label>
+      </div>
+      <div class="form-actions">
+        <button type="button" class="primary" id="gcalSyncBtn">Googleカレンダーに送る</button>
+        <span class="form-msg" id="gcalSyncMsg"></span>
+      </div>
+      <p class="field-hint" id="gcalSyncStatus">まだ送っていません。</p>
+    </div>
+  </main>
+
+  <script src="google-calendar-settings-preview.js"></script>
+</body>
+</html>

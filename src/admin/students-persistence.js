@@ -1,6 +1,8 @@
 import { SUBJECT_MAP, DAYS, SLOTS, WEEKDAY_JP, WEEK_FULL } from '../shared/constants.js';
+import { normalizeGoogleCalendarState } from './google-calendar-events.js';
 import { normalizeClosedHolidayDates, areAllHolidaysClosed } from '../shared/holidays.js';
 import { pad2, daysInYearMonth, toDateStr, getTodayStr } from '../shared/date-utils.js';
+import { POLL_INTERVAL_MS, startVisiblePoll } from '../shared/poll-while-visible.js';
 import { firebaseConfig, fbAuth, fbDb, STORAGE_KEY, getSecondaryAuth, S } from './state.js';
 import { getDayStatus, renderCalendar } from './calendar.js';
 import { renderMatching } from './matching.js';
@@ -10,6 +12,12 @@ import { collapseTeacherCalendarEntries, formatDualSubjectLabel } from './dual-s
 import { collectMakeupEntriesForTeacher, isTeacherAbsentForStudent, recordTeacherAbsence, studentAbsentDatesForAssignment } from './absences.js';
 import { normalizeMatchingPriority } from './matching-config.js';
 import { applyGradePromotionsIfNeeded } from './grade-promotion.js';
+
+function stopPollHandle(handle){
+  if(!handle) return;
+  if(typeof handle === 'function') handle();
+  else clearInterval(handle);
+}
 
 
 
@@ -118,9 +126,8 @@ async function pollTeacherSubjects(){
 function startTeacherSubjectsListener(){
   const user = fbAuth.currentUser;
   if(!user) return;
-  if(S.teacherSubjectsPollTimer) clearInterval(S.teacherSubjectsPollTimer);
-  pollTeacherSubjects();
-  S.teacherSubjectsPollTimer = setInterval(pollTeacherSubjects, 10000);
+  stopPollHandle(S.teacherSubjectsPollTimer);
+  S.teacherSubjectsPollTimer = startVisiblePoll(pollTeacherSubjects, POLL_INTERVAL_MS.DEFAULT);
 }
 // 講師のログインIDを、紐づく全てのドキュメント（S.teacherSchedules・teacherAssignments）に一括で反映する
 // （どちらか一方だけ更新すると、もう一方が古いままになり権限エラーの原因になるため、必ずこの関数を通す）
@@ -238,9 +245,8 @@ async function pollTeacherSchedules(){
 function startTeacherScheduleListener(){
   const user = fbAuth.currentUser;
   if(!user) return;
-  if(S.teacherSchedulePollTimer) clearInterval(S.teacherSchedulePollTimer);
-  pollTeacherSchedules();
-  S.teacherSchedulePollTimer = setInterval(pollTeacherSchedules, 10000);
+  stopPollHandle(S.teacherSchedulePollTimer);
+  S.teacherSchedulePollTimer = startVisiblePoll(pollTeacherSchedules, POLL_INTERVAL_MS.DEFAULT);
 }
 
 // ---- 講師の承認をもって「承認待ち」から「確定」に昇格させる ----
@@ -322,48 +328,30 @@ async function rejectPendingAssignment(ticket, ticketId){
   renderCalendar();
 }
 
-async function pollApprovalPromotions(){
+async function pollApprovalUpdates(){
   const user = fbAuth.currentUser;
   if(!user) return;
   try{
     const snap = await fbDb.collection('assignmentApprovals')
       .where('adminUid','==',user.uid).get();
-    snap.forEach(doc=>{
+    for(const doc of snap.docs){
       const a = doc.data();
-      if(a.status!=='approved' || a.promoted) return;
-      promotePendingAssignment(a, doc.id);
-    });
+      if(a.status === 'approved' && !a.promoted){
+        await promotePendingAssignment(a, doc.id);
+      }else if(a.status === 'rejected' && !a.handled){
+        await rejectPendingAssignment(a, doc.id);
+      }
+    }
   }catch(err){
-    console.error('承認昇格の読み込みエラー:', err);
-  }
-}
-
-async function pollApprovalRejections(){
-  const user = fbAuth.currentUser;
-  if(!user) return;
-  try{
-    const snap = await fbDb.collection('assignmentApprovals')
-      .where('adminUid','==',user.uid).get();
-    snap.forEach(doc=>{
-      const a = doc.data();
-      if(a.status!=='rejected' || a.handled) return;
-      rejectPendingAssignment(a, doc.id);
-    });
-  }catch(err){
-    console.error('承認拒否の読み込みエラー:', err);
+    console.error('承認状態の読み込みエラー:', err);
   }
 }
 
 function startApprovalPromotionListener(){
   const user = fbAuth.currentUser;
   if(!user) return;
-  if(S.approvalPromotionPollTimer) clearInterval(S.approvalPromotionPollTimer);
-  pollApprovalPromotions();
-  pollApprovalRejections();
-  S.approvalPromotionPollTimer = setInterval(()=>{
-    pollApprovalPromotions();
-    pollApprovalRejections();
-  }, 10000);
+  stopPollHandle(S.approvalPromotionPollTimer);
+  S.approvalPromotionPollTimer = startVisiblePoll(pollApprovalUpdates, POLL_INTERVAL_MS.APPROVAL);
 }
 
 // pendingAssignments に対応する承認チケットが無ければ補完する（過去データの取りこぼし修復）
@@ -757,6 +745,7 @@ async function saveAppState(){
     officeHourlyRate: S.officeHourlyRate,
     payrollOfficeHours: S.payrollOfficeHours || {},
     payrollLocks: S.payrollLocks || {},
+    googleCalendar: normalizeGoogleCalendarState(S.googleCalendar),
     updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
   };
   try{
@@ -804,6 +793,7 @@ async function loadAppStateFromFirestore(){
     S.officeHourlyRate = d.officeHourlyRate != null ? d.officeHourlyRate : 1300;
     S.payrollOfficeHours = d.payrollOfficeHours && typeof d.payrollOfficeHours === 'object' ? d.payrollOfficeHours : {};
     S.payrollLocks = d.payrollLocks && typeof d.payrollLocks === 'object' ? d.payrollLocks : {};
+    S.googleCalendar = normalizeGoogleCalendarState(d.googleCalendar);
   }else{
     // 初回ログイン：実運用として空のデータから始める（テスト用サンプルデータは使わない）
     S.teachers = [];
@@ -824,6 +814,7 @@ async function loadAppStateFromFirestore(){
     S.officeHourlyRate = 1300;
     S.payrollOfficeHours = {};
     S.payrollLocks = {};
+    S.googleCalendar = normalizeGoogleCalendarState(null);
   }
   S.teacherSchedules = await loadAllTeacherSchedules();
 
