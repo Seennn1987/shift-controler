@@ -20,6 +20,7 @@ import { showAppNoticeDialog } from '../shared/app-confirm-dialog.js';
 import { initUpdateNotice } from './update-notice.js';
 import { isActivePerson, syncHideButton } from './active-people.js';
 import { initGoogleCalendarSettings } from './google-calendar.js';
+import { installReadSafetySelfTest } from './read-safety-selftest.js';
 
 function syncWeekAxisTabs(){
   document.querySelectorAll('.week-axis-btn').forEach(b=>{
@@ -39,6 +40,7 @@ function syncWeekAxisTabs(){
 
 // ---------- init ----------
 async function init(){
+  installReadSafetySelfTest();
   initSearchComboboxes();
   registerCalFilterUiSync((value)=> setSearchComboboxValue('calFilter', value));
   buildSubjectArea();

@@ -33,6 +33,8 @@ export const S = {
   teacherSchedulePollTimer: null,
   approvalPromotionPollTimer: null,
   teacherSubjectsPollTimer: null,
+  approvalSnapshotUnsub: null,
+  snapshotProbeResult: null,
   lastLocalSubjectEditAt: 0,
   syncClosureSettingsTimer: null,
   syncTeacherAssignmentsTimer: null,

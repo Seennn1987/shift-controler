@@ -3,6 +3,16 @@ import { normalizeGoogleCalendarState } from './google-calendar-events.js';
 import { normalizeClosedHolidayDates, areAllHolidaysClosed } from '../shared/holidays.js';
 import { pad2, daysInYearMonth, toDateStr, getTodayStr } from '../shared/date-utils.js';
 import { POLL_INTERVAL_MS, startVisiblePoll } from '../shared/poll-while-visible.js';
+import {
+  FIRESTORE_READ_FLAGS,
+  backfillAttentionFlags,
+  fetchAdminApprovalDocs,
+  reconcileAdminAttentionAndFindGaps,
+  probeAssignmentApprovalsSnapshot,
+  listenAttentionApprovals,
+  softArchiveProcessedApprovals,
+  needsAdminProcessing,
+} from '../shared/firestore-read-safety.js';
 import { firebaseConfig, fbAuth, fbDb, STORAGE_KEY, getSecondaryAuth, S } from './state.js';
 import { getDayStatus, renderCalendar } from './calendar.js';
 import { renderMatching } from './matching.js';
@@ -304,7 +314,10 @@ async function promotePendingAssignment(ticket, ticketId){
   if(taken.length === 0) return;
   S.assignments.push(...taken);
   try{
-    await fbDb.collection('assignmentApprovals').doc(ticketId).update({promoted:true});
+    await fbDb.collection('assignmentApprovals').doc(ticketId).update({
+      promoted: true,
+      adminAttention: false,
+    });
   }catch(e){
     console.error('チケットの昇格フラグ更新エラー:', e);
   }
@@ -318,7 +331,10 @@ async function rejectPendingAssignment(ticket, ticketId){
   dropRejectedOneTimeSubstitute(ticket);
   const taken = takePendingMatchingTicket(ticket);
   try{
-    await fbDb.collection('assignmentApprovals').doc(ticketId).update({handled:true});
+    await fbDb.collection('assignmentApprovals').doc(ticketId).update({
+      handled: true,
+      adminAttention: false,
+    });
   }catch(e){
     console.error('チケットの処理済みフラグ更新エラー:', e);
   }
@@ -328,22 +344,89 @@ async function rejectPendingAssignment(ticket, ticketId){
   renderCalendar();
 }
 
+async function applyAdminApprovalDocs(docs){
+  for(const doc of docs){
+    const a = doc.data;
+    if(a.status === 'approved' && !a.promoted){
+      await promotePendingAssignment(a, doc.id);
+    }else if(a.status === 'rejected' && !a.handled){
+      await rejectPendingAssignment(a, doc.id);
+    }
+  }
+}
+
 async function pollApprovalUpdates(){
   const user = fbAuth.currentUser;
   if(!user) return;
+  if(S.approvalSnapshotUnsub) return;
   try{
-    const snap = await fbDb.collection('assignmentApprovals')
-      .where('adminUid','==',user.uid).get();
-    for(const doc of snap.docs){
-      const a = doc.data();
-      if(a.status === 'approved' && !a.promoted){
-        await promotePendingAssignment(a, doc.id);
-      }else if(a.status === 'rejected' && !a.handled){
-        await rejectPendingAssignment(a, doc.id);
-      }
-    }
+    const mode = FIRESTORE_READ_FLAGS.approvalQueryMode;
+    const result = await fetchAdminApprovalDocs(fbDb, user.uid, mode);
+    const candidates = result.docs.filter(d=> needsAdminProcessing(d.data));
+    await applyAdminApprovalDocs(candidates);
   }catch(err){
     console.error('承認状態の読み込みエラー:', err);
+  }
+}
+
+async function runAdminApprovalLoginSafety(){
+  const user = fbAuth.currentUser;
+  if(!user) return;
+  try{
+    const backfill = await backfillAttentionFlags(fbDb, { adminUid: user.uid });
+    console.info('[firestore-read-safety] adminAttention 補完', backfill);
+
+    if(FIRESTORE_READ_FLAGS.approvalQueryMode === 'attention'){
+      const recon = await reconcileAdminAttentionAndFindGaps(fbDb, user.uid);
+      console.info('[firestore-read-safety] ログイン時全件保険', recon);
+      if(recon.gaps.length){
+        await applyAdminApprovalDocs(recon.gaps);
+      }
+    }else{
+      await pollApprovalUpdates();
+    }
+
+    if(FIRESTORE_READ_FLAGS.enableSnapshotProbe){
+      S.snapshotProbeResult = await probeAssignmentApprovalsSnapshot(fbDb, { adminUid: user.uid });
+    }
+
+    if(FIRESTORE_READ_FLAGS.enableSoftArchive){
+      const archived = await softArchiveProcessedApprovals(fbDb, user.uid);
+      console.info('[firestore-read-safety] softArchive', archived);
+    }
+  }catch(err){
+    console.error('[firestore-read-safety] ログイン時安全処理エラー:', err);
+  }
+}
+
+function stopApprovalSnapshot(){
+  if(typeof S.approvalSnapshotUnsub === 'function'){
+    try{ S.approvalSnapshotUnsub(); }catch(_e){ /* ignore */ }
+  }
+  S.approvalSnapshotUnsub = null;
+}
+
+function startApprovalSnapshotWithPollFallback(){
+  const user = fbAuth.currentUser;
+  if(!user) return false;
+  stopApprovalSnapshot();
+  try{
+    S.approvalSnapshotUnsub = listenAttentionApprovals(fbDb, {
+      adminUid: user.uid,
+      onData: async (docs)=>{
+        await applyAdminApprovalDocs(docs.filter(d=> needsAdminProcessing(d.data)));
+      },
+      onError: ()=>{
+        stopApprovalSnapshot();
+        stopPollHandle(S.approvalPromotionPollTimer);
+        S.approvalPromotionPollTimer = startVisiblePoll(pollApprovalUpdates, POLL_INTERVAL_MS.APPROVAL);
+      },
+    });
+    return true;
+  }catch(err){
+    console.error('[firestore-read-safety] 監視開始失敗:', err);
+    stopApprovalSnapshot();
+    return false;
   }
 }
 
@@ -351,6 +434,13 @@ function startApprovalPromotionListener(){
   const user = fbAuth.currentUser;
   if(!user) return;
   stopPollHandle(S.approvalPromotionPollTimer);
+  stopApprovalSnapshot();
+
+  if(FIRESTORE_READ_FLAGS.useSnapshotListeners && S.snapshotProbeResult?.ok){
+    const ok = startApprovalSnapshotWithPollFallback();
+    if(ok) return;
+  }
+
   S.approvalPromotionPollTimer = startVisiblePoll(pollApprovalUpdates, POLL_INTERVAL_MS.APPROVAL);
 }
 
@@ -410,6 +500,8 @@ async function ensureMissingApprovalTickets(){
             day: a.day,
             slot: a.slot,
             status: 'pending',
+            adminAttention: false,
+            teacherAttention: true,
             createdAt: firebase.firestore.FieldValue.serverTimestamp(),
             ...(student.courseStartDate ? { courseStartDate: student.courseStartDate } : {}),
             ...(a.oneTimeDate ? { oneTimeDate: a.oneTimeDate } : {}),
@@ -447,6 +539,8 @@ async function ensureMissingApprovalTickets(){
         day: a.day,
         slot: a.slot,
         status: 'pending',
+        adminAttention: false,
+        teacherAttention: true,
         createdAt: firebase.firestore.FieldValue.serverTimestamp(),
         ...(student.courseStartDate ? { courseStartDate: student.courseStartDate } : {}),
         ...(a.oneTimeDate ? { oneTimeDate: a.oneTimeDate } : {}),
@@ -819,6 +913,7 @@ async function loadAppStateFromFirestore(){
   S.teacherSchedules = await loadAllTeacherSchedules();
 
   startTeacherScheduleListener(); // 以降は講師本人による変更もリアルタイムで反映する
+  await runAdminApprovalLoginSafety();
   startApprovalPromotionListener(); // 講師が承認したら、承認待ち→確定へ自動的に昇格させる
   S.dataReady = true;
   S.studentDataReady = true;

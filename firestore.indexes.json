@@ -1,4 +1,21 @@
 {
-  "indexes": [],
+  "indexes": [
+    {
+      "collectionGroup": "assignmentApprovals",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "adminUid", "order": "ASCENDING" },
+        { "fieldPath": "adminAttention", "order": "ASCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "assignmentApprovals",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "teacherLoginUid", "order": "ASCENDING" },
+        { "fieldPath": "teacherAttention", "order": "ASCENDING" }
+      ]
+    }
+  ],
   "fieldOverrides": []
 }

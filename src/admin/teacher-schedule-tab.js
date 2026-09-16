@@ -742,6 +742,8 @@ async function issueAssignmentApproval(studentId, courseId, subject, day, slot, 
       subject: subjects?.length === 2 ? subjects.join('・') : subject,
       day, slot,
       status: 'pending',
+      adminAttention: false,
+      teacherAttention: true,
       createdAt: firebase.firestore.FieldValue.serverTimestamp(),
     };
     if(subjects?.length === 2){
@@ -1070,6 +1072,8 @@ const ADMIN_CANCELLED_TICKET = {
   handled: true,
   cancelledByAdmin: true,
   teacherRead: false,
+  adminAttention: false,
+  teacherAttention: true,
 };
 
 async function revokePendingApprovalTicket(student, course, day, slot, oneTimeDate, teacherId){
@@ -1216,6 +1220,7 @@ async function skipPendingApprovalTicketDate(student, course, day, slot, dateStr
     skippedDates: firebase.firestore.FieldValue.arrayUnion(dateStr),
     lastCancelledDate: dateStr,
     cancelNoticeUnread: true,
+    teacherAttention: true,
     cancelledAt: firebase.firestore.FieldValue.serverTimestamp(),
   });
 }

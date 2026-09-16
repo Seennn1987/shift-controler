@@ -24,6 +24,8 @@ export const S = {
   newAssignments: [],
   myAssignmentEntries: [],
   myAssignTimer: null,
+  approvalSnapshotUnsub: null,
+  snapshotProbeResult: null,
   responseDrafts: {},
   pendingCancellationRequests: [],
   adminCancelledNotices: [],
