@@ -330,6 +330,8 @@ async function promotePendingAssignment(ticket, ticketId){
 async function rejectPendingAssignment(ticket, ticketId){
   dropRejectedOneTimeSubstitute(ticket);
   const taken = takePendingMatchingTicket(ticket);
+  // 自己検証用チケットは、マッチする待ちが無いときに誤って handled にしない
+  if(taken.length === 0 && ticket?.pitakomaSelfTest) return;
   try{
     await fbDb.collection('assignmentApprovals').doc(ticketId).update({
       handled: true,

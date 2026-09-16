@@ -3,7 +3,7 @@
  * - appState / 実生徒・実割当は変更しない
  * - assignmentApprovals に印付き試しデータだけ作成し、最後に削除する
  */
-import { fbAuth, fbDb } from './state.js';
+import { fbAuth, fbDb, S } from './state.js';
 import {
   FIRESTORE_READ_FLAGS,
   needsAdminProcessing,
@@ -26,6 +26,26 @@ function isLocalHost(){
 
 function assert(cond, msg){
   if(!cond) throw new Error(msg);
+}
+
+function pauseLiveApprovalSync(){
+  // 本番の監視/ポーリングが試しチケットを即処理しないよう一時停止
+  if(typeof S.approvalSnapshotUnsub === 'function'){
+    try{ S.approvalSnapshotUnsub(); }catch(_e){ /* ignore */ }
+    S.approvalSnapshotUnsub = null;
+  }
+  if(typeof S.approvalPromotionPollTimer === 'function'){
+    S.approvalPromotionPollTimer();
+    S.approvalPromotionPollTimer = null;
+  }else if(S.approvalPromotionPollTimer){
+    clearInterval(S.approvalPromotionPollTimer);
+    S.approvalPromotionPollTimer = null;
+  }
+}
+
+async function resumeLiveApprovalSync(){
+  const { startApprovalPromotionListener } = await import('./students-persistence.js');
+  startApprovalPromotionListener();
 }
 
 async function deleteSelfTestDocs(adminUid){
@@ -157,6 +177,8 @@ async function runReadSafetySelfTest(){
     const user = fbAuth.currentUser;
     assert(user, '教室長でログインしてから実行してください');
 
+    pauseLiveApprovalSync();
+
     log(true, '現行フラグ', JSON.stringify(flagSnapshot));
 
     log(computeAdminAttention({ status: 'approved', promoted: false }) === true, '印計算: 承認未取り込み');
@@ -265,6 +287,10 @@ async function runReadSafetySelfTest(){
       if(user) await deleteSelfTestDocs(user.uid);
     }catch(_e){ /* ignore */ }
   }
+
+  try{
+    await resumeLiveApprovalSync();
+  }catch(_e){ /* ignore */ }
 
   // フラグは検証中に変えない方針（リポジトリ既定のみ変更）。念のため復元
   FIRESTORE_READ_FLAGS.approvalQueryMode = flagSnapshot.approvalQueryMode;
