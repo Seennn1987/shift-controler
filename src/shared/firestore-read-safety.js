@@ -22,7 +22,7 @@ export const FIRESTORE_READ_FLAGS = {
   /** Phase3: ログイン時に監視を1回だけ張り、結果をログして外す */
   enableSnapshotProbe: true,
   /** Phase5: 古い処理済みへの softArchived 付与 */
-  enableSoftArchive: false,
+  enableSoftArchive: true,
 };
 
 export function needsAdminProcessing(data){
