@@ -16,12 +16,12 @@ export const FIRESTORE_READ_FLAGS = {
    * 切替手順: Shadow 差分がゼロであることを確認してから 'attention' にする。
    * 問題時は即 'legacy' に戻す。
    */
-  approvalQueryMode: /** @type {ApprovalQueryMode} */ ('shadow'),
-  /** Phase4: 本番監視。既定OFF。プローブ成功時のみ有効化すること */
+  approvalQueryMode: /** @type {ApprovalQueryMode} */ ('attention'),
+  /** Phase4: 本番監視。プローブ成功時のみ有効 */
   useSnapshotListeners: false,
   /** Phase3: ログイン時に監視を1回だけ張り、結果をログして外す */
   enableSnapshotProbe: true,
-  /** Phase5: 古い処理済みへの softArchived 付与。既定OFF（自動では走らない） */
+  /** Phase5: 古い処理済みへの softArchived 付与 */
   enableSoftArchive: false,
 };
 
@@ -273,8 +273,8 @@ export function listenAttentionApprovals(fbDb, { adminUid = null, teacherLoginUi
  * Phase5: 削除なし。十分古い処理済みに softArchived を付けるだけ。
  * enableSoftArchive が false のときは何もしない。
  */
-export async function softArchiveProcessedApprovals(fbDb, adminUid, { olderThanDays = 180 } = {}){
-  if(!FIRESTORE_READ_FLAGS.enableSoftArchive){
+export async function softArchiveProcessedApprovals(fbDb, adminUid, { olderThanDays = 180, force = false, onlySelfTest = false } = {}){
+  if(!force && !FIRESTORE_READ_FLAGS.enableSoftArchive){
     return { scanned: 0, archived: 0, skipped: true };
   }
   const snap = await fbDb.collection('assignmentApprovals').where('adminUid', '==', adminUid).get();
@@ -283,7 +283,12 @@ export async function softArchiveProcessedApprovals(fbDb, adminUid, { olderThanD
   const writes = [];
   snap.forEach(doc=>{
     const data = doc.data();
+    if(onlySelfTest && data.pitakomaSelfTest !== true) return;
+    // 教室長・講師のどちらにも未処理が残るものは絶対に触らない
     if(needsAdminProcessing(data)) return;
+    if(needsTeacherAttention(data)) return;
+    if(data.status === 'pending') return;
+    if(data.adminAttention === true || data.teacherAttention === true) return;
     if(data.softArchived) return;
     const createdAtMs = data.createdAt?.toMillis ? data.createdAt.toMillis() : 0;
     if(createdAtMs && createdAtMs > cutoff) return;

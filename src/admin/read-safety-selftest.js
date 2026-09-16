@@ -12,6 +12,8 @@ import {
   fetchAdminApprovalDocs,
   backfillAttentionFlags,
   probeAssignmentApprovalsSnapshot,
+  listenAttentionApprovals,
+  softArchiveProcessedApprovals,
 } from '../shared/firestore-read-safety.js';
 
 const MARK = 'pitakomaSelfTest';
@@ -38,10 +40,10 @@ async function deleteSelfTestDocs(adminUid){
       await doc.ref.delete();
       deleted += 1;
     }catch(err){
-      // 削除権限がまだ無い環境向け: 試し印を外し処理対象外にして残骸を無害化
       await doc.ref.set({
         [MARK]: false,
         selfTestCleaned: true,
+        softArchived: true,
         adminAttention: false,
         teacherAttention: false,
         promoted: true,
@@ -103,6 +105,40 @@ async function createSelfTestTickets(adminUid){
   };
 }
 
+function listenOnceForIds(adminUid, expectedIds, timeoutMs = 12000){
+  return new Promise((resolve)=>{
+    let unsub = null;
+    let settled = false;
+    const finish = (result)=>{
+      if(settled) return;
+      settled = true;
+      try{ unsub?.(); }catch(_e){ /* ignore */ }
+      resolve(result);
+    };
+    const timer = setTimeout(()=> finish({ ok: false, reason: 'timeout' }), timeoutMs);
+    try{
+      unsub = listenAttentionApprovals(fbDb, {
+        adminUid,
+        onData: (docs)=>{
+          const ids = new Set(docs.map(d=> d.id));
+          const all = expectedIds.every(id=> ids.has(id));
+          if(all){
+            clearTimeout(timer);
+            finish({ ok: true, size: docs.length });
+          }
+        },
+        onError: (err)=>{
+          clearTimeout(timer);
+          finish({ ok: false, reason: 'error', message: err?.message, code: err?.code });
+        },
+      });
+    }catch(err){
+      clearTimeout(timer);
+      finish({ ok: false, reason: 'throw', message: err?.message });
+    }
+  });
+}
+
 async function runReadSafetySelfTest(){
   const results = [];
   const log = (ok, name, detail = '')=>{
@@ -110,12 +146,19 @@ async function runReadSafetySelfTest(){
     console[ok ? 'log' : 'error'](`${ok ? '✅' : '❌'} ${name}${detail ? ` — ${detail}` : ''}`);
   };
 
+  const flagSnapshot = {
+    approvalQueryMode: FIRESTORE_READ_FLAGS.approvalQueryMode,
+    useSnapshotListeners: FIRESTORE_READ_FLAGS.useSnapshotListeners,
+    enableSoftArchive: FIRESTORE_READ_FLAGS.enableSoftArchive,
+  };
+
   try{
     assert(isLocalHost(), 'localhost / 127.0.0.1 以外では実行できません');
     const user = fbAuth.currentUser;
     assert(user, '教室長でログインしてから実行してください');
 
-    // 純関数
+    log(true, '現行フラグ', JSON.stringify(flagSnapshot));
+
     log(computeAdminAttention({ status: 'approved', promoted: false }) === true, '印計算: 承認未取り込み');
     log(computeAdminAttention({ status: 'approved', promoted: true }) === false, '印計算: 承認済み取り込み済');
     log(computeAdminAttention({ status: 'rejected', handled: false }) === true, '印計算: 拒否未処理');
@@ -123,45 +166,53 @@ async function runReadSafetySelfTest(){
     log(computeTeacherAttention({ status: 'pending' }) === true, '印計算: 講師の待ち');
     log(needsAdminProcessing({ status: 'rejected', handled: true }) === false, '印計算: 拒否処理済');
 
-    // 前回の残骸掃除
     await deleteSelfTestDocs(user.uid);
-
     const created = await createSelfTestTickets(user.uid);
     log(true, '試しチケット作成', `approved=${created.approvedId.slice(0, 6)}…`);
 
     const backfill = await backfillAttentionFlags(fbDb, { adminUid: user.uid });
     log(true, '印の補完実行', `scanned=${backfill.scanned} updated=${backfill.updated}`);
 
-    const prevMode = FIRESTORE_READ_FLAGS.approvalQueryMode;
-    FIRESTORE_READ_FLAGS.approvalQueryMode = 'shadow';
+    // --- Shadow ---
     const shadow = await fetchAdminApprovalDocs(fbDb, user.uid, 'shadow');
-    FIRESTORE_READ_FLAGS.approvalQueryMode = prevMode;
+    const shadowNeed = new Set(shadow.docs.filter(d=> needsAdminProcessing(d.data)).map(d=> d.id));
+    log(shadowNeed.has(created.approvedId), 'Shadow処理対象に承認チケット含む');
+    log(shadowNeed.has(created.rejectedId), 'Shadow処理対象に拒否チケット含む');
+    log(!shadowNeed.has(created.pendingId), 'pendingは教室長処理対象に含めない');
+    log(shadow.shadow?.equal === true || shadow.fellBack === true, 'Shadow差分',
+      shadow.fellBack ? '索引未準備のため退避' : (shadow.shadow?.equal ? '一致' : JSON.stringify(shadow.shadow)));
 
-    const processIds = new Set(
-      shadow.docs.filter(d=> needsAdminProcessing(d.data)).map(d=> d.id)
+    // --- attention ---
+    const attention = await fetchAdminApprovalDocs(fbDb, user.uid, 'attention');
+    const attentionIds = new Set(attention.docs.map(d=> d.id));
+    const attentionNeed = new Set(attention.docs.filter(d=> needsAdminProcessing(d.data)).map(d=> d.id));
+    log(attentionNeed.has(created.approvedId), 'attention処理対象に承認チケット含む');
+    log(attentionNeed.has(created.rejectedId), 'attention処理対象に拒否チケット含む');
+    log(!attentionIds.has(created.pendingId), 'attention取得にpendingを含めない');
+    log(
+      attentionNeed.has(created.approvedId) && attentionNeed.has(created.rejectedId) && !attentionNeed.has(created.pendingId),
+      'attentionとShadowの処理対象が試しデータで一致'
     );
-    log(processIds.has(created.approvedId), 'Shadow処理対象に承認チケット含む');
-    log(processIds.has(created.rejectedId), 'Shadow処理対象に拒否チケット含む');
-    log(!processIds.has(created.pendingId), 'pendingは教室長処理対象に含めない');
 
-    if(shadow.shadow){
-      const onlySelfMissing = (shadow.shadow.missing || []).every(id=>
-        [created.approvedId, created.rejectedId, created.pendingId].includes(id) === false
-          ? true
-          : false
-      );
-      // missing に selftest が出ていなければOK。索引未作成時は fellBack で shadow が null のことも
-      log(shadow.shadow.equal || shadow.fellBack === true, 'Shadow差分',
-        shadow.fellBack ? '索引未準備のため旧方式へ退避（安全）' :
-          (shadow.shadow.equal ? '一致' : JSON.stringify(shadow.shadow)));
-      if(!onlySelfMissing && !shadow.shadow.equal && !shadow.fellBack){
-        log(false, 'Shadow差分の内訳', JSON.stringify(shadow.shadow));
-      }
-    }else{
-      log(true, 'Shadow照合', shadow.fellBack ? 'クエリ退避（legacy）' : 'legacyモード相当');
-    }
+    // --- 監視 ---
+    const listen = await listenOnceForIds(user.uid, [created.approvedId, created.rejectedId]);
+    log(listen.ok, '監視で試し承認・拒否を受信', listen.ok ? `size=${listen.size}` : `${listen.reason} ${listen.code || ''}`.trim());
 
-    // 取り込み後の印オフ（試しドキュメントのみ。割当データは触らない）
+    const probe = await probeAssignmentApprovalsSnapshot(fbDb, { adminUid: user.uid });
+    log(probe.ok === true, 'onSnapshotプローブ成功', probe.ok ? `size=${probe.size}` : `${probe.reason || probe.code}`);
+
+    // --- softArchive: 処理中のものは触らない ---
+    const archiveWhileActive = await softArchiveProcessedApprovals(fbDb, user.uid, {
+      olderThanDays: 0,
+      force: true,
+      onlySelfTest: true,
+    });
+    const approvedBefore = await fbDb.collection('assignmentApprovals').doc(created.approvedId).get();
+    const pendingBefore = await fbDb.collection('assignmentApprovals').doc(created.pendingId).get();
+    log(approvedBefore.data()?.softArchived !== true, '未処理の承認はsoftArchiveされない');
+    log(pendingBefore.data()?.softArchived !== true, 'pendingはsoftArchiveされない');
+    log(true, '未処理中のsoftArchive実行', `archived=${archiveWhileActive.archived}`);
+
     await fbDb.collection('assignmentApprovals').doc(created.approvedId).update({
       promoted: true,
       adminAttention: false,
@@ -171,20 +222,36 @@ async function runReadSafetySelfTest(){
       adminAttention: false,
     });
 
-    const after = await fetchAdminApprovalDocs(fbDb, user.uid, 'legacy');
-    const afterNeed = after.docs.filter(d=> needsAdminProcessing(d.data)).map(d=> d.id);
-    log(!afterNeed.includes(created.approvedId), '承認取り込み後は処理対象外');
-    log(!afterNeed.includes(created.rejectedId), '拒否処理後は処理対象外');
+    const afterAttention = await fetchAdminApprovalDocs(fbDb, user.uid, 'attention');
+    const afterIds = new Set(afterAttention.docs.map(d=> d.id));
+    log(!afterIds.has(created.approvedId), 'attention: 承認処理後は取得から消える');
+    log(!afterIds.has(created.rejectedId), 'attention: 拒否処理後は取得から消える');
 
-    const probe = await probeAssignmentApprovalsSnapshot(fbDb, { adminUid: user.uid });
-    log(true, 'onSnapshotプローブ', probe.ok ? `成功 size=${probe.size}` : `結果=${probe.reason || probe.code || 'fail'}（失敗でも本番経路はポーリングのまま）`);
+    const archivedDone = await softArchiveProcessedApprovals(fbDb, user.uid, {
+      olderThanDays: 0,
+      force: true,
+      onlySelfTest: true,
+    });
+    const approvedAfter = await fbDb.collection('assignmentApprovals').doc(created.approvedId).get();
+    const rejectedAfter = await fbDb.collection('assignmentApprovals').doc(created.rejectedId).get();
+    const pendingAfter = await fbDb.collection('assignmentApprovals').doc(created.pendingId).get();
+    log(approvedAfter.data()?.softArchived === true, '処理済み承認にsoftArchived');
+    log(rejectedAfter.data()?.softArchived === true, '処理済み拒否にsoftArchived');
+    log(pendingAfter.data()?.softArchived !== true, 'pendingは最後までsoftArchiveされない');
+    log(archivedDone.archived >= 2, '処理済みsoftArchive件数', `archived=${archivedDone.archived}`);
+
+    // 現行本番フラグの健全性メモ
+    log(
+      FIRESTORE_READ_FLAGS.approvalQueryMode === 'attention' || FIRESTORE_READ_FLAGS.approvalQueryMode === 'shadow',
+      '本番クエリモードが想定内',
+      FIRESTORE_READ_FLAGS.approvalQueryMode
+    );
 
     const cleanup = await deleteSelfTestDocs(user.uid);
     log(cleanup.total >= 3 && cleanup.deleted + cleanup.neutralized === cleanup.total,
       '試しデータ片付け',
       `削除=${cleanup.deleted} 無害化=${cleanup.neutralized}`);
 
-    // 削除後に残骸がないこと
     const leftSnap = await fbDb.collection('assignmentApprovals')
       .where('adminUid', '==', user.uid)
       .get();
@@ -199,11 +266,17 @@ async function runReadSafetySelfTest(){
     }catch(_e){ /* ignore */ }
   }
 
+  // フラグは検証中に変えない方針（リポジトリ既定のみ変更）。念のため復元
+  FIRESTORE_READ_FLAGS.approvalQueryMode = flagSnapshot.approvalQueryMode;
+  FIRESTORE_READ_FLAGS.useSnapshotListeners = flagSnapshot.useSnapshotListeners;
+  FIRESTORE_READ_FLAGS.enableSoftArchive = flagSnapshot.enableSoftArchive;
+
   const failed = results.filter(r=> !r.ok).length;
   const summary = {
     passed: results.length - failed,
     failed,
     allOk: failed === 0,
+    flags: { ...FIRESTORE_READ_FLAGS },
     results,
   };
   console.log('\n=== 読み取り安全レイヤ自己検証 ===');
