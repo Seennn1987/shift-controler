@@ -1001,13 +1001,14 @@ async function sendDraftAssignments(){
     }
     S.pendingAssignments.push(entry);
     if(entry.dualGroupId){
-      const groupKey = `${entry.studentId}:${entry.day}:${entry.slot}:${entry.dualGroupId}`;
+      const groupKey = `${entry.studentId}:${entry.day}:${entry.slot}:${entry.dualGroupId}:${entry.oneTimeDate || ''}`;
       if(!issuedDual.has(groupKey)){
         const siblings = drafts.filter(d=>
           d.dualGroupId === entry.dualGroupId &&
           d.studentId === entry.studentId &&
           d.day === entry.day &&
-          Number(d.slot) === Number(entry.slot)
+          Number(d.slot) === Number(entry.slot) &&
+          (d.oneTimeDate || null) === (entry.oneTimeDate || null)
         );
         await issueAssignmentApproval(
           entry.studentId, entry.courseId, entry.subject, entry.day, entry.slot,

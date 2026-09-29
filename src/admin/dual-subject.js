@@ -77,13 +77,26 @@ export function formatDualSubjectLabel(subjects, separator = '+'){
   return subjects.filter(Boolean).join(separator);
 }
 
+/** 承認チケットの教科（重複なし）。過去に日付違いをまとめて発行された3〜4教科のチケットも含む */
+export function ticketSubjectList(ticket){
+  if(ticket?.subjects?.length >= 2) return [...new Set(ticket.subjects)];
+  return ticket?.subject ? [ticket.subject] : [];
+}
+
+/** チケットが指定教科をすべて含むか（順不同） */
+export function ticketCoversSubjects(ticket, subjects){
+  const list = ticketSubjectList(ticket);
+  return subjects.length > 0 && subjects.every(s=> list.includes(s));
+}
+
 /** 承認チケットと表示行の教科が一致するか（双教科は結合ラベル or 個別教科） */
 export function ticketSubjectMatchesEntry(ticket, entrySubject){
   if(!ticket || entrySubject == null) return false;
-  if(ticket.subjects?.length === 2){
-    const label = formatDualSubjectLabel(ticket.subjects, '・');
-    if(entrySubject === label) return true;
-    return ticket.subjects.includes(entrySubject);
+  if(ticket.subjects?.length >= 2){
+    const list = ticketSubjectList(ticket);
+    if(list.includes(entrySubject)) return true;
+    const entryList = String(entrySubject).split('・');
+    return entryList.length >= 2 && entryList.every(s=> list.includes(s));
   }
   return ticket.subject === entrySubject;
 }

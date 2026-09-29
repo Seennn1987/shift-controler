@@ -18,7 +18,7 @@ import { getDayStatus, renderCalendar } from './calendar.js';
 import { renderMatching } from './matching.js';
 import { gradeLabel } from './schedule-core.js';
 import { openTeacherScheduleEditor, renderTeacherScheduleTab } from './teacher-schedule-tab.js';
-import { collapseTeacherCalendarEntries, formatDualSubjectLabel } from './dual-subject.js';
+import { collapseTeacherCalendarEntries, formatDualSubjectLabel, ticketCoversSubjects, ticketSubjectList } from './dual-subject.js';
 import { collectMakeupEntriesForTeacher, isTeacherAbsentForStudent, recordTeacherAbsence, studentAbsentDatesForAssignment } from './absences.js';
 import { normalizeMatchingPriority } from './matching-config.js';
 import { applyGradePromotionsIfNeeded } from './grade-promotion.js';
@@ -274,10 +274,15 @@ function pendingMatchesTicket(p, ticket){
   }else if(p.oneTimeDate){
     return false;
   }
-  if(ticket.subjects?.length === 2){
-    return ticket.subjects.includes(p.subject);
+  if(ticket.subjects?.length >= 2){
+    return ticketSubjectList(ticket).includes(p.subject);
   }
   return p.subject === ticket.subject;
+}
+
+// 講師の返事待ち、または講師は承認済みで教室長側の取り込み待ち
+function isAwaitingTicket(t){
+  return t.status === 'pending' || (t.status === 'approved' && !t.promoted);
 }
 
 function findStudentForTicket(ticket){
@@ -470,22 +475,23 @@ async function ensureMissingApprovalTickets(){
         p.teacherId === a.teacherId &&
         p.day === a.day &&
         Number(p.slot) === Number(a.slot) &&
-        p.dualGroupId === a.dualGroupId
+        p.dualGroupId === a.dualGroupId &&
+        (p.oneTimeDate || null) === (a.oneTimeDate || null)
       );
       if(siblings.length >= 2){
-        const subjects = siblings.map(p=> p.subject).sort((x, y)=> x.localeCompare(y, 'ja'));
-        if(a.subject !== subjects[0]) continue;
+        const subjects = [...new Set(siblings.map(p=> p.subject))].sort((x, y)=> x.localeCompare(y, 'ja'));
+        if(a.subject !== subjects[0] || siblings.find(p=> p.subject === a.subject) !== a) continue;
         const subjectLabel = formatDualSubjectLabel(subjects, '・');
         const sameStudent = t=> t.studentId ? t.studentId === student.id : t.studentName === student.name;
         const sameOneTime = t=> (t.oneTimeDate || null) === (a.oneTimeDate || null);
         const hasPending = existing.some(t=>
-          t.status==='pending' &&
+          isAwaitingTicket(t) &&
           t.teacherId===a.teacherId &&
           t.day===a.day &&
           Number(t.slot)===Number(a.slot) &&
           sameStudent(t) &&
           sameOneTime(t) &&
-          (t.subjects?.length === 2 ? t.subject === subjectLabel : t.subject === subjectLabel)
+          ticketCoversSubjects(t, subjects)
         );
         if(hasPending) continue;
         try{
@@ -520,11 +526,11 @@ async function ensureMissingApprovalTickets(){
     const sameStudent = t=> t.studentId ? t.studentId === student.id : t.studentName === student.name;
     const sameOneTime = t=> (t.oneTimeDate || null) === (a.oneTimeDate || null);
     const hasPending = existing.some(t=>
-      t.status==='pending' &&
+      isAwaitingTicket(t) &&
       t.teacherId===a.teacherId &&
       t.day===a.day &&
       Number(t.slot)===Number(a.slot) &&
-      t.subject===a.subject &&
+      ticketCoversSubjects(t, [a.subject]) &&
       sameStudent(t) &&
       sameOneTime(t)
     );
