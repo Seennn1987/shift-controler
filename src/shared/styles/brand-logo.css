@@ -1,0 +1,7 @@
+  /* 左上ロゴ（教室長・講師共通） */
+  .brand-logo{display:flex;align-items:center;gap:8px;margin:0;line-height:1;}
+  .brand-logo-icon{width:24px;height:24px;flex:none;display:block;}
+  .brand-logo-text{font-size:var(--text-2xl);font-weight:var(--font-weight-bold);letter-spacing:.04em;color:var(--text-on-brand);}
+  /* 「ピ」の半濁点をファビコンと同じ四角いコマにする */
+  .brand-pi{position:relative;display:inline-block;}
+  .brand-pi::after{content:"";position:absolute;top:.04em;right:.16em;width:.24em;height:.24em;border-radius:1.5px;background:var(--brand-500);}

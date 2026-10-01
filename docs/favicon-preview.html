@@ -1,0 +1,221 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ピタコマ ファビコン案 プレビュー</title>
+  <link rel="icon" href="data:,">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Zen+Kaku+Gothic+New:wght@400;500;700;900&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/src/shared/styles/variables.css">
+  <link rel="stylesheet" href="/src/admin/styles/admin.css">
+  <style>
+    body{background:var(--surface-page);color:var(--ink);font-family:var(--font-family);margin:0;}
+    .fv-main{max-width:1080px;margin:0 auto;padding:var(--space-8) var(--space-6) 48px;}
+    .fv-lead{font-size:var(--text-base);line-height:var(--leading-relaxed);margin:0 0 var(--space-7);}
+    .fv-section-title{font-size:var(--text-xl);font-weight:var(--font-weight-bold);margin:var(--space-8) 0 var(--space-3);}
+    .fv-desc{font-size:var(--text-md);color:var(--ink-soft);margin:0 0 var(--space-5);line-height:var(--leading-relaxed);}
+
+    .fv-recommend{background:var(--brand-50);border:1px solid var(--pending-border);border-radius:var(--radius-card);padding:var(--space-6);display:flex;gap:var(--space-6);align-items:center;flex-wrap:wrap;}
+    .fv-recommend img{width:64px;height:64px;flex:none;}
+    .fv-recommend-text{flex:1;min-width:220px;font-size:var(--text-base);line-height:var(--leading-relaxed);}
+    .fv-recommend-text strong{font-size:var(--text-lg);}
+
+    .fv-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(320px,1fr));gap:var(--space-6);}
+    .fv-card{background:var(--surface-card);border:1px solid var(--border);border-radius:var(--radius-card);padding:var(--space-6);display:flex;flex-direction:column;gap:var(--space-5);}
+    .fv-card.is-recommended{border-color:var(--pending-border);box-shadow:0 0 0 1px var(--pending-border);}
+    .fv-card-head{display:flex;align-items:center;gap:var(--space-3);flex-wrap:wrap;}
+    .fv-card-head h3{font-size:var(--text-lg);font-weight:var(--font-weight-bold);margin:0;}
+    .fv-card-desc{font-size:var(--text-md);color:var(--ink-soft);line-height:var(--leading-relaxed);margin:0;}
+
+    .fv-sizes{display:flex;align-items:flex-end;gap:var(--space-6);flex-wrap:wrap;}
+    .fv-size{display:flex;flex-direction:column;align-items:center;gap:var(--space-1);font-size:var(--text-xs);color:var(--ink-soft);}
+    .fv-size img{display:block;}
+    .fv-size .is-touch{border-radius:22%;box-shadow:0 1px 3px rgba(0,0,0,.18);}
+
+    /* ブラウザのタブの見た目（Chrome風の再現。製品UIではない） */
+    .fv-tabbar{display:flex;align-items:flex-end;gap:2px;padding:6px 8px 0;border-radius:var(--radius-md) var(--radius-md) 0 0;overflow:hidden;}
+    .fv-tabbar.is-light{background:#DEE1E6;}
+    .fv-tabbar.is-dark{background:#202124;}
+    .fv-tab{display:flex;align-items:center;gap:8px;min-width:0;flex:0 1 200px;height:30px;padding:0 10px;border-radius:8px 8px 0 0;font-size:var(--text-sm);white-space:nowrap;}
+    .fv-tab span{overflow:hidden;text-overflow:ellipsis;}
+    .fv-tab img,.fv-tab .fv-dummy{width:16px;height:16px;flex:none;}
+    .fv-dummy{border-radius:50%;}
+    .is-light .fv-tab{color:#45474A;}
+    .is-light .fv-tab.is-active{background:#FFFFFF;color:#1F1F1F;}
+    .is-light .fv-dummy{background:#9AA0A6;}
+    .is-dark .fv-tab{color:#BDC1C6;}
+    .is-dark .fv-tab.is-active{background:#35363A;color:#E8EAED;}
+    .is-dark .fv-dummy{background:#5F6368;}
+    .fv-tab-stack{display:flex;flex-direction:column;gap:var(--space-3);}
+    .fv-tab-label{font-size:var(--text-xs);color:var(--ink-soft);margin-bottom:2px;}
+
+    .fv-compare{background:var(--surface-card);border:1px solid var(--border);border-radius:var(--radius-card);padding:var(--space-6);display:flex;flex-direction:column;gap:var(--space-5);}
+    .fv-compare .fv-tab{flex:0 1 150px;}
+
+    @media (max-width:480px){
+      .fv-main{padding:var(--space-6) var(--space-5) 40px;}
+      .fv-grid{grid-template-columns:1fr;}
+    }
+  </style>
+</head>
+<body>
+  <header class="top">
+    <div class="inner">
+      <div class="brand"><h1>ピタコマ ファビコン案（6パターン）</h1></div>
+    </div>
+  </header>
+
+  <main class="fv-main">
+    <p class="fv-lead">ファビコンは、ブラウザのタブやブックマークに出る小さなマークです。今のピタコマは<strong>空白</strong>なので、タブをたくさん開くと見つけにくい状態です。<br>色はピタコマのボタンと同じ青だけを使っています。</p>
+
+    <div class="fv-recommend" id="recommendBox"></div>
+
+    <h2 class="fv-section-title">実際のタブに並べた見え方（いちばん大事）</h2>
+    <p class="fv-desc">本物と同じ 16px の大きさです。ほかのサイトのタブの中で、ピタコマがすぐ見つかるかを比べてください。</p>
+    <div class="fv-compare" id="compareBox"></div>
+
+    <h2 class="fv-section-title">各案のくわしい見え方</h2>
+    <p class="fv-desc">左から、タブ（16px）・高画質画面のタブ（32px）・ブックマーク一覧（48px）・スマホのホーム画面に追加したとき（180px を縮小表示）。</p>
+    <div class="fv-grid" id="cardGrid"></div>
+  </main>
+
+  <script>
+    const ICONS = [
+      {
+        id: 'A',
+        name: '案A ピの字',
+        desc: 'カタカナの「ピ」を濃い青の四角に白で。いちばん素直で、名前と結びつきやすい。',
+        svg: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32">
+          <rect width="32" height="32" rx="7" fill="#0054AC"/>
+          <g fill="none" stroke="#fff" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M9.5 7.5V21.5Q9.5 25 13 25H23.5"/>
+            <path d="M9.5 15.8L19 13.2"/>
+          </g>
+          <circle cx="24" cy="8" r="2.8" fill="none" stroke="#fff" stroke-width="2.2"/>
+        </svg>`,
+      },
+      {
+        id: 'B',
+        name: '案B ピ＋コマの点',
+        desc: '「ピ」の丸（゜）を四角い1コマに置きかえ。名前とコマの両方を1文字で表す。',
+        svg: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32">
+          <rect width="32" height="32" rx="7" fill="#3B7DE9"/>
+          <g fill="none" stroke="#fff" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M9.5 7.5V21.5Q9.5 25 13 25H23.5"/>
+            <path d="M9.5 15.8L18.5 13.3"/>
+          </g>
+          <rect x="21" y="4.5" width="6.5" height="6.5" rx="1.4" fill="#fff"/>
+        </svg>`,
+      },
+      {
+        id: 'C',
+        name: '案C 埋まった1コマ',
+        desc: '時間割のマス目の中で、1コマだけが白く埋まっている形。「コマがピタッと決まる」を表す。',
+        svg: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32">
+          <rect width="32" height="32" rx="7" fill="#3B7DE9"/>
+          <g fill="#fff" fill-opacity=".32">
+            <rect x="5" y="5" width="6.4" height="6.4" rx="1.3"/>
+            <rect x="12.8" y="5" width="6.4" height="6.4" rx="1.3"/>
+            <rect x="20.6" y="5" width="6.4" height="6.4" rx="1.3"/>
+            <rect x="5" y="12.8" width="6.4" height="6.4" rx="1.3"/>
+            <rect x="20.6" y="12.8" width="6.4" height="6.4" rx="1.3"/>
+            <rect x="5" y="20.6" width="6.4" height="6.4" rx="1.3"/>
+            <rect x="12.8" y="20.6" width="6.4" height="6.4" rx="1.3"/>
+            <rect x="20.6" y="20.6" width="6.4" height="6.4" rx="1.3"/>
+          </g>
+          <rect x="12.8" y="12.8" width="6.4" height="6.4" rx="1.3" fill="#fff"/>
+        </svg>`,
+      },
+      {
+        id: 'D',
+        name: '案D ピタッとはまるブロック',
+        desc: '欠けた角に、青いブロックがはまる形。文字なしで「ピタッ」を表し、小さくても形がつぶれにくい。',
+        svg: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32">
+          <path d="M8 2H15V17H30V24A6 6 0 0 1 24 30H8A6 6 0 0 1 2 24V8A6 6 0 0 1 8 2Z" fill="#0054AC"/>
+          <rect x="17.5" y="2" width="12.5" height="12.5" rx="3" fill="#3B7DE9"/>
+        </svg>`,
+      },
+      {
+        id: 'E',
+        name: '案E カレンダー＋チェック',
+        desc: 'カレンダーにチェック印。「予定が決まった」ことがひと目で分かる。よく見る形なので、ほかのサイトと似やすい。',
+        svg: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32">
+          <rect x="3" y="5" width="26" height="24" rx="4" fill="#fff" stroke="#3B7DE9" stroke-width="2"/>
+          <path d="M7 5H25A4 4 0 0 1 29 9V12H3V9A4 4 0 0 1 7 5Z" fill="#3B7DE9"/>
+          <rect x="8.5" y="2" width="3" height="6" rx="1.5" fill="#0054AC"/>
+          <rect x="20.5" y="2" width="3" height="6" rx="1.5" fill="#0054AC"/>
+          <path d="M10 20.5L14.3 24.5L22.5 16.5" fill="none" stroke="#3B7DE9" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>`,
+      },
+      {
+        id: 'F',
+        name: '案F 将棋の駒',
+        desc: '「コマ」を将棋の駒の形にかけて、中に「ピ」。形が独特なので、タブの中で目立ちやすい。',
+        svg: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32">
+          <path d="M16 2L25.5 6.5L29 30H3L6.5 6.5Z" fill="#3B7DE9" stroke="#3B7DE9" stroke-width="2" stroke-linejoin="round"/>
+          <g fill="none" stroke="#fff" stroke-width="2.8" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M11 11V23Q11 26 14 26H22"/>
+            <path d="M11 17.5L18 15.5"/>
+          </g>
+          <circle cx="21.8" cy="12" r="2.2" fill="none" stroke="#fff" stroke-width="1.9"/>
+        </svg>`,
+      },
+    ];
+
+    const RECOMMENDED = 'B';
+    const TITLE = 'ピタコマ｜個別指導塾のコマ管理';
+    const toSrc = (svg) => 'data:image/svg+xml,' + encodeURIComponent(svg.replace(/\s+/g, ' ').trim());
+
+    function tabBar(theme, activeIcon, title) {
+      return `<div class="fv-tabbar is-${theme}">
+        <div class="fv-tab"><span class="fv-dummy"></span><span>受信トレイ - メール</span></div>
+        <div class="fv-tab is-active">${activeIcon ? `<img src="${activeIcon}" alt="">` : '<span class="fv-dummy" style="background:none;"></span>'}<span>${title}</span></div>
+        <div class="fv-tab"><span class="fv-dummy"></span><span>Google カレンダー</span></div>
+      </div>`;
+    }
+
+    function compareBar(theme) {
+      const tabs = ICONS.map((icon) =>
+        `<div class="fv-tab${icon.id === RECOMMENDED ? ' is-active' : ''}"><img src="${toSrc(icon.svg)}" alt=""><span>案${icon.id}｜ピタコマ</span></div>`
+      ).join('');
+      return `<div class="fv-tabbar is-${theme}">${tabs}</div>`;
+    }
+
+    const rec = ICONS.find((icon) => icon.id === RECOMMENDED);
+    document.getElementById('recommendBox').innerHTML = `
+      <img src="${toSrc(rec.svg)}" alt="${rec.name}">
+      <div class="fv-recommend-text">
+        <strong>おすすめ：${rec.name}</strong><br>
+        「ピ」で名前がすぐ分かり、四角い点で「コマ」も伝わります。ボタンと同じ明るい青なので、明るい画面でも暗い画面でもタブの中で見つけやすいです。
+      </div>`;
+
+    document.getElementById('compareBox').innerHTML = `
+      <div><div class="fv-tab-label">明るい画面</div>${compareBar('light')}</div>
+      <div><div class="fv-tab-label">暗い画面（ダークモード）</div>${compareBar('dark')}</div>
+      <div><div class="fv-tab-label">参考：今（空白）</div>${tabBar('light', '', TITLE)}</div>`;
+
+    document.getElementById('cardGrid').innerHTML = ICONS.map((icon) => {
+      const src = toSrc(icon.svg);
+      const isRec = icon.id === RECOMMENDED;
+      return `<section class="fv-card${isRec ? ' is-recommended' : ''}">
+        <div class="fv-card-head">
+          <h3>${icon.name}</h3>
+          ${isRec ? '<span class="match-status-badge is-priority">おすすめ</span>' : ''}
+        </div>
+        <p class="fv-card-desc">${icon.desc}</p>
+        <div class="fv-sizes">
+          <div class="fv-size"><img src="${src}" width="16" height="16" alt=""><span>16</span></div>
+          <div class="fv-size"><img src="${src}" width="32" height="32" alt=""><span>32</span></div>
+          <div class="fv-size"><img src="${src}" width="48" height="48" alt=""><span>48</span></div>
+          <div class="fv-size"><img class="is-touch" src="${src}" width="72" height="72" alt=""><span>スマホ</span></div>
+        </div>
+        <div class="fv-tab-stack">
+          ${tabBar('light', src, TITLE)}
+          ${tabBar('dark', src, TITLE)}
+        </div>
+      </section>`;
+    }).join('');
+  </script>
+</body>
+</html>
