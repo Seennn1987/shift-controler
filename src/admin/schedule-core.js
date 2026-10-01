@@ -233,6 +233,7 @@ const SUBJECT_HUE = {
   '英語': 278,   // 紫系（Grape）
   '理科': 142,   // 緑系（Sage）
   '社会': 28,    // 橙系（Tangerine）
+  'プログラミング': 88, // 黄緑系
 };
 const SUBJECT_TEXT = {
   '国語': { light: '#9F1239', dark: '#ffffff' },
@@ -241,6 +242,7 @@ const SUBJECT_TEXT = {
   '英語': { light: '#6D28D9', dark: '#ffffff' },
   '理科': { light: '#15803D', dark: '#ffffff' },
   '社会': { light: '#C2410C', dark: '#ffffff' },
+  'プログラミング': { light: '#4D7C0F', dark: '#ffffff' },
 };
 const LEVEL_SHADE = {
   '小学': {s:52, l:92},  // 薄い
@@ -264,9 +266,11 @@ Object.entries(SUBJECT_MAP).forEach(([level, subs])=>{
 });
 
 // ---- 教科カテゴリ（算数/数学は「数」として統一）----
-const SUBJECT_CATEGORY = {'国語':'国', '算数':'数', '数学':'数', '英語':'英', '理科':'理', '社会':'社'};
-const CATEGORY_REP_SUBJECT = {'国':'国語', '数':'数学', '英':'英語', '理':'理科', '社':'社会'};
+const SUBJECT_CATEGORY = {'国語':'国', '算数':'数', '数学':'数', '英語':'英', '理科':'理', '社会':'社', 'プログラミング':'プ'};
+const CATEGORY_REP_SUBJECT = {'国':'国語', '数':'数学', '英':'英語', '理':'理科', '社':'社会', 'プ':'プログラミング'};
+// 「全科目」は5教科がそろったとき（プログラミングは含めない）
 const CATS = ['国','数','英','理','社'];
+const LABEL_CATS = [...CATS, 'プ'];
 
 function categoryColor(cat){
   if(cat==='ALL'){
@@ -293,7 +297,7 @@ function summarizeTeacherSubjects(t){
     }
   });
   // 残りは教科ごとに、対応する学年をまとめて表示
-  CATS.forEach(cat=>{
+  LABEL_CATS.forEach(cat=>{
     const lvs = LEVELS_ORDER.filter(lv=>grid[lv][cat]);
     if(lvs.length){
       const lvStr = lvs.map(lv=>LEVEL_ABBR[lv]).join('');

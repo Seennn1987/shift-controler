@@ -577,13 +577,6 @@ export function bindDayDetailEvents(container, dateStr, onRefresh){
     });
   });
 
-  container.querySelectorAll('.cancel-draft-btn').forEach(btn=>{
-    btn.addEventListener('click', ()=>{
-      cancelRowDraftOrAssignment(btn);
-      refresh();
-    });
-  });
-
   container.querySelectorAll('.mp-change-teacher-btn:not(.cancel-draft-btn)').forEach(btn=>{
     btn.addEventListener('click', ()=>{
       mountWithdrawConfirm(container, btn, {

@@ -1,0 +1,110 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ピタコマ 生徒の備考欄 プレビュー</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Zen+Kaku+Gothic+New:wght@400;500;700;900&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/src/shared/styles/variables.css">
+  <link rel="stylesheet" href="/src/admin/styles/admin.css">
+  <style>
+    body{padding:24px;background:var(--bg-soft);}
+    .preview-note{max-width:900px;margin:0 auto 20px;font-size:var(--text-md);color:var(--ink);}
+    .preview-note h1{font-size:var(--text-xl);margin:0 0 8px;}
+    .preview-wrap{max-width:900px;margin:0 auto;display:flex;flex-direction:column;gap:16px;}
+    /* 本番の admin.css に足す予定 */
+    .student-row-notes{display:flex;flex-direction:column;gap:2px;line-height:1.55;word-break:break-word;}
+  </style>
+</head>
+<body>
+  <div class="preview-note">
+    <h1>生徒の備考欄（試しページ）</h1>
+    <p>生徒の登録・編集画面に「受験」「志望校」「備考」の3つを足します。入れた内容は、下の「登録済み生徒一覧」の行に出ます。何も入れていない生徒は今までどおりの見た目です。ボタンは見た目だけです。</p>
+  </div>
+
+  <div class="preview-wrap">
+    <div class="card">
+      <h2>生徒を編集</h2>
+      <label class="field-label">生徒名</label>
+      <input type="text" value="山田 花子">
+
+      <div style="height:18px"></div>
+      <p style="margin:0;font-size:var(--text-sm);color:var(--ink-soft);">（読み仮名・学年・年数・受講開始日・無料コマは今までどおり）</p>
+
+      <div style="height:18px"></div>
+      <label class="field-label">受験</label>
+      <div class="chip-row">
+        <label class="chip"><input type="radio" name="studentExamType" value=""><span>なし</span></label>
+        <label class="chip"><input type="radio" name="studentExamType" value="中学受験"><span>中学受験</span></label>
+        <label class="chip"><input type="radio" name="studentExamType" value="高校受験" checked><span>高校受験</span></label>
+        <label class="chip"><input type="radio" name="studentExamType" value="大学受験"><span>大学受験</span></label>
+      </div>
+
+      <div style="height:14px"></div>
+      <label class="field-label" for="studentTargetSchoolInput">志望校</label>
+      <input type="text" id="studentTargetSchoolInput" placeholder="例：第1 〇〇高校、第2 △△高校" value="第1 県立北高校、第2 市立南高校">
+
+      <div style="height:14px"></div>
+      <label class="field-label" for="studentNotesInput">備考（自由記入）</label>
+      <textarea id="studentNotesInput" rows="3" style="width:100%;padding:9px 12px;border:1px solid var(--border);border-radius:var(--radius-md);font-family:inherit;font-size:13px;background:var(--surface-card);resize:vertical;">部活（吹奏楽）で火曜は遅め。
+数学の図形が苦手。</textarea>
+
+      <div style="height:22px"></div>
+      <p style="margin:0;font-size:var(--text-sm);color:var(--ink-soft);">（受講科目・ボタンは今までどおり）</p>
+    </div>
+
+    <div class="card">
+      <h2>登録済み生徒一覧</h2>
+      <div class="teacher-list student-list">
+        <div class="student-row">
+          <span class="student-row-status is-done">担当決定済み</span>
+          <div class="student-row-main">
+            <div class="student-row-head">
+              <span class="student-row-name">山田 花子</span>
+              <span class="student-level-badge">中学3年</span>
+              <span class="student-row-pref">高校受験</span>
+            </div>
+            <div class="student-row-tags">
+              <div class="student-row-course">
+                <span class="student-row-tag" style="background:#e8f0fb;color:#1f4f8f;border:1px solid #b9cfee;">数学 週2</span>
+                <span class="student-row-pref">担当：佐藤先生</span>
+              </div>
+            </div>
+            <div class="student-row-notes">
+              <span class="student-row-pref">志望校：第1 県立北高校、第2 市立南高校</span>
+              <span class="student-row-pref">備考：部活（吹奏楽）で火曜は遅め。<br>数学の図形が苦手。</span>
+            </div>
+          </div>
+          <div class="row-actions student-row-actions">
+            <button type="button" class="edit-btn">編集</button>
+            <button type="button" class="edit-btn">退会</button>
+            <button type="button" class="del-btn">削除</button>
+          </div>
+        </div>
+
+        <div class="student-row">
+          <span class="student-row-status is-done">担当決定済み</span>
+          <div class="student-row-main">
+            <div class="student-row-head">
+              <span class="student-row-name">鈴木 一郎</span>
+              <span class="student-level-badge">小学5年</span>
+            </div>
+            <div class="student-row-tags">
+              <div class="student-row-course">
+                <span class="student-row-tag" style="background:#fdeee6;color:#8f3d1f;border:1px solid #f1c3ab;">算数 週1</span>
+                <span class="student-row-pref">担当：田中先生</span>
+              </div>
+            </div>
+          </div>
+          <div class="row-actions student-row-actions">
+            <button type="button" class="edit-btn">編集</button>
+            <button type="button" class="edit-btn">退会</button>
+            <button type="button" class="del-btn">削除</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</body>
+</html>

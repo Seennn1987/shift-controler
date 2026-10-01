@@ -1,0 +1,125 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ピタコマ アドバンス／ベーシックの授業料単価 プレビュー</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Zen+Kaku+Gothic+New:wght@400;500;700;900&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/src/shared/styles/variables.css">
+  <link rel="stylesheet" href="/src/admin/styles/admin.css">
+  <style>
+    body{padding:24px;background:var(--bg-soft);}
+    .preview-note{max-width:900px;margin:0 auto 20px;font-size:var(--text-md);color:var(--ink);}
+    .preview-note h1{font-size:var(--text-xl);margin:0 0 8px;}
+    .preview-wrap{max-width:900px;margin:0 auto;display:flex;flex-direction:column;gap:16px;}
+    .preview-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px;}
+    .preview-grid h3{font-size:var(--text-md);margin:0 0 10px;}
+    @media (max-width:720px){ .preview-grid{grid-template-columns:1fr;} }
+  </style>
+</head>
+<body>
+  <div class="preview-note">
+    <h1>アドバンス／ベーシックの授業料単価（試しページ）</h1>
+    <p>基本設定の授業料単価を「ベーシック」「アドバンス」の2行にします。生徒ごとにどちらのコースかを選び、「分析」タブの売上はその単価で計算します。金額は例です。ボタンは見た目だけです。</p>
+  </div>
+
+  <div class="preview-wrap">
+    <div class="card">
+      <h2>基本設定：学年別 授業料単価</h2>
+      <div class="preview-grid">
+        <div>
+          <h3>変更前</h3>
+          <label class="field-label">学年別 授業料単価（1コマあたり）</label>
+          <div class="field-hint tight">生徒ごとではなく、学年区分で共通の単価として設定します。「収支」タブの売上計算に使われます。</div>
+          <div class="tuition-input-row">
+            <div class="pay-input-item"><label>小学（円/コマ）</label><input type="text" value="2900"></div>
+            <div class="pay-input-item"><label>中学（円/コマ）</label><input type="text" value="3900"></div>
+            <div class="pay-input-item"><label>高校（円/コマ）</label><input type="text" value="5200"></div>
+          </div>
+        </div>
+        <div>
+          <h3>変更後</h3>
+          <label class="field-label">学年別 授業料単価（1コマあたり）</label>
+          <div class="field-hint tight">学年区分ごとに、ベーシックとアドバンスの2つの単価を設定します。生徒ごとにどちらのコースかを選び、「分析」タブの売上計算に使われます。</div>
+          <label class="field-label">ベーシック</label>
+          <div class="tuition-input-row">
+            <div class="pay-input-item"><label>小学（円/コマ）</label><input type="text" value="2900"></div>
+            <div class="pay-input-item"><label>中学（円/コマ）</label><input type="text" value="3900"></div>
+            <div class="pay-input-item"><label>高校（円/コマ）</label><input type="text" value="5200"></div>
+          </div>
+          <div style="height:12px"></div>
+          <label class="field-label">アドバンス</label>
+          <div class="tuition-input-row">
+            <div class="pay-input-item"><label>小学（円/コマ）</label><input type="text" value="3300"></div>
+            <div class="pay-input-item"><label>中学（円/コマ）</label><input type="text" value="4400"></div>
+            <div class="pay-input-item"><label>高校（円/コマ）</label><input type="text" value="5800"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>生徒を編集（変更後）</h2>
+      <p style="margin:0;font-size:var(--text-sm);color:var(--ink-soft);">（生徒名〜受験・志望校・備考は今までどおり）</p>
+      <div style="height:14px"></div>
+      <label class="field-label">授業料コース</label>
+      <div class="chip-row">
+        <label class="chip"><input type="radio" name="studentTuitionCourse" value=""><span>ベーシック</span></label>
+        <label class="chip"><input type="radio" name="studentTuitionCourse" value="advance" checked><span>アドバンス</span></label>
+      </div>
+      <div style="height:14px"></div>
+      <p style="margin:0;font-size:var(--text-sm);color:var(--ink-soft);">（受講科目・ボタンは今までどおり）</p>
+    </div>
+
+    <div class="card">
+      <h2>登録済み生徒一覧（変更後）</h2>
+      <div class="teacher-list student-list">
+        <div class="student-row">
+          <span class="student-row-status is-done">担当決定済み</span>
+          <div class="student-row-main">
+            <div class="student-row-head">
+              <span class="student-row-name">山田 花子</span>
+              <span class="student-level-badge">中学3年</span>
+              <span class="student-row-pref">アドバンス</span>
+              <span class="student-row-pref">高校受験</span>
+            </div>
+            <div class="student-row-tags">
+              <div class="student-row-course">
+                <span class="student-row-tag" style="background:#e8f0fb;color:#1f4f8f;border:1px solid #b9cfee;">数学 週2</span>
+                <span class="student-row-pref">担当：佐藤先生</span>
+              </div>
+            </div>
+          </div>
+          <div class="row-actions student-row-actions">
+            <button type="button" class="edit-btn">編集</button>
+            <button type="button" class="edit-btn">退会</button>
+            <button type="button" class="del-btn">削除</button>
+          </div>
+        </div>
+        <div class="student-row">
+          <span class="student-row-status is-done">担当決定済み</span>
+          <div class="student-row-main">
+            <div class="student-row-head">
+              <span class="student-row-name">鈴木 一郎</span>
+              <span class="student-level-badge">小学5年</span>
+            </div>
+            <div class="student-row-tags">
+              <div class="student-row-course">
+                <span class="student-row-tag" style="background:#fdeee6;color:#8f3d1f;border:1px solid #f1c3ab;">算数 週1</span>
+                <span class="student-row-pref">担当：田中先生</span>
+              </div>
+            </div>
+          </div>
+          <div class="row-actions student-row-actions">
+            <button type="button" class="edit-btn">編集</button>
+            <button type="button" class="edit-btn">退会</button>
+            <button type="button" class="del-btn">削除</button>
+          </div>
+        </div>
+      </div>
+      <p style="margin:10px 0 0;font-size:var(--text-sm);color:var(--ink-soft);">ベーシックの生徒（鈴木 一郎）は、今までと同じ見た目です。</p>
+    </div>
+  </div>
+</body>
+</html>

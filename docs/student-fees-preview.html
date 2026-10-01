@@ -1,0 +1,95 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ピタコマ 入会金・年会費・月ごとの費用 プレビュー</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Zen+Kaku+Gothic+New:wght@400;500;700;900&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/src/shared/styles/variables.css">
+  <link rel="stylesheet" href="/src/admin/styles/admin.css">
+  <style>
+    body{padding:24px;background:var(--bg-soft);}
+    .preview-note{max-width:900px;margin:0 auto 20px;font-size:var(--text-md);color:var(--ink);}
+    .preview-note h1{font-size:var(--text-xl);margin:0 0 8px;}
+    .preview-wrap{max-width:900px;margin:0 auto;display:flex;flex-direction:column;gap:16px;}
+  </style>
+</head>
+<body>
+  <div class="preview-note">
+    <h1>入会金・年会費・月ごとの費用（試しページ）</h1>
+    <p>設定タブで教室ごとの金額を入れ、生徒の登録・編集画面で割引（円）を入れます。入力欄は見た目だけです。</p>
+  </div>
+
+  <div class="preview-wrap">
+    <div class="card">
+      <h2>設定タブ（プログラミング月額の下に追加）</h2>
+
+      <label class="field-label">入会時・年会費・月ごとの費用</label>
+      <div class="field-hint tight">教室ごとの金額です。「分析」タブの月の売上に足します。入会時の費用は受講開始日の月に1回、年会費は受講開始日と同じ月に毎年1回です。4〜6月に入塾した年は全額、7月以降に入塾した年は、3月までの残りの月数×「減る額」になります。</div>
+      <label class="field-label">初期費用</label>
+      <div class="tuition-input-row">
+        <div class="pay-input-item">
+          <label>入会金（円）</label>
+          <input type="text" inputmode="numeric" value="16500">
+        </div>
+        <div class="pay-input-item">
+          <label>塾生登録料（円）</label>
+          <input type="text" inputmode="numeric" value="11000">
+        </div>
+      </div>
+      <div style="height:12px"></div>
+      <label class="field-label">年会費</label>
+      <div class="tuition-input-row">
+        <div class="pay-input-item">
+          <label>年会費（円/年）</label>
+          <input type="text" inputmode="numeric" value="11000">
+        </div>
+        <div class="pay-input-item">
+          <label>7月以降に入塾したときの減る額（円/月）</label>
+          <input type="text" inputmode="numeric" value="1100">
+        </div>
+      </div>
+      <div style="height:12px"></div>
+      <label class="field-label">月ごとの費用</label>
+      <div class="tuition-input-row">
+        <div class="pay-input-item">
+          <label>維持管理費（円/月）</label>
+          <input type="text" inputmode="numeric" value="2750">
+        </div>
+        <div class="pay-input-item">
+          <label>Eラーニング費（円/月）</label>
+          <input type="text" inputmode="numeric" value="0">
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>生徒の登録・編集画面（授業料コースの下に追加）</h2>
+      <label class="field-label">授業料コース</label>
+      <div class="chip-row">
+        <label class="chip"><input type="radio" name="c" checked><span>ベーシック</span></label>
+        <label class="chip"><input type="radio" name="c"><span>アドバンス</span></label>
+      </div>
+
+      <div style="height:14px"></div>
+      <label class="field-label">割引（円）</label>
+      <div class="field-hint tight">この生徒だけの割引です。割り引いても0円より下にはなりません。</div>
+      <div class="pay-input-row">
+        <div class="pay-input-item">
+          <label>初期費用</label>
+          <input type="text" inputmode="numeric" placeholder="例：5500">
+        </div>
+        <div class="pay-input-item">
+          <label>年会費</label>
+          <input type="text" inputmode="numeric" placeholder="例：11000">
+        </div>
+        <div class="pay-input-item">
+          <label>月ごとの費用</label>
+          <input type="text" inputmode="numeric" placeholder="例：1100">
+        </div>
+      </div>
+    </div>
+  </div>
+</body>
+</html>

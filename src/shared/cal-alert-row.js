@@ -16,18 +16,22 @@ export function buildCalAlertWhenPill(md, weekday, slotLabel){
   return `<span class="cal-alert-when-text">${md}${wd} ${slotLabel}</span>`;
 }
 
+export function escapeCalAlertText(value){
+  return String(value ?? '').replace(/[&<>"']/g, c=> ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' }[c]));
+}
+
 export function buildCalAlertTeacherHead(fullName){
   const surname = String(fullName || '').trim().split(/\s+/)[0] || fullName || '不明';
-  return `<span class="cal-alert-row-head">${surname}先生</span>`;
+  return `<span class="cal-alert-row-head">${escapeCalAlertText(surname)}先生</span>`;
 }
 
 export function buildCalAlertPersonHead(name, grade){
-  const gradeHtml = grade ? `<span class="cal-alert-grade">（${grade}）</span>` : '';
-  return `<span class="cal-alert-row-head">${name}${gradeHtml}</span>`;
+  const gradeHtml = grade ? `<span class="cal-alert-grade">（${escapeCalAlertText(grade)}）</span>` : '';
+  return `<span class="cal-alert-row-head">${escapeCalAlertText(name)}${gradeHtml}</span>`;
 }
 
 export function buildCalAlertPersonInline(name, grade){
-  return `<span class="cal-alert-person-inline">${name}（${grade}）</span>`;
+  return `<span class="cal-alert-person-inline">${escapeCalAlertText(name)}（${escapeCalAlertText(grade)}）</span>`;
 }
 
 export function buildCalAlertSubjectTag(subjectColor, level, subject){
@@ -46,10 +50,10 @@ export function buildCalAlertRowBody(parts, layout = 'full'){
   return `<div class="cal-alert-row-body${layoutCls}">${parts.join('')}</div>`;
 }
 
-export function buildShortageAlertRowHtml({ whenPill, personHead, subjectTag, badgeHtml = '', dataAttrs = '' }){
+export function buildShortageAlertRowHtml({ whenPill, personHead, subjectTag, badgeHtml = '', statusHtml = '', dataAttrs = '' }){
   const tail = buildCalAlertRowTail(subjectTag, badgeHtml);
   return `<button type="button" class="approval-item approval-item-btn cal-alert-row-c4"${dataAttrs}>
-    ${buildCalAlertRowBody([whenPill, personHead, tail], 'person')}
+    ${buildCalAlertRowBody([whenPill, personHead, tail, statusHtml], 'person')}
   </button>`;
 }
 

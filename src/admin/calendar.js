@@ -8,11 +8,11 @@ import { refreshCalFilterOptions } from './filter-ui.js';
 import { setSearchComboboxValue } from './search-combobox.js';
 import { getWeekMonday, renderCalendarWeek, renderMatrix } from './finance-ui.js';
 import { renderMatching } from './matching.js';
-import { subjectColor } from './schedule-core.js';
+import { subjectColor, isTeacherAvailableOnDate } from './schedule-core.js';
 import { findEffectiveAssignment, renderApprovalStatus, renderTeacherScheduleTab } from './teacher-schedule-tab.js';
 import { findDualPairAtSlot, collapseDualAssignmentDisplayRows, countSlotAssignmentUnits, formatDualSubjectLabel } from './dual-subject.js';
 import { findTeacher } from './owner-teacher.js';
-import { isActivePerson } from './active-people.js';
+import { isActivePerson, personAppliesOnDate } from './active-people.js';
 
 // カレンダー（トップページ・TimeTree風シンプルUI）
 // =====================================================================
@@ -255,6 +255,7 @@ function heatBoxTitle(h){
   const parts = [`${h.slotLabel} · 生徒${h.count}人`, `定員${S.roomCapacity}人`];
   if(h.pendingCount > 0) parts.push(`講師未決${h.pendingCount}人`);
   if(h.absenceCount > 0) parts.push(`欠席${h.absenceCount}人`);
+  parts.push(`講師${h.teacherCount}人`);
   return parts.join(' · ');
 }
 
@@ -289,14 +290,15 @@ function heatBoxHtml(h){
   const countHtml = isEmpty
     ? '<span class="cal-heat-count is-dash">—</span>'
     : `<span class="cal-heat-count">${h.count}人</span>`;
-  const cls = ['cal-heat-box', isEmpty ? 'is-empty' : ''].filter(Boolean).join(' ');
-  return `<div class="${cls}" title="${heatBoxTitle(h)}"><span class="cal-heat-label">${h.slotLabel}</span>${countHtml}</div>`;
+  const cls = ['cal-heat-box', isEmpty && h.teacherCount === 0 ? 'is-empty' : ''].filter(Boolean).join(' ');
+  return `<div class="${cls}" title="${heatBoxTitle(h)}"><span class="cal-heat-label">${h.slotLabel}</span>${countHtml}<span class="cal-heat-teachers">講師${h.teacherCount}</span></div>`;
 }
 
 // 教室全体表示用：その実日付における4コマ(4講〜7講)それぞれの混雑度（確定＋未マッチの希望コマを反映）
 function buildDayHeat(dateStr){
   const list = getEffectiveDayAssignments(dateStr);
   const absences = getAbsenceRecordsOnDate(dateStr);
+  const activeTeachers = S.teachers.filter(t=> personAppliesOnDate(t, dateStr));
   return SLOTS.map(slot=>{
     const slotList = list.filter(a=> a.slot === slot.id);
     const confirmedCount = countSlotAssignmentUnits(slotList);
@@ -304,7 +306,8 @@ function buildDayHeat(dateStr){
     const absenceCount = absences.filter(r=> Number(r.slot) === Number(slot.id)).length;
     const count = confirmedCount + pendingCount + absenceCount;
     const ratio = S.roomCapacity>0 ? Math.min(count/S.roomCapacity, 1) : 0;
-    return {slotLabel:slot.label, confirmedCount, pendingCount, absenceCount, count, ratio};
+    const teacherCount = activeTeachers.filter(t=> isTeacherAvailableOnDate(t.id, dateStr, slot.id)).length;
+    return {slotLabel:slot.label, confirmedCount, pendingCount, absenceCount, count, ratio, teacherCount};
   });
 }
 

@@ -1,0 +1,37 @@
+<!DOCTYPE html>
+<html lang="ja" data-layout="a">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ピタコマ 生徒登録画面（A案 上から順に1列）</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Zen+Kaku+Gothic+New:wght@400;500;700;900&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/src/shared/styles/variables.css">
+  <link rel="stylesheet" href="/src/admin/styles/admin.css">
+  <link rel="stylesheet" href="/docs/student-form-preview.css">
+</head>
+<body>
+  <div class="preview-note">
+    <h1>生徒登録画面の並び（試しページ）</h1>
+    <p>見本の生徒（中1・週3コマ＋プログラミング・割引あり）で作っています。割引・コース・無料コマ・受講開始日を変えると、金額がその場で変わります。</p>
+    <nav class="preview-nav" aria-label="案の切り替え">
+      <a href="/docs/student-form-a-preview.html">A案 上から順に1列</a>
+      <a href="/docs/student-form-b-preview.html">B案 左に入力・右に金額</a>
+      <a href="/docs/student-form-c-preview.html">C案 見出しで区切る</a>
+    </nav>
+  </div>
+  <div class="preview-wrap">
+    <div id="formRoot"></div>
+    <h2 class="preview-empty-title">参考：受講科目がまだ0コマのときの料金欄</h2>
+    <div class="card"><div class="student-fee-tables" id="emptyFeeBox"></div></div>
+  </div>
+  <script type="module">
+    import { renderStudentFormPreview } from '/docs/student-form-preview.js';
+    const layout = document.documentElement.dataset.layout;
+    renderStudentFormPreview(layout);
+    document.querySelectorAll('.preview-nav a').forEach(a=>{
+      if(a.getAttribute('href').includes(`student-form-${layout}-`)) a.setAttribute('aria-current', 'page');
+    });
+  </script>
+</body>
+</html>

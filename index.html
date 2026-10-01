@@ -67,6 +67,8 @@
     <div id="calViewShell" class="cal-view-shell">
     <div class="cal-view-main">
 
+    <div id="makeupAlertFlash" class="makeup-alert-flash" hidden></div>
+
     <div class="cal-status-bar" id="calStatusBar">
       <button type="button" class="cal-status-toggle" id="shortageToggleBtn" aria-expanded="false">
         <span id="shortageSummaryLine" class="cal-status-text">読み込み中…</span>
@@ -316,6 +318,8 @@
     <div class="card">
       <h2><span id="studentFormModeTitle">生徒を登録</span><span class="help-tip" tabindex="0">?<span class="help-tip-text">氏名・学年を選んで「基本情報を登録」を押してください。そのあと週カレンダーで希望コマと教科を選びます。講師への依頼はカレンダー画面の右パネルで行います。</span></span></h2>
 
+      <div class="student-form-split" id="studentFormSplit">
+        <div class="student-form-main">
       <label class="field-label" for="studentNameInput">生徒名</label>
       <input type="text" id="studentNameInput" placeholder="例：山田 花子">
 
@@ -334,7 +338,37 @@
         <label class="field-label" for="studentCourseStartInput">受講開始日<span class="help-tip" tabindex="0">?<span class="help-tip-text">授業を始める日です。組める／組めないは、この日の月の出勤表で見ます。その月がまだ出ていないときは、いちばん新しい出勤表で見ます。</span></span></label>
         <input type="date" id="studentCourseStartInput">
 
-        <div style="height:18px"></div>
+        <div style="height:22px"></div>
+        <label class="field-label">受講科目<span class="help-tip" tabindex="0">?<span class="help-tip-text">まず「基本情報を登録」を押してください。そのあと、空いているマスをクリックして教科を選びます。講師への依頼は、カレンダーでコマをクリックして右パネルから行います。</span></span></label>
+      <div id="courseList"></div>
+      <div id="studentMatchingAction" class="student-matching-action" hidden></div>
+
+        <div style="height:22px"></div>
+        <label class="field-label">授業料コース</label>
+        <div class="chip-row" id="studentTuitionCourseArea">
+          <label class="chip"><input type="radio" name="studentTuitionCourse" value="" checked><span>ベーシック</span></label>
+          <label class="chip"><input type="radio" name="studentTuitionCourse" value="advance"><span>アドバンス</span></label>
+        </div>
+
+        <div style="height:14px"></div>
+        <label class="field-label">割引（円）</label>
+        <div class="field-hint tight">この生徒だけの割引です。割り引いても0円より下にはなりません。</div>
+        <div class="pay-input-row">
+          <div class="pay-input-item">
+            <label for="studentDiscountInitial">初期費用</label>
+            <input type="text" inputmode="numeric" id="studentDiscountInitial" placeholder="例：5500">
+          </div>
+          <div class="pay-input-item">
+            <label for="studentDiscountAnnual">年会費</label>
+            <input type="text" inputmode="numeric" id="studentDiscountAnnual" placeholder="例：11000">
+          </div>
+          <div class="pay-input-item">
+            <label for="studentDiscountMonthly">月ごとの費用</label>
+            <input type="text" inputmode="numeric" id="studentDiscountMonthly" placeholder="例：1100">
+          </div>
+        </div>
+
+        <div style="height:14px"></div>
         <label class="chip" style="display:inline-flex;">
           <input type="checkbox" id="freeLessonToggle">
           <span>最初の◯コマを無料にする</span>
@@ -348,14 +382,30 @@
         </div>
 
         <div style="height:22px"></div>
-        <label class="field-label">受講科目<span class="help-tip" tabindex="0">?<span class="help-tip-text">まず「基本情報を登録」を押してください。そのあと、空いているマスをクリックして教科を選びます。講師への依頼は、カレンダーでコマをクリックして右パネルから行います。</span></span></label>
-      <div id="courseList"></div>
-      <div id="studentMatchingAction" class="student-matching-action" hidden></div>
+        <label class="field-label">受験</label>
+        <div class="chip-row" id="studentExamTypeArea">
+          <label class="chip"><input type="radio" name="studentExamType" value="" checked><span>なし</span></label>
+          <label class="chip"><input type="radio" name="studentExamType" value="中学受験"><span>中学受験</span></label>
+          <label class="chip"><input type="radio" name="studentExamType" value="高校受験"><span>高校受験</span></label>
+          <label class="chip"><input type="radio" name="studentExamType" value="大学受験"><span>大学受験</span></label>
+        </div>
 
-      <div class="form-actions">
-        <button class="primary" id="studentSaveBtn">基本情報を登録</button>
-        <button class="ghost" id="studentCancelBtn" style="display:none;">キャンセル</button>
-        <span class="form-msg" id="studentFormMsg"></span>
+        <div style="height:14px"></div>
+        <label class="field-label" for="studentTargetSchoolInput">志望校</label>
+        <input type="text" id="studentTargetSchoolInput" placeholder="例：第1 〇〇高校、第2 △△高校">
+
+        <div style="height:14px"></div>
+        <label class="field-label" for="studentNotesInput">備考（自由記入）</label>
+        <textarea id="studentNotesInput" rows="3" style="width:100%;padding:9px 12px;border:1px solid var(--border);border-radius:var(--radius-md);font-family:inherit;font-size:13px;background:var(--surface-card);resize:vertical;"></textarea>
+        </div>
+        <aside class="student-fee-panel" aria-label="登録と料金">
+          <div class="form-actions student-form-actions">
+            <button class="primary" id="studentSaveBtn">基本情報を登録</button>
+            <button class="ghost" id="studentCancelBtn" style="display:none;">キャンセル</button>
+            <span class="form-msg" id="studentFormMsg"></span>
+          </div>
+          <div class="student-fee-tables" id="studentFeeTables"></div>
+        </aside>
       </div>
     </div>
 
@@ -442,7 +492,8 @@
       <div style="height:22px"></div>
 
       <label class="field-label">学年別 授業料単価（1コマあたり）</label>
-      <div class="field-hint tight">生徒ごとではなく、学年区分で共通の単価として設定します。「収支」タブの売上計算に使われます。</div>
+      <div class="field-hint tight">学年区分ごとに、ベーシックとアドバンスの2つの単価を設定します。生徒ごとにどちらのコースかを選び、「分析」タブの売上計算に使われます。</div>
+      <label class="field-label">ベーシック</label>
       <div class="tuition-input-row">
         <div class="pay-input-item">
           <label for="tuitionSmallInput">小学（円/コマ）</label>
@@ -455,6 +506,73 @@
         <div class="pay-input-item">
           <label for="tuitionHighInput">高校（円/コマ）</label>
           <input type="text" inputmode="numeric" id="tuitionHighInput">
+        </div>
+      </div>
+      <div style="height:12px"></div>
+      <label class="field-label">アドバンス</label>
+      <div class="tuition-input-row">
+        <div class="pay-input-item">
+          <label for="tuitionAdvSmallInput">小学（円/コマ）</label>
+          <input type="text" inputmode="numeric" id="tuitionAdvSmallInput">
+        </div>
+        <div class="pay-input-item">
+          <label for="tuitionAdvMiddleInput">中学（円/コマ）</label>
+          <input type="text" inputmode="numeric" id="tuitionAdvMiddleInput">
+        </div>
+        <div class="pay-input-item">
+          <label for="tuitionAdvHighInput">高校（円/コマ）</label>
+          <input type="text" inputmode="numeric" id="tuitionAdvHighInput">
+        </div>
+      </div>
+
+      <div style="height:22px"></div>
+
+      <label class="field-label">プログラミング 月額（円/月）</label>
+      <div class="field-hint tight">学年に関係なく1つの金額です。その月にプログラミングの確定コマがある生徒だけ、月に1回「分析」タブの売上に足します。欠席しても月額は変わりません。</div>
+      <div class="tuition-input-row">
+        <div class="pay-input-item">
+          <label for="programmingMonthlyFeeInput">プログラミング 月額（円/月）</label>
+          <input type="text" inputmode="numeric" id="programmingMonthlyFeeInput">
+        </div>
+      </div>
+
+      <div style="height:22px"></div>
+
+      <label class="field-label">入会時・年会費・月ごとの費用</label>
+      <div class="field-hint tight">教室ごとの金額です。「分析」タブの月の売上に足します。初期費用は受講開始日の月に1回、年会費は受講開始日と同じ月に毎年1回です。4〜6月に入塾した年は全額、7月以降に入塾した年は、3月までの残りの月数×「減る額」になります。</div>
+      <label class="field-label">初期費用</label>
+      <div class="tuition-input-row">
+        <div class="pay-input-item">
+          <label for="feeEnrollmentInput">入会金（円）</label>
+          <input type="text" inputmode="numeric" id="feeEnrollmentInput">
+        </div>
+        <div class="pay-input-item">
+          <label for="feeRegistrationInput">塾生登録料（円）</label>
+          <input type="text" inputmode="numeric" id="feeRegistrationInput">
+        </div>
+      </div>
+      <div style="height:12px"></div>
+      <label class="field-label">年会費</label>
+      <div class="tuition-input-row">
+        <div class="pay-input-item">
+          <label for="feeAnnualInput">年会費（円/年）</label>
+          <input type="text" inputmode="numeric" id="feeAnnualInput">
+        </div>
+        <div class="pay-input-item">
+          <label for="feeAnnualReductionInput">7月以降に入塾したときの減る額（円/月）</label>
+          <input type="text" inputmode="numeric" id="feeAnnualReductionInput">
+        </div>
+      </div>
+      <div style="height:12px"></div>
+      <label class="field-label">月ごとの費用</label>
+      <div class="tuition-input-row">
+        <div class="pay-input-item">
+          <label for="feeMaintenanceInput">維持管理費（円/月）</label>
+          <input type="text" inputmode="numeric" id="feeMaintenanceInput">
+        </div>
+        <div class="pay-input-item">
+          <label for="feeElearningInput">Eラーニング費（円/月）</label>
+          <input type="text" inputmode="numeric" id="feeElearningInput">
         </div>
       </div>
 
@@ -617,6 +735,8 @@
       </div>
     </div>
   </div>
+
+<div id="printSheetRoot" aria-hidden="true"></div>
 
 <script type="module" src="/src/admin/main.js"></script>
 </body>

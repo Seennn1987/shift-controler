@@ -1,0 +1,108 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ピタコマ 出勤できる講師の人数 プレビュー</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Zen+Kaku+Gothic+New:wght@400;500;700;900&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/src/shared/styles/variables.css">
+  <link rel="stylesheet" href="/src/admin/styles/admin.css">
+  <style>
+    body{padding:24px;background:var(--bg-soft);}
+    .preview-note{max-width:980px;margin:0 auto 20px;font-size:var(--text-md);color:var(--ink);}
+    .preview-note h1{font-size:var(--text-xl);margin:0 0 8px;}
+    .preview-wrap{max-width:980px;margin:0 auto;display:flex;flex-direction:column;gap:16px;}
+    .preview-wrap h2{font-size:var(--text-lg);margin:12px 0 4px;}
+    .preview-wrap h3{font-size:var(--text-md);margin:0 0 6px;}
+    .preview-pair{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px;}
+    .preview-hint{margin:8px 0 0;font-size:var(--text-sm);color:var(--ink-soft);}
+    @media (max-width:900px){ .preview-pair{grid-template-columns:1fr;} }
+  </style>
+</head>
+<body>
+  <div class="preview-note">
+    <h1>出勤できる講師の人数（試しページ）</h1>
+    <p>A は生徒登録画面の週カレンダーです。「講師3」は、その生徒の学年を教えられて、その曜日・コマに毎週出勤でき、まだ生徒を受け持てる講師の人数です。B は月カレンダーの「教室全体」表示で、「講師3」はその日そのコマに出勤できる講師の人数です。数字は例です。</p>
+  </div>
+
+  <div class="preview-wrap">
+    <h2>A. 生徒登録の週カレンダー</h2>
+    <div class="preview-pair">
+      <div>
+        <h3>変更前</h3>
+        <div class="card" style="padding:12px;" id="weekBefore"></div>
+      </div>
+      <div>
+        <h3>変更後</h3>
+        <div class="card" style="padding:12px;" id="weekAfter"></div>
+      </div>
+    </div>
+
+    <h2>B. 月カレンダー「教室全体」表示</h2>
+    <h3>変更前</h3>
+    <div class="card" style="padding:8px;" id="monthBefore"></div>
+    <h3>変更後</h3>
+    <div class="card" style="padding:8px;" id="monthAfter"></div>
+  </div>
+
+  <script>
+    const DAYS = ['月','火','水','木','金','土'];
+    const SLOTS = [['4講','14:50〜16:20'],['5講','16:40〜18:10'],['6講','18:20〜19:50'],['7講','20:00〜21:30']];
+    const OPEN = [[2,1,0,3,1,0],[3,2,1,4,2,1],[1,2,2,3,0,0],[0,1,1,1,0,0]];
+
+    function weekGrid(after){
+      let t = '<table class="avail-grid student-course-grid"><thead><tr><th class="slot-h">時間割</th>'
+        + DAYS.map(d=> `<th>${d}</th>`).join('') + '</tr></thead><tbody>';
+      SLOTS.forEach((s, si)=>{
+        t += `<tr><th class="slot-h">${s[0]}<br><span class="slot-time">${s[1]}</span></th>`;
+        DAYS.forEach((d, di)=>{
+          if(si === 1 && di === 3){
+            t += `<td class="scc-cell scc-filled"><button type="button" class="scc-slot-btn scc-slot-filled-btn"><span class="scc-subject-name" style="background:#e8f0fb;color:#1f4f8f;">数学</span><span class="scc-cell-badge match-status-badge is-ready">組める（2名）</span></button></td>`;
+            return;
+          }
+          const n = OPEN[si][di];
+          const count = after ? `<span class="scc-avail-count${n === 0 ? ' is-zero' : ''}">講師${n}</span>` : '';
+          t += `<td class="scc-cell scc-empty"><button type="button" class="scc-slot-btn scc-empty-btn${after ? ' has-avail' : ''}">＋${count}</button></td>`;
+        });
+        t += '</tr>';
+      });
+      return t + '</tbody></table><p class="preview-hint">9月の出勤表で、組める人数を見ています。</p>';
+    }
+
+    const MONTH_DAYS = [
+      [6, [2,3,1,0], [3,4,2,1], ['講師なし']],
+      [7, [1,2,2,0], [2,3,3,1], []],
+      [8, [0,3,4,1], [1,3,4,2], ['仮決め']],
+      [9, [2,2,1,0], [2,2,2,0], []],
+      [10, [3,4,3,2], [3,5,4,2], ['承認待ち']],
+      [11, [1,1,0,0], [2,2,1,0], []],
+    ];
+    const BADGE = { '講師なし':'is-unassigned', '仮決め':'is-tentative-outline', '承認待ち':'is-waiting' };
+
+    function monthGrid(after){
+      let h = ['日','月','火','水','木','金','土'].map((w, i)=> `<div class="cal-dow ${i === 0 ? 'sun' : (i === 6 ? 'sat' : '')}">${w}</div>`).join('');
+      h += '<div class="cal-cell closed-weekday"><div class="cal-daynum">5</div><div class="cal-sublabel">定休</div></div>';
+      MONTH_DAYS.forEach(([d, students, teachers, badges])=>{
+        const badgeHtml = badges.length
+          ? `<span class="cal-day-badges">${badges.map(b=> `<span class="cal-day-flow-badge ${BADGE[b]}">${b}</span>`).join('')}</span>`
+          : '';
+        const boxes = SLOTS.map((s, i)=>{
+          const n = students[i];
+          const faded = after ? (n === 0 && teachers[i] === 0) : n === 0;
+          const cnt = n === 0 ? '<span class="cal-heat-count is-dash">—</span>' : `<span class="cal-heat-count">${n}人</span>`;
+          const t = after ? `<span class="cal-heat-teachers">講師${teachers[i]}</span>` : '';
+          return `<div class="cal-heat-box${faded ? ' is-empty' : ''}"><span class="cal-heat-label">${s[0]}</span>${cnt}${t}</div>`;
+        }).join('');
+        h += `<div class="cal-cell open"><div class="cal-day-head"><span class="cal-daynum">${d}</span>${badgeHtml}</div><div class="cal-heat-stack">${boxes}</div></div>`;
+      });
+      return `<div class="cal-grid">${h}</div>`;
+    }
+
+    document.getElementById('weekBefore').innerHTML = weekGrid(false);
+    document.getElementById('weekAfter').innerHTML = weekGrid(true);
+    document.getElementById('monthBefore').innerHTML = monthGrid(false);
+    document.getElementById('monthAfter').innerHTML = monthGrid(true);
+  </script>
+</body>
+</html>

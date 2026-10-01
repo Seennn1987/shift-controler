@@ -1,0 +1,22 @@
+body{margin:0;padding:24px;background:var(--bg-soft);font-family:var(--font-family);color:var(--ink);}
+.preview-note{max-width:1100px;margin:0 auto 16px;font-size:var(--text-md);}
+.preview-note h1{font-size:var(--text-xl);margin:0 0 6px;}
+.preview-note p{margin:0 0 8px;}
+.preview-nav{display:flex;gap:var(--space-3);flex-wrap:wrap;}
+.preview-nav a{padding:4px 10px;border:1px solid var(--border);border-radius:var(--radius-md);background:var(--surface-card);color:var(--brand-600);font-size:var(--text-sm);font-weight:700;text-decoration:none;}
+.preview-nav a[aria-current=page]{background:var(--brand-900);border-color:var(--brand-900);color:var(--text-on-brand);}
+.preview-wrap{max-width:1100px;margin:0 auto;}
+.preview-empty-title{font-size:var(--text-lg);margin:var(--space-6) 0 var(--space-2);}
+
+/* A案・C案（金額の表を入力欄の下に横並び） */
+.card > .student-fee-tables .ps-cols,
+.student-form-section .student-fee-tables .ps-cols{grid-template-columns:1fr 1fr;}
+@media (max-width:768px){
+  .card > .student-fee-tables .ps-cols,
+  .student-form-section .student-fee-tables .ps-cols{grid-template-columns:1fr;}
+}
+
+.student-form-section{padding:var(--space-5) 0;border-top:1px solid var(--border);}
+.student-form-section:first-of-type{border-top:none;padding-top:0;}
+.student-form-section-title{margin:0 0 var(--space-3);font-size:var(--text-lg);font-weight:var(--font-weight-bold);}
+.student-form-section.is-fee{margin:0 calc(-1 * var(--space-4));padding-left:var(--space-4);padding-right:var(--space-4);background:var(--surface-muted);border-radius:var(--radius-md);}

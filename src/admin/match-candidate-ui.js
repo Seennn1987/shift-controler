@@ -2,6 +2,7 @@ import { S } from './state.js';
 import { buildCandidateBadgeLabels } from './matching-config.js';
 import { isPreferredPair } from './teacher-schedule-tab.js';
 import { isOwnerTeacher } from './owner-teacher.js';
+import { getTeacherMonthLessonCounts } from './absences.js';
 
 function escapeAttr(v){
   return String(v ?? '').replace(/"/g, '&quot;');
@@ -17,6 +18,16 @@ export function buildPrefPairActionHtmlForTeacher(studentId, courseId, teacherId
   }
   if(!allowSet) return '';
   return `<button type="button" class="ghost pref-pair-set-btn" ${common}>担当生徒にする</button>`;
+}
+
+function buildTeacherLoadHtml(teacherId){
+  const { months, byTeacher } = getTeacherMonthLessonCounts();
+  const counts = byTeacher.get(teacherId) || months.map(()=> ({ total: 0, draft: 0 }));
+  const text = months.map((ym, i)=>{
+    const { total, draft } = counts[i];
+    return `${Number(ym.slice(5, 7))}月 ${total}コマ${draft > 0 ? `（仮決め${draft}）` : ''}`;
+  }).join('・');
+  return `<div class="match-cand-load">${text}</div>`;
 }
 
 function buildPrefPairActionHtml(cand, studentId, courseId, allowSet){
@@ -71,6 +82,7 @@ export function renderMatchCandidateList(candidates, opts){
     showPrefPairSetAction = false,
     dual = false,
     subjects = null,
+    confirmLabel = 'この講師に依頼',
   } = opts;
 
   if(roomFull){
@@ -99,7 +111,7 @@ export function renderMatchCandidateList(candidates, opts){
         data-slot="${slot}"
         data-teacher="${escapeAttr(cand.teacher.id)}"
         ${dual ? 'data-dual="1"' : ''}
-        ${dateStr ? `data-date="${escapeAttr(dateStr)}"` : ''}>この講師に依頼</button>` : '';
+        ${dateStr ? `data-date="${escapeAttr(dateStr)}"` : ''}>${confirmLabel}</button>` : '';
     html += `<div class="match-cand-row">
       <span class="match-cand-rank">${idx + 1}</span>
       <div class="match-cand-main">
@@ -107,6 +119,7 @@ export function renderMatchCandidateList(candidates, opts){
           <span class="match-cand-name">${cand.teacher.name}</span>
           <div class="match-cand-actions">${prefHtml}${confirmHtml}</div>
         </div>
+        ${buildTeacherLoadHtml(cand.teacher.id)}
         ${badges ? `<div class="match-cand-badges">${badges}</div>` : ''}
       </div>
     </div>`;

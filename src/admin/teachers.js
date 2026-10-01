@@ -10,6 +10,7 @@ import { fillBaseAvailArea, readBaseAvailArea, renderRaiseScheduleList, subjectC
 import { scheduleSave, saveTeacherSubjectsDoc, clearDeletedTeacherCloudDocs, rememberRetiredTeacherLogin, scheduleSyncTeacherAssignments } from './students-persistence.js';
 import { getPreferredPairsForTeacher, revokePendingRequestsForTeacher, renderTeacherScheduleTab } from './teacher-schedule-tab.js';
 import { isActivePerson, markPersonLeft, renderLeaveFlash } from './active-people.js';
+import { renderLessonHistoryHtml } from './lesson-history.js';
 
 
 
@@ -364,6 +365,7 @@ function renderTeacherList(){
       ? `<button type="button" class="edit-btn" data-action="restore" data-id="${t.id}">在籍に戻す</button>`
       : `<button type="button" class="edit-btn" data-action="leave" data-id="${t.id}">退社</button>`;
     const workStart = t.left ? `退社 · ${workStartSummaryText(t)}` : workStartSummaryText(t);
+    const historyOpen = S.historyOpenTeacherId === t.id;
     const row = document.createElement('div');
     row.className = `teacher-row${t.left ? ' is-disabled' : ''}`;
     row.innerHTML = `
@@ -375,6 +377,7 @@ function renderTeacherList(){
         </div>
         <div class="row-actions">
           <button type="button" class="edit-btn" data-id="${t.id}">編集</button>
+          <button type="button" class="edit-btn" data-action="history" data-id="${t.id}" aria-expanded="${historyOpen}">${historyOpen ? '閉じる' : '過去の授業'}</button>
           ${leaveBtn}
           <button type="button" class="del-btn" data-id="${t.id}">削除</button>
         </div>
@@ -383,6 +386,7 @@ function renderTeacherList(){
         <div class="trow-col-title">担当生徒</div>
         <div class="trow-pref-student-chips">${prefHtml}</div>
       </div>
+      ${historyOpen ? `<div class="trow-col-title">過去の授業</div>${renderLessonHistoryHtml({ teacherId: t.id })}` : ''}
       <div class="trow-three-col">
         <div class="trow-col">
           <div class="trow-col-title">担当教科</div>
@@ -409,6 +413,13 @@ function renderTeacherList(){
   });
   wrap.querySelectorAll('[data-action=leave]').forEach(b=>{
     b.addEventListener('click', ()=> setTeacherLeft(b.dataset.id, true));
+  });
+  wrap.querySelectorAll('[data-action=history]').forEach(b=>{
+    b.addEventListener('click', ()=>{
+      S.historyOpenTeacherId = S.historyOpenTeacherId === b.dataset.id ? null : b.dataset.id;
+      renderTeacherList();
+      wrap.querySelector(`[data-action=history][data-id="${b.dataset.id}"]`)?.focus();
+    });
   });
   wrap.querySelectorAll('[data-action=restore]').forEach(b=>{
     b.addEventListener('click', ()=> setTeacherLeft(b.dataset.id, false));

@@ -1,6 +1,7 @@
 import { toDateStr } from '../shared/date-utils.js';
+import { firstYearAnnualFee } from '../shared/student-fees.js';
 import { S } from './state.js';
-import { computeDayFinance } from './absences.js';
+import { computeDayFinance, getMonthlyFeeStudentIds } from './absences.js';
 import { personAppliesOnDate } from './active-people.js';
 
 function prevYearMonth(year, month){
@@ -26,6 +27,35 @@ function countStudentsAsOfMonthEnd(year, month){
   }).length;
 }
 
+/** 生徒1人のその月の入会金・年会費・月ごとの費用（割引後） */
+function computeStudentFeeForMonth(student, year, month){
+  const fees = S.studentFees || {};
+  const discounts = student.discounts || {};
+  const firstDay = toDateStr(year, month, 1);
+  const lastDay = monthLastDateStr(year, month);
+  const start = typeof student.courseStartDate === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(student.courseStartDate)
+    ? student.courseStartDate : null;
+  if(start && start > lastDay) return 0;
+  if(!personAppliesOnDate(student, firstDay)) return 0;
+
+  let total = Math.max(0, (Number(fees.maintenance) || 0) + (Number(fees.elearning) || 0) - (Number(discounts.monthly) || 0));
+  if(!start) return total;
+  const startYear = Number(start.slice(0, 4));
+  const startMonth1 = Number(start.slice(5, 7));
+  if(month + 1 !== startMonth1) return total;
+  if(year === startYear){
+    total += Math.max(0, (Number(fees.enrollment) || 0) + (Number(fees.registration) || 0) - (Number(discounts.initial) || 0));
+    total += Math.max(0, firstYearAnnualFee(startMonth1, fees) - (Number(discounts.annual) || 0));
+  }else if(year > startYear){
+    total += Math.max(0, (Number(fees.annual) || 0) - (Number(discounts.annual) || 0));
+  }
+  return total;
+}
+
+function computeStudentFeesForMonth(year, month){
+  return (S.students || []).reduce((sum, student)=> sum + computeStudentFeeForMonth(student, year, month), 0);
+}
+
 /** 指定月の売上・コスト・実施コマを日次集計からまとめる */
 function computeMonthFinance(year, month, includeTransport){
   if(includeTransport === undefined) includeTransport = S.finIncludeTransport;
@@ -41,6 +71,8 @@ function computeMonthFinance(year, month, includeTransport){
     transportCost += fin.transportCost;
     lessonCount += fin.lessonCount;
   }
+  revenue += getMonthlyFeeStudentIds(year, month).size * (S.programmingMonthlyFee || 0);
+  revenue += computeStudentFeesForMonth(year, month);
   const cost = lessonCost + (includeTransport ? transportCost : 0);
   const ratio = revenue > 0 ? (cost / revenue * 100) : null;
   const gross = revenue - cost;
@@ -103,6 +135,7 @@ export {
   prevYearMonth,
   countStudentsAsOfMonthEnd,
   computeMonthFinance,
+  computeStudentFeesForMonth,
   buildMonthFinanceCompare,
   formatYen,
   formatFinanceDelta,

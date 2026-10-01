@@ -460,8 +460,11 @@ function cancelRowDraftOrAssignment(btn){
   cancelAssignment(btn.dataset.student, btn.dataset.course, btn.dataset.day, Number(btn.dataset.slot), dateStr);
 }
 
-function buildAssignmentFlashMessage({slotLabel, subject, teacherName, draft, pending, owner}){
+function buildAssignmentFlashMessage({slotLabel, subject, teacherName, draft, pending, owner, swap}){
   const detail = `${slotLabel || ''}（${subject}）`;
+  if(swap){
+    return `✓ ${detail}の仮決めを${teacherName}先生に変えました。`;
+  }
   if(owner){
     return `✓ ${detail}を教室長で確定しました。`;
   }
@@ -522,14 +525,69 @@ function bindUnconfirmButtons(root){
   });
 }
 
+function buildDraftSwapCandidatesHtml(btn){
+  const { student: studentId, course: courseId, day } = btn.dataset;
+  const slot = Number(btn.dataset.slot);
+  const dateStr = btn.dataset.date || null;
+  const student = S.students.find(s=> s.id === studentId);
+  if(!student) return null;
+  const current = findEffectiveAssignment(studentId, courseId, day, slot, null, dateStr);
+  const opts = {
+    btnClass: 'confirm-btn draft-swap-confirm-btn',
+    showConfirm: true,
+    swapFromTeacherId: current?.entry?.teacherId || null,
+  };
+  if(btn.dataset.dual === '1'){
+    const dualPair = findDualPairForStudent(student, day, slot);
+    return dualPair ? buildDualMatchCandidatesHtml(student, dualPair, day, slot, dateStr, opts) : null;
+  }
+  const course = student.courses?.find(c=> c.id === courseId);
+  return course ? buildMatchCandidatesHtml(student, course.id, course.subject, day, slot, dateStr, opts) : null;
+}
+
+function openDraftSwapList(root, btn){
+  const actions = btn.closest('.match-cand-actions');
+  const rows = btn.closest('.match-slot-rows');
+  if(!actions || !rows || rows.querySelector('.draft-swap-cand')) return;
+  const html = buildDraftSwapCandidatesHtml(btn);
+  if(html === null) return;
+
+  const tmp = document.createElement('div');
+  tmp.innerHTML = html || '<div class="match-none">候補講師がいません。</div>';
+  const list = tmp.querySelector('.match-slot-rows');
+  const nodes = [...(list ? list.children : tmp.children)];
+  nodes.forEach(node=>{
+    node.classList.add('draft-swap-cand');
+    rows.appendChild(node);
+  });
+
+  const originalActionsHtml = actions.innerHTML;
+  actions.innerHTML = `<button type="button" class="mp-change-teacher-btn draft-swap-remove-btn">仮決めを外す</button><button type="button" class="mp-change-teacher-btn draft-swap-close-btn">やめる</button>`;
+
+  actions.querySelector('.draft-swap-close-btn').addEventListener('click', ()=>{
+    rows.querySelectorAll('.draft-swap-cand').forEach(el=> el.remove());
+    actions.innerHTML = originalActionsHtml;
+    const reopenBtn = actions.querySelector('.cancel-draft-btn');
+    if(reopenBtn){
+      reopenBtn.addEventListener('click', ()=> openDraftSwapList(root, reopenBtn));
+      reopenBtn.focus();
+    }
+  });
+  actions.querySelector('.draft-swap-remove-btn').addEventListener('click', ()=>{
+    cancelRowDraftOrAssignment(btn);
+    scheduleSave();
+    matchingPanelFlashMsg = '仮決めを外しました。';
+    afterMatchingChange(btn.dataset.date || null);
+  });
+  rows.querySelectorAll('.draft-swap-confirm-btn').forEach(cbtn=>{
+    cbtn.addEventListener('click', ()=> handleConfirmClick(root, cbtn, { swap: true }));
+  });
+  actions.querySelector('.draft-swap-close-btn').focus();
+}
+
 function bindChangeTeacherButtons(root){
   root.querySelectorAll('.cancel-draft-btn').forEach(btn=>{
-    btn.addEventListener('click', ()=>{
-      cancelRowDraftOrAssignment(btn);
-      scheduleSave();
-      matchingPanelFlashMsg = '下書きを解除しました。別の講師を選んでください。';
-      afterMatchingChange(btn.dataset.date || null);
-    });
+    btn.addEventListener('click', ()=> openDraftSwapList(root, btn));
   });
   root.querySelectorAll('.mp-change-teacher-btn:not(.cancel-draft-btn)').forEach(btn=>{
     btn.addEventListener('click', ()=>{
@@ -553,73 +611,76 @@ function bindChangeTeacherButtons(root){
   });
 }
 
+function handleConfirmClick(root, btn, { swap = false } = {}){
+  const teacher = findTeacher(btn.dataset.teacher);
+  let result;
+  if(btn.dataset.dual === '1'){
+    const student = S.students.find(s=> s.id === btn.dataset.student);
+    const dualPair = findDualPairForStudent(student, btn.dataset.day, Number(btn.dataset.slot));
+    if(!dualPair){
+      showInlineNotice(root, '2教科の登録が見つかりません。', { variant: 'warn' });
+      return;
+    }
+    result = confirmDualAssignment(
+      btn.dataset.student,
+      dualPair,
+      btn.dataset.day,
+      Number(btn.dataset.slot),
+      btn.dataset.teacher,
+      'manual',
+      { dateStr: btn.dataset.date || null },
+    );
+  }else{
+    result = confirmAssignment(
+      btn.dataset.student,
+      btn.dataset.course,
+      btn.dataset.subject,
+      btn.dataset.day,
+      Number(btn.dataset.slot),
+      btn.dataset.teacher,
+      'manual',
+      { dateStr: btn.dataset.date || null },
+    );
+  }
+  if(!result.ok){
+    showInlineNotice(root, result.msg, { variant: 'warn' });
+    return;
+  }
+  scheduleSave();
+  const slotDef = SLOTS.find(s=> s.id === Number(btn.dataset.slot));
+  const subjectLabel = result.subjects?.join('・') || btn.dataset.subject;
+  const ctx = {
+    studentId: btn.dataset.student,
+    courseId: btn.dataset.course,
+    subject: subjectLabel,
+    day: btn.dataset.day,
+    slot: Number(btn.dataset.slot),
+    teacherId: btn.dataset.teacher,
+    dateStr: btn.dataset.date,
+    teacherName: teacher?.name || '',
+  };
+  matchingPanelFlashMsg = buildAssignmentFlashMessage({
+    slotLabel: slotDef?.label || '',
+    subject: subjectLabel,
+    teacherName: ctx.teacherName,
+    draft: result.draft,
+    pending: result.pending,
+    owner: isOwnerTeacher(teacher),
+    swap,
+  });
+  const future = isOwnerTeacher(teacher)
+    ? { dateCount: 0, monthLabels: [] }
+    : countFutureWeeksForTeacher(ctx.teacherId, ctx.day, ctx.slot, ctx.dateStr);
+  matchingPanelFutureOffer = future.dateCount > 0 ? { ...ctx, ...future } : null;
+  matchingPanelPrefPairOffer = shouldOfferPrefPair(ctx.studentId, ctx.courseId, ctx.teacherId)
+    ? { ...ctx }
+    : null;
+  afterMatchingChange(ctx.dateStr);
+}
+
 function bindConfirmButtons(root){
   root.querySelectorAll('.mp-confirm-btn').forEach(btn=>{
-    btn.addEventListener('click', ()=>{
-      const teacher = findTeacher(btn.dataset.teacher);
-      let result;
-      if(btn.dataset.dual === '1'){
-        const student = S.students.find(s=> s.id === btn.dataset.student);
-        const dualPair = findDualPairForStudent(student, btn.dataset.day, Number(btn.dataset.slot));
-        if(!dualPair){
-          showInlineNotice(root, '2教科の登録が見つかりません。', { variant: 'warn' });
-          return;
-        }
-        result = confirmDualAssignment(
-          btn.dataset.student,
-          dualPair,
-          btn.dataset.day,
-          Number(btn.dataset.slot),
-          btn.dataset.teacher,
-          'manual',
-          { dateStr: btn.dataset.date || null },
-        );
-      }else{
-        result = confirmAssignment(
-          btn.dataset.student,
-          btn.dataset.course,
-          btn.dataset.subject,
-          btn.dataset.day,
-          Number(btn.dataset.slot),
-          btn.dataset.teacher,
-          'manual',
-          { dateStr: btn.dataset.date || null },
-        );
-      }
-      if(!result.ok){
-        showInlineNotice(root, result.msg, { variant: 'warn' });
-        return;
-      }
-      scheduleSave();
-      const slotDef = SLOTS.find(s=> s.id === Number(btn.dataset.slot));
-      const subjectLabel = result.subjects?.join('・') || btn.dataset.subject;
-      const ctx = {
-        studentId: btn.dataset.student,
-        courseId: btn.dataset.course,
-        subject: subjectLabel,
-        day: btn.dataset.day,
-        slot: Number(btn.dataset.slot),
-        teacherId: btn.dataset.teacher,
-        dateStr: btn.dataset.date,
-        teacherName: teacher?.name || '',
-      };
-      matchingPanelFlashMsg = buildAssignmentFlashMessage({
-        slotLabel: slotDef?.label || '',
-        subject: subjectLabel,
-        teacherName: ctx.teacherName,
-        draft: result.draft,
-        pending: result.pending,
-        owner: isOwnerTeacher(teacher),
-      });
-      const future = isOwnerTeacher(teacher)
-        ? { dateCount: 0, monthLabels: [] }
-        : countFutureWeeksForTeacher(ctx.teacherId, ctx.day, ctx.slot, ctx.dateStr);
-      matchingPanelFutureOffer = future.dateCount > 0 ? { ...ctx, ...future } : null;
-      matchingPanelPrefPairOffer = shouldOfferPrefPair(ctx.studentId, ctx.courseId, ctx.teacherId)
-        ? { ...ctx }
-        : null;
-      afterMatchingChange(ctx.dateStr);
-    });
+    btn.addEventListener('click', ()=> handleConfirmClick(root, btn));
   });
 }
 

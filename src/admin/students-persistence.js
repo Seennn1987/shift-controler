@@ -1,4 +1,4 @@
-import { SUBJECT_MAP, DAYS, SLOTS, WEEKDAY_JP, WEEK_FULL } from '../shared/constants.js';
+import { SUBJECT_MAP, DAYS, SLOTS, WEEKDAY_JP, WEEK_FULL, DEFAULT_STUDENT_FEES } from '../shared/constants.js';
 import { normalizeGoogleCalendarState } from './google-calendar-events.js';
 import { normalizeClosedHolidayDates, areAllHolidaysClosed } from '../shared/holidays.js';
 import { pad2, daysInYearMonth, toDateStr, getTodayStr } from '../shared/date-utils.js';
@@ -19,7 +19,7 @@ import { renderMatching } from './matching.js';
 import { gradeLabel } from './schedule-core.js';
 import { openTeacherScheduleEditor, renderTeacherScheduleTab } from './teacher-schedule-tab.js';
 import { collapseTeacherCalendarEntries, formatDualSubjectLabel, ticketCoversSubjects, ticketSubjectList } from './dual-subject.js';
-import { collectMakeupEntriesForTeacher, isTeacherAbsentForStudent, recordTeacherAbsence, studentAbsentDatesForAssignment } from './absences.js';
+import { collectMakeupEntriesForTeacher, isTeacherAbsentForStudent, recordTeacherAbsence, reopenOrphanedMakeups, reopenRejectedMakeups, studentAbsentDatesForAssignment } from './absences.js';
 import { normalizeMatchingPriority } from './matching-config.js';
 import { applyGradePromotionsIfNeeded } from './grade-promotion.js';
 
@@ -337,6 +337,7 @@ async function rejectPendingAssignment(ticket, ticketId){
   const taken = takePendingMatchingTicket(ticket);
   // 自己検証用チケットは、マッチする待ちが無いときに誤って handled にしない
   if(taken.length === 0 && ticket?.pitakomaSelfTest) return;
+  reopenRejectedMakeups(taken);
   try{
     await fbDb.collection('assignmentApprovals').doc(ticketId).update({
       handled: true,
@@ -835,6 +836,9 @@ async function saveAppState(){
     customClosures: S.customClosures,
     preferredPairs: S.preferredPairs,
     tuitionRates: S.tuitionRates,
+    tuitionRatesAdvance: S.tuitionRatesAdvance,
+    programmingMonthlyFee: S.programmingMonthlyFee || 0,
+    studentFees: S.studentFees,
     regularClosedDays: S.regularClosedDays,
     holidayAutoDetect: S.holidayAutoDetect,
     closedHolidayDates: S.closedHolidayDates || [],
@@ -883,6 +887,9 @@ async function loadAppStateFromFirestore(){
     S.customClosures = d.customClosures || [];
     S.preferredPairs = d.preferredPairs || [];
     S.tuitionRates = d.tuitionRates || {'小学':2900, '中学':3900, '高校':5200};
+    S.tuitionRatesAdvance = d.tuitionRatesAdvance || { ...S.tuitionRates };
+    S.programmingMonthlyFee = d.programmingMonthlyFee != null ? d.programmingMonthlyFee : 0;
+    S.studentFees = { ...DEFAULT_STUDENT_FEES, ...(d.studentFees || {}) };
     S.regularClosedDays = d.regularClosedDays || ['日'];
     S.closedHolidayDates = normalizeClosedHolidayDates(d);
     S.holidayAutoDetect = areAllHolidaysClosed(S.closedHolidayDates);
@@ -914,6 +921,8 @@ async function loadAppStateFromFirestore(){
     S.holidayAutoDetect = false;
     S.lastGradePromotionYear = null;
     S.officeHourlyRate = 1300;
+    S.programmingMonthlyFee = 0;
+    S.studentFees = { ...DEFAULT_STUDENT_FEES };
     S.payrollOfficeHours = {};
     S.payrollLocks = {};
     S.googleCalendar = normalizeGoogleCalendarState(null);
@@ -927,8 +936,9 @@ async function loadAppStateFromFirestore(){
   S.studentDataReady = true;
   S.firestoreReady = true;
 
+  const reopenedMakeups = reopenOrphanedMakeups();
   const promo = await applyGradePromotionsIfNeeded();
-  if(promo.didWrite) await saveAppState();
+  if(promo.didWrite || reopenedMakeups > 0) await saveAppState();
 
   await syncClosureSettings(); // 講師側にも休校日設定を同期しておく
   await syncTeacherAssignments(); // 講師のマイカレンダー用データも、ログインのたびに必ず作り直す（過去の同期失敗を自己修復するため）

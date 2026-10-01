@@ -132,6 +132,7 @@ async function cancelMakeup(id){
   findDualAbsenceSiblings(ab).forEach(sibling=>{
     sibling.makeup = null;
     sibling.status = 'pending';
+    delete sibling.makeupRejected;
   });
   setMakeupPlacementFromAbsence(ab);
 }
@@ -141,6 +142,7 @@ function markNoMakeup(id){
   if(!ab) return;
   findDualAbsenceSiblings(ab).forEach(sibling=>{
     sibling.status = 'no-makeup';
+    delete sibling.makeupRejected;
   });
   clearMakeupPlacementIfAbsence(id);
 }
@@ -181,11 +183,72 @@ function pendingAbsenceGroupKey(absence){
   return siblings.map(a=> a.id).sort().join('|') || absence.id;
 }
 
-/** 未振替（双教科は1件）。日付の古い順 */
+function isMakeupEntryFor(a, ab){
+  return a.studentId === ab.studentId &&
+    a.courseId === ab.courseId &&
+    a.oneTimeDate === ab.makeup.date &&
+    Number(a.slot) === Number(ab.makeup.slot);
+}
+
+function makeupAssignmentExists(ab){
+  if(!ab?.makeup) return false;
+  return S.assignments.some(a=> isMakeupEntryFor(a, ab)) ||
+    S.pendingAssignments.some(a=> isMakeupEntryFor(a, ab));
+}
+
+function reopenAbsenceGroup(ab, rejectedMakeup){
+  findDualAbsenceSiblings(ab).forEach(sibling=>{
+    sibling.status = 'pending';
+    sibling.makeup = null;
+    if(rejectedMakeup) sibling.makeupRejected = rejectedMakeup;
+    else delete sibling.makeupRejected;
+  });
+}
+
+/** 講師に断られた振替の欠席を、未振替に戻す。戻した件数を返す */
+function reopenRejectedMakeups(rejectedEntries){
+  let count = 0;
+  (rejectedEntries || []).forEach(entry=>{
+    if(entry.source !== 'makeup' || !entry.oneTimeDate) return;
+    const ab = S.absences.find(a=>
+      a.status === 'resolved' && a.makeup && isMakeupEntryFor(entry, a),
+    );
+    if(!ab) return;
+    reopenAbsenceGroup(ab, {
+      date: ab.makeup.date,
+      slot: ab.makeup.slot,
+      teacherId: ab.makeup.teacherId,
+    });
+    count++;
+  });
+  return count;
+}
+
+/** 振替済みなのに振替の授業がどこにもない欠席を、未振替に戻す。戻した件数を返す
+ *  講師・生徒の削除で授業ごと消えた過去の振替は、戻さない */
+function reopenOrphanedMakeups(){
+  let count = 0;
+  S.absences.forEach(ab=>{
+    if(ab.status !== 'resolved' || !ab.makeup) return;
+    if(makeupAssignmentExists(ab)) return;
+    if(!S.students.some(s=> s.id === ab.studentId)) return;
+    if(!findTeacher(ab.makeup.teacherId)) return;
+    reopenAbsenceGroup(ab, null);
+    count++;
+  });
+  return count;
+}
+
+/** 振替が終わっていない欠席（双教科は1件）。日付の古い順
+ *  state: 'unassigned' 振替先なし / 'waiting' 講師の承認待ち / 'rejected' 講師が断った */
 function listPendingAbsenceWorkItems(){
   const seen = new Set();
   const items = [];
-  S.absences.filter(a=> a.status === 'pending').forEach(ab=>{
+  S.absences.forEach(ab=>{
+    let state;
+    if(ab.status === 'pending') state = ab.makeupRejected ? 'rejected' : 'unassigned';
+    else if(ab.status === 'resolved' && makeupAssignmentPending(ab)) state = 'waiting';
+    else return;
     const key = pendingAbsenceGroupKey(ab);
     if(seen.has(key)) return;
     seen.add(key);
@@ -194,6 +257,7 @@ function listPendingAbsenceWorkItems(){
     const dualPair = student ? findDualPairAtSlot(student.courses, ab.day, ab.slot) : null;
     items.push({
       absence: ab,
+      state,
       student,
       slot: SLOTS.find(s=> Number(s.id) === Number(ab.slot)) || null,
       subjects: dualPair?.subjects?.length === 2
@@ -834,6 +898,7 @@ async function confirmMakeup(absenceId, makeupDate, makeupSlot, teacherId){
   siblings.forEach((sibling, idx)=>{
     sibling.makeup = {date:makeupDate, slot:makeupSlot, teacherId};
     sibling.status = 'resolved';
+    delete sibling.makeupRejected;
     const teacher = findTeacher(teacherId);
     const makeupEntry = {
       id: 'asg-'+Date.now()+'-'+idx+'-'+Math.random().toString(36).slice(2,6),
@@ -1052,6 +1117,42 @@ function countTeacherLessonsBefore(teacherId, dateStr){
   return count;
 }
 
+// 今月・来月の講師ごとのコマ数（確定＋承認待ち＋仮決め、うち仮決め）。同じ描画中は使い回す
+let teacherMonthCountsCache = null;
+function getTeacherMonthLessonCounts(){
+  if(teacherMonthCountsCache) return teacherMonthCountsCache;
+  const today = getTodayStr();
+  const y = Number(today.slice(0, 4));
+  const m = Number(today.slice(5, 7));
+  const next = m === 12 ? { y: y + 1, m: 1 } : { y, m: m + 1 };
+  const months = [`${y}-${pad2(m)}`, `${next.y}-${pad2(next.m)}`];
+  const byTeacher = new Map();
+  months.forEach((ym, mi)=>{
+    const days = daysInYearMonth(ym);
+    for(let d = 1; d <= days; d++){
+      const ds = `${ym}-${pad2(d)}`;
+      const weekday = getDayStatus(ds).weekday;
+      const list = getEffectiveDayAssignments(ds).filter(a=> !a.teacherAbsent && a.teacherId);
+      const groups = new Map();
+      list.forEach(a=>{
+        if(!groups.has(a.teacherId)) groups.set(a.teacherId, { all: [], draft: [] });
+        const unit = { studentId: a.studentId, day: weekday, slot: a.slot, dualGroupId: a.dualGroupId || null };
+        groups.get(a.teacherId).all.push(unit);
+        if(a.draft) groups.get(a.teacherId).draft.push(unit);
+      });
+      groups.forEach((g, teacherId)=>{
+        if(!byTeacher.has(teacherId)) byTeacher.set(teacherId, months.map(()=> ({ total: 0, draft: 0 })));
+        const row = byTeacher.get(teacherId)[mi];
+        row.total += countSlotAssignmentUnits(g.all);
+        row.draft += countSlotAssignmentUnits(g.draft);
+      });
+    }
+  });
+  teacherMonthCountsCache = { months, byTeacher };
+  setTimeout(()=>{ teacherMonthCountsCache = null; }, 0);
+  return teacherMonthCountsCache;
+}
+
 // その講師の、指定日に適用されるコマ単価を判定する（優先順位：①最初のXコマ特例 → ②昇給スケジュール → ③基本単価）
 function getTeacherRateForDate(teacher, dateStr){
   if(teacher.earlyLessonException && teacher.earlyLessonException.lessonCount > 0){
@@ -1092,7 +1193,7 @@ function countStudentLessonsBefore(student, dateStr){
     const ds = toDateStr(d.getFullYear(), d.getMonth(), d.getDate());
     const weekday = getDayStatus(ds).weekday;
     const list = getEffectiveDayAssignments(ds).filter(a=>
-      a.studentId === student.id && !a.pending && !a.draft && !a.teacherAbsent
+      a.studentId === student.id && !a.pending && !a.draft && !a.teacherAbsent && !isMonthlyFeeLesson(a)
     );
     count += countSlotAssignmentUnits(
       list.map(a=>({
@@ -1110,12 +1211,37 @@ function countStudentLessonsBefore(student, dateStr){
 
 function getStudentTuitionForDate(student, dateStr){
   if(!student) return 0;
-  const rate = S.tuitionRates[student.level] || 0;
+  const rates = student.tuitionCourse === 'advance' ? S.tuitionRatesAdvance : S.tuitionRates;
+  const rate = rates?.[student.level] || 0;
   const freeCount = Number(student.freeLessonCount) || 0;
   if(freeCount <= 0) return rate;
   const before = countStudentLessonsBefore(student, dateStr);
   if(before < freeCount) return 0;
   return rate;
+}
+
+const MONTHLY_FEE_SUBJECT = 'プログラミング';
+
+function isMonthlyFeeLesson(a){
+  return a.subject === MONTHLY_FEE_SUBJECT && !a.dualGroupId;
+}
+
+/** その月にプログラミング（1教科）の確定コマが1回以上ある生徒のID（生徒欠席の日も含む） */
+function getMonthlyFeeStudentIds(year, month){
+  const ids = new Set();
+  const days = new Date(year, month + 1, 0).getDate();
+  for(let day = 1; day <= days; day++){
+    const dateStr = toDateStr(year, month, day);
+    const status = getDayStatus(dateStr);
+    if(status.type!=='open') continue;
+    S.assignments.forEach(a=>{
+      if(ids.has(a.studentId)) return;
+      if(a.day!==status.weekday || !isMonthlyFeeLesson(a)) return;
+      if(!assignmentAppliesOnDate(a, dateStr)) return;
+      ids.add(a.studentId);
+    });
+  }
+  return ids;
 }
 
 function computeDayFinance(dateStr, includeTransport){
@@ -1133,6 +1259,8 @@ function computeDayFinance(dateStr, includeTransport){
       if(seenDual.has(key)) return;
       seenDual.add(key);
     }
+    // プログラミング（1教科）は月額で集計するため、コマごとの授業料は0円
+    if(isMonthlyFeeLesson(a)) return;
     const student = S.students.find(s=>s.id===a.studentId);
     revenue += getStudentTuitionForDate(student, dateStr);
   });
@@ -1280,4 +1408,4 @@ function getStudentDateRows(student, dateStr){
 }
 
 
-export { findAbsenceFor, recordAbsence, recordStudentSlotAbsence, cancelAbsenceRecord, cancelMakeup, markNoMakeup, setMakeupPlacementFromAbsence, clearMakeupPlacement, getMakeupPlacementAbsence, listPendingAbsenceWorkItems, listPendingTeacherAbsenceWorkItems, getAbsenceRecordsOnDate, studentAbsentDatesForAssignment, collectMakeupEntriesForTeacher, getTeacherLessonsOnDate, findTeacherAbsence, isTeacherSlotAbsent, isTeacherSlotFullyAbsent, isTeacherAbsentForStudent, isAssignedTeacherMissingOnDate, recordTeacherAbsence, findSubstituteCandidatesForStudent, confirmSubstitute, cancelSubstitute, resolveSlotViaStudentAbsence, cancelTeacherAbsence, cancelTeacherAbsenceForSlot, countTeacherLoadOnDate, countRoomLoadOnDate, isTeacherAvailableOnDate, findMakeupCandidates, findDualMakeupCandidates, findMakeupCandidatesOnDate, findDualMakeupCandidatesOnDate, confirmMakeup, getEffectiveDayAssignments, computeTeacherOpenings, countTeacherLessonsBefore, getTeacherRateForDate, countStudentLessonsBefore, getStudentTuitionForDate, computeDayFinance, costRatioColor, getStudentDateRows };
+export { findAbsenceFor, recordAbsence, recordStudentSlotAbsence, cancelAbsenceRecord, cancelMakeup, markNoMakeup, setMakeupPlacementFromAbsence, clearMakeupPlacement, getMakeupPlacementAbsence, listPendingAbsenceWorkItems, reopenRejectedMakeups, reopenOrphanedMakeups, listPendingTeacherAbsenceWorkItems, getAbsenceRecordsOnDate, studentAbsentDatesForAssignment, collectMakeupEntriesForTeacher, getTeacherLessonsOnDate, findTeacherAbsence, isTeacherSlotAbsent, isTeacherSlotFullyAbsent, isTeacherAbsentForStudent, isAssignedTeacherMissingOnDate, recordTeacherAbsence, findSubstituteCandidatesForStudent, confirmSubstitute, cancelSubstitute, resolveSlotViaStudentAbsence, cancelTeacherAbsence, cancelTeacherAbsenceForSlot, countTeacherLoadOnDate, countRoomLoadOnDate, isTeacherAvailableOnDate, findMakeupCandidates, findDualMakeupCandidates, findMakeupCandidatesOnDate, findDualMakeupCandidatesOnDate, confirmMakeup, getEffectiveDayAssignments, getMonthlyFeeStudentIds, isMonthlyFeeLesson, computeTeacherOpenings, countTeacherLessonsBefore, getTeacherMonthLessonCounts, getTeacherRateForDate, countStudentLessonsBefore, getStudentTuitionForDate, computeDayFinance, costRatioColor, getStudentDateRows };

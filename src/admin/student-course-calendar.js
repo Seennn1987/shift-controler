@@ -13,6 +13,7 @@ import {
   analyzeDualSubjectAtSlot,
   analyzeSubjectAtSlot,
   coursePickerMonthHint,
+  countOpenTeachersForLevel,
   renderDualSubjectPickerBadge,
   renderSubjectPickerBadge,
   resolveCoursePickerYearMonth,
@@ -108,10 +109,15 @@ export function normalizeFormCoursesForSave(formCourses){
   }));
 }
 
+/** マスの中だけ短く表示する（保存するデータは正式名のまま） */
+function cellSubjectLabel(subject){
+  return subject === 'プログラミング' ? 'プログラ' : subject;
+}
+
 function renderDualSubjectTags(level, subjects){
   return subjects.map(sub=>{
     const c = subjectColor(level, sub);
-    return `<span class="scc-subject-name" style="background:${c.bg};color:${c.text};">${sub}</span>`;
+    return `<span class="scc-subject-name" style="background:${c.bg};color:${c.text};">${cellSubjectLabel(sub)}</span>`;
   }).join('<span class="scc-dual-plus">+</span>');
 }
 
@@ -326,13 +332,14 @@ export function renderStudentCourseCalendar(container, opts){
         const badge = cellStatusBadgeHtml(level, single.subject, day, slot.id, yearMonth);
         tableHtml += `<td class="scc-cell scc-filled" data-day="${day}" data-slot="${slot.id}">
           <button type="button" class="scc-slot-btn scc-slot-filled-btn">
-            <span class="scc-subject-name" style="background:${c.bg};color:${c.text};">${single.subject}</span>
+            <span class="scc-subject-name" style="background:${c.bg};color:${c.text};">${cellSubjectLabel(single.subject)}</span>
             ${badge}
           </button>
         </td>`;
       }else{
+        const openCount = countOpenTeachersForLevel(level, day, slot.id, yearMonth);
         tableHtml += `<td class="scc-cell scc-empty" data-day="${day}" data-slot="${slot.id}">
-          <button type="button" class="scc-slot-btn scc-empty-btn" aria-label="教科を追加">＋</button>
+          <button type="button" class="scc-slot-btn scc-empty-btn has-avail" aria-label="教科を追加（講師${openCount}人）">＋<span class="scc-avail-count${openCount === 0 ? ' is-zero' : ''}">講師${openCount}</span></button>
         </td>`;
       }
     });

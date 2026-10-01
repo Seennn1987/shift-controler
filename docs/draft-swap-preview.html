@@ -1,0 +1,88 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ピタコマ 仮決めの講師を差し替える プレビュー</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Zen+Kaku+Gothic+New:wght@400;500;700;900&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/src/shared/styles/variables.css">
+  <link rel="stylesheet" href="/src/admin/styles/admin.css">
+  <style>
+    body{padding:24px;background:var(--bg-soft);}
+    .preview-note{max-width:900px;margin:0 auto 20px;font-size:var(--text-md);color:var(--ink);}
+    .preview-note h1{font-size:var(--text-xl);margin:0 0 8px;}
+    .preview-grid{max-width:900px;margin:0 auto;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:24px;}
+    .preview-grid h2{font-size:var(--text-md);margin:0;}
+    .preview-step{margin:12px 0 6px;font-size:var(--text-sm);font-weight:700;color:var(--ink);}
+    @media (max-width:720px){ .preview-grid{grid-template-columns:1fr;} }
+  </style>
+</head>
+<body>
+  <div class="preview-note">
+    <h1>仮決めの講師を差し替える（試しページ）</h1>
+    <p>カレンダー右パネルと「日の詳細」にある、仮決めのカードです。数字は例です。ボタンは見た目だけです。</p>
+  </div>
+
+  <div class="preview-grid">
+    <div>
+      <h2>変更前</h2>
+
+      <p class="preview-step">① 仮決めのカード</p>
+      <div class="match-slot mp-slot-card mp-slot-waiting">
+        <div class="ms-slot-label">5講（16:40〜18:10）<span class="mp-slot-meta">教室 3/12</span></div>
+        <div class="mp-slot-subject has-flow-badge"><span class="sched-card-flow-badge"><span class="cal-day-flow-badge is-tentative-outline">仮決め</span></span><div class="mp-slot-subject-tags"><span class="student-row-tag" style="background:#e8f0fb;color:#1f4f8f;border:1px solid #b9cfee;">数学</span></div></div>
+        <div class="match-slot-rows">
+          <div class="match-cand-row"><span class="match-cand-rank">—</span><div class="match-cand-main"><div class="match-cand-head"><span class="match-cand-name">佐藤 花子</span><div class="match-cand-actions"><button type="button" class="mp-change-teacher-btn">別の講師を選ぶ</button></div></div></div></div>
+        </div>
+      </div>
+
+      <p class="preview-step">② 「別の講師を選ぶ」を押すと…仮決めが消え、講師なしに戻る</p>
+      <div class="matching-panel-result-msg" style="margin-bottom:8px;"><span class="matching-panel-flash-main">下書きを解除しました。別の講師を選んでください。</span></div>
+      <div class="match-slot mp-slot-card mp-slot-waiting">
+        <div class="ms-slot-label">5講（16:40〜18:10）<span class="mp-slot-meta">教室 3/12</span></div>
+        <div class="mp-slot-subject has-flow-badge"><span class="sched-card-flow-badge"><span class="cal-day-flow-badge is-unassigned">講師なし</span></span><div class="mp-slot-subject-tags"><span class="student-row-tag" style="background:#e8f0fb;color:#1f4f8f;border:1px solid #b9cfee;">数学</span></div></div>
+        <div class="match-slot-rows">
+          <div class="match-cand-row"><span class="match-cand-rank">1</span><div class="match-cand-main"><div class="match-cand-head"><span class="match-cand-name">田中 健</span><div class="match-cand-actions"><button type="button" class="confirm-btn">この講師に依頼</button></div></div><div class="match-cand-load">9月 20コマ・10月 18コマ</div><div class="match-cand-badges"><span class="match-reason-badge">同日担当中</span></div></div></div>
+          <div class="match-cand-row"><span class="match-cand-rank">2</span><div class="match-cand-main"><div class="match-cand-head"><span class="match-cand-name">鈴木 美咲</span><div class="match-cand-actions"><button type="button" class="confirm-btn">この講師に依頼</button></div></div><div class="match-cand-load">9月 3コマ・10月 0コマ</div><div class="match-cand-badges"><span class="match-reason-badge">講師希望コマ</span></div></div></div>
+        </div>
+      </div>
+      <p class="preview-step">③ 選ばずに他の操作をすると、仮決めは消えたまま</p>
+    </div>
+
+    <div>
+      <h2>変更後</h2>
+
+      <p class="preview-step">① 仮決めのカード（今と同じ）</p>
+      <div class="match-slot mp-slot-card mp-slot-waiting">
+        <div class="ms-slot-label">5講（16:40〜18:10）<span class="mp-slot-meta">教室 3/12</span></div>
+        <div class="mp-slot-subject has-flow-badge"><span class="sched-card-flow-badge"><span class="cal-day-flow-badge is-tentative-outline">仮決め</span></span><div class="mp-slot-subject-tags"><span class="student-row-tag" style="background:#e8f0fb;color:#1f4f8f;border:1px solid #b9cfee;">数学</span></div></div>
+        <div class="match-slot-rows">
+          <div class="match-cand-row"><span class="match-cand-rank">—</span><div class="match-cand-main"><div class="match-cand-head"><span class="match-cand-name">佐藤 花子</span><div class="match-cand-actions"><button type="button" class="mp-change-teacher-btn">別の講師を選ぶ</button></div></div></div></div>
+        </div>
+      </div>
+
+      <p class="preview-step">② 「別の講師を選ぶ」を押すと…仮決めは残したまま、その場に候補が開く</p>
+      <div class="match-slot mp-slot-card mp-slot-waiting">
+        <div class="ms-slot-label">5講（16:40〜18:10）<span class="mp-slot-meta">教室 3/12</span></div>
+        <div class="mp-slot-subject has-flow-badge"><span class="sched-card-flow-badge"><span class="cal-day-flow-badge is-tentative-outline">仮決め</span></span><div class="mp-slot-subject-tags"><span class="student-row-tag" style="background:#e8f0fb;color:#1f4f8f;border:1px solid #b9cfee;">数学</span></div></div>
+        <div class="match-slot-rows">
+          <div class="match-cand-row"><span class="match-cand-rank">—</span><div class="match-cand-main"><div class="match-cand-head"><span class="match-cand-name">佐藤 花子</span><div class="match-cand-actions"><button type="button" class="mp-change-teacher-btn pref-pair-unset-btn">仮決めを外す</button><button type="button" class="mp-change-teacher-btn">やめる</button></div></div></div></div>
+          <div class="match-cand-row"><span class="match-cand-rank">1</span><div class="match-cand-main"><div class="match-cand-head"><span class="match-cand-name">田中 健</span><div class="match-cand-actions"><button type="button" class="confirm-btn">この講師に変更</button></div></div><div class="match-cand-load">9月 20コマ・10月 18コマ</div><div class="match-cand-badges"><span class="match-reason-badge">同日担当中</span></div></div></div>
+          <div class="match-cand-row"><span class="match-cand-rank">2</span><div class="match-cand-main"><div class="match-cand-head"><span class="match-cand-name">鈴木 美咲</span><div class="match-cand-actions"><button type="button" class="confirm-btn">この講師に変更</button></div></div><div class="match-cand-load">9月 3コマ・10月 0コマ</div><div class="match-cand-badges"><span class="match-reason-badge">講師希望コマ</span></div></div></div>
+        </div>
+      </div>
+
+      <p class="preview-step">③ 「この講師に変更」を押すと、仮決めのまま講師だけ入れ替わる</p>
+      <div class="matching-panel-result-msg" style="margin-bottom:8px;"><span class="matching-panel-flash-main">✓ 5講（数学）の仮決めを田中 健先生に変えました。</span></div>
+      <div class="match-slot mp-slot-card mp-slot-waiting">
+        <div class="ms-slot-label">5講（16:40〜18:10）<span class="mp-slot-meta">教室 3/12</span></div>
+        <div class="mp-slot-subject has-flow-badge"><span class="sched-card-flow-badge"><span class="cal-day-flow-badge is-tentative-outline">仮決め</span></span><div class="mp-slot-subject-tags"><span class="student-row-tag" style="background:#e8f0fb;color:#1f4f8f;border:1px solid #b9cfee;">数学</span></div></div>
+        <div class="match-slot-rows">
+          <div class="match-cand-row"><span class="match-cand-rank">—</span><div class="match-cand-main"><div class="match-cand-head"><span class="match-cand-name">田中 健</span><div class="match-cand-actions"><button type="button" class="mp-change-teacher-btn">別の講師を選ぶ</button></div></div></div></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</body>
+</html>

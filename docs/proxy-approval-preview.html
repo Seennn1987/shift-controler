@@ -1,0 +1,77 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ピタコマ 教室長の代理承認 プレビュー</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Zen+Kaku+Gothic+New:wght@400;500;700;900&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/src/shared/styles/variables.css">
+  <link rel="stylesheet" href="/src/shared/styles/inline-confirm.css">
+  <link rel="stylesheet" href="/src/admin/styles/admin.css">
+  <style>
+    body{padding:24px;background:var(--bg-soft);}
+    .preview-note{max-width:900px;margin:0 auto 20px;font-size:var(--text-md);color:var(--ink);}
+    .preview-note h1{font-size:var(--text-xl);margin:0 0 8px;}
+    .preview-grid{max-width:900px;margin:0 auto;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px;}
+    .preview-grid h2{font-size:var(--text-md);margin:0 0 8px;}
+  </style>
+</head>
+<body>
+  <div class="preview-note">
+    <h1>教室長の代理承認（試しページ）</h1>
+    <p>カレンダー上部の「承認待ち」の列です。授業日が今日以前の行だけに「授業日を過ぎています」と「代わりに承認」が出ます。ボタンは見た目だけです。</p>
+  </div>
+
+  <div class="preview-grid">
+    <div>
+      <h2>ふだんの見え方</h2>
+      <section class="shortage-panel">
+        <div class="shortage-panel-head"><span class="shortage-panel-label">承認待ち</span><span class="shortage-panel-count"><span class="shortage-panel-num">2</span>件</span></div>
+        <div class="shortage-panel-scroll approval-scroll">
+          <div class="proxy-approve-item">
+            <button type="button" class="approval-item approval-item-btn cal-alert-row-c4">
+              <div class="cal-alert-row-body cal-alert-row-body--full"><span class="cal-alert-when-text">9/29<span class="cal-alert-when-wd">(火)</span> 5講</span><span class="cal-alert-row-head">田中先生</span><span class="cal-alert-person-inline">山田 太郎（中1）</span><span class="sched-student-tag cal-alert-subject-tag" style="background:#E0F2FE;color:#075985;">英</span></div>
+            </button>
+            <div class="proxy-approve-actions">
+              <span class="approval-badge pending">授業日を過ぎています</span>
+              <button type="button" class="confirm-btn">代わりに承認</button>
+            </div>
+          </div>
+          <button type="button" class="approval-item approval-item-btn cal-alert-row-c4">
+            <div class="cal-alert-row-body cal-alert-row-body--full"><span class="cal-alert-when-text">10/6<span class="cal-alert-when-wd">(火)</span> 5講</span><span class="cal-alert-row-head">田中先生</span><span class="cal-alert-person-inline">山田 太郎（中1）</span><span class="sched-student-tag cal-alert-subject-tag" style="background:#E0F2FE;color:#075985;">英</span></div>
+          </button>
+        </div>
+      </section>
+    </div>
+
+    <div>
+      <h2>「代わりに承認」を押したあと</h2>
+      <section class="shortage-panel">
+        <div class="shortage-panel-head"><span class="shortage-panel-label">承認待ち</span><span class="shortage-panel-count"><span class="shortage-panel-num">2</span>件</span></div>
+        <div class="shortage-panel-scroll approval-scroll">
+          <div class="proxy-approve-item">
+            <button type="button" class="approval-item approval-item-btn cal-alert-row-c4">
+              <div class="cal-alert-row-body cal-alert-row-body--full"><span class="cal-alert-when-text">9/29<span class="cal-alert-when-wd">(火)</span> 5講</span><span class="cal-alert-row-head">田中先生</span><span class="cal-alert-person-inline">山田 太郎（中1）</span><span class="sched-student-tag cal-alert-subject-tag" style="background:#E0F2FE;color:#075985;">英</span></div>
+            </button>
+            <div class="proxy-approve-actions">
+              <span class="approval-badge pending">授業日を過ぎています</span>
+              <button type="button" class="confirm-btn">代わりに承認</button>
+            </div>
+            <div class="app-inline-confirm matching-panel-flash-followup" role="group">
+              <span class="app-inline-confirm-text matching-panel-flash-followup-text">田中 一郎先生の9/29(火) 5講（山田 太郎さん）を、代わりに承認しますか？<br>給与と売上に入ります。</span>
+              <div class="matching-panel-flash-followup-actions">
+                <button type="button" class="mp-inline-action app-inline-confirm-primary">承認する</button>
+                <button type="button" class="mp-inline-action app-inline-cancel-btn">やめる</button>
+              </div>
+            </div>
+          </div>
+          <button type="button" class="approval-item approval-item-btn cal-alert-row-c4">
+            <div class="cal-alert-row-body cal-alert-row-body--full"><span class="cal-alert-when-text">10/6<span class="cal-alert-when-wd">(火)</span> 5講</span><span class="cal-alert-row-head">田中先生</span><span class="cal-alert-person-inline">山田 太郎（中1）</span><span class="sched-student-tag cal-alert-subject-tag" style="background:#E0F2FE;color:#075985;">英</span></div>
+          </button>
+        </div>
+      </section>
+    </div>
+  </div>
+</body>
+</html>

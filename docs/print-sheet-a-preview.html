@@ -1,0 +1,47 @@
+<!DOCTYPE html>
+<html lang="ja" data-layout="a">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ピタコマ 入会時の案内（案A 画像に近い形）</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Zen+Kaku+Gothic+New:wght@400;500;700;900&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/src/shared/styles/variables.css">
+  <link rel="stylesheet" href="/docs/print-sheet-preview.css">
+  <style>
+    body{margin:0;padding:24px;background:var(--bg-soft);font-family:var(--font-family);color:var(--ink);}
+    .preview-note{max-width:210mm;margin:0 auto 16px;font-size:var(--text-md);}
+    .preview-note h1{font-size:var(--text-xl);margin:0 0 6px;}
+    .preview-note p{margin:0 0 8px;}
+    .preview-nav{display:flex;gap:var(--space-3);flex-wrap:wrap;}
+    .preview-nav a{padding:4px 10px;border:1px solid var(--border);border-radius:var(--radius-md);background:var(--surface-card);color:var(--brand-600);font-size:var(--text-sm);font-weight:700;text-decoration:none;}
+    .preview-nav a[aria-current=page]{background:var(--brand-900);border-color:var(--brand-900);color:var(--text-on-brand);}
+    .preview-paper{width:210mm;margin:0 auto;box-shadow:0 2px 12px rgba(0,0,0,.12);}
+    @media print{
+      body{padding:0;background:none;}
+      .preview-note{display:none;}
+      .preview-paper{box-shadow:none;}
+    }
+  </style>
+</head>
+<body>
+  <div class="preview-note">
+    <h1>入会時に渡す案内の紙（試しページ）</h1>
+    <p>見本の生徒で作っています。A4タテ1枚の大きさです。ブラウザの印刷（⌘P）で、実際の紙の見え方も確かめられます。</p>
+    <nav class="preview-nav" aria-label="案の切り替え">
+      <a href="/docs/print-sheet-a-preview.html">案A 画像に近い形</a>
+      <a href="/docs/print-sheet-b-preview.html">案B 授業が主役</a>
+      <a href="/docs/print-sheet-c-preview.html">案C 2段組み</a>
+    </nav>
+  </div>
+  <div class="preview-paper" id="paper"></div>
+  <script type="module">
+    import { buildPrintSheetHtml, SAMPLE_DATA } from '/docs/print-sheet-preview.js';
+    const layout = document.documentElement.dataset.layout || 'a';
+    document.getElementById('paper').innerHTML = buildPrintSheetHtml(SAMPLE_DATA, layout);
+    document.querySelectorAll('.preview-nav a').forEach(a=>{
+      if(a.getAttribute('href').includes(`print-sheet-${layout}-`)) a.setAttribute('aria-current', 'page');
+    });
+  </script>
+</body>
+</html>

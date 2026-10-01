@@ -1,0 +1,124 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ピタコマ プログラミングの追加 プレビュー</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Zen+Kaku+Gothic+New:wght@400;500;700;900&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/src/shared/styles/variables.css">
+  <link rel="stylesheet" href="/src/admin/styles/admin.css">
+  <style>
+    body{padding:24px;background:var(--bg-soft);}
+    .preview-note{max-width:900px;margin:0 auto 20px;font-size:var(--text-md);color:var(--ink);}
+    .preview-note h1{font-size:var(--text-xl);margin:0 0 8px;}
+    .preview-wrap{max-width:900px;margin:0 auto;display:flex;flex-direction:column;gap:16px;}
+    .preview-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px;}
+    .preview-grid h3{font-size:var(--text-md);margin:0 0 10px;}
+    @media (max-width:720px){ .preview-grid{grid-template-columns:1fr;} }
+  </style>
+</head>
+<body>
+  <div class="preview-note">
+    <h1>プログラミングの追加（試しページ）</h1>
+    <p>小学・中学・高校の教科に「プログラミング」（短い表示は「プ」）を足します。コマ組みと講師の担当は他の教科と同じです。授業料だけ月額で、設定タブに月額の欄を1つ足します。ボタンは見た目だけです。</p>
+  </div>
+
+  <div class="preview-wrap" id="previewRoot"></div>
+
+  <script type="module">
+    const HUE = {'国語':350,'算数':188,'数学':188,'英語':278,'理科':142,'社会':28,'プログラミング':88};
+    const TEXT = {'国語':'#9F1239','算数':'#0F766E','数学':'#0F766E','英語':'#6D28D9','理科':'#15803D','社会':'#C2410C','プログラミング':'#4D7C0F'};
+    const LEVELS = ['小学','中学','高校'];
+    const ABBR = {'小学':'小','中学':'中','高校':'高'};
+    const SUBJ = {
+      '小学': ['国語','算数','英語','理科','社会'],
+      '中学': ['国語','数学','英語','理科','社会'],
+      '高校': ['国語','数学','英語','理科','社会'],
+    };
+    const SABBR = {'国語':'国','算数':'算','数学':'数','英語':'英','理科':'理','社会':'社','プログラミング':'プ'};
+    const SHADE = {'小学':{s:52,l:92},'中学':{s:48,l:82},'高校':{s:44,l:46}};
+    function color(level, sub){
+      const sh = SHADE[level];
+      const h = HUE[sub];
+      return {
+        bg: `hsl(${h} ${sh.s}% ${sh.l}%)`,
+        text: sh.l < 58 ? '#ffffff' : TEXT[sub],
+        border: `hsl(${h} ${sh.s}% ${Math.max(sh.l-18,15)}%)`,
+      };
+    }
+    const subjects = (level, withProg)=> withProg ? [...SUBJ[level], 'プログラミング'] : SUBJ[level];
+
+    function chips(withProg){
+      return LEVELS.map(level=>`<div class="subject-block"><div class="level-name">${level}</div><div class="chip-row">${
+        subjects(level, withProg).map(sub=>{
+          const c = color(level, sub);
+          const on = (level === '中学' && (sub === '数学' || sub === 'プログラミング'));
+          return `<span class="subj-item"><label class="chip"><input type="checkbox"${on ? ' checked' : ''}><span style="--chip-bg:${c.bg};--chip-text:${c.text};--chip-border:${c.border};">${sub}</span></label><button type="button" class="star-btn"${on ? '' : ' disabled'}>☆</button></span>`;
+        }).join('')
+      }</div></div>`).join('');
+    }
+
+    function matrix(withProg){
+      let html = '<table class="subject-matrix"><thead><tr><th></th>';
+      subjects('小学', withProg).forEach(sub=>{ html += `<th>${SABBR[sub]}</th>`; });
+      html += '</tr></thead><tbody>';
+      LEVELS.forEach(level=>{
+        html += `<tr><th class="subject-matrix-level">${ABBR[level]}</th>`;
+        subjects(level, withProg).forEach(sub=>{
+          const on = level !== '高校' && (sub === '数学' || sub === '算数' || sub === 'プログラミング');
+          if(!on){ html += '<td class="sub-empty">—</td>'; return; }
+          const c = color(level, sub);
+          html += `<td class="sub-on" style="background:${c.bg};color:${c.text};">○</td>`;
+        });
+        html += '</tr>';
+      });
+      return html + '</tbody></table>';
+    }
+
+    function picker(){
+      return `<div class="student-course-popover" style="position:static;display:block;max-width:320px;">
+        <div class="scp-slot-context">火曜 5講（16:40〜18:10）</div>
+        <div class="scp-title">教科を選択</div>
+        <div class="scp-subjects">${subjects('中学', true).map(sub=>{
+          const c = color('中学', sub);
+          return `<button type="button" class="scp-subject-row"><span class="scp-subject-name" style="background:${c.bg};color:${c.text};">${sub}</span></button>`;
+        }).join('')}</div>
+      </div>`;
+    }
+
+    document.getElementById('previewRoot').innerHTML = `
+      <div class="card">
+        <h2>講師を登録：対応可能教科</h2>
+        <div class="preview-grid">
+          <div><h3>変更前</h3>${chips(false)}</div>
+          <div><h3>変更後</h3>${chips(true)}</div>
+        </div>
+      </div>
+      <div class="card">
+        <h2>登録済み講師一覧：教科の表</h2>
+        <div class="preview-grid">
+          <div><h3>変更前</h3>${matrix(false)}</div>
+          <div><h3>変更後</h3>${matrix(true)}</div>
+        </div>
+      </div>
+      <div class="card">
+        <h2>生徒の受講科目：教科を選ぶ（変更後）</h2>
+        ${picker()}
+      </div>
+      <div class="card">
+        <h2>設定タブ：プログラミングの月額（変更後）</h2>
+        <p style="margin:0 0 10px;font-size:var(--text-sm);color:var(--ink-soft);">（学年別 授業料単価のベーシック・アドバンスの下に足します）</p>
+        <label class="field-label">プログラミング 月額（円/月）</label>
+        <div class="field-hint tight">学年に関係なく1つの金額です。その月にプログラミングの確定コマがある生徒だけ、月に1回「分析」タブの売上に足します。欠席しても月額は変わりません。</div>
+        <div class="tuition-input-row">
+          <div class="pay-input-item">
+            <label>プログラミング 月額（円/月）</label>
+            <input type="text" value="8000">
+          </div>
+        </div>
+      </div>
+    `;
+  </script>
+</body>
+</html>

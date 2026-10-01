@@ -58,6 +58,15 @@ export function getCapableTeachers(level, subject){
   return S.teachers.filter(isActivePerson).filter(t=> t.subjects.some(ts=> ts.level === level && ts.subject === subject));
 }
 
+/** 生徒登録の週カレンダー用：その学年を教えられ、毎週そのコマに出勤でき、まだ受け持てる講師の人数 */
+export function countOpenTeachersForLevel(level, day, slotId, yearMonth){
+  return S.teachers.filter(isActivePerson).filter(t=>
+    t.subjects.some(ts=> ts.level === level) &&
+    isAvailable(t, day, slotId, yearMonth) &&
+    countTeacherSlot(t.id, day, slotId, null, yearMonth) < S.teacherCapacity
+  ).length;
+}
+
 export function getCapableTeachersForBoth(level, subjectA, subjectB){
   if(!subjectA || !subjectB || subjectA === subjectB) return [];
   return S.teachers.filter(isActivePerson).filter(t=>

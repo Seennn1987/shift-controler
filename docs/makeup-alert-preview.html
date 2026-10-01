@@ -1,0 +1,93 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ピタコマ 振替の登録漏れアラート プレビュー</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Zen+Kaku+Gothic+New:wght@400;500;700;900&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/src/shared/styles/variables.css">
+  <link rel="stylesheet" href="/src/shared/styles/inline-confirm.css">
+  <link rel="stylesheet" href="/src/admin/styles/admin.css">
+  <style>
+    body{padding:24px;background:var(--bg-soft);}
+    .preview-note{max-width:1100px;margin:0 auto 20px;font-size:var(--text-md);color:var(--ink);}
+    .preview-note h1{font-size:var(--text-xl);margin:0 0 8px;}
+    .preview-frame{max-width:1100px;margin:0 auto;}
+  </style>
+</head>
+<body>
+  <div class="preview-note">
+    <h1>振替の登録漏れアラート（試しページ）</h1>
+    <p>ピタコマを開いたときのお知らせと、カレンダー上部の帯（開いた状態）です。見た目は本番と同じ部品を使っています。ボタンは見た目だけです。</p>
+  </div>
+
+  <div class="preview-frame">
+    <div id="makeupAlertFlash" class="makeup-alert-flash">
+      <div class="matching-panel-result-msg warn">
+        <div class="matching-panel-flash-main">振替がまだ終わっていない欠席が3件あります</div>
+        <div class="matching-panel-flash-followup">
+          <span class="matching-panel-flash-followup-text">振替先がないもの・講師の承認待ち・講師に断られたものを含みます。</span>
+          <div class="matching-panel-flash-followup-actions">
+            <button type="button" class="ghost matching-panel-flash-btn">一覧を見る</button>
+            <button type="button" class="matching-panel-flash-dismiss">閉じる</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="cal-status-bar is-warn">
+      <button type="button" class="cal-status-toggle" aria-expanded="true">
+        <span class="cal-status-text">
+          <span class="cal-status-flow">
+            <span class="cal-status-kpi is-unassigned is-zero"><span class="cal-status-kpi-label">講師なし</span><span class="cal-status-kpi-value"><span class="cal-status-kpi-num">0</span><span class="cal-status-kpi-unit">コマ</span></span></span><span class="cal-status-flow-arrow" aria-hidden="true">→</span>
+            <span class="cal-status-kpi is-tentative is-zero"><span class="cal-status-kpi-label">仮決め</span><span class="cal-status-kpi-value"><span class="cal-status-kpi-num">0</span><span class="cal-status-kpi-unit">件</span></span></span><span class="cal-status-flow-arrow" aria-hidden="true">→</span>
+            <span class="cal-status-kpi is-pending"><span class="cal-status-kpi-label">承認待ち</span><span class="cal-status-kpi-value"><span class="cal-status-kpi-num">1</span><span class="cal-status-kpi-unit">件</span></span></span><span class="cal-status-flow-arrow" aria-hidden="true">→</span>
+            <span class="cal-status-kpi is-confirmed is-zero"><span class="cal-status-kpi-label">確定</span><span class="cal-status-kpi-value"><span class="cal-status-kpi-num">0</span><span class="cal-status-kpi-unit">件</span></span></span>
+          </span>
+          <span class="cal-status-kpi-extras"><span class="cal-status-kpi is-absence"><span class="cal-status-kpi-label">未振替</span><span class="cal-status-kpi-value"><span class="cal-status-kpi-num">3</span><span class="cal-status-kpi-unit">件</span></span></span></span>
+        </span>
+        <span class="cal-status-chevron" aria-hidden="true">▴</span>
+      </button>
+      <div class="cal-status-detail" style="display:block;">
+        <div class="shortage-five-col">
+          <section class="shortage-panel">
+            <div class="shortage-panel-head"><span class="shortage-panel-label">講師なし</span><span class="shortage-panel-count"><span class="shortage-panel-num">0</span>コマ</span></div>
+            <div class="shortage-panel-scroll approval-scroll"><div class="shortage-panel-empty">講師が決まっていないコマはありません</div></div>
+          </section>
+          <section class="shortage-panel">
+            <div class="shortage-panel-head"><span class="shortage-panel-label">仮決め</span><span class="shortage-panel-count"><span class="shortage-panel-num">0</span>件</span></div>
+            <div class="shortage-panel-scroll approval-scroll"><div class="shortage-panel-empty">仮決めはありません</div></div>
+          </section>
+          <section class="shortage-panel">
+            <div class="shortage-panel-head"><span class="shortage-panel-label">承認待ち</span><span class="shortage-panel-count"><span class="shortage-panel-num">1</span>件</span></div>
+            <div class="shortage-panel-scroll approval-scroll">
+              <button type="button" class="approval-item approval-item-btn cal-alert-row-c4">
+                <div class="cal-alert-row-body cal-alert-row-body--full"><span class="cal-alert-when-text">10/8<span class="cal-alert-when-wd">(木)</span> 6講</span><span class="cal-alert-row-head">田中先生</span><span class="cal-alert-person-inline">佐藤 花子（中2）</span><span class="sched-student-tag cal-alert-subject-tag" style="background:#E0F2FE;color:#075985;">英</span></div>
+              </button>
+            </div>
+          </section>
+          <section class="shortage-panel">
+            <div class="shortage-panel-head"><span class="shortage-panel-label">未振替</span><span class="shortage-panel-count"><span class="shortage-panel-num">3</span>件</span></div>
+            <div class="shortage-panel-scroll approval-scroll">
+              <button type="button" class="approval-item approval-item-btn cal-alert-row-c4">
+                <div class="cal-alert-row-body cal-alert-row-body--person"><span class="cal-alert-when-text">9/24<span class="cal-alert-when-wd">(木)</span> 5講</span><span class="cal-alert-row-head">山田 太郎<span class="cal-alert-grade">（中1）</span></span><span class="sched-student-tag cal-alert-subject-tag" style="background:#CCFBF1;color:#0F766E;">数</span></div>
+              </button>
+              <button type="button" class="approval-item approval-item-btn cal-alert-row-c4">
+                <div class="cal-alert-row-body cal-alert-row-body--person"><span class="cal-alert-when-text">9/26<span class="cal-alert-when-wd">(土)</span> 4講</span><span class="cal-alert-row-head">鈴木 一郎<span class="cal-alert-grade">（小5）</span></span><span class="sched-student-tag cal-alert-subject-tag" style="background:#FFE4E6;color:#9F1239;">国</span><span class="approval-badge pending cal-alert-row-status">承認待ち</span></div>
+              </button>
+              <button type="button" class="approval-item approval-item-btn cal-alert-row-c4">
+                <div class="cal-alert-row-body cal-alert-row-body--person"><span class="cal-alert-when-text">9/29<span class="cal-alert-when-wd">(火)</span> 6講</span><span class="cal-alert-row-head">高橋 美咲<span class="cal-alert-grade">（高1）</span></span><span class="sched-student-tag cal-alert-subject-tag" style="background:#E0F2FE;color:#075985;">英</span><span class="approval-badge rejected cal-alert-row-status">講師が断りました</span></div>
+              </button>
+            </div>
+          </section>
+          <section class="shortage-panel">
+            <div class="shortage-panel-head"><span class="shortage-panel-label is-muted">確定</span><span class="shortage-panel-count"><span class="shortage-panel-num">0</span>件</span></div>
+            <div class="shortage-panel-scroll approval-scroll"><div class="shortage-panel-empty">承認済みの履歴はありません</div></div>
+          </section>
+        </div>
+      </div>
+    </div>
+  </div>
+</body>
+</html>

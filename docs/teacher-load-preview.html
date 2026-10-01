@@ -1,0 +1,53 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ピタコマ 候補講師のコマ数表示 プレビュー</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Zen+Kaku+Gothic+New:wght@400;500;700;900&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/src/shared/styles/variables.css">
+  <link rel="stylesheet" href="/src/admin/styles/admin.css">
+  <style>
+    body{padding:24px;background:var(--bg-soft);}
+    .preview-note{max-width:900px;margin:0 auto 20px;font-size:var(--text-md);color:var(--ink);}
+    .preview-note h1{font-size:var(--text-xl);margin:0 0 8px;}
+    .preview-grid{max-width:900px;margin:0 auto;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:20px;}
+    .preview-grid h2{font-size:var(--text-md);margin:0 0 8px;}
+    @media (max-width:720px){ .preview-grid{grid-template-columns:1fr;} }
+  </style>
+</head>
+<body>
+  <div class="preview-note">
+    <h1>候補講師のコマ数表示（試しページ）</h1>
+    <p>カレンダー右パネルで、生徒のコマに講師を選ぶときの候補の一覧です。講師名の下に、今月・来月のコマ数（確定＋承認待ち＋仮決め）が出ます。数字は例です。ボタンは見た目だけです。</p>
+  </div>
+
+  <div class="preview-grid">
+    <div>
+      <h2>変更前</h2>
+      <div class="match-slot mp-slot-card">
+        <div class="ms-slot-label">5講（16:40〜18:10）<span class="mp-slot-meta">教室 3/12</span></div>
+        <div class="mp-slot-subject"><div class="mp-slot-subject-tags"><span class="student-row-tag" style="background:#e8f0fb;color:#1f4f8f;border:1px solid #b9cfee;">数学</span></div></div>
+        <div class="match-slot-rows">
+          <div class="match-cand-row"><span class="match-cand-rank">1</span><div class="match-cand-main"><div class="match-cand-head"><span class="match-cand-name">佐藤 花子</span><div class="match-cand-actions"><button type="button" class="confirm-btn">この講師に依頼</button></div></div><div class="match-cand-badges"><span class="match-reason-badge">同コマ担当中</span><span class="match-reason-badge">得意教科</span></div></div></div>
+          <div class="match-cand-row"><span class="match-cand-rank">2</span><div class="match-cand-main"><div class="match-cand-head"><span class="match-cand-name">田中 健</span><div class="match-cand-actions"><button type="button" class="confirm-btn">この講師に依頼</button></div></div><div class="match-cand-badges"><span class="match-reason-badge">同日担当中</span></div></div></div>
+          <div class="match-cand-row"><span class="match-cand-rank">3</span><div class="match-cand-main"><div class="match-cand-head"><span class="match-cand-name">鈴木 美咲</span><div class="match-cand-actions"><button type="button" class="confirm-btn">この講師に依頼</button></div></div><div class="match-cand-badges"><span class="match-reason-badge">講師希望コマ</span></div></div></div>
+        </div>
+      </div>
+    </div>
+    <div>
+      <h2>変更後</h2>
+      <div class="match-slot mp-slot-card">
+        <div class="ms-slot-label">5講（16:40〜18:10）<span class="mp-slot-meta">教室 3/12</span></div>
+        <div class="mp-slot-subject"><div class="mp-slot-subject-tags"><span class="student-row-tag" style="background:#e8f0fb;color:#1f4f8f;border:1px solid #b9cfee;">数学</span></div></div>
+        <div class="match-slot-rows">
+          <div class="match-cand-row"><span class="match-cand-rank">1</span><div class="match-cand-main"><div class="match-cand-head"><span class="match-cand-name">佐藤 花子</span><div class="match-cand-actions"><button type="button" class="confirm-btn">この講師に依頼</button></div></div><div class="match-cand-load">9月 12コマ（仮決め2）・10月 8コマ</div><div class="match-cand-badges"><span class="match-reason-badge">同コマ担当中</span><span class="match-reason-badge">得意教科</span></div></div></div>
+          <div class="match-cand-row"><span class="match-cand-rank">2</span><div class="match-cand-main"><div class="match-cand-head"><span class="match-cand-name">田中 健</span><div class="match-cand-actions"><button type="button" class="confirm-btn">この講師に依頼</button></div></div><div class="match-cand-load">9月 20コマ・10月 18コマ（仮決め3）</div><div class="match-cand-badges"><span class="match-reason-badge">同日担当中</span></div></div></div>
+          <div class="match-cand-row"><span class="match-cand-rank">3</span><div class="match-cand-main"><div class="match-cand-head"><span class="match-cand-name">鈴木 美咲</span><div class="match-cand-actions"><button type="button" class="confirm-btn">この講師に依頼</button></div></div><div class="match-cand-load">9月 3コマ・10月 0コマ</div><div class="match-cand-badges"><span class="match-reason-badge">講師希望コマ</span></div></div></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</body>
+</html>

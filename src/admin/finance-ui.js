@@ -647,7 +647,7 @@ function renderMatrix(){
 function renderLegend(){
   const el = document.getElementById('colorLegend');
   if(!el) return;
-  const subjectsShown = ['国語','数学','英語','理科','社会']; // 算数は数学と同色のため代表表示
+  const subjectsShown = ['国語','数学','英語','理科','社会','プログラミング']; // 算数は数学と同色のため代表表示
   let html = '<span class="legend-note">色＝教科／濃さ＝小・中・高</span>';
   subjectsShown.forEach(sub=>{
     const shades = ['小学','中学','高校'].map(lv=>subjectColor(lv, sub==='数学' && lv==='小学' ? '算数' : sub).bg);

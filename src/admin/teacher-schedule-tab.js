@@ -1264,6 +1264,67 @@ async function withdrawPendingAssignment(studentId, courseId, day, slot, dateStr
   return { ok: true, teacherName: teacher?.name || '' };
 }
 
+// 講師が承認し忘れた授業を、教室長が代わりに確定する（授業日が今日以前のものだけ）
+// 1回だけの依頼は依頼ごと確定。毎週の依頼はその日だけ確定し、これからの週は承認待ちのまま残す
+async function approvePendingLessonAsAdmin(studentId, courseId, day, slot, dateStr){
+  if(!dateStr || dateStr > getTodayStr()){
+    return { ok: false, msg: '授業日を過ぎた授業だけ、代わりに承認できます。' };
+  }
+  const student = S.students.find(s=> s.id === studentId);
+  const course = student?.courses.find(c=> c.id === courseId);
+  if(!student || !course){
+    return { ok: false, msg: '生徒または教科が見つかりません。' };
+  }
+  const eff = findEffectiveAssignment(studentId, courseId, day, slot, dateStr.slice(0, 7), dateStr);
+  if(!eff?.isPending || eff.isDraft){
+    return { ok: false, msg: '承認待ちの授業が見つかりません。' };
+  }
+  const teacherId = eff.entry.teacherId;
+  const oneTimeDate = eff.entry.oneTimeDate || null;
+  const dualPair = findDualPairAtSlot(student.courses || [], day, slot);
+  const isDual = dualPair && dualPair.entries.some(e=> e.course.id === courseId);
+  const courseIds = isDual ? dualPair.entries.map(e=> e.course.id) : [courseId];
+  const targets = S.pendingAssignments.filter(a=>
+    a.studentId === studentId && courseIds.includes(a.courseId) &&
+    a.day === day && Number(a.slot) === Number(slot) &&
+    a.teacherId === teacherId && (a.oneTimeDate || null) === oneTimeDate &&
+    assignmentAppliesOnDate(a, dateStr)
+  );
+  if(targets.length === 0){
+    return { ok: false, msg: '承認待ちの授業が見つかりません。' };
+  }
+
+  if(oneTimeDate){
+    const ids = new Set(targets.map(a=> a.id));
+    S.pendingAssignments = S.pendingAssignments.filter(a=> !ids.has(a.id));
+    S.assignments.push(...targets);
+    try{
+      const subjects = isDual ? dualPair.subjects : [course.subject];
+      await updateMatchingPendingApprovalTickets(
+        student, { subject: subjects.join('・'), subjects }, day, slot, oneTimeDate, teacherId,
+        { status: 'approved', promoted: true, approvedByAdmin: true, adminAttention: false, teacherAttention: false },
+      );
+    }catch(err){
+      console.error('代理承認の依頼更新エラー:', err);
+    }
+  }else{
+    targets.forEach((a, idx)=>{
+      S.assignments.push({
+        ...a,
+        id: 'asg-'+Date.now()+'-'+idx+'-'+Math.random().toString(36).slice(2,6),
+        oneTimeDate: dateStr,
+        skippedDates: [],
+        adminApproved: true,
+      });
+      a.skippedDates = Array.from(new Set([...(a.skippedDates || []), dateStr]));
+    });
+  }
+
+  scheduleSave();
+  scheduleSyncTeacherAssignments();
+  return { ok: true, teacherName: findTeacher(teacherId)?.name || '' };
+}
+
 // 希望通りの枠に対応できる講師がいない場合の代替候補（学年・教科が対応可能な曜日/コマ）を探す
 function findAlternativeSlots(level, subject, excludeSlots){
   const alternatives = [];
@@ -1297,4 +1358,4 @@ async function replaceDesiredSlot(studentId, courseId, oldDay, oldSlot, newDay, 
 }
 
 
-export { loadPendingChangeRequests, loadPendingCancellationRequests, resolveScheduleChangeRequest, resolveScheduleChangeRequests, loadAssignmentApprovals, loadDismissedApprovalIds, saveDismissedApprovalIds, approvalAppliesInMonth, openMatchingForApprovalTicket, renderApprovalDashboardItem, renderApprovalStatus, renderTeacherScheduleTab, openTeacherScheduleEditor, renderTeacherScheduleGrid, isPreferredPair, getPreferredTeachersForCourse, getPreferredPairsForTeacher, addPreferredPair, removePreferredPair, removePreferredPairFor, isPreferredSubjectForTeacher, teacherWorksOtherSlotOnWeekday, countTeacherCourseSlotCoverage, buildCandidateInfo, findAssignment, getActiveYearMonth, teacherHasSubmittedMonth, isAssignmentEffectiveInMonth, assignmentAppliesOnDate, findEffectiveAssignment, countCourseConfirmed, countTeacherSlot, countTeacherSlotOnDate, countRoomSlot, countRoomSlotOnDate, issueAssignmentApproval, confirmAssignment, confirmDualAssignment, cancelAssignment, cancelDualAssignment, cancelDraftAuto, cancelAllDrafts, sendDraftAssignments, countAssignmentsInMonth, withdrawPendingAssignment, findAlternativeSlots, replaceDesiredSlot, revokePendingApprovalTicket, revokePendingApprovalTicketsForStudent, revokePendingCancellationRequestsForStudent, revokePendingCancellationForSlot, revokePendingRequestsForTeacher, dropAssignmentsForRemovedDesiredSlots, syncStudentIdentityOnTickets };
+export { loadPendingChangeRequests, loadPendingCancellationRequests, resolveScheduleChangeRequest, resolveScheduleChangeRequests, loadAssignmentApprovals, loadDismissedApprovalIds, saveDismissedApprovalIds, approvalAppliesInMonth, openMatchingForApprovalTicket, renderApprovalDashboardItem, renderApprovalStatus, renderTeacherScheduleTab, openTeacherScheduleEditor, renderTeacherScheduleGrid, isPreferredPair, getPreferredTeachersForCourse, getPreferredPairsForTeacher, addPreferredPair, removePreferredPair, removePreferredPairFor, isPreferredSubjectForTeacher, teacherWorksOtherSlotOnWeekday, countTeacherCourseSlotCoverage, buildCandidateInfo, findAssignment, getActiveYearMonth, teacherHasSubmittedMonth, isAssignmentEffectiveInMonth, assignmentAppliesOnDate, findEffectiveAssignment, countCourseConfirmed, countTeacherSlot, countTeacherSlotOnDate, countRoomSlot, countRoomSlotOnDate, issueAssignmentApproval, confirmAssignment, confirmDualAssignment, cancelAssignment, cancelDualAssignment, cancelDraftAuto, cancelAllDrafts, sendDraftAssignments, countAssignmentsInMonth, withdrawPendingAssignment, approvePendingLessonAsAdmin, findAlternativeSlots, replaceDesiredSlot, revokePendingApprovalTicket, revokePendingApprovalTicketsForStudent, revokePendingCancellationRequestsForStudent, revokePendingCancellationForSlot, revokePendingRequestsForTeacher, dropAssignmentsForRemovedDesiredSlots, syncStudentIdentityOnTickets };

@@ -10,12 +10,15 @@ import { renderCalendarWeek, switchCalMode, switchView } from './finance-ui.js';
 import { gradeLabel, getDateSlotState, isTeacherAvailableOnDate, subjectColor } from './schedule-core.js';
 import { approveCancellationRequest, approveCancellationRequests, rejectCancellationRequest, saveStudents, scheduleSave, scheduleSyncTeacherAssignments, saveAppState } from './students-persistence.js';
 import { renderTeacherList } from './teachers.js';
-import { assignmentAppliesOnDate, approvalAppliesInMonth, buildCandidateInfo, confirmAssignment, confirmDualAssignment, cancelAllDrafts, cancelDraftAuto, findEffectiveAssignment, getActiveYearMonth, getPreferredTeachersForCourse, loadAssignmentApprovals, loadDismissedApprovalIds, loadPendingCancellationRequests, loadPendingChangeRequests, openMatchingForApprovalTicket, renderApprovalDashboardItem, resolveScheduleChangeRequest, resolveScheduleChangeRequests, saveDismissedApprovalIds, sendDraftAssignments, teacherHasSubmittedMonth, revokePendingApprovalTicketsForStudent, revokePendingCancellationRequestsForStudent, revokePendingCancellationForSlot, dropAssignmentsForRemovedDesiredSlots, syncStudentIdentityOnTickets } from './teacher-schedule-tab.js';
+import { assignmentAppliesOnDate, approvalAppliesInMonth, buildCandidateInfo, confirmAssignment, confirmDualAssignment, cancelAllDrafts, cancelDraftAuto, findEffectiveAssignment, getActiveYearMonth, getPreferredTeachersForCourse, loadAssignmentApprovals, loadDismissedApprovalIds, loadPendingCancellationRequests, loadPendingChangeRequests, openMatchingForApprovalTicket, approvePendingLessonAsAdmin, renderApprovalDashboardItem, resolveScheduleChangeRequest, resolveScheduleChangeRequests, saveDismissedApprovalIds, sendDraftAssignments, teacherHasSubmittedMonth, revokePendingApprovalTicketsForStudent, revokePendingCancellationRequestsForStudent, revokePendingCancellationForSlot, dropAssignmentsForRemovedDesiredSlots, syncStudentIdentityOnTickets } from './teacher-schedule-tab.js';
 import { findDualPairAtSlot, teacherTeachesBoth, buildDualSubjectTagsHtml } from './dual-subject.js';
 import { findTeacher } from './owner-teacher.js';
 import { mountInlineConfirm, showActiveTabNotice } from '../shared/inline-confirm.js';
 import { dismissAppConfirmDialog, runAppConfirmDialog } from '../shared/app-confirm-dialog.js';
 import { activeStudents, isActivePerson, markPersonLeft, renderLeaveFlash } from './active-people.js';
+import { renderLessonHistoryHtml } from './lesson-history.js';
+import { printStudentSheet } from './print-sheet.js';
+import { renderStudentFeePreview } from './student-fee-preview.js';
 import {
   buildApprovalAlertRowHtml, buildCalAlertPersonHead, buildCalAlertPersonInline,
   buildCalAlertSubjectTag, buildCalAlertTeacherHead, buildCalAlertWhenPill,
@@ -347,6 +350,45 @@ function fillFreeLessonFields(count){
   syncFreeLessonArea();
 }
 
+const STUDENT_DISCOUNT_INPUTS = [
+  ['studentDiscountInitial', 'initial'],
+  ['studentDiscountAnnual', 'annual'],
+  ['studentDiscountMonthly', 'monthly'],
+];
+
+function readStudentProfileFields(){
+  return {
+    examType: document.querySelector('input[name=studentExamType]:checked')?.value || '',
+    targetSchool: document.getElementById('studentTargetSchoolInput').value.trim(),
+    notes: document.getElementById('studentNotesInput').value.trim(),
+    tuitionCourse: document.querySelector('input[name=studentTuitionCourse]:checked')?.value || '',
+    discounts: readStudentDiscounts(),
+  };
+}
+
+function readStudentDiscounts(){
+  const discounts = {};
+  STUDENT_DISCOUNT_INPUTS.forEach(([id, key])=>{
+    const el = document.getElementById(id);
+    const v = parseInt(String(el.value).replace(/[^\d]/g, ''), 10);
+    if(Number.isFinite(v) && v > 0) discounts[key] = v;
+  });
+  return Object.keys(discounts).length ? discounts : null;
+}
+
+function fillStudentProfileFields(s){
+  const examType = s?.examType || '';
+  document.querySelectorAll('input[name=studentExamType]').forEach(r=> r.checked = (r.value === examType));
+  document.getElementById('studentTargetSchoolInput').value = s?.targetSchool || '';
+  document.getElementById('studentNotesInput').value = s?.notes || '';
+  const tuitionCourse = s?.tuitionCourse || '';
+  document.querySelectorAll('input[name=studentTuitionCourse]').forEach(r=> r.checked = (r.value === tuitionCourse));
+  STUDENT_DISCOUNT_INPUTS.forEach(([id, key])=>{
+    const v = Number(s?.discounts?.[key]) || 0;
+    document.getElementById(id).value = v > 0 ? String(v) : '';
+  });
+}
+
 async function handleCourseStartDateChange(){
   if(!S.editingStudentId) return;
   const idx = S.students.findIndex(s=> s.id === S.editingStudentId);
@@ -361,8 +403,9 @@ async function handleCourseStartDateChange(){
 function renderFormCourses(){
   const level = getSelectedStudentLevel();
   const wrap = document.getElementById('courseList');
+  renderStudentFeePreview();
   if(!S.editingStudentId){
-    wrap.innerHTML = '<p class="scc-locked-hint">先に「基本情報を登録」を押してください。登録後、ここで希望コマを選べます。</p>';
+    wrap.innerHTML = '<p class="scc-locked-hint">「基本情報を登録」を押すと、ここで希望コマを選べます。</p>';
     renderStudentMatchingAction();
     return;
   }
@@ -434,6 +477,7 @@ function resetStudentForm(){
   buildStudentGradeArea();
   setCourseStartDateInput(getTodayStr());
   fillFreeLessonFields(0);
+  fillStudentProfileFields(null);
   S.formCourses = [];
   renderFormCourses();
   document.getElementById('studentFormMsg').textContent = '';
@@ -450,6 +494,7 @@ function fillStudentFormForEdit(s){
   buildStudentGradeArea(s.grade || null);
   setCourseStartDateInput(s.courseStartDate || getTodayStr());
   fillFreeLessonFields(s.freeLessonCount || 0);
+  fillStudentProfileFields(s);
   S.formCourses = JSON.parse(JSON.stringify(s.courses));
   renderFormCourses();
   document.getElementById('studentFormMsg').textContent = '';
@@ -484,6 +529,7 @@ async function handleStudentSave(){
     }
   }
   const freeLessonCount = readFreeLessonCount();
+  const profile = readStudentProfileFields();
 
   if(S.editingStudentId){
     const idx = S.students.findIndex(s=>s.id===S.editingStudentId);
@@ -491,7 +537,7 @@ async function handleStudentSave(){
       const prev = S.students[idx];
       const oldName = prev.name;
       await dropAssignmentsForRemovedDesiredSlots(prev, prev.courses, coursesCopy);
-      S.students[idx] = { ...prev, name, nameKana, level, grade, courseStartDate, freeLessonCount, courses: coursesCopy };
+      S.students[idx] = { ...prev, name, nameKana, level, grade, courseStartDate, freeLessonCount, ...profile, courses: coursesCopy };
       if(oldName !== name || prev.courseStartDate !== courseStartDate){
         await syncStudentIdentityOnTickets(S.students[idx], oldName);
       }
@@ -499,7 +545,7 @@ async function handleStudentSave(){
     msg.textContent = '基本情報を更新しました。';
   }else{
     const id = 's-'+Date.now()+'-'+Math.random().toString(36).slice(2,7);
-    S.students.push({ id, name, nameKana, level, grade, courseStartDate, freeLessonCount, courses: coursesCopy });
+    S.students.push({ id, name, nameKana, level, grade, courseStartDate, freeLessonCount, ...profile, courses: coursesCopy });
     S.editingStudentId = id;
     msg.textContent = '基本情報を登録しました。続けて希望コマを選んでください。';
   }
@@ -596,30 +642,42 @@ function renderStudentList(){
     const tagsHtml = tags
       ? `<div class="student-row-tags">${tags}</div>`
       : '<div class="student-row-tags is-empty"><span class="student-row-no-tags">希望コマ未設定</span></div>';
+    const noteLines = [
+      s.targetSchool ? `<span class="student-row-pref">志望校：${escapeAttr(s.targetSchool)}</span>` : '',
+      s.notes ? `<span class="student-row-pref">備考：${escapeAttr(s.notes).replace(/\n/g, '<br>')}</span>` : '',
+    ].join('');
+    const notesHtml = noteLines ? `<div class="student-row-notes">${noteLines}</div>` : '';
     const matchBtn = !s.left && status.pendingSlots > 0
       ? `<button type="button" class="match-btn" data-id="${s.id}">講師を決める</button>`
       : '';
     const leaveBtn = s.left
       ? `<button type="button" class="edit-btn" data-action="restore" data-id="${s.id}">在籍に戻す</button>`
       : `<button type="button" class="edit-btn" data-action="leave" data-id="${s.id}">退会</button>`;
+    const historyOpen = S.historyOpenStudentId === s.id;
+    const historyHtml = historyOpen ? renderLessonHistoryHtml({ studentId: s.id }) : '';
     return `<div class="student-row${isEditing ? ' is-editing' : ''}${s.left ? ' is-disabled' : ''}${!s.left && status.priority < 2 ? ' needs-action' : ''}">
       <span class="student-row-status is-${status.kind}">${status.label}</span>
       <div class="student-row-main">
         <div class="student-row-head">
           <span class="student-row-name">${s.name}</span>
           <span class="student-level-badge">${gradeLabel(s)}</span>
+          ${s.tuitionCourse === 'advance' ? '<span class="student-row-pref">アドバンス</span>' : ''}
+          ${s.examType ? `<span class="student-row-pref">${escapeAttr(s.examType)}</span>` : ''}
           ${Number(s.freeLessonCount) > 0 ? `<span class="student-row-pref">最初${s.freeLessonCount}コマ無料</span>` : ''}
           ${isEditing ? '<span class="student-row-editing-badge">編集中</span>' : ''}
         </div>
         ${tagsHtml}
+        ${notesHtml}
       </div>
       <div class="row-actions student-row-actions">
         <button type="button" class="edit-btn" data-id="${s.id}">編集</button>
+        <button type="button" class="edit-btn" data-action="history" data-id="${s.id}" aria-expanded="${historyOpen}">${historyOpen ? '閉じる' : '過去の授業'}</button>
+        <button type="button" class="edit-btn" data-action="print" data-id="${s.id}">印刷</button>
         ${matchBtn}
         ${leaveBtn}
         <button type="button" class="del-btn" data-id="${s.id}">削除</button>
       </div>
-    </div>`;
+    </div>${historyHtml}`;
   }).join('');
 
   wrap.querySelectorAll('.edit-btn:not([data-action])').forEach(b=>{
@@ -633,6 +691,16 @@ function renderStudentList(){
   });
   wrap.querySelectorAll('[data-action=leave]').forEach(b=>{
     b.addEventListener('click', ()=> setStudentLeft(b.dataset.id, true));
+  });
+  wrap.querySelectorAll('[data-action=history]').forEach(b=>{
+    b.addEventListener('click', ()=>{
+      S.historyOpenStudentId = S.historyOpenStudentId === b.dataset.id ? null : b.dataset.id;
+      renderStudentList();
+      wrap.querySelector(`[data-action=history][data-id="${b.dataset.id}"]`)?.focus();
+    });
+  });
+  wrap.querySelectorAll('[data-action=print]').forEach(b=>{
+    b.addEventListener('click', ()=> printStudentSheet(b.dataset.id));
   });
   wrap.querySelectorAll('[data-action=restore]').forEach(b=>{
     b.addEventListener('click', ()=> setStudentLeft(b.dataset.id, false));
@@ -833,6 +901,7 @@ function collectUpcomingPendingFlat(){
     const dateStr = `${ym}-${pad2(d)}`;
     if(getDayStatus(dateStr).type !== 'open') continue;
     S.pendingAssignments.forEach(a=>{
+      if(a.source === 'makeup') return;
       if(!assignmentAppliesOnDate(a, dateStr)) return;
       const eff = findEffectiveAssignment(a.studentId, a.courseId, a.day, a.slot, ym, dateStr);
       if(!eff?.isPending) return;
@@ -880,6 +949,39 @@ function expandShortageBar(){
   btn.setAttribute('aria-expanded', 'true');
   const chevron = btn.querySelector('.cal-status-chevron');
   if(chevron) chevron.textContent = '▴';
+}
+
+let makeupAlertFlashDismissed = false;
+
+function renderMakeupAlertFlash(count){
+  const host = document.getElementById('makeupAlertFlash');
+  if(!host) return;
+  if(makeupAlertFlashDismissed || count <= 0){
+    host.hidden = true;
+    host.innerHTML = '';
+    return;
+  }
+  host.hidden = false;
+  host.innerHTML = `<div class="matching-panel-result-msg warn" role="status">
+    <div class="matching-panel-flash-main">振替がまだ終わっていない欠席が${count}件あります</div>
+    <div class="matching-panel-flash-followup">
+      <span class="matching-panel-flash-followup-text">振替先がないもの・講師の承認待ち・講師に断られたものを含みます。</span>
+      <div class="matching-panel-flash-followup-actions">
+        <button type="button" class="ghost matching-panel-flash-btn" data-action="open">一覧を見る</button>
+        <button type="button" class="matching-panel-flash-dismiss" data-action="dismiss">閉じる</button>
+      </div>
+    </div>
+  </div>`;
+  const close = ()=>{
+    makeupAlertFlashDismissed = true;
+    renderMakeupAlertFlash(0);
+  };
+  host.querySelector('[data-action=open]')?.addEventListener('click', ()=>{
+    close();
+    expandShortageBar();
+    document.getElementById('calStatusBar')?.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+  });
+  host.querySelector('[data-action=dismiss]')?.addEventListener('click', close);
 }
 
 function expandShiftStatusBar(){
@@ -1205,6 +1307,11 @@ function renderShortageActionsHtml(ym){
   </div>`;
 }
 
+const PENDING_MAKEUP_STATUS = {
+  waiting: { cls: 'pending', text: '承認待ち' },
+  rejected: { cls: 'rejected', text: '講師が断りました' },
+};
+
 function renderPendingMakeupDashboardItem(item){
   const { dateStr, student, course, slot, subjects, absence } = {
     dateStr: item.absence.date,
@@ -1221,12 +1328,28 @@ function renderPendingMakeupDashboardItem(item){
   const subjectTag = student
     ? buildDashboardSubjectTag(student, course, subjects)
     : '';
-  const aria = `${md}（${weekday}）${slotDef.label} ${name} 未振替`;
-  return buildShortageAlertRowHtml({
+  const status = PENDING_MAKEUP_STATUS[item.state];
+  const statusHtml = status
+    ? `<span class="approval-badge ${status.cls} cal-alert-row-status">${status.text}</span>`
+    : '';
+  const jumpDate = item.state === 'waiting' && absence.makeup ? absence.makeup.date : dateStr;
+  const aria = `${md}（${weekday}）${slotDef.label} ${name} 未振替${status ? ` ${status.text}` : ''}`;
+  const rowHtml = buildShortageAlertRowHtml({
     whenPill: buildCalAlertWhenPill(md, weekday, slotDef.label),
     personHead: buildCalAlertPersonHead(name, gLabel),
     subjectTag,
-    dataAttrs: ` data-student="${item.absence.studentId}" data-date="${dateStr}" data-absence="${absence.id}" aria-label="${aria}"`,
+    statusHtml,
+    dataAttrs: ` data-student="${item.absence.studentId}" data-date="${jumpDate}" data-absence="${absence.id}" aria-label="${aria}"`,
+  });
+  if(item.state !== 'waiting' || !absence.makeup || !student) return rowHtml;
+  return wrapProxyApproveRow(rowHtml, {
+    studentId: student.id,
+    courseId: absence.courseId,
+    day: getDayStatus(absence.makeup.date).weekday,
+    slot: absence.makeup.slot,
+    dateStr: absence.makeup.date,
+    teacherName: findTeacher(absence.makeup.teacherId)?.name || '不明',
+    studentName: student.name,
   });
 }
 
@@ -1285,20 +1408,72 @@ function renderDraftDashboardItem(entry){
 }
 
 function renderPendingDashboardItem(entry){
-  const { dateStr, student, course, slot, teacher, subjects } = entry;
+  const { dateStr, student, course, slot, teacher, subjects, assignment } = entry;
   const { md, weekday } = calAlertDateParts(dateStr, getDayStatus);
   const gLabel = gradeLabel(student);
   const teacherName = teacher?.name || '不明';
   const subjectLabel = dashboardSubjectLabel(course, subjects);
   const subjectTag = buildDashboardSubjectTag(student, course, subjects);
   const aria = `${md}(${weekday}) ${slot.label} ${teacherName} ${student.name}（${gLabel}）${subjectLabel} 承認待ち`;
-  return buildApprovalAlertRowHtml({
+  const rowHtml = buildApprovalAlertRowHtml({
     whenPill: buildCalAlertWhenPill(md, weekday, slot.label),
     teacherHead: buildCalAlertTeacherHead(teacherName),
     personInline: buildCalAlertPersonInline(student.name, gLabel),
     subjectTag,
     dataAttrs: ` data-student="${student.id}" data-date="${dateStr}" aria-label="${aria}"`,
     tag: 'button',
+  });
+  return wrapProxyApproveRow(rowHtml, {
+    studentId: student.id,
+    courseId: assignment.courseId,
+    day: assignment.day,
+    slot: assignment.slot,
+    dateStr,
+    teacherName,
+    studentName: student.name,
+  });
+}
+
+/** 授業日が今日以前の承認待ちに、教室長の「代わりに承認」を添える */
+function wrapProxyApproveRow(rowHtml, { studentId, courseId, day, slot, dateStr, teacherName, studentName }){
+  if(!dateStr || dateStr > getTodayStr()) return rowHtml;
+  return `<div class="proxy-approve-item">
+    ${rowHtml}
+    <div class="proxy-approve-actions">
+      <span class="approval-badge pending">授業日を過ぎています</span>
+      <button type="button" class="confirm-btn proxy-approve-btn" data-student="${studentId}" data-course="${courseId}" data-day="${day}" data-slot="${slot}" data-date="${dateStr}" data-teacher-name="${escapeAttr(teacherName)}" data-student-name="${escapeAttr(studentName)}">代わりに承認</button>
+    </div>
+  </div>`;
+}
+
+function escapeAttr(value){
+  return String(value ?? '').replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;');
+}
+
+let shortageResultFlash = '';
+
+function bindProxyApproveButtons(wrap){
+  wrap.querySelectorAll('.proxy-approve-btn').forEach(btn=>{
+    btn.addEventListener('click', ()=>{
+      const { student, course, day, date, teacherName, studentName } = btn.dataset;
+      const slot = Number(btn.dataset.slot);
+      const { md, weekday } = calAlertDateParts(date, getDayStatus);
+      const slotLabel = SLOTS.find(s=> s.id === slot)?.label || `${slot}講`;
+      mountInlineConfirm(wrap, btn, {
+        message: `${teacherName}先生の${md}(${weekday}) ${slotLabel}（${studentName}さん）を、代わりに承認しますか？\n給与と売上に入ります。`,
+        confirmLabel: '承認する',
+        variant: 'primary',
+        mountSelector: '.proxy-approve-item',
+        onConfirm: async ()=>{
+          const result = await approvePendingLessonAsAdmin(student, course, day, slot, date);
+          if(!result.ok) return result;
+          shortageResultFlash = `${teacherName}先生の${md}(${weekday}) ${slotLabel}を、代わりに承認して確定しました。`;
+          renderCalendar();
+          await renderShortageDashboard();
+          return result;
+        },
+      });
+    });
   });
 }
 
@@ -1617,6 +1792,8 @@ async function renderShortageDashboard(){
     .filter(a=> a.status === 'approved' && !dismissed.has(a.id) && approvalAppliesInMonth(a, ym))
     .slice(0, 10);
 
+  renderMakeupAlertFlash(pendingAbsences);
+
   const hasWork = unassignedCount > 0 || draftCount > 0 || pendingCount > 0 || rejectedCount > 0 || pendingAbsences > 0 || pendingTeacherAbsences > 0;
 
   if(summaryLine){
@@ -1688,6 +1865,12 @@ async function renderShortageDashboard(){
   </div>`;
 
   bindShortageDashboardActions(wrap);
+  bindProxyApproveButtons(wrap);
+  if(shortageResultFlash){
+    const resultEl = wrap.querySelector('#shortageActionResult');
+    if(resultEl) resultEl.textContent = shortageResultFlash;
+    shortageResultFlash = '';
+  }
 
   wrap.querySelectorAll('.approval-item-btn[data-student]').forEach(btn=>{
     btn.addEventListener('click', ()=>{

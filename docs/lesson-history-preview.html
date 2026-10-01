@@ -1,0 +1,93 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ピタコマ 過去の授業 プレビュー</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Zen+Kaku+Gothic+New:wght@400;500;700;900&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/src/shared/styles/variables.css">
+  <link rel="stylesheet" href="/src/admin/styles/admin.css">
+  <style>
+    body{padding:24px;background:var(--bg-soft);}
+    .preview-note{max-width:900px;margin:0 auto 20px;font-size:var(--text-md);color:var(--ink);}
+    .preview-note h1{font-size:var(--text-xl);margin:0 0 8px;}
+    .preview-wrap{max-width:900px;margin:0 auto;display:flex;flex-direction:column;gap:16px;}
+    .lesson-history{margin:0 0 10px;padding:10px 12px;border:1px solid var(--border);border-radius:var(--radius-lg);background:var(--bg-soft);}
+    .lesson-history-summary{font-size:var(--text-sm);font-weight:700;color:var(--ink);margin:0 0 8px;}
+    .lesson-history .approval-scroll{max-height:320px;}
+  </style>
+</head>
+<body>
+  <div class="preview-note">
+    <h1>過去の授業（試しページ）</h1>
+    <p>生徒一覧・講師一覧の各行に「過去の授業」ボタンを足します。押すとその行のすぐ下に、今日までの授業が新しい順に出ます。ボタンは見た目だけです。</p>
+  </div>
+
+  <div class="preview-wrap" id="root"></div>
+
+  <script type="module">
+    import { buildCalAlertWhenPill, buildCalAlertTeacherHead, buildCalAlertPersonHead, buildCalAlertRowBody } from '/src/shared/cal-alert-row.js';
+    const HUE = {'数学':188,'英語':278,'国語':350};
+    const TEXT = {'数学':'#0F766E','英語':'#6D28D9','国語':'#9F1239'};
+    const tag = sub => `<span class="sched-student-tag cal-alert-subject-tag" style="background:hsl(${HUE[sub]} 48% 82%);color:${TEXT[sub]};">${sub.charAt(0)}</span>`;
+    const badge = (kind, text) => `<span class="approval-badge ${kind}">${text}</span>`;
+    const row = (when, head, subs, b='') => `<div class="approval-item cal-alert-row-c4">${buildCalAlertRowBody([when, head, `<span class="cal-alert-row-tail">${subs.map(tag).join('')}${b}</span>`], 'person')}</div>`;
+    const w = (md, wd, s) => buildCalAlertWhenPill(md, wd, s);
+
+    const studentRows = [
+      row(w('9/29','火','5講'), buildCalAlertTeacherHead('佐藤 健太'), ['数学']),
+      row(w('9/25','木','6講'), buildCalAlertTeacherHead('田中 愛'), ['英語'], badge('pending','振替（9/22分）')),
+      row(w('9/22','月','5講'), buildCalAlertTeacherHead('佐藤 健太'), ['数学'], badge('tentative','生徒欠席・振替 9/25')),
+      row(w('9/15','月','5講'), buildCalAlertTeacherHead('鈴木 蓮'), ['数学'], badge('pending','代講')),
+      row(w('9/8','月','5講'), buildCalAlertTeacherHead('佐藤 健太'), ['数学','英語']),
+      row(w('9/1','月','5講'), buildCalAlertTeacherHead('佐藤 健太'), ['数学'], badge('tentative','講師休み')),
+    ].join('');
+
+    const teacherRows = [
+      row(w('9/29','火','5講'), buildCalAlertPersonHead('山田 太郎','中1'), ['数学']),
+      row(w('9/22','月','5講'), buildCalAlertPersonHead('山田 太郎','中1'), ['数学'], badge('tentative','生徒欠席')),
+      row(w('9/15','月','5講'), buildCalAlertPersonHead('山田 太郎','中1'), ['数学'], badge('pending','代講：鈴木 蓮')),
+      row(w('9/12','金','6講'), buildCalAlertPersonHead('小川 花','小5'), ['国語'], badge('pending','代講（高橋 翔太の代わり）')),
+    ].join('');
+
+    const box = (summary, rows) => `<div class="lesson-history"><div class="lesson-history-summary">${summary}</div><div class="approval-scroll">${rows}</div></div>`;
+
+    document.getElementById('root').innerHTML = `
+      <div class="card">
+        <h2>登録済み生徒一覧（「過去の授業」を押したところ）</h2>
+        <div class="student-row">
+          <span class="student-row-status is-ok">確定</span>
+          <div class="student-row-main">
+            <div class="student-row-head"><span class="student-row-name">山田 太郎</span><span class="student-level-badge">中1</span></div>
+          </div>
+          <div class="row-actions student-row-actions">
+            <button type="button" class="edit-btn">編集</button>
+            <button type="button" class="edit-btn">閉じる</button>
+            <button type="button" class="edit-btn">退会</button>
+            <button type="button" class="del-btn">削除</button>
+          </div>
+        </div>
+        ${box('実施 4コマ・欠席 1回・講師休み 1回', studentRows)}
+      </div>
+      <div class="card">
+        <h2>登録済み講師一覧（「過去の授業」を押したところ）</h2>
+        <div class="teacher-row">
+          <div class="trow-top">
+            <div class="trow-head-main"><span class="name">佐藤 健太</span></div>
+            <div class="row-actions">
+              <button type="button" class="edit-btn">編集</button>
+              <button type="button" class="edit-btn">閉じる</button>
+              <button type="button" class="edit-btn">退社</button>
+              <button type="button" class="del-btn">削除</button>
+            </div>
+          </div>
+          <div class="trow-pref-students"><div class="trow-col-title">担当生徒</div><div class="trow-pref-student-chips"><span class="pref-student-chip is-empty">担当生徒なし</span></div></div>
+          <div class="trow-col-title">過去の授業</div>
+          ${box('実施 2コマ・代講 2回・欠席 1回', teacherRows)}
+        </div>
+      </div>
+    `;
+  </script>
+</body>
+</html>

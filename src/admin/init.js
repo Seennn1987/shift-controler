@@ -21,6 +21,16 @@ import { initUpdateNotice } from './update-notice.js';
 import { isActivePerson, syncHideButton } from './active-people.js';
 import { initGoogleCalendarSettings } from './google-calendar.js';
 import { installReadSafetySelfTest } from './read-safety-selftest.js';
+import { bindStudentFeePreview } from './student-fee-preview.js';
+
+const STUDENT_FEE_INPUTS = [
+  ['feeEnrollmentInput', 'enrollment'],
+  ['feeRegistrationInput', 'registration'],
+  ['feeAnnualInput', 'annual'],
+  ['feeAnnualReductionInput', 'annualMonthlyReduction'],
+  ['feeMaintenanceInput', 'maintenance'],
+  ['feeElearningInput', 'elearning'],
+];
 
 function syncWeekAxisTabs(){
   document.querySelectorAll('.week-axis-btn').forEach(b=>{
@@ -62,9 +72,16 @@ async function init(){
   document.getElementById('tuitionSmallInput').value = String(S.tuitionRates['小学']);
   document.getElementById('tuitionMiddleInput').value = String(S.tuitionRates['中学']);
   document.getElementById('tuitionHighInput').value = String(S.tuitionRates['高校']);
+  document.getElementById('tuitionAdvSmallInput').value = String(S.tuitionRatesAdvance['小学']);
+  document.getElementById('tuitionAdvMiddleInput').value = String(S.tuitionRatesAdvance['中学']);
+  document.getElementById('tuitionAdvHighInput').value = String(S.tuitionRatesAdvance['高校']);
   document.getElementById('finGradientMinInput').value = String(S.finGradientMin);
   document.getElementById('finGradientMaxInput').value = String(S.finGradientMax);
   document.getElementById('officeHourlyRateInput').value = String(S.officeHourlyRate ?? 1300);
+  document.getElementById('programmingMonthlyFeeInput').value = String(S.programmingMonthlyFee || 0);
+  STUDENT_FEE_INPUTS.forEach(([id, key])=>{
+    document.getElementById(id).value = String(S.studentFees?.[key] ?? 0);
+  });
   document.getElementById('roomCapDisplay').textContent = String(S.roomCapacity);
   buildClosedDayArea();
   renderClosedDaySettings();
@@ -172,6 +189,7 @@ async function init(){
   document.getElementById('freeLessonToggle').addEventListener('change', (e)=>{
     document.getElementById('freeLessonArea').style.display = e.target.checked ? 'flex' : 'none';
   });
+  bindStudentFeePreview();
   document.getElementById('raiseScheduleToggle').addEventListener('change', (e)=>{
     document.getElementById('raiseScheduleArea').style.display = e.target.checked ? 'block' : 'none';
     if(e.target.checked && S.formRaiseSchedule.length===0) addRaiseRow();
@@ -335,13 +353,32 @@ async function init(){
     scheduleSave();
   });
   const tuitionInputMap = [
-    ['tuitionSmallInput','小学'], ['tuitionMiddleInput','中学'], ['tuitionHighInput','高校']
+    ['tuitionSmallInput','小学','tuitionRates'], ['tuitionMiddleInput','中学','tuitionRates'], ['tuitionHighInput','高校','tuitionRates'],
+    ['tuitionAdvSmallInput','小学','tuitionRatesAdvance'], ['tuitionAdvMiddleInput','中学','tuitionRatesAdvance'], ['tuitionAdvHighInput','高校','tuitionRatesAdvance'],
   ];
-  tuitionInputMap.forEach(([id, level])=>{
+  tuitionInputMap.forEach(([id, level, key])=>{
     document.getElementById(id).addEventListener('change', (e)=>{
       let v = parseInt(e.target.value, 10);
       if(!Number.isFinite(v) || v < 0) v = 0;
-      S.tuitionRates[level] = v;
+      S[key][level] = v;
+      e.target.value = String(v);
+      if(typeof renderFinance === 'function') renderFinance();
+      scheduleSave();
+    });
+  });
+  document.getElementById('programmingMonthlyFeeInput').addEventListener('change', (e)=>{
+    let v = parseInt(e.target.value, 10);
+    if(!Number.isFinite(v) || v < 0) v = 0;
+    S.programmingMonthlyFee = v;
+    e.target.value = String(v);
+    if(typeof renderFinance === 'function') renderFinance();
+    scheduleSave();
+  });
+  STUDENT_FEE_INPUTS.forEach(([id, key])=>{
+    document.getElementById(id).addEventListener('change', (e)=>{
+      let v = parseInt(e.target.value, 10);
+      if(!Number.isFinite(v) || v < 0) v = 0;
+      S.studentFees = { ...S.studentFees, [key]: v };
       e.target.value = String(v);
       if(typeof renderFinance === 'function') renderFinance();
       scheduleSave();
