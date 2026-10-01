@@ -8,6 +8,7 @@ import { assignmentAppliesOnDate, findEffectiveAssignment, isPreferredSubjectFor
 import { findDualPairAtSlot, resolveDualRowAssignmentState, countSlotAssignmentUnits, teacherTeachesBoth } from './dual-subject.js';
 import { findTeacher, getOwnerTeacher } from './owner-teacher.js';
 import { isActivePerson, personAppliesOnDate } from './active-people.js';
+import { studentTuitionRate } from './tuition-rates.js';
 
 // ---- 欠席・振替（特定の実日付にのみ影響。曜日パターン自体は変えない） ----
 // {id, studentId, courseId, subject, day, slot, date, status:'pending'|'resolved', makeup:null|{date,slot,teacherId}}
@@ -1211,8 +1212,7 @@ function countStudentLessonsBefore(student, dateStr){
 
 function getStudentTuitionForDate(student, dateStr){
   if(!student) return 0;
-  const rates = student.tuitionCourse === 'advance' ? S.tuitionRatesAdvance : S.tuitionRates;
-  const rate = rates?.[student.level] || 0;
+  const rate = studentTuitionRate(S.tuitionGradeRates, student);
   const freeCount = Number(student.freeLessonCount) || 0;
   if(freeCount <= 0) return rate;
   const before = countStudentLessonsBefore(student, dateStr);

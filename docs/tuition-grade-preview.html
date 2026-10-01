@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ピタコマ 学年別の授業料単価 プレビュー</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Zen+Kaku+Gothic+New:wght@400;500;700;900&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/src/shared/styles/variables.css">
+  <link rel="stylesheet" href="/src/admin/styles/admin.css">
+  <style>
+    body{padding:24px;background:var(--bg-soft);}
+    .preview-note{max-width:900px;margin:0 auto 20px;font-size:var(--text-md);color:var(--ink);}
+    .preview-note h1{font-size:var(--text-xl);margin:0 0 8px;}
+    .preview-wrap{max-width:900px;margin:0 auto;display:flex;flex-direction:column;gap:16px;}
+  </style>
+</head>
+<body>
+  <div class="preview-note">
+    <h1>学年別の授業料単価（試しページ）</h1>
+    <p>基本設定の授業料単価を、小1〜高3の学年ごとに入力できるようにします。高校はアドバンスだけです（合計21か所）。金額は今の設定を各学年にコピーした例です。</p>
+  </div>
+
+  <div class="preview-wrap">
+    <div class="card">
+      <h2>基本設定：学年別 授業料単価</h2>
+      <label class="field-label">学年別 授業料単価（1コマあたり）</label>
+      <div class="field-hint tight">学年ごとに、ベーシックとアドバンスの単価を設定します。高校はアドバンスだけです。生徒ごとにどちらのコースかを選び、「分析」タブの売上計算と印刷に使われます。</div>
+      <label class="field-label">ベーシック</label>
+      <div class="tuition-input-row tuition-grade-row">
+        <div class="pay-input-item"><label>小1（円/コマ）</label><input type="text" value="2900"></div>
+        <div class="pay-input-item"><label>小2（円/コマ）</label><input type="text" value="2900"></div>
+        <div class="pay-input-item"><label>小3（円/コマ）</label><input type="text" value="2900"></div>
+        <div class="pay-input-item"><label>小4（円/コマ）</label><input type="text" value="2900"></div>
+        <div class="pay-input-item"><label>小5（円/コマ）</label><input type="text" value="2900"></div>
+        <div class="pay-input-item"><label>小6（円/コマ）</label><input type="text" value="2900"></div>
+      </div>
+      <div class="tuition-input-row tuition-grade-row">
+        <div class="pay-input-item"><label>中1（円/コマ）</label><input type="text" value="3900"></div>
+        <div class="pay-input-item"><label>中2（円/コマ）</label><input type="text" value="3900"></div>
+        <div class="pay-input-item"><label>中3（円/コマ）</label><input type="text" value="3900"></div>
+      </div>
+      <div style="height:12px"></div>
+      <label class="field-label">アドバンス</label>
+      <div class="tuition-input-row tuition-grade-row">
+        <div class="pay-input-item"><label>小1（円/コマ）</label><input type="text" value="2900"></div>
+        <div class="pay-input-item"><label>小2（円/コマ）</label><input type="text" value="2900"></div>
+        <div class="pay-input-item"><label>小3（円/コマ）</label><input type="text" value="2900"></div>
+        <div class="pay-input-item"><label>小4（円/コマ）</label><input type="text" value="2900"></div>
+        <div class="pay-input-item"><label>小5（円/コマ）</label><input type="text" value="2900"></div>
+        <div class="pay-input-item"><label>小6（円/コマ）</label><input type="text" value="2900"></div>
+      </div>
+      <div class="tuition-input-row tuition-grade-row">
+        <div class="pay-input-item"><label>中1（円/コマ）</label><input type="text" value="3900"></div>
+        <div class="pay-input-item"><label>中2（円/コマ）</label><input type="text" value="3900"></div>
+        <div class="pay-input-item"><label>中3（円/コマ）</label><input type="text" value="3900"></div>
+      </div>
+      <div class="tuition-input-row tuition-grade-row">
+        <div class="pay-input-item"><label>高1（円/コマ）</label><input type="text" value="5200"></div>
+        <div class="pay-input-item"><label>高2（円/コマ）</label><input type="text" value="5200"></div>
+        <div class="pay-input-item"><label>高3（円/コマ）</label><input type="text" value="5200"></div>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>生徒登録：高校を選んだとき</h2>
+      <label class="field-label">授業料コース</label>
+      <div class="chip-row">
+        <label class="chip"><input type="radio" name="previewCourse" value="" disabled><span>ベーシック</span></label>
+        <label class="chip"><input type="radio" name="previewCourse" value="advance" checked><span>アドバンス</span></label>
+      </div>
+      <p style="margin:10px 0 0;font-size:var(--text-sm);color:var(--ink-soft);">高校を選ぶと自動でアドバンスになり、ベーシックは押せなくなります。小学・中学に戻すと、ベーシックも選べるようになります。</p>
+    </div>
+  </div>
+</body>
+</html>

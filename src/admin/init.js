@@ -22,6 +22,27 @@ import { isActivePerson, syncHideButton } from './active-people.js';
 import { initGoogleCalendarSettings } from './google-calendar.js';
 import { installReadSafetySelfTest } from './read-safety-selftest.js';
 import { bindStudentFeePreview } from './student-fee-preview.js';
+import { tuitionGradeRows } from './tuition-rates.js';
+
+const TUITION_AREA_IDS = { basic: 'tuitionBasicArea', advance: 'tuitionAdvanceArea' };
+
+function renderTuitionGradeInputs(){
+  Object.entries(TUITION_AREA_IDS).forEach(([course, areaId])=>{
+    const area = document.getElementById(areaId);
+    if(!area) return;
+    area.innerHTML = tuitionGradeRows(course).map(({ items })=>`
+      <div class="tuition-input-row tuition-grade-row">
+        ${items.map(({ key, label })=>{
+          const id = `tuition-${course}-${key}`;
+          const value = S.tuitionGradeRates?.[course]?.[key] ?? 0;
+          return `<div class="pay-input-item">
+            <label for="${id}">${label}（円/コマ）</label>
+            <input type="text" inputmode="numeric" id="${id}" data-tuition-course="${course}" data-tuition-key="${key}" value="${value}">
+          </div>`;
+        }).join('')}
+      </div>`).join('');
+  });
+}
 
 const STUDENT_FEE_INPUTS = [
   ['feeEnrollmentInput', 'enrollment'],
@@ -69,12 +90,7 @@ async function init(){
   // 基本設定タブの初期値
   document.getElementById('teacherCapacityInput').value = String(S.teacherCapacity);
   document.getElementById('settingsRoomCapacityInput').value = String(S.roomCapacity);
-  document.getElementById('tuitionSmallInput').value = String(S.tuitionRates['小学']);
-  document.getElementById('tuitionMiddleInput').value = String(S.tuitionRates['中学']);
-  document.getElementById('tuitionHighInput').value = String(S.tuitionRates['高校']);
-  document.getElementById('tuitionAdvSmallInput').value = String(S.tuitionRatesAdvance['小学']);
-  document.getElementById('tuitionAdvMiddleInput').value = String(S.tuitionRatesAdvance['中学']);
-  document.getElementById('tuitionAdvHighInput').value = String(S.tuitionRatesAdvance['高校']);
+  renderTuitionGradeInputs();
   document.getElementById('finGradientMinInput').value = String(S.finGradientMin);
   document.getElementById('finGradientMaxInput').value = String(S.finGradientMax);
   document.getElementById('officeHourlyRateInput').value = String(S.officeHourlyRate ?? 1300);
@@ -352,16 +368,15 @@ async function init(){
     renderMatching();
     scheduleSave();
   });
-  const tuitionInputMap = [
-    ['tuitionSmallInput','小学','tuitionRates'], ['tuitionMiddleInput','中学','tuitionRates'], ['tuitionHighInput','高校','tuitionRates'],
-    ['tuitionAdvSmallInput','小学','tuitionRatesAdvance'], ['tuitionAdvMiddleInput','中学','tuitionRatesAdvance'], ['tuitionAdvHighInput','高校','tuitionRatesAdvance'],
-  ];
-  tuitionInputMap.forEach(([id, level, key])=>{
-    document.getElementById(id).addEventListener('change', (e)=>{
-      let v = parseInt(e.target.value, 10);
+  Object.values(TUITION_AREA_IDS).forEach(areaId=>{
+    document.getElementById(areaId).addEventListener('change', (e)=>{
+      const input = e.target.closest('input[data-tuition-course]');
+      if(!input) return;
+      const { tuitionCourse: course, tuitionKey: key } = input.dataset;
+      let v = parseInt(input.value, 10);
       if(!Number.isFinite(v) || v < 0) v = 0;
-      S[key][level] = v;
-      e.target.value = String(v);
+      S.tuitionGradeRates[course][key] = v;
+      input.value = String(v);
       if(typeof renderFinance === 'function') renderFinance();
       scheduleSave();
     });

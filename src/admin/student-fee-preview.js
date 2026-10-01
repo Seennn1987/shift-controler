@@ -3,6 +3,7 @@ import { S } from './state.js';
 import { isMonthlyFeeLesson } from './absences.js';
 import { countSlotAssignmentUnits } from './dual-subject.js';
 import { buildFeeTablesHtml } from './print-sheet-html.js';
+import { tuitionRateFor } from './tuition-rates.js';
 
 function numberInput(id){
   const v = parseInt(String(document.getElementById(id)?.value || '').replace(/[^\d]/g, ''), 10);
@@ -22,14 +23,14 @@ function formWeeklyLessons(){
 
 function collectFormFeeData(){
   const level = document.querySelector('input[name=studentLevel]:checked')?.value || LEVELS_ORDER[0];
-  const advance = document.querySelector('input[name=studentTuitionCourse]:checked')?.value === 'advance';
-  const rates = advance ? S.tuitionRatesAdvance : S.tuitionRates;
+  const grade = parseInt(document.querySelector('input[name=studentGrade]:checked')?.value || '', 10);
+  const course = document.querySelector('input[name=studentTuitionCourse]:checked')?.value || '';
   const start = document.getElementById('studentCourseStartInput')?.value || '';
   const lessons = formWeeklyLessons();
   const freeOn = document.getElementById('freeLessonToggle')?.checked;
   return {
     fees: S.studentFees || {},
-    rate: Number(rates?.[level]) || 0,
+    rate: tuitionRateFor(S.tuitionGradeRates, level, grade, course),
     weeklyUnits: countSlotAssignmentUnits(lessons.filter(a=> !isMonthlyFeeLesson(a))),
     noCourses: lessons.length === 0,
     programmingFee: lessons.some(isMonthlyFeeLesson) ? Number(S.programmingMonthlyFee) || 0 : 0,

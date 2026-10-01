@@ -22,6 +22,7 @@ import { collapseTeacherCalendarEntries, formatDualSubjectLabel, ticketCoversSub
 import { collectMakeupEntriesForTeacher, isTeacherAbsentForStudent, recordTeacherAbsence, reopenOrphanedMakeups, reopenRejectedMakeups, studentAbsentDatesForAssignment } from './absences.js';
 import { normalizeMatchingPriority } from './matching-config.js';
 import { applyGradePromotionsIfNeeded } from './grade-promotion.js';
+import { normalizeTuitionGradeRates } from './tuition-rates.js';
 
 function stopPollHandle(handle){
   if(!handle) return;
@@ -835,8 +836,7 @@ async function saveAppState(){
     terms: S.terms,
     customClosures: S.customClosures,
     preferredPairs: S.preferredPairs,
-    tuitionRates: S.tuitionRates,
-    tuitionRatesAdvance: S.tuitionRatesAdvance,
+    tuitionGradeRates: S.tuitionGradeRates,
     programmingMonthlyFee: S.programmingMonthlyFee || 0,
     studentFees: S.studentFees,
     regularClosedDays: S.regularClosedDays,
@@ -886,8 +886,7 @@ async function loadAppStateFromFirestore(){
     S.terms = d.terms || [];
     S.customClosures = d.customClosures || [];
     S.preferredPairs = d.preferredPairs || [];
-    S.tuitionRates = d.tuitionRates || {'小学':2900, '中学':3900, '高校':5200};
-    S.tuitionRatesAdvance = d.tuitionRatesAdvance || { ...S.tuitionRates };
+    S.tuitionGradeRates = normalizeTuitionGradeRates(d);
     S.programmingMonthlyFee = d.programmingMonthlyFee != null ? d.programmingMonthlyFee : 0;
     S.studentFees = { ...DEFAULT_STUDENT_FEES, ...(d.studentFees || {}) };
     S.regularClosedDays = d.regularClosedDays || ['日'];
@@ -922,6 +921,7 @@ async function loadAppStateFromFirestore(){
     S.lastGradePromotionYear = null;
     S.officeHourlyRate = 1300;
     S.programmingMonthlyFee = 0;
+    S.tuitionGradeRates = normalizeTuitionGradeRates(null);
     S.studentFees = { ...DEFAULT_STUDENT_FEES };
     S.payrollOfficeHours = {};
     S.payrollLocks = {};

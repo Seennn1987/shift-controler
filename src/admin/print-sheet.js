@@ -5,6 +5,7 @@ import { isMonthlyFeeLesson } from './absences.js';
 import { countSlotAssignmentUnits } from './dual-subject.js';
 import { gradeLabel } from './schedule-core.js';
 import { buildPrintSheetHtml } from './print-sheet-html.js';
+import { effectiveTuitionCourse, studentTuitionRate } from './tuition-rates.js';
 
 /** 毎週のコマ（承認待ち・仮決め・1回だけの授業・振替を除く確定コマ） */
 function weeklyAssignmentsForStudent(studentId){
@@ -24,7 +25,6 @@ function collectPrintSheetData(student){
   });
   const tuitionLessons = weekly.filter(a=> !isMonthlyFeeLesson(a));
   const hasProgramming = weekly.some(isMonthlyFeeLesson);
-  const rates = student.tuitionCourse === 'advance' ? S.tuitionRatesAdvance : S.tuitionRates;
   const start = typeof student.courseStartDate === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(student.courseStartDate)
     ? student.courseStartDate : '';
   return {
@@ -33,12 +33,12 @@ function collectPrintSheetData(student){
     startDate: start,
     startMonth1: start ? Number(start.slice(5, 7)) : null,
     issuedDate: getTodayStr(),
-    courseLabel: student.tuitionCourse === 'advance' ? 'アドバンス' : 'ベーシック',
+    courseLabel: effectiveTuitionCourse(student.level, student.tuitionCourse) === 'advance' ? 'アドバンス' : 'ベーシック',
     days: DAYS,
     slots: SLOTS,
     cells,
     weeklyUnits: countSlotAssignmentUnits(tuitionLessons),
-    rate: Number(rates?.[student.level]) || 0,
+    rate: studentTuitionRate(S.tuitionGradeRates, student),
     programmingFee: hasProgramming ? Number(S.programmingMonthlyFee) || 0 : 0,
     freeLessonCount: Number(student.freeLessonCount) || 0,
     fees: S.studentFees || {},

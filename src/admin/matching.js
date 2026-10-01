@@ -1,4 +1,4 @@
-import { DAYS, SLOTS, WEEKDAY_JP, WEEK_FULL, LEVELS_ORDER } from '../shared/constants.js';
+import { DAYS, SLOTS, WEEKDAY_JP, WEEK_FULL, LEVELS_ORDER, GRADE_MAX_BY_LEVEL } from '../shared/constants.js';
 import { HOLIDAYS_JP } from '../shared/holidays.js';
 import { pad2, daysInYearMonth, toDateStr, getTodayStr, isOnOrAfterDate } from '../shared/date-utils.js';
 import { firebaseConfig, fbAuth, fbDb, STORAGE_KEY, getSecondaryAuth, S } from './state.js';
@@ -19,6 +19,7 @@ import { activeStudents, isActivePerson, markPersonLeft, renderLeaveFlash } from
 import { renderLessonHistoryHtml } from './lesson-history.js';
 import { printStudentSheet } from './print-sheet.js';
 import { renderStudentFeePreview } from './student-fee-preview.js';
+import { effectiveTuitionCourse } from './tuition-rates.js';
 import {
   buildApprovalAlertRowHtml, buildCalAlertPersonHead, buildCalAlertPersonInline,
   buildCalAlertSubjectTag, buildCalAlertTeacherHead, buildCalAlertWhenPill,
@@ -261,8 +262,6 @@ function bulkCancelAuto(){
 }
 
 
-const GRADE_MAX_BY_LEVEL = { '小学': 6, '中学': 3, '高校': 3 };
-
 function buildStudentGradeArea(selectedGrade = null){
   const area = document.getElementById('studentGradeArea');
   if(!area) return;
@@ -301,6 +300,7 @@ function buildStudentLevelArea(){
       const prevGrade = getSelectedStudentGrade();
       const max = GRADE_MAX_BY_LEVEL[getSelectedStudentLevel()] || 6;
       buildStudentGradeArea(prevGrade && prevGrade <= max ? prevGrade : null);
+      syncTuitionCourseForLevel();
       // 新規登録だけ、学年変更で未入力の受講科目をリセットする（編集中は希望コマを残す）
       if(!S.editingStudentId) S.formCourses = [];
       renderFormCourses();
@@ -312,6 +312,18 @@ function buildStudentLevelArea(){
 function getSelectedStudentLevel(){
   const checked = document.querySelector('input[name=studentLevel]:checked');
   return checked ? checked.value : LEVELS_ORDER[0];
+}
+
+/** 高校はアドバンスだけなので、高校を選んでいる間はベーシックを押せなくする */
+function syncTuitionCourseForLevel(){
+  const high = getSelectedStudentLevel() === '高校';
+  document.querySelectorAll('input[name=studentTuitionCourse]').forEach(r=>{
+    if(r.value === 'advance'){
+      if(high) r.checked = true;
+    }else{
+      r.disabled = high;
+    }
+  });
 }
 
 // ---- 受講科目（コース）ビルダー ----
@@ -383,6 +395,7 @@ function fillStudentProfileFields(s){
   document.getElementById('studentNotesInput').value = s?.notes || '';
   const tuitionCourse = s?.tuitionCourse || '';
   document.querySelectorAll('input[name=studentTuitionCourse]').forEach(r=> r.checked = (r.value === tuitionCourse));
+  syncTuitionCourseForLevel();
   STUDENT_DISCOUNT_INPUTS.forEach(([id, key])=>{
     const v = Number(s?.discounts?.[key]) || 0;
     document.getElementById(id).value = v > 0 ? String(v) : '';
@@ -661,7 +674,7 @@ function renderStudentList(){
         <div class="student-row-head">
           <span class="student-row-name">${s.name}</span>
           <span class="student-level-badge">${gradeLabel(s)}</span>
-          ${s.tuitionCourse === 'advance' ? '<span class="student-row-pref">アドバンス</span>' : ''}
+          ${effectiveTuitionCourse(s.level, s.tuitionCourse) === 'advance' ? '<span class="student-row-pref">アドバンス</span>' : ''}
           ${s.examType ? `<span class="student-row-pref">${escapeAttr(s.examType)}</span>` : ''}
           ${Number(s.freeLessonCount) > 0 ? `<span class="student-row-pref">最初${s.freeLessonCount}コマ無料</span>` : ''}
           ${isEditing ? '<span class="student-row-editing-badge">編集中</span>' : ''}

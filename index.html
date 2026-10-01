@@ -493,38 +493,12 @@
       <div style="height:22px"></div>
 
       <label class="field-label">学年別 授業料単価（1コマあたり）</label>
-      <div class="field-hint tight">学年区分ごとに、ベーシックとアドバンスの2つの単価を設定します。生徒ごとにどちらのコースかを選び、「分析」タブの売上計算に使われます。</div>
+      <div class="field-hint tight">学年ごとに、ベーシックとアドバンスの単価を設定します。高校はアドバンスだけです。生徒ごとにどちらのコースかを選び、「分析」タブの売上計算と印刷に使われます。</div>
       <label class="field-label">ベーシック</label>
-      <div class="tuition-input-row">
-        <div class="pay-input-item">
-          <label for="tuitionSmallInput">小学（円/コマ）</label>
-          <input type="text" inputmode="numeric" id="tuitionSmallInput">
-        </div>
-        <div class="pay-input-item">
-          <label for="tuitionMiddleInput">中学（円/コマ）</label>
-          <input type="text" inputmode="numeric" id="tuitionMiddleInput">
-        </div>
-        <div class="pay-input-item">
-          <label for="tuitionHighInput">高校（円/コマ）</label>
-          <input type="text" inputmode="numeric" id="tuitionHighInput">
-        </div>
-      </div>
+      <div id="tuitionBasicArea"></div>
       <div style="height:12px"></div>
       <label class="field-label">アドバンス</label>
-      <div class="tuition-input-row">
-        <div class="pay-input-item">
-          <label for="tuitionAdvSmallInput">小学（円/コマ）</label>
-          <input type="text" inputmode="numeric" id="tuitionAdvSmallInput">
-        </div>
-        <div class="pay-input-item">
-          <label for="tuitionAdvMiddleInput">中学（円/コマ）</label>
-          <input type="text" inputmode="numeric" id="tuitionAdvMiddleInput">
-        </div>
-        <div class="pay-input-item">
-          <label for="tuitionAdvHighInput">高校（円/コマ）</label>
-          <input type="text" inputmode="numeric" id="tuitionAdvHighInput">
-        </div>
-      </div>
+      <div id="tuitionAdvanceArea"></div>
 
       <div style="height:22px"></div>
 

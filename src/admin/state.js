@@ -1,6 +1,7 @@
 import { firebaseConfig, initPrimaryFirebase } from '../shared/firebase-config.js';
 import { emptyGoogleCalendarState } from './google-calendar-events.js';
 import { DEFAULT_STUDENT_FEES } from '../shared/constants.js';
+import { normalizeTuitionGradeRates } from './tuition-rates.js';
 
 export { firebaseConfig };
 export const { fbAuth, fbDb } = initPrimaryFirebase();
@@ -27,8 +28,7 @@ export const S = {
   draftAssignments: [],
   roomCapacity: 12,
   teacherCapacity: 2,
-  tuitionRates: {'小学':2900, '中学':3900, '高校':5200},
-  tuitionRatesAdvance: {'小学':2900, '中学':3900, '高校':5200},
+  tuitionGradeRates: normalizeTuitionGradeRates(null),
   programmingMonthlyFee: 0,
   studentFees: { ...DEFAULT_STUDENT_FEES },
   saveTimer: null,

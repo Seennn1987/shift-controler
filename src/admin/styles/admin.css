@@ -204,6 +204,9 @@
     font-family:inherit;font-size:var(--text-base);background:var(--surface-card);
   }
   .tuition-input-row{display:flex;gap:16px;flex-wrap:wrap;}
+  .tuition-grade-row{gap:12px;}
+  .tuition-grade-row + .tuition-grade-row{margin-top:10px;}
+  .tuition-grade-row .pay-input-item input{width:100px;}
 
   /* ===== 分析タブ ===== */
   .fin-summary-card{padding:18px 20px;}

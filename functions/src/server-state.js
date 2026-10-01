@@ -3,6 +3,7 @@ import { emptyGoogleCalendarState, normalizeGoogleCalendarState } from '../../sr
 import { normalizeClosedHolidayDates, areAllHolidaysClosed } from '../../src/shared/holidays.js';
 import { normalizeMatchingPriority } from '../../src/admin/matching-config.js';
 import { DEFAULT_STUDENT_FEES } from '../../src/shared/constants.js';
+import { normalizeTuitionGradeRates } from '../../src/admin/tuition-rates.js';
 
 export const firebaseConfig = {};
 export const fbAuth = { currentUser: null };
@@ -27,8 +28,7 @@ function initialState(){
     terms: [],
     customClosures: [],
     preferredPairs: [],
-    tuitionRates: {'小学':2900, '中学':3900, '高校':5200},
-    tuitionRatesAdvance: {'小学':2900, '中学':3900, '高校':5200},
+    tuitionGradeRates: normalizeTuitionGradeRates(null),
     programmingMonthlyFee: 0,
     studentFees: { ...DEFAULT_STUDENT_FEES },
     regularClosedDays: ['日'],
@@ -79,8 +79,7 @@ export function fillState(appState, scheduleDocs){
     terms: d.terms || [],
     customClosures: d.customClosures || [],
     preferredPairs: d.preferredPairs || [],
-    tuitionRates: d.tuitionRates || fresh.tuitionRates,
-    tuitionRatesAdvance: d.tuitionRatesAdvance || { ...(d.tuitionRates || fresh.tuitionRates) },
+    tuitionGradeRates: normalizeTuitionGradeRates(d),
     programmingMonthlyFee: d.programmingMonthlyFee != null ? d.programmingMonthlyFee : 0,
     studentFees: { ...DEFAULT_STUDENT_FEES, ...(d.studentFees || {}) },
     regularClosedDays: d.regularClosedDays || ['日'],

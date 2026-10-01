@@ -166,7 +166,7 @@
 | `teacherSubstitutions[]` | 代講。`teacherId`（元の講師）, `substituteTeacherId`, `date`, `slot`, `studentId` |
 | `terms[]` | 講習などの期間 |
 | `regularClosedDays` / `closedHolidayDates` / `customClosures` | 定休日の曜日 / 休みにする祝日 / 個別の休校日 |
-| `tuitionRates` | 学年区分ごとの1コマの授業料（例: `{"小学":2900,"中学":3900,"高校":5200}`） |
+| `tuitionGradeRates` | 学年ごとの1コマの授業料。`basic`（小学1〜中学3）と `advance`（小学1〜高校3）（例: `{"basic":{"小学1":2900,…},"advance":{"高校3":5200,…}}`）。高校生は常に `advance`。古いデータの `tuitionRates` / `tuitionRatesAdvance`（学年区分ごと）は、読み込み時に各学年へコピーされる |
 | `officeHourlyRate` / `payrollOfficeHours` / `payrollLocks` | 事務の時給 / 月ごとの事務時間 / 確定した月の給与 |
 | `finGradientMin` / `finGradientMax` | コスト率の色分けの基準 |
 | `roomCapacity` / `teacherCapacity` / `matchingPriority` / `preferredPairs` / `googleCalendar` | 教室の設定 |
