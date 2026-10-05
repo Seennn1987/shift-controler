@@ -1,5 +1,6 @@
 import { pad2, toDateStr } from '../shared/date-utils.js';
 import { sortByNameKana } from '../shared/person-sort.js';
+import { activeTeachers } from './active-people.js';
 import { getDayStatus } from './calendar.js';
 import { getEffectiveDayAssignments, getTeacherRateForDate } from './absences.js';
 import { S } from './state.js';
@@ -73,6 +74,23 @@ export const MF_CSV_HEADERS = [
   '住民税',
   '備考欄',
 ];
+
+/** クラウド給与の従業員情報CSV（Version 29）。列名・並びはクラウド給与からの出力と一字一句合わせる。 */
+export const MF_EMPLOYEE_INFO_HEADERS = (()=>{
+  const base = [
+    'Version', '従業員識別子', '従業員番号', '姓', '名', '性別', '都道府県', '契約種別', '給与区分', '入社年月日',
+    '時給1(単価)', '時給2(単価)', '使用勤怠項目(通勤手当)',
+  ];
+  const commute = [
+    '識別子', '通勤手段', '開始駅 / 停留所 / 地点', '終了駅 / 停留所 / 地点', '片道の通勤距離',
+    '支給条件', '支給月', '支給額', '支払手段', '上限支給額',
+    '駐車場等支給条件', '駐車場等支給月', '駐車場等支給額', '駐車場等支払手段', '駐車場等上限支給額',
+  ];
+  for(let n = 1; n <= 10; n++) commute.forEach(name=> base.push(`${name}(通勤手当${n})`));
+  return base;
+})();
+
+export const LESSON_HOURS_PER_SLOT = 1.5;
 
 export const DEFAULT_OFFICE_HOURLY_RATE = 1300;
 
@@ -265,6 +283,55 @@ export function downloadPayrollCsv(year, monthIndex, rows){
   const a = document.createElement('a');
   a.href = url;
   a.download = payrollCsvFilename(year, monthIndex);
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  URL.revokeObjectURL(url);
+}
+
+/** 最初の◯コマ特例は1つの時給で表せないため含めない */
+export function teacherBaseLessonRateForMonth(teacher, yearMonth){
+  const applicable = (teacher.raiseSchedule || []).filter(r=> r.yearMonth <= yearMonth);
+  if(applicable.length > 0){
+    applicable.sort((a, b)=> a.yearMonth < b.yearMonth ? 1 : -1);
+    return Number(applicable[0].rate) || 0;
+  }
+  return Number(teacher.perLessonRate) || 0;
+}
+
+export function buildEmployeeInfoCsv(year, monthIndex){
+  const ym = payrollYearMonthKey(year, monthIndex);
+  const officeRate = S.officeHourlyRate ?? DEFAULT_OFFICE_HOURLY_RATE;
+  const teachers = sortByNameKana(activeTeachers(), t=> t.nameKana, t=> t.name);
+  const lines = [MF_EMPLOYEE_INFO_HEADERS.map(csvCell).join(',')];
+  teachers.forEach(teacher=>{
+    const { lastName, firstName } = splitTeacherName(teacher.name);
+    const cells = {};
+    MF_EMPLOYEE_INFO_HEADERS.forEach(h=> { cells[h] = ''; });
+    cells.Version = '29';
+    cells['従業員番号'] = String(teacher.employeeNumber || '').trim();
+    cells['姓'] = lastName;
+    cells['名'] = firstName;
+    cells['契約種別'] = 'アルバイト';
+    cells['給与区分'] = '時給制';
+    cells['時給1(単価)'] = String(Math.round(teacherBaseLessonRateForMonth(teacher, ym) / LESSON_HOURS_PER_SLOT));
+    cells['時給2(単価)'] = String(officeRate);
+    lines.push(MF_EMPLOYEE_INFO_HEADERS.map(h=> csvCell(cells[h])).join(','));
+  });
+  return `\uFEFF${lines.join('\r\n')}\r\n`;
+}
+
+export function employeeInfoCsvFilename(year, monthIndex){
+  return `従業員情報_${year}年${pad2(monthIndex + 1)}月.csv`;
+}
+
+export function downloadEmployeeInfoCsv(year, monthIndex){
+  const csv = buildEmployeeInfoCsv(year, monthIndex);
+  const blob = new Blob([csv], { type: 'text/csv;charset=utf-8' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = employeeInfoCsvFilename(year, monthIndex);
   document.body.appendChild(a);
   a.click();
   a.remove();

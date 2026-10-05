@@ -2,6 +2,7 @@ import { S } from './state.js';
 import { mountInlineConfirm, showInlineNotice } from '../shared/inline-confirm.js';
 import {
   buildPayrollViewModel,
+  downloadEmployeeInfoCsv,
   downloadPayrollCsv,
   ensurePayrollMonth,
   lockPayrollMonth,
@@ -126,9 +127,11 @@ export function renderPayroll(){
       actions.innerHTML = `
         <div class="form-actions">
           <button type="button" class="confirm-btn" id="payDownloadBtn">CSVをダウンロード</button>
+          <button type="button" class="confirm-btn" id="payEmployeeCsvBtn">従業員情報CSVをダウンロード</button>
           <button type="button" class="unconfirm-btn" id="payUnlockBtn">確定を取り消す</button>
         </div>
       `;
+      bindEmployeeInfoBtn(actions, notice);
       actions.querySelector('#payDownloadBtn').addEventListener('click', ()=>{
         downloadPayrollCsv(S.payYear, S.payMonth, model.rows);
         if(notice) showInlineNotice(notice, 'CSVを保存しました。', { variant: 'ok' });
@@ -150,8 +153,10 @@ export function renderPayroll(){
       actions.innerHTML = `
         <div class="form-actions">
           <button type="button" class="confirm-btn" id="payLockBtn"${missing.length ? ' disabled' : ''}>今月を確定する</button>
+          <button type="button" class="confirm-btn" id="payEmployeeCsvBtn">従業員情報CSVをダウンロード</button>
         </div>
       `;
+      bindEmployeeInfoBtn(actions, notice);
       const lockBtn = actions.querySelector('#payLockBtn');
       lockBtn?.addEventListener('pointerdown', ()=>{
         flushFocusedOfficeHours(model.yearMonth, notice);
@@ -175,6 +180,13 @@ export function renderPayroll(){
       if(!applyOfficeHoursFromInput(input, model.yearMonth, notice)) return;
       schedulePayrollRerender();
     });
+  });
+}
+
+function bindEmployeeInfoBtn(actions, notice){
+  actions.querySelector('#payEmployeeCsvBtn')?.addEventListener('click', ()=>{
+    downloadEmployeeInfoCsv(S.payYear, S.payMonth);
+    if(notice) showInlineNotice(notice, '従業員情報CSVを保存しました。性別・都道府県・入社年月日を埋めてから、クラウド給与に取り込んでください。', { variant: 'ok' });
   });
 }
 

@@ -6,14 +6,28 @@ const CSV_HEADERS = [
   '基本給(月給)', '通勤手当/非課(月給)', '事務手当',
 ];
 
+const EMPLOYEE_INFO_HEADERS = (()=>{
+  const base = [
+    'Version', '従業員識別子', '従業員番号', '姓', '名', '性別', '都道府県', '契約種別', '給与区分', '入社年月日',
+    '時給1(単価)', '時給2(単価)', '使用勤怠項目(通勤手当)',
+  ];
+  const commute = [
+    '識別子', '通勤手段', '開始駅 / 停留所 / 地点', '終了駅 / 停留所 / 地点', '片道の通勤距離',
+    '支給条件', '支給月', '支給額', '支払手段', '上限支給額',
+    '駐車場等支給条件', '駐車場等支給月', '駐車場等支給額', '駐車場等支払手段', '駐車場等上限支給額',
+  ];
+  for(let n = 1; n <= 10; n++) commute.forEach(name=> base.push(`${name}(通勤手当${n})`));
+  return base;
+})();
+
 const state = {
   year: 2026,
   month: 8,
   locked: false,
   rows: [
-    { teacherId: 't1', teacherName: '白澤 慶斗', employeeNumber: '001', lessonCount: 12, workDays: 8, lessonPay: 26400, transportPay: 3200, officeHours: 0 },
-    { teacherId: 't2', teacherName: '山田 花子', employeeNumber: '002', lessonCount: 8, workDays: 6, lessonPay: 17600, transportPay: 2400, officeHours: 1.5 },
-    { teacherId: 't3', teacherName: '佐藤 太郎', employeeNumber: '003', lessonCount: 4, workDays: 3, lessonPay: 8800, transportPay: 1500, officeHours: 0 },
+    { teacherId: 't1', teacherName: '白澤 慶斗', employeeNumber: '001', perLessonRate: 2200, lessonCount: 12, workDays: 8, lessonPay: 26400, transportPay: 3200, officeHours: 0 },
+    { teacherId: 't2', teacherName: '山田 花子', employeeNumber: '002', perLessonRate: 2200, lessonCount: 8, workDays: 6, lessonPay: 17600, transportPay: 2400, officeHours: 1.5 },
+    { teacherId: 't3', teacherName: '佐藤 太郎', employeeNumber: '003', perLessonRate: 2200, lessonCount: 4, workDays: 3, lessonPay: 8800, transportPay: 1500, officeHours: 0 },
   ],
 };
 
@@ -60,6 +74,39 @@ function downloadCsv(){
   a.click();
   a.remove();
   URL.revokeObjectURL(url);
+}
+
+function downloadEmployeeInfoCsv(){
+  const lines = [EMPLOYEE_INFO_HEADERS.map(csvCell).join(',')];
+  state.rows.forEach(row=>{
+    const [last, ...rest] = row.teacherName.split(/\s+/);
+    const cells = Object.fromEntries(EMPLOYEE_INFO_HEADERS.map(h=> [h, '']));
+    cells.Version = '29';
+    cells['従業員番号'] = row.employeeNumber;
+    cells['姓'] = last;
+    cells['名'] = rest.join(' ');
+    cells['契約種別'] = 'アルバイト';
+    cells['給与区分'] = '時給制';
+    cells['時給1(単価)'] = String(Math.round(row.perLessonRate / 1.5));
+    cells['時給2(単価)'] = String(OFFICE_RATE);
+    lines.push(EMPLOYEE_INFO_HEADERS.map(h=> csvCell(cells[h])).join(','));
+  });
+  const blob = new Blob([`\uFEFF${lines.join('\r\n')}\r\n`], { type: 'text/csv;charset=utf-8' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `従業員情報_${state.year}年${String(state.month + 1).padStart(2, '0')}月.csv`;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  URL.revokeObjectURL(url);
+}
+
+function bindEmployeeInfoBtn(actions, notice){
+  actions.querySelector('#payEmployeeCsvBtn')?.addEventListener('click', ()=>{
+    downloadEmployeeInfoCsv();
+    showInlineNotice(notice, '従業員情報CSVを保存しました。性別・都道府県・入社年月日を埋めてから、クラウド給与に取り込んでください。', { variant: 'ok' });
+  });
 }
 
 function render(){
@@ -128,8 +175,10 @@ function render(){
   if(state.locked){
     actions.innerHTML = `<div class="form-actions">
       <button type="button" class="confirm-btn" id="payDownloadBtn">CSVをダウンロード</button>
+      <button type="button" class="confirm-btn" id="payEmployeeCsvBtn">従業員情報CSVをダウンロード</button>
       <button type="button" class="unconfirm-btn" id="payUnlockBtn">確定を取り消す</button>
     </div>`;
+    bindEmployeeInfoBtn(actions, notice);
     actions.querySelector('#payDownloadBtn').addEventListener('click', ()=>{
       downloadCsv();
       showInlineNotice(notice, 'CSVを保存しました。', { variant: 'ok' });
@@ -147,7 +196,9 @@ function render(){
   }else{
     actions.innerHTML = `<div class="form-actions">
       <button type="button" class="confirm-btn" id="payLockBtn"${missing.length ? ' disabled' : ''}>今月を確定する</button>
+      <button type="button" class="confirm-btn" id="payEmployeeCsvBtn">従業員情報CSVをダウンロード</button>
     </div>`;
+    bindEmployeeInfoBtn(actions, notice);
     const lockBtn = actions.querySelector('#payLockBtn');
     lockBtn?.addEventListener('pointerdown', flushFocusedOfficeHours);
     lockBtn?.addEventListener('click', ()=>{
