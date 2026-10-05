@@ -2,7 +2,10 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
     match /appState/{userId} {
-      allow read, write: if request.auth != null && request.auth.uid == userId;
+      allow read, create, delete: if request.auth != null && request.auth.uid == userId;
+      // 古い内容を持った別の画面が全体を上書きしないよう、保存回数(rev)をちょうど1つ進める書き込みだけ通す
+      allow update: if request.auth != null && request.auth.uid == userId
+        && request.resource.data.get('rev', 0) == resource.data.get('rev', 0) + 1;
     }
     match /teacherSchedules/{docId} {
       allow read: if request.auth != null && (

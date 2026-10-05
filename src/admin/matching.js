@@ -1149,7 +1149,10 @@ function bindShortageDashboardActions(wrap){
       variant: 'primary',
     }, async ()=>{
       const { sent, skippedNoLogin, noLoginTeachers: skippedNames } = await sendDraftAssignments();
-      if(S.saveTimer) clearTimeout(S.saveTimer);
+      if(S.saveTimer){
+        clearTimeout(S.saveTimer);
+        S.saveTimer = null;
+      }
       await saveAppState();
       scheduleSyncTeacherAssignments();
       refreshAfterMatchingChange();

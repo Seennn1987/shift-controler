@@ -20,13 +20,22 @@ import { isActivePerson, personAppliesOnDate } from './active-people.js';
 // =====================================================================
 
 // ---- 講師からの変更リクエスト（確定後にスケジュールを変更したい場合、直接上書きせずここに届く） ----
+/** 等号だけの絞り込みは複合索引なしで動く。失敗時だけ adminUid の全件で読み直す（status はこちらでも絞る） */
+async function getPendingByAdmin(collectionName, adminUid){
+  const col = fbDb.collection(collectionName).where('adminUid','==',adminUid);
+  try{
+    return await col.where('status','==','pending').get();
+  }catch(err){
+    console.warn(`${collectionName} の絞り込み読み込みに失敗（全件で読み直します）:`, err);
+    return col.get();
+  }
+}
+
 async function loadPendingChangeRequests(){
   const user = fbAuth.currentUser;
   if(!user) return [];
   try{
-    // where句1つだけにして、複合索引が無い環境でも読み込めるようにする（statusはこちらで絞る）
-    const snap = await fbDb.collection('scheduleChangeRequests')
-      .where('adminUid','==',user.uid).get();
+    const snap = await getPendingByAdmin('scheduleChangeRequests', user.uid);
     const list = [];
     snap.forEach(doc=>{
       const data = doc.data();
@@ -72,9 +81,20 @@ async function resolveScheduleChangeRequests(requests, action){
 const APPROVAL_RECENT_LIMIT = 10;
 const APPROVAL_DISMISSED_KEY_PREFIX = 'pitakoma-approval-dismissed-';
 
+/** 承認記録の全件読みは件数に比例して重い。上部の欄は操作のたびに描き直すため、一定時間は前回の結果を使う */
+const APPROVAL_LIST_CACHE_MS = 120_000;
+let approvalListCache = null;
+
+function invalidateAssignmentApprovalsCache(){
+  approvalListCache = null;
+}
+
 async function loadAssignmentApprovals(){
   const user = fbAuth.currentUser;
   if(!user) return [];
+  if(approvalListCache && approvalListCache.uid === user.uid && Date.now() - approvalListCache.at < APPROVAL_LIST_CACHE_MS){
+    return approvalListCache.list;
+  }
   try{
     // where句1つだけにして、Firestoreの複合索引作成を不要にする（並び替えはクライアント側で行う）
     const snap = await fbDb.collection('assignmentApprovals')
@@ -86,6 +106,7 @@ async function loadAssignmentApprovals(){
       const tb = (b.createdAt && b.createdAt.toMillis) ? b.createdAt.toMillis() : 0;
       return tb - ta;
     });
+    approvalListCache = { uid: user.uid, at: Date.now(), list };
     return list;
   }catch(err){
     console.error('承認状況読み込みエラー:', err);
@@ -251,9 +272,7 @@ async function loadPendingCancellationRequests(){
   const user = fbAuth.currentUser;
   if(!user) return [];
   try{
-    // where句1つだけにして、複合索引が無い環境でも読み込めるようにする（statusはこちらで絞る）
-    const snap = await fbDb.collection('assignmentCancellationRequests')
-      .where('adminUid','==',user.uid).get();
+    const snap = await getPendingByAdmin('assignmentCancellationRequests', user.uid);
     const list = [];
     snap.forEach(doc=>{
       const data = doc.data();
@@ -753,6 +772,7 @@ async function issueAssignmentApproval(studentId, courseId, subject, day, slot, 
     if(oneTimeDate) payload.oneTimeDate = oneTimeDate;
     if(student.courseStartDate) payload.courseStartDate = student.courseStartDate;
     await fbDb.collection('assignmentApprovals').add(payload);
+    invalidateAssignmentApprovalsCache();
     return true;
   }catch(err){
     console.error('承認チケット発行エラー:', err);
@@ -1058,7 +1078,7 @@ function ticketMatchesPendingApproval(a, student, course, day, slot, oneTimeDate
 async function updateMatchingPendingApprovalTickets(student, course, day, slot, oneTimeDate, teacherId, payload){
   const user = fbAuth.currentUser;
   if(!user) return;
-  const snap = await fbDb.collection('assignmentApprovals').where('adminUid','==', user.uid).get();
+  const snap = await getPendingByAdmin('assignmentApprovals', user.uid);
   const updates = [];
   snap.forEach(doc=>{
     const a = doc.data();
@@ -1066,6 +1086,7 @@ async function updateMatchingPendingApprovalTickets(student, course, day, slot, 
     updates.push(doc.ref.update(payload));
   });
   await Promise.all(updates);
+  invalidateAssignmentApprovalsCache();
 }
 
 const ADMIN_CANCELLED_TICKET = {
@@ -1087,7 +1108,7 @@ async function revokePendingApprovalTicket(student, course, day, slot, oneTimeDa
 async function revokePendingApprovalTicketsForStudent(student){
   const user = fbAuth.currentUser;
   if(!user || !student) return;
-  const snap = await fbDb.collection('assignmentApprovals').where('adminUid','==', user.uid).get();
+  const snap = await getPendingByAdmin('assignmentApprovals', user.uid);
   const updates = [];
   snap.forEach(doc=>{
     const a = doc.data();
@@ -1099,12 +1120,13 @@ async function revokePendingApprovalTicketsForStudent(student){
     }));
   });
   await Promise.all(updates);
+  invalidateAssignmentApprovalsCache();
 }
 
 async function revokePendingCancellationRequestsForStudent(student){
   const user = fbAuth.currentUser;
   if(!user || !student) return;
-  const snap = await fbDb.collection('assignmentCancellationRequests').where('adminUid','==', user.uid).get();
+  const snap = await getPendingByAdmin('assignmentCancellationRequests', user.uid);
   const updates = [];
   snap.forEach(doc=>{
     const a = doc.data();
@@ -1122,7 +1144,7 @@ async function revokePendingCancellationRequestsForStudent(student){
 async function revokePendingCancellationForSlot(student, day, slot, dateStr){
   const user = fbAuth.currentUser;
   if(!user || !student) return;
-  const snap = await fbDb.collection('assignmentCancellationRequests').where('adminUid','==', user.uid).get();
+  const snap = await getPendingByAdmin('assignmentCancellationRequests', user.uid);
   const updates = [];
   snap.forEach(doc=>{
     const a = doc.data();
@@ -1170,6 +1192,7 @@ async function syncStudentIdentityOnTickets(student, oldName){
       });
       await Promise.all(updates);
     }
+    invalidateAssignmentApprovalsCache();
   }catch(err){
     console.error('生徒名の講師側表示の更新エラー:', err);
   }
@@ -1183,7 +1206,7 @@ async function revokePendingRequestsForTeacher(teacher){
     cancelledByAdmin: true,
     cancelledAt: firebase.firestore.FieldValue.serverTimestamp(),
   };
-  const approvalSnap = await fbDb.collection('assignmentApprovals').where('adminUid','==', user.uid).get();
+  const approvalSnap = await getPendingByAdmin('assignmentApprovals', user.uid);
   const approvalUpdates = [];
   approvalSnap.forEach(doc=>{
     const a = doc.data();
@@ -1194,7 +1217,7 @@ async function revokePendingRequestsForTeacher(teacher){
       cancelledAt: firebase.firestore.FieldValue.serverTimestamp(),
     }));
   });
-  const cancelSnap = await fbDb.collection('assignmentCancellationRequests').where('adminUid','==', user.uid).get();
+  const cancelSnap = await getPendingByAdmin('assignmentCancellationRequests', user.uid);
   const cancelUpdates = [];
   cancelSnap.forEach(doc=>{
     const a = doc.data();
@@ -1202,7 +1225,7 @@ async function revokePendingRequestsForTeacher(teacher){
     if(a.teacherId !== teacher.id) return;
     cancelUpdates.push(doc.ref.update(markCancelled));
   });
-  const changeSnap = await fbDb.collection('scheduleChangeRequests').where('adminUid','==', user.uid).get();
+  const changeSnap = await getPendingByAdmin('scheduleChangeRequests', user.uid);
   const changeUpdates = [];
   changeSnap.forEach(doc=>{
     const a = doc.data();
@@ -1214,6 +1237,7 @@ async function revokePendingRequestsForTeacher(teacher){
     }));
   });
   await Promise.all([...approvalUpdates, ...cancelUpdates, ...changeUpdates]);
+  invalidateAssignmentApprovalsCache();
 }
 
 async function skipPendingApprovalTicketDate(student, course, day, slot, dateStr, teacherId){
@@ -1358,4 +1382,4 @@ async function replaceDesiredSlot(studentId, courseId, oldDay, oldSlot, newDay, 
 }
 
 
-export { loadPendingChangeRequests, loadPendingCancellationRequests, resolveScheduleChangeRequest, resolveScheduleChangeRequests, loadAssignmentApprovals, loadDismissedApprovalIds, saveDismissedApprovalIds, approvalAppliesInMonth, openMatchingForApprovalTicket, renderApprovalDashboardItem, renderApprovalStatus, renderTeacherScheduleTab, openTeacherScheduleEditor, renderTeacherScheduleGrid, isPreferredPair, getPreferredTeachersForCourse, getPreferredPairsForTeacher, addPreferredPair, removePreferredPair, removePreferredPairFor, isPreferredSubjectForTeacher, teacherWorksOtherSlotOnWeekday, countTeacherCourseSlotCoverage, buildCandidateInfo, findAssignment, getActiveYearMonth, teacherHasSubmittedMonth, isAssignmentEffectiveInMonth, assignmentAppliesOnDate, findEffectiveAssignment, countCourseConfirmed, countTeacherSlot, countTeacherSlotOnDate, countRoomSlot, countRoomSlotOnDate, issueAssignmentApproval, confirmAssignment, confirmDualAssignment, cancelAssignment, cancelDualAssignment, cancelDraftAuto, cancelAllDrafts, sendDraftAssignments, countAssignmentsInMonth, withdrawPendingAssignment, approvePendingLessonAsAdmin, findAlternativeSlots, replaceDesiredSlot, revokePendingApprovalTicket, revokePendingApprovalTicketsForStudent, revokePendingCancellationRequestsForStudent, revokePendingCancellationForSlot, revokePendingRequestsForTeacher, dropAssignmentsForRemovedDesiredSlots, syncStudentIdentityOnTickets };
+export { loadPendingChangeRequests, loadPendingCancellationRequests, resolveScheduleChangeRequest, resolveScheduleChangeRequests, loadAssignmentApprovals, invalidateAssignmentApprovalsCache, loadDismissedApprovalIds, saveDismissedApprovalIds, approvalAppliesInMonth, openMatchingForApprovalTicket, renderApprovalDashboardItem, renderApprovalStatus, renderTeacherScheduleTab, openTeacherScheduleEditor, renderTeacherScheduleGrid, isPreferredPair, getPreferredTeachersForCourse, getPreferredPairsForTeacher, addPreferredPair, removePreferredPair, removePreferredPairFor, isPreferredSubjectForTeacher, teacherWorksOtherSlotOnWeekday, countTeacherCourseSlotCoverage, buildCandidateInfo, findAssignment, getActiveYearMonth, teacherHasSubmittedMonth, isAssignmentEffectiveInMonth, assignmentAppliesOnDate, findEffectiveAssignment, countCourseConfirmed, countTeacherSlot, countTeacherSlotOnDate, countRoomSlot, countRoomSlotOnDate, issueAssignmentApproval, confirmAssignment, confirmDualAssignment, cancelAssignment, cancelDualAssignment, cancelDraftAuto, cancelAllDrafts, sendDraftAssignments, countAssignmentsInMonth, withdrawPendingAssignment, approvePendingLessonAsAdmin, findAlternativeSlots, replaceDesiredSlot, revokePendingApprovalTicket, revokePendingApprovalTicketsForStudent, revokePendingCancellationRequestsForStudent, revokePendingCancellationForSlot, revokePendingRequestsForTeacher, dropAssignmentsForRemovedDesiredSlots, syncStudentIdentityOnTickets };

@@ -17,11 +17,12 @@ import { firebaseConfig, fbAuth, fbDb, STORAGE_KEY, getSecondaryAuth, S } from '
 import { getDayStatus, renderCalendar } from './calendar.js';
 import { renderMatching } from './matching.js';
 import { gradeLabel } from './schedule-core.js';
-import { openTeacherScheduleEditor, renderTeacherScheduleTab } from './teacher-schedule-tab.js';
+import { invalidateAssignmentApprovalsCache, openTeacherScheduleEditor, renderTeacherScheduleTab } from './teacher-schedule-tab.js';
 import { collapseTeacherCalendarEntries, formatDualSubjectLabel, ticketCoversSubjects, ticketSubjectList } from './dual-subject.js';
 import { collectMakeupEntriesForTeacher, isTeacherAbsentForStudent, recordTeacherAbsence, reopenOrphanedMakeups, reopenRejectedMakeups, studentAbsentDatesForAssignment } from './absences.js';
 import { normalizeMatchingPriority } from './matching-config.js';
 import { applyGradePromotionsIfNeeded } from './grade-promotion.js';
+import { clearSaveErrorFlash, showSaveConflictFlash, showSaveErrorFlash } from './save-state-flash.js';
 import { normalizeTuitionGradeRates } from './tuition-rates.js';
 
 function stopPollHandle(handle){
@@ -138,7 +139,7 @@ function startTeacherSubjectsListener(){
   const user = fbAuth.currentUser;
   if(!user) return;
   stopPollHandle(S.teacherSubjectsPollTimer);
-  S.teacherSubjectsPollTimer = startVisiblePoll(pollTeacherSubjects, POLL_INTERVAL_MS.DEFAULT);
+  S.teacherSubjectsPollTimer = startVisiblePoll(pollTeacherSubjects, POLL_INTERVAL_MS.RARE);
 }
 // 講師のログインIDを、紐づく全てのドキュメント（S.teacherSchedules・teacherAssignments）に一括で反映する
 // （どちらか一方だけ更新すると、もう一方が古いままになり権限エラーの原因になるため、必ずこの関数を通す）
@@ -257,7 +258,7 @@ function startTeacherScheduleListener(){
   const user = fbAuth.currentUser;
   if(!user) return;
   stopPollHandle(S.teacherSchedulePollTimer);
-  S.teacherSchedulePollTimer = startVisiblePoll(pollTeacherSchedules, POLL_INTERVAL_MS.DEFAULT);
+  S.teacherSchedulePollTimer = startVisiblePoll(pollTeacherSchedules, POLL_INTERVAL_MS.RARE);
 }
 
 // ---- 講師の承認をもって「承認待ち」から「確定」に昇格させる ----
@@ -327,6 +328,7 @@ async function promotePendingAssignment(ticket, ticketId){
   }catch(e){
     console.error('チケットの昇格フラグ更新エラー:', e);
   }
+  invalidateAssignmentApprovalsCache();
   scheduleSyncTeacherAssignments();
   scheduleSave();
   renderMatching();
@@ -347,6 +349,7 @@ async function rejectPendingAssignment(ticket, ticketId){
   }catch(e){
     console.error('チケットの処理済みフラグ更新エラー:', e);
   }
+  invalidateAssignmentApprovalsCache();
   scheduleSyncTeacherAssignments();
   scheduleSave();
   renderMatching();
@@ -378,16 +381,37 @@ async function pollApprovalUpdates(){
   }
 }
 
+const FULL_APPROVAL_SCAN_KEY_PREFIX = 'pitakoma-full-approval-scan-';
+
+function fullApprovalScanDoneToday(uid){
+  try{
+    return localStorage.getItem(`${FULL_APPROVAL_SCAN_KEY_PREFIX}${uid}`) === getTodayStr();
+  }catch(_e){
+    return false;
+  }
+}
+
+function markFullApprovalScanDone(uid){
+  try{
+    localStorage.setItem(`${FULL_APPROVAL_SCAN_KEY_PREFIX}${uid}`, getTodayStr());
+  }catch(_e){ /* private mode */ }
+}
+
 async function runAdminApprovalLoginSafety(){
   const user = fbAuth.currentUser;
   if(!user) return;
   try{
-    const backfill = await backfillAttentionFlags(fbDb, { adminUid: user.uid });
-    console.info('[firestore-read-safety] adminAttention 補完', backfill);
+    const attentionMode = FIRESTORE_READ_FLAGS.approvalQueryMode === 'attention';
+    // 承認記録の全件読み直しは件数に比例して重いので、attention では端末ごとに1日1回だけ行う
+    const runFullScan = !attentionMode || !fullApprovalScanDoneToday(user.uid);
 
-    if(FIRESTORE_READ_FLAGS.approvalQueryMode === 'attention'){
+    if(!attentionMode){
+      const backfill = await backfillAttentionFlags(fbDb, { adminUid: user.uid });
+      console.info('[firestore-read-safety] adminAttention 補完', backfill);
+      await pollApprovalUpdates();
+    }else if(runFullScan){
       const recon = await reconcileAdminAttentionAndFindGaps(fbDb, user.uid);
-      console.info('[firestore-read-safety] ログイン時全件保険', recon);
+      console.info('[firestore-read-safety] 1日1回の全件保険', recon);
       if(recon.gaps.length){
         await applyAdminApprovalDocs(recon.gaps);
       }
@@ -399,10 +423,11 @@ async function runAdminApprovalLoginSafety(){
       S.snapshotProbeResult = await probeAssignmentApprovalsSnapshot(fbDb, { adminUid: user.uid });
     }
 
-    if(FIRESTORE_READ_FLAGS.enableSoftArchive){
+    if(FIRESTORE_READ_FLAGS.enableSoftArchive && runFullScan){
       const archived = await softArchiveProcessedApprovals(fbDb, user.uid);
       console.info('[firestore-read-safety] softArchive', archived);
     }
+    if(attentionMode && runFullScan) markFullApprovalScanDone(user.uid);
   }catch(err){
     console.error('[firestore-read-safety] ログイン時安全処理エラー:', err);
   }
@@ -454,13 +479,33 @@ function startApprovalPromotionListener(){
 }
 
 // pendingAssignments に対応する承認チケットが無ければ補完する（過去データの取りこぼし修復）
+/** 返事待ちのチケット（isAwaitingTicket の対象）だけを読む。全件は承認記録が増えるほど重いため */
+async function loadAwaitingApprovalTickets(adminUid){
+  const col = fbDb.collection('assignmentApprovals').where('adminUid','==',adminUid);
+  try{
+    const [pendingSnap, approvedSnap] = await Promise.all([
+      col.where('status','==','pending').get(),
+      col.where('status','==','approved').where('adminAttention','==',true).get(),
+    ]);
+    return [...pendingSnap.docs, ...approvedSnap.docs].map(doc=> doc.data());
+  }catch(err){
+    console.warn('返事待ちチケットの絞り込み読み込みに失敗（全件で読み直します）:', err);
+    const snap = await col.get();
+    return snap.docs.map(doc=> doc.data());
+  }
+}
+
 async function ensureMissingApprovalTickets(){
   const user = fbAuth.currentUser;
   if(!user) return;
+  const hasCandidates = S.pendingAssignments.some(a=>{
+    const teacher = S.teachers.find(t=> t.id === a.teacherId);
+    return !!teacher?.loginUid;
+  });
+  if(!hasCandidates) return;
   let existing = [];
   try{
-    const snap = await fbDb.collection('assignmentApprovals').where('adminUid','==',user.uid).get();
-    snap.forEach(doc=> existing.push(doc.data()));
+    existing = await loadAwaitingApprovalTickets(user.uid);
   }catch(err){
     console.error('承認チケット一覧の読み込みエラー:', err);
     return;
@@ -518,6 +563,7 @@ async function ensureMissingApprovalTickets(){
           };
           await fbDb.collection('assignmentApprovals').add(payload);
           existing.push(payload);
+          invalidateAssignmentApprovalsCache();
         }catch(err){
           console.error('承認チケット補完エラー:', err);
         }
@@ -557,6 +603,7 @@ async function ensureMissingApprovalTickets(){
       };
       await fbDb.collection('assignmentApprovals').add(payload);
       existing.push(payload);
+      invalidateAssignmentApprovalsCache();
     }catch(err){
       console.error('承認チケット補完エラー:', err);
     }
@@ -569,6 +616,9 @@ async function syncClosureSettings(){
   const user = fbAuth.currentUser;
   if(!user){
     return { ok: false, msg: 'ログイン状態を確認できませんでした。' };
+  }
+  if(S.saveBlocked){
+    return { ok: false, msg: '別の画面でデータが更新されています。最新の内容を読み込んでください。' };
   }
   try{
     await fbDb.collection('classroomSettings').doc(user.uid).set({
@@ -640,7 +690,7 @@ function expandAssignmentForTeacherCalendar(a, approvalStatus, teacherId){
 
 async function syncTeacherAssignments(){
   const user = fbAuth.currentUser;
-  if(!user || !S.dataReady || !S.studentDataReady) return;
+  if(!user || !S.dataReady || !S.studentDataReady || S.saveBlocked) return;
   const loginTeachers = S.teachers.filter(t=>t.loginUid);
   for(const t of loginTeachers){
     const entries = [];
@@ -817,12 +867,40 @@ async function rejectCancellationRequest(reqId){
 function scheduleSave(){
   if(!S.firestoreReady) return; // 初回ロードが終わるまでは保存しない（空データで上書きするのを防ぐ）
   if(S.saveTimer) clearTimeout(S.saveTimer);
-  S.saveTimer = setTimeout(saveAppState, 1200);
+  S.saveTimer = setTimeout(()=>{
+    S.saveTimer = null;
+    saveAppState();
+  }, 1200);
 }
 
-async function saveAppState(){
+// 同じ画面の保存が重なると同じ保存回数を2回送ってしまうため、1件ずつ順番に流す
+let saveQueue = Promise.resolve();
+
+function saveAppState(){
+  const run = saveQueue.then(saveAppStateNow);
+  saveQueue = run.catch(()=>{});
+  return run;
+}
+
+function blockSavesForConflict(){
+  S.saveBlocked = true;
+  if(S.saveTimer){
+    clearTimeout(S.saveTimer);
+    S.saveTimer = null;
+  }
+  showSaveConflictFlash();
+}
+
+async function readCloudStateRev(ref){
+  const snap = await ref.get();
+  return snap.exists ? (Number(snap.data().rev) || 0) : 0;
+}
+
+async function saveAppStateNow(){
+  if(S.saveBlocked) return;
   const ref = getStateDocRef();
   if(!ref) return;
+  const nextRev = (S.stateRev || 0) + 1;
   const state = {
     teachers: S.teachers,
     students: S.students,
@@ -852,19 +930,58 @@ async function saveAppState(){
     payrollOfficeHours: S.payrollOfficeHours || {},
     payrollLocks: S.payrollLocks || {},
     googleCalendar: normalizeGoogleCalendarState(S.googleCalendar),
+    rev: nextRev,
     updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
   };
+  S.saveInFlight = true;
   try{
-    await ref.set(state, {merge:true});
-    // 月ごとの入れ子は merge:true だと消したキーがクラウドに残るため、フィールドごと置き換える
-    await ref.update({
-      payrollLocks: S.payrollLocks || {},
-      payrollOfficeHours: S.payrollOfficeHours || {},
-    });
-    await syncClosureSettings();
+    // mergeFields は列挙したフィールドを丸ごと置き換える（月ごとの入れ子で消したキーがクラウドに残らない）。
+    // Firestore ルールが rev をちょうど1つ進める書き込みしか通さないので、古い画面からの上書きは拒否される
+    await ref.set(state, { mergeFields: Object.keys(state) });
+    S.stateRev = nextRev;
+    clearSaveErrorFlash();
   }catch(err){
     console.error('Firestore保存エラー:', err);
+    S.saveInFlight = false;
+    if(err?.code === 'permission-denied' && fbAuth.currentUser){
+      try{
+        if(await readCloudStateRev(ref) !== S.stateRev){
+          blockSavesForConflict();
+          return;
+        }
+      }catch(readErr){
+        console.error('保存回数の確認エラー:', readErr);
+      }
+    }
+    showSaveErrorFlash();
+    return;
   }
+  S.saveInFlight = false;
+  await syncClosureSettings();
+}
+
+const STALE_CHECK_MIN_INTERVAL_MS = 30_000;
+let lastStaleCheckAt = 0;
+
+/** 別のタブや端末から戻ってきたとき、操作を始める前に古くなっていないか確かめる */
+async function checkCloudStateOnReturn(){
+  if(document.visibilityState !== 'visible') return;
+  if(!S.firestoreReady || S.saveBlocked || S.saveInFlight || S.saveTimer) return;
+  if(Date.now() - lastStaleCheckAt < STALE_CHECK_MIN_INTERVAL_MS) return;
+  const ref = getStateDocRef();
+  if(!ref) return;
+  lastStaleCheckAt = Date.now();
+  try{
+    const cloudRev = await readCloudStateRev(ref);
+    if(S.saveInFlight || S.saveTimer) return;
+    if(cloudRev !== S.stateRev) blockSavesForConflict();
+  }catch(err){
+    console.error('最新データの確認エラー:', err);
+  }
+}
+
+function startStaleStateWatcher(){
+  document.addEventListener('visibilitychange', checkCloudStateOnReturn);
 }
 
 // ログイン後、Firestoreから全データを読み込む（初回ログイン時はドキュメントが無いので空データで初期化する）
@@ -874,6 +991,7 @@ async function loadAppStateFromFirestore(){
   const snap = await ref.get();
   if(snap.exists){
     const d = snap.data();
+    S.stateRev = Number(d.rev) || 0;
     S.teachers = d.teachers || [];
     S.students = d.students || [];
     S.assignments = d.assignments || [];
@@ -904,6 +1022,7 @@ async function loadAppStateFromFirestore(){
     S.googleCalendar = normalizeGoogleCalendarState(d.googleCalendar);
   }else{
     // 初回ログイン：実運用として空のデータから始める（テスト用サンプルデータは使わない）
+    S.stateRev = 0;
     S.teachers = [];
     S.students = [];
     S.assignments = [];
@@ -935,6 +1054,7 @@ async function loadAppStateFromFirestore(){
   S.dataReady = true;
   S.studentDataReady = true;
   S.firestoreReady = true;
+  startStaleStateWatcher();
 
   const reopenedMakeups = reopenOrphanedMakeups();
   const promo = await applyGradePromotionsIfNeeded();

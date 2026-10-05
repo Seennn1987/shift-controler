@@ -33,6 +33,11 @@ export const S = {
   studentFees: { ...DEFAULT_STUDENT_FEES },
   saveTimer: null,
   firestoreReady: false,
+  /** 読み込んだ／最後に保存した appState の保存回数。クラウドと食い違えば別の画面が先に保存している */
+  stateRev: 0,
+  saveInFlight: false,
+  /** 別の画面との食い違いを見つけたら、読み直すまで保存しない */
+  saveBlocked: false,
   secondaryFbApp: null,
   teacherSchedulePollTimer: null,
   approvalPromotionPollTimer: null,

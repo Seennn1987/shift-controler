@@ -5,6 +5,7 @@ const POLL_INTERVAL_MS = {
   DEFAULT: 60_000,
   APPROVAL: 30_000,
   SLOW: 120_000,
+  RARE: 300_000,
 };
 
 function startVisiblePoll(run, intervalMs, options = {}){

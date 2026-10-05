@@ -94,13 +94,16 @@ export async function backfillAttentionFlags(fbDb, { adminUid = null, teacherLog
   return { scanned: snap.size, updated };
 }
 
+function toDocList(snap){
+  return snap.docs.map(doc=> ({ id: doc.id, data: doc.data(), ref: doc.ref }));
+}
+
 export async function fetchAdminApprovalDocs(fbDb, adminUid, mode = FIRESTORE_READ_FLAGS.approvalQueryMode){
   const col = fbDb.collection('assignmentApprovals');
-  const legacySnap = await col.where('adminUid', '==', adminUid).get();
-  const legacyDocs = legacySnap.docs.map(doc=> ({ id: doc.id, data: doc.data(), ref: doc.ref }));
+  const fetchLegacy = async ()=> toDocList(await col.where('adminUid', '==', adminUid).get());
 
   if(mode === 'legacy'){
-    return { docs: legacyDocs, shadow: null };
+    return { docs: await fetchLegacy(), shadow: null };
   }
 
   let attentionDocs = [];
@@ -109,11 +112,18 @@ export async function fetchAdminApprovalDocs(fbDb, adminUid, mode = FIRESTORE_RE
       .where('adminUid', '==', adminUid)
       .where('adminAttention', '==', true)
       .get();
-    attentionDocs = attentionSnap.docs.map(doc=> ({ id: doc.id, data: doc.data(), ref: doc.ref }));
+    attentionDocs = toDocList(attentionSnap);
   }catch(err){
     console.error('[firestore-read-safety] adminAttention クエリ失敗（legacy に退避）:', err);
-    return { docs: legacyDocs, shadow: null, fellBack: true };
+    return { docs: await fetchLegacy(), shadow: null, fellBack: true };
   }
+
+  // 全件の読み直しは承認記録が増えるほど重くなるため、attention では行わない（取りこぼしは1日1回の全件保険で補う）
+  if(mode === 'attention'){
+    return { docs: attentionDocs, shadow: null };
+  }
+
+  const legacyDocs = await fetchLegacy();
 
   const legacyProcessIds = idSet(legacyDocs.filter(d=> needsAdminProcessing(d.data)));
   const attentionIds = idSet(attentionDocs);
@@ -123,21 +133,15 @@ export async function fetchAdminApprovalDocs(fbDb, adminUid, mode = FIRESTORE_RE
   }else{
     console.info('[firestore-read-safety] admin Shadow一致', { count: legacyProcessIds.size });
   }
-
-  if(mode === 'shadow'){
-    return { docs: legacyDocs, shadow };
-  }
-  // attention: 処理は絞り込み結果。取りこぼしは呼び出し側の保険で補う
-  return { docs: attentionDocs, shadow, legacyDocs };
+  return { docs: legacyDocs, shadow };
 }
 
 export async function fetchTeacherApprovalDocs(fbDb, teacherLoginUid, mode = FIRESTORE_READ_FLAGS.approvalQueryMode){
   const col = fbDb.collection('assignmentApprovals');
-  const legacySnap = await col.where('teacherLoginUid', '==', teacherLoginUid).get();
-  const legacyDocs = legacySnap.docs.map(doc=> ({ id: doc.id, data: doc.data(), ref: doc.ref }));
+  const fetchLegacy = async ()=> toDocList(await col.where('teacherLoginUid', '==', teacherLoginUid).get());
 
   if(mode === 'legacy'){
-    return { docs: legacyDocs, shadow: null };
+    return { docs: await fetchLegacy(), shadow: null };
   }
 
   let attentionDocs = [];
@@ -146,12 +150,17 @@ export async function fetchTeacherApprovalDocs(fbDb, teacherLoginUid, mode = FIR
       .where('teacherLoginUid', '==', teacherLoginUid)
       .where('teacherAttention', '==', true)
       .get();
-    attentionDocs = attentionSnap.docs.map(doc=> ({ id: doc.id, data: doc.data(), ref: doc.ref }));
+    attentionDocs = toDocList(attentionSnap);
   }catch(err){
     console.error('[firestore-read-safety] teacherAttention クエリ失敗（legacy に退避）:', err);
-    return { docs: legacyDocs, shadow: null, fellBack: true };
+    return { docs: await fetchLegacy(), shadow: null, fellBack: true };
   }
 
+  if(mode === 'attention'){
+    return { docs: attentionDocs, shadow: null };
+  }
+
+  const legacyDocs = await fetchLegacy();
   const legacyNeedIds = idSet(legacyDocs.filter(d=> needsTeacherAttention(d.data)));
   const attentionIds = idSet(attentionDocs);
   const shadow = diffIds(legacyNeedIds, attentionIds);
@@ -160,11 +169,7 @@ export async function fetchTeacherApprovalDocs(fbDb, teacherLoginUid, mode = FIR
   }else{
     console.info('[firestore-read-safety] teacher Shadow一致', { count: legacyNeedIds.size });
   }
-
-  if(mode === 'shadow'){
-    return { docs: legacyDocs, shadow };
-  }
-  return { docs: attentionDocs, shadow, legacyDocs };
+  return { docs: legacyDocs, shadow };
 }
 
 /**
