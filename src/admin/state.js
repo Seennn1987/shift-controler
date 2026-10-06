@@ -86,6 +86,7 @@ export const S = {
   pendingGradePromotionNotice: null,
   officeHourlyRate: 1300,
   payrollOfficeHours: {},
+  payrollOfficeDays: {},
   payrollLocks: {},
   googleCalendar: emptyGoogleCalendarState(),
   payYear: undefined,

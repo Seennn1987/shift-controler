@@ -928,6 +928,7 @@ async function saveAppStateNow(){
     lastGradePromotionYear: S.lastGradePromotionYear,
     officeHourlyRate: S.officeHourlyRate,
     payrollOfficeHours: S.payrollOfficeHours || {},
+    payrollOfficeDays: S.payrollOfficeDays || {},
     payrollLocks: S.payrollLocks || {},
     googleCalendar: normalizeGoogleCalendarState(S.googleCalendar),
     rev: nextRev,
@@ -1018,6 +1019,7 @@ async function loadAppStateFromFirestore(){
     S.lastGradePromotionYear = d.lastGradePromotionYear != null ? d.lastGradePromotionYear : null;
     S.officeHourlyRate = d.officeHourlyRate != null ? d.officeHourlyRate : 1300;
     S.payrollOfficeHours = d.payrollOfficeHours && typeof d.payrollOfficeHours === 'object' ? d.payrollOfficeHours : {};
+    S.payrollOfficeDays = d.payrollOfficeDays && typeof d.payrollOfficeDays === 'object' ? d.payrollOfficeDays : {};
     S.payrollLocks = d.payrollLocks && typeof d.payrollLocks === 'object' ? d.payrollLocks : {};
     S.googleCalendar = normalizeGoogleCalendarState(d.googleCalendar);
   }else{
@@ -1043,6 +1045,7 @@ async function loadAppStateFromFirestore(){
     S.tuitionGradeRates = normalizeTuitionGradeRates(null);
     S.studentFees = { ...DEFAULT_STUDENT_FEES };
     S.payrollOfficeHours = {};
+    S.payrollOfficeDays = {};
     S.payrollLocks = {};
     S.googleCalendar = normalizeGoogleCalendarState(null);
   }

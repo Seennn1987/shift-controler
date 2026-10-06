@@ -2,7 +2,7 @@ import { mountInlineConfirm, showInlineNotice } from '../src/shared/inline-confi
 
 const OFFICE_RATE = 1300;
 const CSV_HEADERS = [
-  'Version', '従業員識別子', '従業員番号', '姓', '名',
+  'Version', '従業員識別子', '従業員番号', '姓', '名', '出勤日数（平日）',
   '基本給(月給)', '通勤手当/非課(月給)', '事務手当',
 ];
 
@@ -25,9 +25,9 @@ const state = {
   month: 8,
   locked: false,
   rows: [
-    { teacherId: 't1', teacherName: '白澤 慶斗', employeeNumber: '001', perLessonRate: 2200, lessonCount: 12, workDays: 8, lessonPay: 26400, transportPay: 3200, officeHours: 0 },
-    { teacherId: 't2', teacherName: '山田 花子', employeeNumber: '002', perLessonRate: 2200, lessonCount: 8, workDays: 6, lessonPay: 17600, transportPay: 2400, officeHours: 1.5 },
-    { teacherId: 't3', teacherName: '佐藤 太郎', employeeNumber: '003', perLessonRate: 2200, lessonCount: 4, workDays: 3, lessonPay: 8800, transportPay: 1500, officeHours: 0 },
+    { teacherId: 't1', teacherName: '白澤 慶斗', employeeNumber: '001', perLessonRate: 2200, dailyTransport: 400, lessonCount: 12, lessonDays: 8, officeOnlyDays: 0, lessonPay: 26400, officeHours: 0 },
+    { teacherId: 't2', teacherName: '山田 花子', employeeNumber: '002', perLessonRate: 2200, dailyTransport: 400, lessonCount: 8, lessonDays: 6, officeOnlyDays: 2, lessonPay: 17600, officeHours: 6 },
+    { teacherId: 't3', teacherName: '佐藤 太郎', employeeNumber: '003', perLessonRate: 2200, dailyTransport: 500, lessonCount: 4, lessonDays: 3, officeOnlyDays: 0, lessonPay: 8800, officeHours: 0 },
   ],
 };
 
@@ -36,8 +36,10 @@ function yen(n){
 }
 
 function withPay(row){
+  const workDays = row.lessonDays + row.officeOnlyDays;
+  const transportPay = workDays * row.dailyTransport;
   const officePay = Math.round((row.officeHours || 0) * OFFICE_RATE);
-  return { ...row, officePay, total: row.lessonPay + row.transportPay + officePay };
+  return { ...row, workDays, transportPay, officePay, total: row.lessonPay + transportPay + officePay };
 }
 
 function rows(){
@@ -61,7 +63,7 @@ function downloadCsv(){
   rows().filter(hasAmount).forEach(row=>{
     const [last, ...rest] = row.teacherName.split(/\s+/);
     lines.push([
-      '3', '', row.employeeNumber, last, rest.join(' '),
+      '3', '', row.employeeNumber, last, rest.join(' '), String(row.workDays),
       String(row.lessonPay), String(row.transportPay), String(row.officePay),
     ].map(csvCell).join(','));
   });
@@ -147,7 +149,10 @@ function render(){
       : '';
     const hoursInputHtml = state.locked
       ? `<span class="student-row-pref">事務時間 ${row.officeHours || 0}時間</span>`
-      : `<label class="student-row-pref" for="pay-hours-${row.teacherId}">事務時間 <input type="text" inputmode="decimal" id="pay-hours-${row.teacherId}" class="payroll-hours-input" data-teacher-id="${row.teacherId}" value="${row.officeHours || ''}" aria-label="${row.teacherName}の事務時間"> 時間</label>`;
+      : `<label class="student-row-pref" for="pay-hours-${row.teacherId}">事務時間 <input type="text" inputmode="decimal" id="pay-hours-${row.teacherId}" class="payroll-hours-input" data-field="hours" data-teacher-id="${row.teacherId}" value="${row.officeHours || ''}" aria-label="${row.teacherName}の事務時間"> 時間</label>`;
+    const daysInputHtml = state.locked
+      ? `<span class="student-row-pref">事務だけの日 ${row.officeOnlyDays || 0}日</span>`
+      : `<label class="student-row-pref" for="pay-days-${row.teacherId}">事務だけの日 <input type="text" inputmode="numeric" id="pay-days-${row.teacherId}" class="payroll-hours-input" data-field="days" data-teacher-id="${row.teacherId}" value="${row.officeOnlyDays || ''}" aria-label="${row.teacherName}の、授業のない日に事務だけで来た日数"> 日</label>`;
     return `<div class="student-row${missingRow ? ' needs-action' : ''}">
       ${statusHtml}
       <div class="student-row-main">
@@ -157,6 +162,8 @@ function render(){
         </div>
         <div class="student-row-course">
           <span class="student-row-pref">コマ ${row.lessonCount}</span>
+          <span class="student-row-pref">授業のある日 ${row.lessonDays}日</span>
+          ${daysInputHtml}
           <span class="student-row-pref">出勤 ${row.workDays}日</span>
           <span class="student-row-pref">授業給 ${yen(row.lessonPay)}</span>
           <span class="student-row-pref">交通費 ${yen(row.transportPay)}</span>
@@ -226,8 +233,19 @@ function schedulePreviewRerender(){
 }
 
 function applyOfficeHoursFromInput(input, notice){
-  const n = Number(input.value);
   const row = state.rows.find(r=> r.teacherId === input.dataset.teacherId);
+  if(input.dataset.field === 'days'){
+    const text = input.value.trim();
+    const d = text === '' ? 0 : Number(text);
+    if(!row || !Number.isInteger(d) || d < 0){
+      input.value = row && row.officeOnlyDays ? String(row.officeOnlyDays) : '';
+      showInlineNotice(notice, '事務だけの日は0以上の整数で入力してください。', { variant: 'warn' });
+      return false;
+    }
+    row.officeOnlyDays = d;
+    return true;
+  }
+  const n = Number(input.value);
   if(!row || !Number.isFinite(n) || n < 0){
     input.value = row && row.officeHours ? String(row.officeHours) : '';
     showInlineNotice(notice, '事務時間は0以上の数字で入力してください。', { variant: 'warn' });

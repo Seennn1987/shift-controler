@@ -114,6 +114,14 @@ export function parseOfficeHours(raw){
   return n;
 }
 
+export function parseOfficeDays(raw){
+  const text = String(raw ?? '').trim();
+  if(text === '') return 0;
+  const n = Number(text);
+  if(!Number.isInteger(n) || n < 0) return null;
+  return n;
+}
+
 export function computeOfficePay(hours, hourlyRate){
   const h = Number(hours) || 0;
   const rate = Number(hourlyRate) || 0;
@@ -135,6 +143,8 @@ function emptyTeacherPay(teacher){
     nameKana: teacher.nameKana || '',
     employeeNumber: String(teacher.employeeNumber || '').trim(),
     lessonCount: 0,
+    lessonDays: 0,
+    officeOnlyDays: 0,
     workDays: 0,
     lessonPay: 0,
     transportPay: 0,
@@ -162,6 +172,29 @@ export function setOfficeHours(yearMonth, teacherId, hours){
     }
   }else{
     S.payrollOfficeHours[yearMonth][teacherId] = hours;
+  }
+  scheduleSave();
+}
+
+/** 授業のない日に事務だけで来た日数（授業のある日は自動で数えるので含めない） */
+export function getOfficeDays(yearMonth, teacherId){
+  const monthMap = S.payrollOfficeDays?.[yearMonth];
+  const n = monthMap ? Number(monthMap[teacherId]) : 0;
+  return Number.isInteger(n) && n > 0 ? n : 0;
+}
+
+export function setOfficeDays(yearMonth, teacherId, days){
+  if(!S.payrollOfficeDays || typeof S.payrollOfficeDays !== 'object') S.payrollOfficeDays = {};
+  if(!S.payrollOfficeDays[yearMonth] || typeof S.payrollOfficeDays[yearMonth] !== 'object'){
+    S.payrollOfficeDays[yearMonth] = {};
+  }
+  if(!days){
+    delete S.payrollOfficeDays[yearMonth][teacherId];
+    if(Object.keys(S.payrollOfficeDays[yearMonth]).length === 0){
+      delete S.payrollOfficeDays[yearMonth];
+    }
+  }else{
+    S.payrollOfficeDays[yearMonth][teacherId] = days;
   }
   scheduleSave();
 }
@@ -204,16 +237,17 @@ export function computeLiveMonthPayroll(year, monthIndex, officeHourlyRate){
       row.lessonPay += getTeacherRateForDate(teacher, dateStr) || 0;
     });
     teacherIdsToday.forEach(tid=>{
-      const teacher = S.teachers.find(t=> t.id === tid);
       const row = byId.get(tid);
-      if(!teacher || !row) return;
-      row.workDays += 1;
-      row.transportPay += teacher.dailyTransport || 0;
+      if(row) row.lessonDays += 1;
     });
   }
 
   const rate = officeHourlyRate != null ? officeHourlyRate : (S.officeHourlyRate ?? DEFAULT_OFFICE_HOURLY_RATE);
   byId.forEach(row=>{
+    const teacher = S.teachers.find(t=> t.id === row.teacherId);
+    row.officeOnlyDays = getOfficeDays(ym, row.teacherId);
+    row.workDays = row.lessonDays + row.officeOnlyDays;
+    row.transportPay = row.workDays * (teacher?.dailyTransport || 0);
     row.officeHours = getOfficeHours(ym, row.teacherId);
     row.officePay = computeOfficePay(row.officeHours, rate);
     row.total = row.lessonPay + row.transportPay + row.officePay;
@@ -264,6 +298,7 @@ export function buildPayrollCsv(rows){
     cells['従業員番号'] = row.employeeNumber;
     cells['姓'] = lastName;
     cells['名'] = firstName;
+    cells['出勤日数（平日）'] = String(row.workDays || 0);
     cells['基本給(月給)'] = String(row.lessonPay || 0);
     cells['通勤手当/非課(月給)'] = String(row.transportPay || 0);
     cells[MF_OFFICE_PAY_COLUMN] = String(row.officePay || 0);
@@ -366,11 +401,13 @@ export function unlockPayrollMonth(yearMonth){
 export function sumPayrollRows(rows){
   return rows.reduce((acc, row)=>{
     acc.lessonCount += row.lessonCount || 0;
+    acc.lessonDays += row.lessonDays || 0;
+    acc.officeOnlyDays += row.officeOnlyDays || 0;
     acc.workDays += row.workDays || 0;
     acc.lessonPay += row.lessonPay || 0;
     acc.transportPay += row.transportPay || 0;
     acc.officePay += row.officePay || 0;
     acc.total += row.total || 0;
     return acc;
-  }, { lessonCount: 0, workDays: 0, lessonPay: 0, transportPay: 0, officePay: 0, total: 0 });
+  }, { lessonCount: 0, lessonDays: 0, officeOnlyDays: 0, workDays: 0, lessonPay: 0, transportPay: 0, officePay: 0, total: 0 });
 }

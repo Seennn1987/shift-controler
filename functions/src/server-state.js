@@ -43,6 +43,7 @@ function initialState(){
     lastGradePromotionYear: null,
     officeHourlyRate: 1300,
     payrollOfficeHours: {},
+    payrollOfficeDays: {},
     payrollLocks: {},
     googleCalendar: emptyGoogleCalendarState(),
   };
@@ -91,6 +92,7 @@ export function fillState(appState, scheduleDocs){
     lastGradePromotionYear: d.lastGradePromotionYear != null ? d.lastGradePromotionYear : null,
     officeHourlyRate: d.officeHourlyRate != null ? d.officeHourlyRate : 1300,
     payrollOfficeHours: d.payrollOfficeHours && typeof d.payrollOfficeHours === 'object' ? d.payrollOfficeHours : {},
+    payrollOfficeDays: d.payrollOfficeDays && typeof d.payrollOfficeDays === 'object' ? d.payrollOfficeDays : {},
     payrollLocks: d.payrollLocks && typeof d.payrollLocks === 'object' ? d.payrollLocks : {},
     googleCalendar: normalizeGoogleCalendarState(d.googleCalendar),
     teacherSchedules: flattenTeacherSchedules(scheduleDocs || []),

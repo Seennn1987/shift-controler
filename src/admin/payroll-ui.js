@@ -6,7 +6,9 @@ import {
   downloadPayrollCsv,
   ensurePayrollMonth,
   lockPayrollMonth,
+  parseOfficeDays,
   parseOfficeHours,
+  setOfficeDays,
   setOfficeHours,
   sumPayrollRows,
   teachersMissingEmployeeNumber,
@@ -41,8 +43,17 @@ function renderPayrollRow(row, locked, missingEmp){
   const hoursInputHtml = locked
     ? `<span class="student-row-pref">事務時間 ${escapeHtml(hoursLabel(row.officeHours))}時間</span>`
     : `<label class="student-row-pref" for="pay-hours-${escapeHtml(row.teacherId)}">事務時間
-        <input type="text" inputmode="decimal" id="pay-hours-${escapeHtml(row.teacherId)}" class="payroll-hours-input" data-teacher-id="${escapeHtml(row.teacherId)}" value="${escapeHtml(hoursValue)}" aria-label="${escapeHtml(row.teacherName)}の事務時間">
+        <input type="text" inputmode="decimal" id="pay-hours-${escapeHtml(row.teacherId)}" class="payroll-hours-input" data-field="hours" data-teacher-id="${escapeHtml(row.teacherId)}" value="${escapeHtml(hoursValue)}" aria-label="${escapeHtml(row.teacherName)}の事務時間">
         時間
+      </label>`;
+  // この機能より前に確定した月は、授業のある日・事務だけの日を持たない
+  const lessonDays = row.lessonDays ?? row.workDays ?? 0;
+  const officeOnlyDays = row.officeOnlyDays || 0;
+  const daysInputHtml = locked
+    ? `<span class="student-row-pref">事務だけの日 ${officeOnlyDays}日</span>`
+    : `<label class="student-row-pref" for="pay-days-${escapeHtml(row.teacherId)}">事務だけの日
+        <input type="text" inputmode="numeric" id="pay-days-${escapeHtml(row.teacherId)}" class="payroll-hours-input" data-field="days" data-teacher-id="${escapeHtml(row.teacherId)}" value="${officeOnlyDays || ''}" aria-label="${escapeHtml(row.teacherName)}の、授業のない日に事務だけで来た日数">
+        日
       </label>`;
   return `<div class="student-row${missingEmp ? ' needs-action' : ''}" data-teacher-id="${escapeHtml(row.teacherId)}">
     ${statusHtml}
@@ -53,6 +64,8 @@ function renderPayrollRow(row, locked, missingEmp){
       </div>
       <div class="student-row-course">
         <span class="student-row-pref">コマ ${row.lessonCount || 0}</span>
+        <span class="student-row-pref">授業のある日 ${lessonDays}日</span>
+        ${daysInputHtml}
         <span class="student-row-pref">出勤 ${row.workDays || 0}日</span>
         <span class="student-row-pref">授業給 ${yen(row.lessonPay)}</span>
         <span class="student-row-pref">交通費 ${yen(row.transportPay)}</span>
@@ -197,16 +210,26 @@ function schedulePayrollRerender(){
   payrollRerenderTimer = setTimeout(()=> renderPayroll(), 0);
 }
 
-function getHoursFallback(teacherId){
+function getRowFallback(teacherId){
   const model = buildPayrollViewModel(S.payYear, S.payMonth);
-  const row = model.rows.find(r=> r.teacherId === teacherId);
-  return row?.officeHours || 0;
+  return model.rows.find(r=> r.teacherId === teacherId);
 }
 
 function applyOfficeHoursFromInput(input, yearMonth, notice){
+  if(input.dataset.field === 'days'){
+    const days = parseOfficeDays(input.value);
+    if(days == null){
+      const fallback = getRowFallback(input.dataset.teacherId)?.officeOnlyDays || 0;
+      input.value = fallback ? String(fallback) : '';
+      if(notice) showInlineNotice(notice, '事務だけの日は0以上の整数で入力してください。', { variant: 'warn' });
+      return false;
+    }
+    setOfficeDays(yearMonth, input.dataset.teacherId, days);
+    return true;
+  }
   const parsed = parseOfficeHours(input.value);
   if(parsed == null){
-    input.value = hoursLabel(getHoursFallback(input.dataset.teacherId));
+    input.value = hoursLabel(getRowFallback(input.dataset.teacherId)?.officeHours || 0);
     if(notice) showInlineNotice(notice, '事務時間は0以上の数字で入力してください。', { variant: 'warn' });
     return false;
   }
