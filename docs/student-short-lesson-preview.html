@@ -1,0 +1,66 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>小学生・40分授業 時間割プレビュー</title>
+  <link rel="stylesheet" href="/src/admin/styles/admin.css">
+  <style>
+    body{margin:0;background:var(--cream);color:var(--ink);font-family:var(--font-family);}
+    .preview-header{padding:16px 20px;background:var(--surface-card);border-bottom:1px solid var(--border);}
+    .preview-header h1{font-size:var(--text-lg);margin:0 0 6px;}
+    .preview-main{padding:16px 20px;max-width:880px;}
+    .preview-note{font-size:var(--text-sm);color:var(--ink-soft);}
+  </style>
+</head>
+<body>
+  <header class="preview-header">
+    <h1>小学生の時間割（40分）</h1>
+    <p class="preview-note">1マスの上下が前半と後半です。90分の授業はマス全体を使います。ボタンを押すと、長さの選び方が出ます。</p>
+  </header>
+  <main class="preview-main">
+    <table class="avail-grid student-course-grid">
+      <thead>
+        <tr>
+          <th class="slot-h">時間割</th>
+          <th>月</th>
+          <th>火</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <th class="slot-h">4講<br><span class="slot-time">14:50〜16:20</span></th>
+          <td class="scc-cell scc-split" data-day="月" data-slot="4">
+            <div class="scc-half-stack">
+              <button type="button" class="scc-slot-btn scc-slot-filled-btn scc-half-btn" data-half="early">
+                <span class="scc-dual-mode-label">前半 14:50〜15:30</span>
+                <span class="scc-subject-name" style="background:var(--green-100);color:var(--green-800);">算数</span>
+              </button>
+              <button type="button" class="scc-slot-btn scc-empty-btn scc-half-btn has-avail" data-half="late">
+                <span class="scc-dual-mode-label">後半 15:40〜16:20</span>
+                <span class="scc-avail-count">＋ 講師2</span>
+              </button>
+            </div>
+          </td>
+          <td class="scc-cell scc-filled" data-day="火" data-slot="4">
+            <button type="button" class="scc-slot-btn scc-slot-filled-btn" data-half="full">
+              <span class="scc-dual-mode-label">90分</span>
+              <span class="scc-subject-name" style="background:var(--green-100);color:var(--green-800);">国語</span>
+            </button>
+          </td>
+        </tr>
+      </tbody>
+    </table>
+    <p class="preview-note" id="previewChoice">マスを押すと、ここに選んだ長さが出ます。</p>
+  </main>
+  <script>
+    document.querySelectorAll('.scc-slot-btn').forEach(btn=>{
+      btn.addEventListener('click', ()=>{
+        const half = btn.dataset.half;
+        const text = half === 'early' ? '40分・前半（14:50〜15:30）' : half === 'late' ? '40分・後半（15:40〜16:20）' : '90分（14:50〜16:20）';
+        document.getElementById('previewChoice').textContent = '選んだ授業：' + text + '。40分は1教科だけです。';
+      });
+    });
+  </script>
+</body>
+</html>

@@ -3,7 +3,8 @@ import { emptyGoogleCalendarState, normalizeGoogleCalendarState } from '../../sr
 import { normalizeClosedHolidayDates, areAllHolidaysClosed } from '../../src/shared/holidays.js';
 import { normalizeMatchingPriority } from '../../src/admin/matching-config.js';
 import { DEFAULT_STUDENT_FEES } from '../../src/shared/constants.js';
-import { normalizeTuitionGradeRates } from '../../src/admin/tuition-rates.js';
+import { clampShortPayPercent } from '../../src/shared/lesson-span.js';
+import { normalizeShortTuitionRates, normalizeTuitionGradeRates } from '../../src/admin/tuition-rates.js';
 
 export const firebaseConfig = {};
 export const fbAuth = { currentUser: null };
@@ -29,6 +30,8 @@ function initialState(){
     customClosures: [],
     preferredPairs: [],
     tuitionGradeRates: normalizeTuitionGradeRates(null),
+    tuitionGradeRatesShort: normalizeShortTuitionRates(null),
+    shortLessonPayPercent: clampShortPayPercent(null),
     programmingMonthlyFee: 0,
     studentFees: { ...DEFAULT_STUDENT_FEES },
     regularClosedDays: ['日'],
@@ -81,6 +84,8 @@ export function fillState(appState, scheduleDocs){
     customClosures: d.customClosures || [],
     preferredPairs: d.preferredPairs || [],
     tuitionGradeRates: normalizeTuitionGradeRates(d),
+    tuitionGradeRatesShort: normalizeShortTuitionRates(d),
+    shortLessonPayPercent: clampShortPayPercent(d.shortLessonPayPercent),
     programmingMonthlyFee: d.programmingMonthlyFee != null ? d.programmingMonthlyFee : 0,
     studentFees: { ...DEFAULT_STUDENT_FEES, ...(d.studentFees || {}) },
     regularClosedDays: d.regularClosedDays || ['日'],

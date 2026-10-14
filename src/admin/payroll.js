@@ -1,4 +1,5 @@
 import { pad2, toDateStr } from '../shared/date-utils.js';
+import { komaCountForTeacherSlot, lessonPayForSlot } from '../shared/lesson-span.js';
 import { sortByNameKana } from '../shared/person-sort.js';
 import { activeTeachers } from './active-people.js';
 import { getDayStatus } from './calendar.js';
@@ -221,20 +222,23 @@ export function computeLiveMonthPayroll(year, monthIndex, officeHourlyRate){
     const dateStr = toDateStr(year, monthIndex, day);
     if(getDayStatus(dateStr).type !== 'open') continue;
     const list = paidAssignmentsOnDate(dateStr);
-    const teacherSlotSet = new Set();
+    const teacherSlotGroups = new Map();
     const teacherIdsToday = new Set();
     list.forEach(a=>{
       if(!a.teacherId || !byId.has(a.teacherId)) return;
-      teacherSlotSet.add(`${a.teacherId}|${a.slot}`);
+      const key = `${a.teacherId}|${a.slot}`;
+      if(!teacherSlotGroups.has(key)) teacherSlotGroups.set(key, []);
+      teacherSlotGroups.get(key).push(a);
       teacherIdsToday.add(a.teacherId);
     });
-    teacherSlotSet.forEach(key=>{
+    teacherSlotGroups.forEach((assignments, key)=>{
       const tid = key.split('|')[0];
       const teacher = S.teachers.find(t=> t.id === tid);
       const row = byId.get(tid);
       if(!teacher || !row) return;
-      row.lessonCount += 1;
-      row.lessonPay += getTeacherRateForDate(teacher, dateStr) || 0;
+      const rate = getTeacherRateForDate(teacher, dateStr) || 0;
+      row.lessonCount += komaCountForTeacherSlot(assignments);
+      row.lessonPay += lessonPayForSlot(rate, S.shortLessonPayPercent, assignments);
     });
     teacherIdsToday.forEach(tid=>{
       const row = byId.get(tid);

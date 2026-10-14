@@ -30,7 +30,7 @@ function computeSheetAmounts(data){
   const initial = Math.max(0, (Number(f.enrollment) || 0) + (Number(f.registration) || 0) - (Number(disc.initial) || 0));
   const annualBase = data.startMonth1 ? firstYearAnnualFee(data.startMonth1, f) : Number(f.annual) || 0;
   const annual = Math.max(0, annualBase - (Number(disc.annual) || 0));
-  const tuition = data.rate * data.weeklyUnits * 4;
+  const tuition = data.tuitionMonthly != null ? data.tuitionMonthly : data.rate * data.weeklyUnits * 4;
   const monthlyFees = Math.max(0, (Number(f.maintenance) || 0) + (Number(f.elearning) || 0) - (Number(disc.monthly) || 0));
   const programming = data.programmingFee || 0;
   return { initial, annualBase, annual, tuition, monthlyFees, programming, monthlyTotal: tuition + monthlyFees + programming };
@@ -73,7 +73,7 @@ function weekHtml(data){
         <thead><tr><th scope="col" class="ps-week-corner">時間</th>${head}</tr></thead>
         <tbody>${rows}</tbody>
       </table>
-      <p class="ps-note-line">1コマ90分です。週${data.weeklyUnits}コマ${data.programmingFee ? '（プログラミングは別に月額）' : ''}</p>
+      <p class="ps-note-line">${data.durationNote || `1コマ90分です。週${data.weeklyUnits}コマ`}${data.programmingFee ? '（プログラミングは別に月額）' : ''}</p>
     </section>`;
 }
 

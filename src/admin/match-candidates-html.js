@@ -14,8 +14,8 @@ import { teacherTeachesBoth } from './dual-subject.js';
 import { getOwnerTeacher } from './owner-teacher.js';
 import { isActivePerson } from './active-people.js';
 
-function withOwnerCandidate(candidates, student, courseId, subject, day, slot, dateStr){
-  const info = buildCandidateInfo(student.id, courseId, student.level, subject, day, slot, getOwnerTeacher(), dateStr);
+function withOwnerCandidate(candidates, student, courseId, subject, day, slot, dateStr, half){
+  const info = buildCandidateInfo(student.id, courseId, student.level, subject, day, slot, getOwnerTeacher(), dateStr, half);
   if(info.full) return candidates;
   return [...candidates, info];
 }
@@ -34,7 +34,9 @@ export function buildMatchCandidatesHtml(student, courseId, subject, day, slot, 
   const {
     btnClass = 'confirm-btn',
     showConfirm = true,
+    half = undefined,
   } = opts;
+  const capHalf = half === 'early' || half === 'late' ? half : undefined;
   const { swapping, excludeTeacherId, listOpts } = resolveSwapOpts(opts);
   const detailYearMonth = dateStr ? dateStr.slice(0, 7) : getActiveYearMonth();
   const teacherInfos = S.teachers
@@ -42,13 +44,13 @@ export function buildMatchCandidatesHtml(student, courseId, subject, day, slot, 
     .filter(t=> t.id !== excludeTeacherId)
     .filter(t=> dateStr ? isTeacherAvailableOnDate(t.id, dateStr, slot) : isAvailable(t, day, slot))
     .filter(t=> t.subjects.some(ts=> ts.level === student.level && ts.subject === subject))
-    .map(t=> buildCandidateInfo(student.id, courseId, student.level, subject, day, slot, t, dateStr))
+    .map(t=> buildCandidateInfo(student.id, courseId, student.level, subject, day, slot, t, dateStr, capHalf))
     .sort(compareCandidateInfo);
   const candidates = swapping
     ? teacherInfos
-    : withOwnerCandidate(teacherInfos, student, courseId, subject, day, slot, dateStr);
+    : withOwnerCandidate(teacherInfos, student, courseId, subject, day, slot, dateStr, capHalf);
 
-  const roomUsed = dateStr ? countRoomSlotOnDate(dateStr, slot, student.id) : countRoomSlot(day, slot, student.id, detailYearMonth);
+  const roomUsed = dateStr ? countRoomSlotOnDate(dateStr, slot, student.id, capHalf) : countRoomSlot(day, slot, student.id, detailYearMonth, capHalf);
   const roomFull = roomUsed >= S.roomCapacity;
   const teacherCandidates = candidates.filter(c=> !c.teacher?.isOwner);
   const ownerOnly = teacherCandidates.length === 0 && candidates.length > 0;
@@ -76,6 +78,7 @@ export function buildMatchCandidatesHtml(student, courseId, subject, day, slot, 
         btnClass,
         roomFull,
         showConfirm,
+        half: capHalf,
       });
     }
     return html;
@@ -91,6 +94,7 @@ export function buildMatchCandidatesHtml(student, courseId, subject, day, slot, 
     btnClass,
     roomFull,
     showConfirm,
+    half: capHalf,
     ...listOpts,
   });
   if(!html && !roomFull){

@@ -22,9 +22,11 @@ import { isActivePerson, syncHideButton } from './active-people.js';
 import { initGoogleCalendarSettings } from './google-calendar.js';
 import { installReadSafetySelfTest } from './read-safety-selftest.js';
 import { bindStudentFeePreview } from './student-fee-preview.js';
-import { tuitionGradeRows } from './tuition-rates.js';
+import { clampShortPayPercent } from '../shared/lesson-span.js';
+import { shortTuitionGradeRows, tuitionGradeRows } from './tuition-rates.js';
 
 const TUITION_AREA_IDS = { basic: 'tuitionBasicArea', advance: 'tuitionAdvanceArea' };
+const SHORT_TUITION_AREA_IDS = { basic: 'tuitionShortBasicArea', advance: 'tuitionShortAdvanceArea' };
 
 function renderTuitionGradeInputs(){
   Object.entries(TUITION_AREA_IDS).forEach(([course, areaId])=>{
@@ -38,6 +40,25 @@ function renderTuitionGradeInputs(){
           return `<div class="pay-input-item">
             <label for="${id}">${label}（円/コマ）</label>
             <input type="text" inputmode="numeric" id="${id}" data-tuition-course="${course}" data-tuition-key="${key}" value="${value}">
+          </div>`;
+        }).join('')}
+      </div>`).join('');
+  });
+}
+
+function renderShortTuitionInputs(){
+  const rows = shortTuitionGradeRows();
+  Object.entries(SHORT_TUITION_AREA_IDS).forEach(([course, areaId])=>{
+    const area = document.getElementById(areaId);
+    if(!area) return;
+    area.innerHTML = rows.map(({ items })=>`
+      <div class="tuition-input-row tuition-grade-row">
+        ${items.map(({ key, label })=>{
+          const id = `tuition-short-${course}-${key}`;
+          const value = S.tuitionGradeRatesShort?.[course]?.[key] ?? 0;
+          return `<div class="pay-input-item">
+            <label for="${id}">${label}（円/コマ）</label>
+            <input type="text" inputmode="numeric" id="${id}" data-short-tuition-course="${course}" data-short-tuition-key="${key}" value="${value}">
           </div>`;
         }).join('')}
       </div>`).join('');
@@ -91,6 +112,8 @@ async function init(){
   document.getElementById('teacherCapacityInput').value = String(S.teacherCapacity);
   document.getElementById('settingsRoomCapacityInput').value = String(S.roomCapacity);
   renderTuitionGradeInputs();
+  renderShortTuitionInputs();
+  document.getElementById('shortLessonPayPercentInput').value = String(S.shortLessonPayPercent ?? 50);
   document.getElementById('finGradientMinInput').value = String(S.finGradientMin);
   document.getElementById('finGradientMaxInput').value = String(S.finGradientMax);
   document.getElementById('officeHourlyRateInput').value = String(S.officeHourlyRate ?? 1300);
@@ -366,6 +389,28 @@ async function init(){
     e.target.value = String(v);
     document.getElementById('roomCapDisplay').textContent = String(v);
     renderMatching();
+    scheduleSave();
+  });
+  Object.values(SHORT_TUITION_AREA_IDS).forEach(areaId=>{
+    document.getElementById(areaId).addEventListener('change', (e)=>{
+      const input = e.target.closest('input[data-short-tuition-course]');
+      if(!input) return;
+      const { shortTuitionCourse: course, shortTuitionKey: key } = input.dataset;
+      let v = parseInt(input.value, 10);
+      if(!Number.isFinite(v) || v < 0) v = 0;
+      if(!S.tuitionGradeRatesShort[course]) S.tuitionGradeRatesShort[course] = {};
+      S.tuitionGradeRatesShort[course][key] = v;
+      input.value = String(v);
+      if(typeof renderFinance === 'function') renderFinance();
+      scheduleSave();
+    });
+  });
+  document.getElementById('shortLessonPayPercentInput').addEventListener('change', (e)=>{
+    const v = clampShortPayPercent(e.target.value);
+    S.shortLessonPayPercent = v;
+    e.target.value = String(v);
+    if(typeof renderFinance === 'function') renderFinance();
+    renderPayroll();
     scheduleSave();
   });
   Object.values(TUITION_AREA_IDS).forEach(areaId=>{

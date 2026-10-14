@@ -1,4 +1,5 @@
 import { SUBJECT_MAP, DAYS, SLOTS, WEEKDAY_JP, WEEK_FULL, SUBJECT_ABBR } from '../shared/constants.js';
+import { normalizeHalf } from '../shared/lesson-span.js';
 import { findHoliday, isClosedHoliday } from '../shared/holidays.js';
 import { pad2, daysInYearMonth, toDateStr, getTodayStr, isOnOrAfterDate } from '../shared/date-utils.js';
 import { firebaseConfig, fbAuth, fbDb, STORAGE_KEY, getSecondaryAuth, S } from './state.js';
@@ -10,15 +11,15 @@ import { getWeekMonday, renderCalendarWeek, renderMatrix } from './finance-ui.js
 import { renderMatching } from './matching.js';
 import { subjectColor, isTeacherAvailableOnDate } from './schedule-core.js';
 import { findEffectiveAssignment, renderApprovalStatus, renderTeacherScheduleTab } from './teacher-schedule-tab.js';
-import { findDualPairAtSlot, collapseDualAssignmentDisplayRows, countSlotAssignmentUnits, formatDualSubjectLabel } from './dual-subject.js';
+import { findDualPairAtSlot, collapseDualAssignmentDisplayRows, countBusiestHalfUnits, formatDualSubjectLabel } from './dual-subject.js';
 import { findTeacher } from './owner-teacher.js';
 import { isActivePerson, personAppliesOnDate } from './active-people.js';
 
 // カレンダー（トップページ・TimeTree風シンプルUI）
 // =====================================================================
 
-function coveringState(studentId, courseId, day, slot, yearMonth, dateStr){
-  const eff = findEffectiveAssignment(studentId, courseId, day, slot, yearMonth, dateStr);
+function coveringState(studentId, courseId, day, slot, yearMonth, dateStr, half){
+  const eff = findEffectiveAssignment(studentId, courseId, day, slot, yearMonth, dateStr, half);
   if(!eff) return { covered: false, missingTeacher: null };
   if(isAssignedTeacherMissingOnDate(eff.entry, dateStr)){
     return { covered: true, missingTeacher: eff.entry };
@@ -26,8 +27,8 @@ function coveringState(studentId, courseId, day, slot, yearMonth, dateStr){
   return { covered: true, missingTeacher: null };
 }
 
-function hasCoveringTeacher(studentId, courseId, day, slot, yearMonth, dateStr){
-  return coveringState(studentId, courseId, day, slot, yearMonth, dateStr).covered;
+function hasCoveringTeacher(studentId, courseId, day, slot, yearMonth, dateStr, half){
+  return coveringState(studentId, courseId, day, slot, yearMonth, dateStr, half).covered;
 }
 
 
@@ -188,8 +189,9 @@ function countUnassignedDesiredForSlot(dateStr, slotId){
           count++;
           return;
         }
-        if(findAbsenceFor(student.id, course.id, dateStr, ds.day, ds.slot)) return;
-        if(hasCoveringTeacher(student.id, course.id, ds.day, ds.slot, yearMonth, dateStr)) return;
+        const half = normalizeHalf(ds.half);
+        if(findAbsenceFor(student.id, course.id, dateStr, ds.day, ds.slot, half)) return;
+        if(hasCoveringTeacher(student.id, course.id, ds.day, ds.slot, yearMonth, dateStr, half)) return;
         count++;
       });
     });
@@ -238,12 +240,13 @@ function getUnassignedRowsForDate(dateStr){
           });
           return;
         }
-        if(findAbsenceFor(student.id, course.id, dateStr, ds.day, ds.slot)) return;
-        const cover = coveringState(student.id, course.id, ds.day, ds.slot, yearMonth, dateStr);
+        const half = normalizeHalf(ds.half);
+        if(findAbsenceFor(student.id, course.id, dateStr, ds.day, ds.slot, half)) return;
+        const cover = coveringState(student.id, course.id, ds.day, ds.slot, yearMonth, dateStr, half);
         if(cover.covered) return;
         const slot = SLOTS.find(sl=> sl.id === ds.slot);
         if(!slot) return;
-        rows.push({ student, course, courses: null, dualPair: null, slot, weekday, missingTeacher: cover.missingTeacher });
+        rows.push({ student, course, courses: null, dualPair: null, slot, weekday, half, missingTeacher: cover.missingTeacher });
       });
     });
   });
@@ -301,7 +304,13 @@ function buildDayHeat(dateStr){
   const activeTeachers = S.teachers.filter(t=> personAppliesOnDate(t, dateStr));
   return SLOTS.map(slot=>{
     const slotList = list.filter(a=> a.slot === slot.id);
-    const confirmedCount = countSlotAssignmentUnits(slotList);
+    const confirmedCount = countBusiestHalfUnits(slotList.map(a=>({
+      studentId: a.studentId,
+      day: a.day,
+      slot: a.slot,
+      half: a.half,
+      dualGroupId: a.dualGroupId || null,
+    })));
     const pendingCount = countUnassignedDesiredForSlot(dateStr, slot.id);
     const absenceCount = absences.filter(r=> Number(r.slot) === Number(slot.id)).length;
     const count = confirmedCount + pendingCount + absenceCount;

@@ -438,6 +438,7 @@ function buildCandidatesHtml(student, r, weekday, dateStr){
   return buildMatchCandidatesHtml(student, r.course.id, r.course.subject, weekday, r.slot.id, dateStr, {
     btnClass: 'confirm-btn mp-confirm-btn',
     showConfirm: true,
+    half: r.half,
   });
 }
 
@@ -457,7 +458,7 @@ function cancelRowDraftOrAssignment(btn){
     if(dualPair) cancelDualAssignment(btn.dataset.student, dualPair, btn.dataset.day, Number(btn.dataset.slot), dateStr);
     return;
   }
-  cancelAssignment(btn.dataset.student, btn.dataset.course, btn.dataset.day, Number(btn.dataset.slot), dateStr);
+  cancelAssignment(btn.dataset.student, btn.dataset.course, btn.dataset.day, Number(btn.dataset.slot), dateStr, btn.dataset.half || undefined);
 }
 
 function buildAssignmentFlashMessage({slotLabel, subject, teacherName, draft, pending, owner, swap}){
@@ -639,7 +640,7 @@ function handleConfirmClick(root, btn, { swap = false } = {}){
       Number(btn.dataset.slot),
       btn.dataset.teacher,
       'manual',
-      { dateStr: btn.dataset.date || null },
+      { dateStr: btn.dataset.date || null, half: btn.dataset.half || undefined },
     );
   }
   if(!result.ok){
@@ -779,7 +780,7 @@ function buildMatchingSlotCard(r, student, dateStr, weekday){
     const used = teacher ? countTeacherSlotOnDate(teacher.id, dateStr, r.slot.id, null) : 0;
     const prefHtml = buildPrefPairActionHtmlForTeacher(student.id, r.course.id, r.existing.teacherId);
     const ownerUnconfirm = isOwnerTeacher(teacher)
-      ? `<button type="button" class="unconfirm-btn" data-student="${student.id}" data-course="${r.course.id}" data-day="${weekday}" data-slot="${r.slot.id}" data-date="${dateStr}"${isDual ? ' data-dual="1"' : ''}>確定を解除</button>`
+      ? `<button type="button" class="unconfirm-btn" data-student="${student.id}" data-course="${r.course.id}" data-day="${weekday}" data-slot="${r.slot.id}" data-date="${dateStr}"${r.half === 'early' || r.half === 'late' ? ` data-half="${r.half}"` : ''}${isDual ? ' data-dual="1"' : ''}>確定を解除</button>`
       : '';
     return `<div class="match-slot mp-slot-readonly">
       <div class="ms-slot-label">${r.slot.label}（${r.slot.time}）</div>

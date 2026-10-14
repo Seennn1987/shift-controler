@@ -1,4 +1,5 @@
 import { SLOTS } from '../shared/constants.js';
+import { normalizeHalf } from '../shared/lesson-span.js';
 import { getTodayStr } from '../shared/date-utils.js';
 import { S } from './state.js';
 import { shortName } from './calendar.js';
@@ -59,11 +60,12 @@ export function getCapableTeachers(level, subject){
 }
 
 /** 生徒登録の週カレンダー用：その学年を教えられ、毎週そのコマに出勤でき、まだ受け持てる講師の人数 */
-export function countOpenTeachersForLevel(level, day, slotId, yearMonth){
+export function countOpenTeachersForLevel(level, day, slotId, yearMonth, half){
+  const capHalf = half === 'early' || half === 'late' ? half : undefined;
   return S.teachers.filter(isActivePerson).filter(t=>
     t.subjects.some(ts=> ts.level === level) &&
     isAvailable(t, day, slotId, yearMonth) &&
-    countTeacherSlot(t.id, day, slotId, null, yearMonth) < S.teacherCapacity
+    countTeacherSlot(t.id, day, slotId, null, yearMonth, capHalf) < S.teacherCapacity
   ).length;
 }
 
@@ -202,13 +204,15 @@ export function renderDualSubjectPickerBadge(analysis){
 }
 
 /** 生徒登録時：教科・コマだけ決まった状態での可否（プレビュー用） */
-export function analyzeSubjectAtSlot(level, subject, day, slotId, yearMonth){
+export function analyzeSubjectAtSlot(level, subject, day, slotId, yearMonth, half){
   return analyzePendingMatchSlot(
     { id: '__slot_preview__', level },
     { id: '__slot_preview__', subject },
     day,
     slotId,
     yearMonth,
+    null,
+    half,
   );
 }
 
@@ -231,7 +235,8 @@ export function subjectPickerBadgeLabel(analysis){
 }
 
 /** 未確定コマの状態（dateStr があるときはその日のシフトで判定） */
-export function analyzePendingMatchSlot(student, course, day, slotId, yearMonth, dateStr){
+export function analyzePendingMatchSlot(student, course, day, slotId, yearMonth, dateStr, half){
+  const capHalf = half === 'early' || half === 'late' ? half : undefined;
   const ym = getActiveYearMonth(yearMonth);
   const studentId = student.id;
 
@@ -251,8 +256,8 @@ export function analyzePendingMatchSlot(student, course, day, slotId, yearMonth,
   }
 
   const roomUsed = dateStr
-    ? countRoomSlotOnDate(dateStr, slotId, studentId)
-    : countRoomSlot(day, slotId, studentId, ym);
+    ? countRoomSlotOnDate(dateStr, slotId, studentId, capHalf)
+    : countRoomSlot(day, slotId, studentId, ym, capHalf);
   if(roomUsed >= S.roomCapacity){
     return {
       status:'room-full',
@@ -268,8 +273,8 @@ export function analyzePendingMatchSlot(student, course, day, slotId, yearMonth,
     return isAvailable(teacher, day, slotId, ym);
   };
   const teacherUsedCount = (teacherId, excludeId)=>{
-    if(dateStr) return countTeacherSlotOnDate(teacherId, dateStr, slotId, excludeId);
-    return countTeacherSlot(teacherId, day, slotId, excludeId, ym);
+    if(dateStr) return countTeacherSlotOnDate(teacherId, dateStr, slotId, excludeId, capHalf);
+    return countTeacherSlot(teacherId, day, slotId, excludeId, ym, capHalf);
   };
 
   const available = capable.filter(t=>{
@@ -370,8 +375,9 @@ export function collectPendingSlotSummary(yearMonth){
   S.students.filter(isActivePerson).forEach(s=>{
     s.courses.forEach(course=>{
       course.desiredSlots.forEach(ds=>{
-        if(findEffectiveAssignment(s.id, course.id, ds.day, ds.slot, ym)) return;
-        const analysis = analyzePendingMatchSlot(s, course, ds.day, ds.slot, ym);
+        const half = normalizeHalf(ds.half);
+        if(findEffectiveAssignment(s.id, course.id, ds.day, ds.slot, ym, null, half)) return;
+        const analysis = analyzePendingMatchSlot(s, course, ds.day, ds.slot, ym, null, half === 'full' ? undefined : half);
         summary.total++;
         if(analysis.status === 'priority') summary.priority++;
         else if(analysis.status === 'ready') summary.ready++;

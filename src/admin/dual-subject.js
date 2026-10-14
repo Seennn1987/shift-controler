@@ -1,6 +1,7 @@
-/** 小学生・90分2教科（45分×2）のデータ操作 */
+/** 小学生・90分2教科（45分×2）と、40分（前半・後半）のデータ操作 */
 
 import { SUBJECT_ABBR } from '../shared/constants.js';
+import { normalizeHalf, occupiesHalf } from '../shared/lesson-span.js';
 import { isOwnerTeacher } from './owner-teacher.js';
 
 export const ELEMENTARY_DUAL_LEVEL = '小学';
@@ -50,6 +51,26 @@ export function findSingleOccupant(formCourses, day, slot){
   const entries = findSlotEntries(formCourses, day, slot);
   if(entries.length === 1 && !entries[0].ds.dualGroupId) return entries[0].course;
   return null;
+}
+
+export function findHalfOccupant(formCourses, day, slot, half){
+  const want = normalizeHalf(half);
+  const entries = findSlotEntries(formCourses, day, slot).filter(e=>
+    !e.ds.dualGroupId && normalizeHalf(e.ds.half) === want
+  );
+  return entries[0]?.course || null;
+}
+
+/** 90分を入れるときは講全体。40分は、重なる半分と90分だけ外す。 */
+export function clearOverlappingSlots(formCourses, day, slot, half){
+  const want = normalizeHalf(half);
+  formCourses.forEach(c=>{
+    c.desiredSlots = c.desiredSlots.filter(ds=>{
+      if(ds.day !== day || Number(ds.slot) !== Number(slot)) return true;
+      if(want === 'full') return false;
+      return !occupiesHalf(ds.half, want);
+    });
+  });
 }
 
 export function clearSlotAllSubjects(formCourses, day, slot){
@@ -148,6 +169,13 @@ export function teacherTeachesBoth(teacher, level, subjectA, subjectB){
   if(isOwnerTeacher(teacher)) return true;
   return teacher.subjects.some(ts=> ts.level === level && ts.subject === subjectA) &&
     teacher.subjects.some(ts=> ts.level === level && ts.subject === subjectB);
+}
+
+/** 前半と後半のうち、人が多い方の人数。90分だけの講は今までと同じ人数になる。 */
+export function countBusiestHalfUnits(assignments){
+  const early = countSlotAssignmentUnits((assignments || []).filter(a=> occupiesHalf(a.half, 'early')));
+  const late = countSlotAssignmentUnits((assignments || []).filter(a=> occupiesHalf(a.half, 'late')));
+  return Math.max(early, late);
 }
 
 /** 双教科ペアは slot 定員上1コマとして数える */

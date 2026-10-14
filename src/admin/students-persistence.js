@@ -23,7 +23,8 @@ import { collectMakeupEntriesForTeacher, isTeacherAbsentForStudent, recordTeache
 import { normalizeMatchingPriority } from './matching-config.js';
 import { applyGradePromotionsIfNeeded } from './grade-promotion.js';
 import { clearSaveErrorFlash, showSaveConflictFlash, showSaveErrorFlash } from './save-state-flash.js';
-import { normalizeTuitionGradeRates } from './tuition-rates.js';
+import { clampShortPayPercent } from '../shared/lesson-span.js';
+import { normalizeShortTuitionRates, normalizeTuitionGradeRates } from './tuition-rates.js';
 
 function stopPollHandle(handle){
   if(!handle) return;
@@ -915,6 +916,8 @@ async function saveAppStateNow(){
     customClosures: S.customClosures,
     preferredPairs: S.preferredPairs,
     tuitionGradeRates: S.tuitionGradeRates,
+    tuitionGradeRatesShort: S.tuitionGradeRatesShort,
+    shortLessonPayPercent: S.shortLessonPayPercent,
     programmingMonthlyFee: S.programmingMonthlyFee || 0,
     studentFees: S.studentFees,
     regularClosedDays: S.regularClosedDays,
@@ -1006,6 +1009,8 @@ async function loadAppStateFromFirestore(){
     S.customClosures = d.customClosures || [];
     S.preferredPairs = d.preferredPairs || [];
     S.tuitionGradeRates = normalizeTuitionGradeRates(d);
+    S.tuitionGradeRatesShort = normalizeShortTuitionRates(d);
+    S.shortLessonPayPercent = clampShortPayPercent(d.shortLessonPayPercent);
     S.programmingMonthlyFee = d.programmingMonthlyFee != null ? d.programmingMonthlyFee : 0;
     S.studentFees = { ...DEFAULT_STUDENT_FEES, ...(d.studentFees || {}) };
     S.regularClosedDays = d.regularClosedDays || ['日'];
@@ -1043,6 +1048,8 @@ async function loadAppStateFromFirestore(){
     S.officeHourlyRate = 1300;
     S.programmingMonthlyFee = 0;
     S.tuitionGradeRates = normalizeTuitionGradeRates(null);
+    S.tuitionGradeRatesShort = normalizeShortTuitionRates(null);
+    S.shortLessonPayPercent = clampShortPayPercent(null);
     S.studentFees = { ...DEFAULT_STUDENT_FEES };
     S.payrollOfficeHours = {};
     S.payrollOfficeDays = {};

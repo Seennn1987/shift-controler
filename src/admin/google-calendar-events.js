@@ -1,4 +1,5 @@
 import { SLOTS } from '../shared/constants.js';
+import { halfLabel, isShortHalf, slotTimeForHalf } from '../shared/lesson-span.js';
 import { pad2, toDateStr } from '../shared/date-utils.js';
 
 export const OWNER_CALENDAR_TEACHER_ID = '__owner__';
@@ -58,13 +59,14 @@ export function googleCalendarEventSummary(entry, slot, studentName, teacherName
     : (entry.subject || '');
   const student = studentName || '';
   const teacher = teacherName || '';
-  return `${slot.label} ${subject} ${student} / ${teacher}`.replace(/\s+/g, ' ').trim();
+  const when = isShortHalf(entry.half) ? halfLabel(entry.half) : '';
+  return `${slot.label}${when ? ' '+when : ''} ${subject} ${student} / ${teacher}`.replace(/\s+/g, ' ').trim();
 }
 
 export function buildGoogleCalendarEvent(dateStr, entry, studentName, teacherName){
   const slot = SLOTS.find(s=> Number(s.id) === Number(entry.slot));
   if(!slot) return null;
-  const clocks = parseSlotClockTimes(slot.time);
+  const clocks = parseSlotClockTimes(isShortHalf(entry.half) ? slotTimeForHalf(slot, entry.half) : slot.time);
   if(!clocks) return null;
   return {
     key: googleCalendarEventKey(dateStr, entry),

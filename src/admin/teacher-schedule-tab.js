@@ -1,4 +1,5 @@
 import { SUBJECT_MAP, DAYS, SLOTS, WEEKDAY_JP, WEEK_FULL } from '../shared/constants.js';
+import { halfLabel, normalizeHalf, occupiesHalf } from '../shared/lesson-span.js';
 import { isClosedHoliday } from '../shared/holidays.js';
 import { pad2, daysInYearMonth, toDateStr, getTodayStr, isOnOrAfterDate } from '../shared/date-utils.js';
 import { firebaseConfig, fbAuth, fbDb, STORAGE_KEY, getSecondaryAuth, S } from './state.js';
@@ -569,11 +570,12 @@ function countTeacherCourseSlotCoverage(teacher, studentId, courseId, level, sub
   return { covered, total: slots.length };
 }
 
-function buildCandidateInfo(studentId, courseId, level, subject, day, slot, teacher, dateStr){
+function buildCandidateInfo(studentId, courseId, level, subject, day, slot, teacher, dateStr, half){
   const ym = getActiveYearMonth();
+  const capHalf = half === 'early' || half === 'late' ? half : undefined;
   const used = dateStr
-    ? countTeacherSlotOnDate(teacher.id, dateStr, slot, studentId)
-    : countTeacherSlot(teacher.id, day, slot, studentId, ym);
+    ? countTeacherSlotOnDate(teacher.id, dateStr, slot, studentId, capHalf)
+    : countTeacherSlot(teacher.id, day, slot, studentId, ym, capHalf);
   const coverage = countTeacherCourseSlotCoverage(teacher, studentId, courseId, level, subject, ym);
   return {
     teacher, used,
@@ -612,26 +614,50 @@ function assignmentAppliesOnDate(a, dateStr){
   return true;
 }
 
-function countTeacherSlotOnDate(teacherId, dateStr, slot, excludeStudentId){
+function countUnitsForHalf(matched, half){
+  if(half === 'early' || half === 'late'){
+    return countSlotAssignmentUnits(matched.filter(a=> occupiesHalf(a.half, half)));
+  }
+  const early = countSlotAssignmentUnits(matched.filter(a=> occupiesHalf(a.half, 'early')));
+  const late = countSlotAssignmentUnits(matched.filter(a=> occupiesHalf(a.half, 'late')));
+  return Math.max(early, late);
+}
+
+function countTeacherSlotOnDate(teacherId, dateStr, slot, excludeStudentId, half){
   const all = S.assignments.concat(S.pendingAssignments, S.draftAssignments);
   const matched = all.filter(a=>
     a.teacherId === teacherId && Number(a.slot) === Number(slot) &&
     a.studentId !== excludeStudentId && assignmentAppliesOnDate(a, dateStr)
   );
-  return countSlotAssignmentUnits(matched);
+  return countUnitsForHalf(matched, half);
 }
 
-function countRoomSlotOnDate(dateStr, slot, excludeStudentId){
+function countRoomSlotOnDate(dateStr, slot, excludeStudentId, half){
   const all = S.assignments.concat(S.pendingAssignments, S.draftAssignments);
   const matched = all.filter(a=>
     Number(a.slot) === Number(slot) && a.studentId !== excludeStudentId &&
     assignmentAppliesOnDate(a, dateStr)
   );
-  return countSlotAssignmentUnits(matched);
+  return countUnitsForHalf(matched, half);
 }
 
-function skipOrRemoveSlotAssignments(list, studentId, courseId, day, slot, dateStr){
-  const matchCore = a=> a.studentId===studentId && a.courseId===courseId && a.day===day && Number(a.slot)===Number(slot);
+function resolveDesiredHalf(studentId, courseId, day, slot, explicit){
+  if(explicit === 'early' || explicit === 'late' || explicit === 'full') return explicit;
+  const student = S.students.find(s=> s.id === studentId);
+  const course = student?.courses?.find(c=> c.id === courseId);
+  const matches = (course?.desiredSlots || []).filter(ds=>
+    ds.day === day && Number(ds.slot) === Number(slot) && !ds.dualGroupId
+  );
+  if(matches.length === 1) return normalizeHalf(matches[0].half);
+  return 'full';
+}
+
+function assignmentHalfMatches(a, half){
+  return normalizeHalf(a?.half) === normalizeHalf(half);
+}
+
+function skipOrRemoveSlotAssignments(list, studentId, courseId, day, slot, dateStr, half){
+  const matchCore = a=> a.studentId===studentId && a.courseId===courseId && a.day===day && Number(a.slot)===Number(slot) && assignmentHalfMatches(a, half);
   if(!dateStr){
     return list.filter(a=> !matchCore(a));
   }
@@ -651,14 +677,14 @@ function skipOrRemoveSlotAssignments(list, studentId, courseId, day, slot, dateS
   return next;
 }
 
-function removeSlotAssignmentsOnDate(studentId, courseId, day, slot, dateStr){
-  S.assignments = skipOrRemoveSlotAssignments(S.assignments, studentId, courseId, day, slot, dateStr);
-  S.pendingAssignments = skipOrRemoveSlotAssignments(S.pendingAssignments, studentId, courseId, day, slot, dateStr);
-  S.draftAssignments = skipOrRemoveSlotAssignments(S.draftAssignments, studentId, courseId, day, slot, dateStr);
+function removeSlotAssignmentsOnDate(studentId, courseId, day, slot, dateStr, half){
+  S.assignments = skipOrRemoveSlotAssignments(S.assignments, studentId, courseId, day, slot, dateStr, half);
+  S.pendingAssignments = skipOrRemoveSlotAssignments(S.pendingAssignments, studentId, courseId, day, slot, dateStr, half);
+  S.draftAssignments = skipOrRemoveSlotAssignments(S.draftAssignments, studentId, courseId, day, slot, dateStr, half);
 }
 
-function removeAllSlotAssignments(studentId, courseId, day, slot){
-  const matches = a=> a.studentId===studentId && a.courseId===courseId && a.day===day && Number(a.slot)===Number(slot);
+function removeAllSlotAssignments(studentId, courseId, day, slot, half){
+  const matches = a=> a.studentId===studentId && a.courseId===courseId && a.day===day && Number(a.slot)===Number(slot) && assignmentHalfMatches(a, half);
   S.assignments = S.assignments.filter(a=> !matches(a));
   S.pendingAssignments = S.pendingAssignments.filter(a=> !matches(a));
   S.draftAssignments = S.draftAssignments.filter(a=> !matches(a));
@@ -681,10 +707,12 @@ function isAssignmentEffectiveInMonth(assignment, yearMonth){
   return teacherHasSubmittedMonth(assignment.teacherId, yearMonth);
 }
 // 表示・集計用：その月（と任意の日付）に有効な割当だけ返す
-function findEffectiveAssignment(studentId, courseId, day, slot, yearMonth, dateStr){
+function findEffectiveAssignment(studentId, courseId, day, slot, yearMonth, dateStr, half){
+  const want = resolveDesiredHalf(studentId, courseId, day, slot, half);
   const pick = (list, flags)=>{
     const hit = list.find(a=>{
       if(a.studentId!==studentId || a.courseId!==courseId || a.day!==day || Number(a.slot)!==Number(slot)) return false;
+      if(!assignmentHalfMatches(a, want)) return false;
       if(dateStr && !assignmentAppliesOnDate(a, dateStr)) return false;
       return true;
     });
@@ -702,23 +730,23 @@ function countCourseConfirmed(studentId, courseId, yearMonth){
     a.studentId===studentId && a.courseId===courseId && isAssignmentEffectiveInMonth(a, ym)
   ).length;
 }
-function countTeacherSlot(teacherId, day, slot, excludeStudentId, yearMonth){
+function countTeacherSlot(teacherId, day, slot, excludeStudentId, yearMonth, half){
   const ym = getActiveYearMonth(yearMonth);
   const all = S.assignments.concat(S.pendingAssignments, S.draftAssignments);
   const matched = all.filter(a=>
     a.teacherId === teacherId && a.day === day && a.slot === slot && a.studentId !== excludeStudentId &&
     isAssignmentEffectiveInMonth(a, ym)
   );
-  return countSlotAssignmentUnits(matched);
+  return countUnitsForHalf(matched, half);
 }
-function countRoomSlot(day, slot, excludeStudentId, yearMonth){
+function countRoomSlot(day, slot, excludeStudentId, yearMonth, half){
   const ym = getActiveYearMonth(yearMonth);
   const all = S.assignments.concat(S.pendingAssignments, S.draftAssignments);
   const matched = all.filter(a=>
     a.day === day && a.slot === slot && a.studentId !== excludeStudentId &&
     isAssignmentEffectiveInMonth(a, ym)
   );
-  return countSlotAssignmentUnits(matched);
+  return countUnitsForHalf(matched, half);
 }
 
 // 提出済みシフトの「希望コマ」のうち、授業が入っているコマ数を月単位で数える
@@ -793,38 +821,41 @@ function confirmAssignment(studentId, courseId, subject, day, slot, teacherId, s
     return {ok:false, msg:'受講開始日より前の日付には組めません。'};
   }
   const owner = isOwnerTeacher(teacher);
+  const half = resolveDesiredHalf(studentId, courseId, day, slot, opts.half);
+  const capHalf = half === 'early' || half === 'late' ? half : undefined;
+  const slotDef = SLOTS.find(s=> s.id === slot);
+  const slotLabel = slotDef ? `${slotDef.label}${halfLabel(half) ? ' '+halfLabel(half) : ''}` : `${slot}講`;
 
   if(dateStr && !recurring){
     if(!owner && !isTeacherAvailableOnDate(teacherId, dateStr, slot)){
       return {ok:false, msg:`${teacher.name}先生はこの日のシフト未登録です。`};
     }
-    const teacherUsed = countTeacherSlotOnDate(teacherId, dateStr, slot, studentId);
+    const teacherUsed = countTeacherSlotOnDate(teacherId, dateStr, slot, studentId, capHalf);
     if(teacherUsed >= S.teacherCapacity){
-      const slotLabel = SLOTS.find(s=>s.id===slot)?.label || slot+'講';
       return {ok:false, msg:`${owner ? teacher.name : teacher.name+'先生'}は${dateStr} ${slotLabel}の定員（${S.teacherCapacity}人）に達しています。`};
     }
-    const roomUsed = countRoomSlotOnDate(dateStr, slot, studentId);
+    const roomUsed = countRoomSlotOnDate(dateStr, slot, studentId, capHalf);
     if(roomUsed >= S.roomCapacity){
-      const slotLabel = SLOTS.find(s=>s.id===slot)?.label || slot+'講';
       return {ok:false, msg:`${dateStr} ${slotLabel}は教室全体の定員（${S.roomCapacity}人）に達しています。`};
     }
-    removeSlotAssignmentsOnDate(studentId, courseId, day, slot, dateStr);
+    removeSlotAssignmentsOnDate(studentId, courseId, day, slot, dateStr, half);
   }else{
-    const teacherUsed = countTeacherSlot(teacherId, day, slot, studentId);
+    const teacherUsed = countTeacherSlot(teacherId, day, slot, studentId, undefined, capHalf);
     if(teacherUsed >= S.teacherCapacity){
-      return {ok:false, msg:`${owner ? teacher.name : teacher.name+'先生'}は${day}曜${SLOTS.find(s=>s.id===slot).label}の定員（${S.teacherCapacity}人）に達しています。`};
+      return {ok:false, msg:`${owner ? teacher.name : teacher.name+'先生'}は${day}曜${slotLabel}の定員（${S.teacherCapacity}人）に達しています。`};
     }
-    const roomUsed = countRoomSlot(day, slot, studentId);
+    const roomUsed = countRoomSlot(day, slot, studentId, undefined, capHalf);
     if(roomUsed >= S.roomCapacity){
-      return {ok:false, msg:`${day}曜${SLOTS.find(s=>s.id===slot).label}は教室全体の定員（${S.roomCapacity}人）に達しています。`};
+      return {ok:false, msg:`${day}曜${slotLabel}は教室全体の定員（${S.roomCapacity}人）に達しています。`};
     }
-    removeAllSlotAssignments(studentId, courseId, day, slot);
+    removeAllSlotAssignments(studentId, courseId, day, slot, half);
   }
 
   const entry = {
     id:'asg-'+Date.now()+'-'+Math.random().toString(36).slice(2,6),
     studentId, courseId, subject, day, slot, teacherId, source,
   };
+  if(half !== 'full') entry.half = half;
   if(dateStr && !recurring) entry.oneTimeDate = dateStr;
 
   if(owner){
@@ -908,20 +939,22 @@ function cancelDualAssignment(studentId, dualPair, day, slot, dateStr){
     cancelAssignment(studentId, course.id, day, slot, dateStr);
   });
 }
-function cancelAssignment(studentId, courseId, day, slot, dateStr){
+function cancelAssignment(studentId, courseId, day, slot, dateStr, half){
+  const h = resolveDesiredHalf(studentId, courseId, day, slot, half);
   if(dateStr){
-    removeSlotAssignmentsOnDate(studentId, courseId, day, slot, dateStr);
+    removeSlotAssignmentsOnDate(studentId, courseId, day, slot, dateStr, h);
     return;
   }
-  removeAllSlotAssignments(studentId, courseId, day, slot);
+  removeAllSlotAssignments(studentId, courseId, day, slot, h);
 }
 
-function listSlotAssignmentEntries(studentId, courseId, day, slot){
-  const match = a=> a.studentId===studentId && a.courseId===courseId && a.day===day && Number(a.slot)===Number(slot);
+function listSlotAssignmentEntries(studentId, courseId, day, slot, half){
+  const h = half == null ? null : normalizeHalf(half);
+  const match = a=> a.studentId===studentId && a.courseId===courseId && a.day===day && Number(a.slot)===Number(slot) && (h == null || assignmentHalfMatches(a, h));
   return S.assignments.concat(S.pendingAssignments, S.draftAssignments).filter(match);
 }
 
-async function dropStudentDesiredSlot(student, course, day, slot){
+async function dropStudentDesiredSlot(student, course, day, slot, half){
   const dualPair = findDualPairAtSlot(student.courses || [], day, slot);
   const isDual = dualPair && dualPair.entries.some(e=> e.course.id === course.id);
   const courses = isDual ? dualPair.entries.map(e=> e.course) : [course];
@@ -929,12 +962,12 @@ async function dropStudentDesiredSlot(student, course, day, slot){
   const coursePayload = { subject: subjects.join('・'), subjects };
   const entries = [];
   courses.forEach(c=>{
-    listSlotAssignmentEntries(student.id, c.id, day, slot).forEach(e=> entries.push(e));
+    listSlotAssignmentEntries(student.id, c.id, day, slot, isDual ? 'full' : half).forEach(e=> entries.push(e));
   });
   if(isDual){
     cancelDualAssignment(student.id, dualPair, day, slot, null);
   }else{
-    cancelAssignment(student.id, course.id, day, slot, null);
+    cancelAssignment(student.id, course.id, day, slot, null, half);
   }
   const seen = new Set();
   try{
@@ -955,13 +988,13 @@ async function dropAssignmentsForRemovedDesiredSlots(student, oldCourses, newCou
   if(!student) return;
   const newKeys = new Set();
   (newCourses || []).forEach(c=>{
-    (c.desiredSlots || []).forEach(ds=> newKeys.add(`${c.id}:${ds.day}:${Number(ds.slot)}`));
+    (c.desiredSlots || []).forEach(ds=> newKeys.add(`${c.id}:${ds.day}:${Number(ds.slot)}:${normalizeHalf(ds.half)}`));
   });
   const removed = [];
   (oldCourses || []).forEach(c=>{
     (c.desiredSlots || []).forEach(ds=>{
-      if(!newKeys.has(`${c.id}:${ds.day}:${Number(ds.slot)}`)){
-        removed.push({ course: c, day: ds.day, slot: ds.slot, dualGroupId: ds.dualGroupId || null });
+      if(!newKeys.has(`${c.id}:${ds.day}:${Number(ds.slot)}:${normalizeHalf(ds.half)}`)){
+        removed.push({ course: c, day: ds.day, slot: ds.slot, half: normalizeHalf(ds.half), dualGroupId: ds.dualGroupId || null });
       }
     });
   });
@@ -973,7 +1006,7 @@ async function dropAssignmentsForRemovedDesiredSlots(student, oldCourses, newCou
       if(seenDual.has(dualKey)) continue;
       seenDual.add(dualKey);
     }
-    await dropStudentDesiredSlot(snapshot, item.course, item.day, item.slot);
+    await dropStudentDesiredSlot(snapshot, item.course, item.day, item.slot, item.half);
   }
   const newCourseIds = new Set((newCourses || []).map(c=> c.id));
   S.preferredPairs = (S.preferredPairs || []).filter(p=>

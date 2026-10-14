@@ -1,4 +1,5 @@
 import { SLOTS, WEEKDAY_JP } from '../shared/constants.js';
+import { halfLabel, isShortHalf, slotTimeForHalf } from '../shared/lesson-span.js';
 import { S } from './state.js';
 import {
   cancelAbsenceRecord,
@@ -39,7 +40,7 @@ import { buildPrefPairActionHtmlForTeacher, buildDraftSlotCardHtml, buildWaiting
 import { mountWithdrawConfirm } from './withdraw-pending-ui.js';
 import { mountInlineConfirm, showInlineNotice } from '../shared/inline-confirm.js';
 import { analyzePendingMatchSlot } from './match-slot-status.js';
-import { buildDualSubjectTagsHtml, findDualPairForStudent, collapseDualAssignmentDisplayRows, countSlotAssignmentUnits } from './dual-subject.js';
+import { buildDualSubjectTagsHtml, findDualPairForStudent, collapseDualAssignmentDisplayRows, countBusiestHalfUnits } from './dual-subject.js';
 import { findTeacher } from './owner-teacher.js';
 
 function dualMakeupDataAttrs(isDual, subjects){
@@ -55,28 +56,29 @@ function buildMakeupCandidateRowsHtml(absenceId, makeupCands){
   let html = '';
   makeupCands.forEach(mc=>{
     const md = new Date(mc.date + 'T00:00:00');
-    const mLabel = `${md.getMonth() + 1}/${md.getDate()}（${WEEKDAY_JP[md.getDay()]}）${mc.slot.label}`;
+    const halfText = mc.half === 'early' || mc.half === 'late' ? ` ${halfLabel(mc.half)} ${slotTimeForHalf(mc.slot, mc.half)}` : '';
+    const mLabel = `${md.getMonth() + 1}/${md.getDate()}（${WEEKDAY_JP[md.getDay()]}）${mc.slot.label}${halfText}`;
     mc.candidates.forEach(cand=>{
       html += `<div class="match-cand">
         <span class="match-badge full">${mLabel}</span>
         <span>${cand.teacher.name}</span>
         <span class="cap-note">${cand.used}/${S.teacherCapacity}人</span>
-        <button type="button" class="confirm-makeup-btn" data-absence="${absenceId}" data-date="${mc.date}" data-slot="${mc.slot.id}" data-teacher="${cand.teacher.id}">振替を確定</button>
+        <button type="button" class="confirm-makeup-btn" data-absence="${absenceId}" data-date="${mc.date}" data-slot="${mc.slot.id}" data-teacher="${cand.teacher.id}"${mc.half === 'early' || mc.half === 'late' ? ` data-half="${mc.half}"` : ''}>振替を確定</button>
       </div>`;
     });
   });
   return html;
 }
 
-function lookupMakeupCandidates(student, subjects, dateStr, oneDateOnly){
+function lookupMakeupCandidates(student, subjects, dateStr, oneDateOnly, sourceHalf){
   if(subjects.length === 2){
     return oneDateOnly
       ? findDualMakeupCandidatesOnDate(student.id, student.level, subjects, dateStr)
       : findDualMakeupCandidates(student.id, student.level, subjects, dateStr);
   }
   return oneDateOnly
-    ? findMakeupCandidatesOnDate(student.id, student.level, subjects[0], dateStr)
-    : findMakeupCandidates(student.id, student.level, subjects[0], dateStr);
+    ? findMakeupCandidatesOnDate(student.id, student.level, subjects[0], dateStr, sourceHalf)
+    : findMakeupCandidates(student.id, student.level, subjects[0], dateStr, undefined, sourceHalf);
 }
 
 function buildAbsenceStatusBoxHtml(r, student, dateStr, { showStudentName = false } = {}){
@@ -135,7 +137,7 @@ function buildMakeupPlacementHtml(dateStr){
   const fromSlot = SLOTS.find(s=> Number(s.id) === Number(ab.slot));
   const dualPair = student.courses ? findDualPairForStudent(student, ab.day, Number(ab.slot)) : null;
   const subjects = dualPair?.subjects?.length === 2 ? dualPair.subjects : [ab.subject];
-  const makeupCands = lookupMakeupCandidates(student, subjects, dateStr, true);
+  const makeupCands = lookupMakeupCandidates(student, subjects, dateStr, true, ab.half);
   const fromLabel = `${from.getMonth() + 1}/${from.getDate()} ${fromSlot ? fromSlot.label : ''}`;
 
   return `<div class="match-slot makeup-placement-slot">
@@ -185,7 +187,7 @@ function buildDayDetailStudentRowHtml(a, dateStr, weekday){
   const subject = a.subjects?.[0] || a.subject;
   const dualAttr = a.isDual ? ' data-dual="1"' : '';
   const handleBtn = a.kind === 'normal' && !a.draft && !a.pending && courseId
-    ? `<button type="button" class="absent-btn" data-student="${a.studentId}" data-course="${courseId}" data-subject="${subject}" data-day="${weekday}" data-slot="${a.slot}" data-date="${dateStr}"${dualAttr}>欠席にする</button>`
+    ? `<button type="button" class="absent-btn" data-student="${a.studentId}" data-course="${courseId}" data-subject="${subject}" data-day="${weekday}" data-slot="${a.slot}" data-date="${dateStr}"${a.half === 'early' || a.half === 'late' ? ` data-half="${a.half}"` : ''}${dualAttr}>欠席にする</button>`
     : '';
   return `<div class="sched-student-row sched-student-row--day-detail">
     <div class="sched-student-row-body">
@@ -202,7 +204,8 @@ function buildRowSubjectTagHtml(student, r){
     return buildDualSubjectTagsHtml(student.level, r.courses.map(c=> c.subject), subjectColor);
   }
   const c = subjectColor(student.level, r.course.subject);
-  return `<span class="sched-student-tag" style="background:${c.bg};color:${c.text};">${r.course.subject}</span>`;
+  const when = isShortHalf(r.half) ? ` ${halfLabel(r.half)}` : '';
+  return `<span class="sched-student-tag" style="background:${c.bg};color:${c.text};">${r.course.subject}${when}</span>`;
 }
 
 function cancelRowDraftOrAssignment(btn){
@@ -213,7 +216,7 @@ function cancelRowDraftOrAssignment(btn){
     if(dualPair) cancelDualAssignment(btn.dataset.student, dualPair, btn.dataset.day, Number(btn.dataset.slot), dateStr);
     return;
   }
-  cancelAssignment(btn.dataset.student, btn.dataset.course, btn.dataset.day, Number(btn.dataset.slot), dateStr);
+  cancelAssignment(btn.dataset.student, btn.dataset.course, btn.dataset.day, Number(btn.dataset.slot), dateStr, btn.dataset.half || undefined);
 }
 
 export function getDayDetailTitle(dateStr){
@@ -254,7 +257,7 @@ function buildUnassignedSlotHtml(row, dateStr, weekday){
       })
       : buildMatchCandidatesHtml(
         student, course.id, course.subject, weekday, slot.id, dateStr,
-        { btnClass: 'confirm-btn mp-confirm-btn', showConfirm: true },
+        { btnClass: 'confirm-btn mp-confirm-btn', showConfirm: true, half: row.half },
       )) || `<div class="match-none">対応できる講師がいません</div>`);
 
   return `<div class="day-detail-unassigned">
@@ -379,8 +382,8 @@ export function renderDayDetailPanel(container, dateStr){
               <span class="cb-teacher">講師：${teacherHonorific(teacher)}</span>
               <span class="cb-cap">（定員 ${used}/${S.teacherCapacity}）</span>
               <div class="confirmed-box-actions">${prefHtml}
-                <button class="absent-btn" data-student="${filterStudent.id}" data-course="${r.course.id}" data-subject="${r.course.subject}" data-day="${weekday}" data-slot="${r.slot.id}" data-date="${dateStr}"${dualAttr}>欠席にする</button>
-                <button class="unconfirm-btn" data-student="${filterStudent.id}" data-course="${r.course.id}" data-day="${weekday}" data-slot="${r.slot.id}" data-date="${dateStr}"${dualAttr}>確定を解除</button>
+                <button class="absent-btn" data-student="${filterStudent.id}" data-course="${r.course.id}" data-subject="${r.course.subject}" data-day="${weekday}" data-slot="${r.slot.id}" data-date="${dateStr}"${r.half === 'early' || r.half === 'late' ? ` data-half="${r.half}"` : ''}${dualAttr}>欠席にする</button>
+                <button class="unconfirm-btn" data-student="${filterStudent.id}" data-course="${r.course.id}" data-day="${weekday}" data-slot="${r.slot.id}" data-date="${dateStr}"${r.half === 'early' || r.half === 'late' ? ` data-half="${r.half}"` : ''}${dualAttr}>確定を解除</button>
               </div>
             </div>
           </div>`;
@@ -410,7 +413,8 @@ export function renderDayDetailPanel(container, dateStr){
           return;
         }
 
-        const roomUsed = countRoomSlotOnDate(dateStr, r.slot.id, null);
+        const roomHalf = r.half === 'early' || r.half === 'late' ? r.half : undefined;
+        const roomUsed = countRoomSlotOnDate(dateStr, r.slot.id, null, roomHalf);
         let candHtml = isDual
           ? buildDualMatchCandidatesHtml(filterStudent, r.dualPair, weekday, r.slot.id, dateStr, {
             btnClass: 'confirm-btn mp-confirm-btn',
@@ -418,10 +422,10 @@ export function renderDayDetailPanel(container, dateStr){
           })
           : buildMatchCandidatesHtml(
             filterStudent, r.course.id, r.course.subject, weekday, r.slot.id, dateStr,
-            { btnClass: 'confirm-btn mp-confirm-btn', showConfirm: true },
+            { btnClass: 'confirm-btn mp-confirm-btn', showConfirm: true, half: r.half },
           );
         if(!candHtml){
-          const slotAnalysis = analyzePendingMatchSlot(filterStudent, r.course, weekday, r.slot.id, detailYearMonth, dateStr);
+          const slotAnalysis = analyzePendingMatchSlot(filterStudent, r.course, weekday, r.slot.id, detailYearMonth, dateStr, roomHalf);
           const alternatives = findAlternativeSlots(filterStudent.level, r.course.subject, r.course.desiredSlots);
           candHtml = `<div class="match-none">${slotAnalysis.label}：${slotAnalysis.detailLines?.[0] || `対応できる講師がいません（${weekday}曜${r.slot.label}は希望通りには組めません）`}</div>`;
           if(alternatives.length === 0){
@@ -444,7 +448,7 @@ export function renderDayDetailPanel(container, dateStr){
         }
 
         html += `<div class="match-slot">
-          <div class="ms-slot-label">${r.slot.label}（${r.slot.time}）<span style="font-weight:400;color:var(--ink-soft);"> ／ 教室 ${roomUsed}/${S.roomCapacity}</span></div>
+          <div class="ms-slot-label">${r.slot.label}（${isShortHalf(r.half) ? halfLabel(r.half)+' ' : ''}${slotTimeForHalf(r.slot, r.half)}）<span style="font-weight:400;color:var(--ink-soft);"> ／ 教室 ${roomUsed}/${S.roomCapacity}</span></div>
           <div style="margin-bottom:6px;">${subjectTag}</div>
           ${candHtml}
         </div>`;
@@ -500,10 +504,11 @@ export function renderDayDetailPanel(container, dateStr){
       Object.keys(slotByTeacher).forEach(teacherId=>{
         const teacher = findTeacher(teacherId);
         const entries = slotByTeacher[teacherId];
-        const loadCount = countSlotAssignmentUnits(entries.map(e=>({
+        const loadCount = countBusiestHalfUnits(entries.map(e=>({
           studentId: e.studentId,
           day: weekday,
           slot: e.slot,
+          half: e.half,
           dualGroupId: e.dualGroupId || null,
         })));
         const displayRows = collapseDualAssignmentDisplayRows(entries);
@@ -626,6 +631,7 @@ export function bindDayDetailEvents(container, dateStr, onRefresh){
             btn.dataset.day,
             Number(btn.dataset.slot),
             btn.dataset.date,
+            btn.dataset.half || undefined,
           );
           const recorded = S.absences.find(a=>
             a.studentId === btn.dataset.student &&
@@ -680,7 +686,7 @@ export function bindDayDetailEvents(container, dateStr, onRefresh){
         ? btn.dataset.subjects.split(',')
         : [subject];
       const makeupCands = studentObj
-        ? lookupMakeupCandidates(studentObj, subjects, date, false)
+        ? lookupMakeupCandidates(studentObj, subjects, date, false, absence?.half)
         : [];
       panel.innerHTML = buildMakeupCandidateRowsHtml(absenceId, makeupCands);
       panel.style.display = 'block';
@@ -688,7 +694,7 @@ export function bindDayDetailEvents(container, dateStr, onRefresh){
         cbtn.addEventListener('click', async ()=>{
           const { absence: abId, date: mDate, teacher } = cbtn.dataset;
           const slot = Number(cbtn.dataset.slot);
-          const result = await confirmMakeup(abId, mDate, slot, teacher);
+          const result = await confirmMakeup(abId, mDate, slot, teacher, cbtn.dataset.half || undefined);
           if(!result.ok){
             showInlineNotice(container, result.msg, { variant: 'warn' });
             return;
@@ -704,7 +710,7 @@ export function bindDayDetailEvents(container, dateStr, onRefresh){
       if(btn.dataset.confirmSub) return;
       const { absence, date, teacher } = btn.dataset;
       const slot = Number(btn.dataset.slot);
-      const result = await confirmMakeup(absence, date, slot, teacher);
+      const result = await confirmMakeup(absence, date, slot, teacher, btn.dataset.half || undefined);
       if(!result.ok){
         showInlineNotice(container, result.msg, { variant: 'warn' });
         return;

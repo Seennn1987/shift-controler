@@ -1,9 +1,10 @@
 import { SUBJECT_MAP, DAYS, SLOTS, WEEKDAY_JP, WEEK_FULL, LEVELS_ORDER, SUBJECT_ABBR } from '../shared/constants.js';
+import { halfLabel, isShortHalf } from '../shared/lesson-span.js';
 import { HOLIDAYS_JP } from '../shared/holidays.js';
 import { pad2, daysInYearMonth, toDateStr, getTodayStr } from '../shared/date-utils.js';
 import { firebaseConfig, fbAuth, fbDb, STORAGE_KEY, getSecondaryAuth, S } from './state.js';
 import { computeDayFinance, computeTeacherOpenings, costRatioColor, getEffectiveDayAssignments, getStudentDateRows, getAbsenceRecordsOnDate } from './absences.js';
-import { collapseDualAssignmentDisplayRows, countSlotAssignmentUnits, buildDualSubjectTagsHtml } from './dual-subject.js';
+import { collapseDualAssignmentDisplayRows, countBusiestHalfUnits, countSlotAssignmentUnits, buildDualSubjectTagsHtml } from './dual-subject.js';
 import { buildFlowStatusBadgeHtml, buildFlowStatusBadgeChipHtml } from './match-candidate-ui.js';
 import { calLinesToEntriesHtml, computeSyncedWeekAnchor, getDayStatus, getUnassignedRowsForDate, refreshCalToolbarSecondary, renderCalendar, studentRowToCalLine, updateCalPeriodLabel } from './calendar.js';
 import { findTeacher } from './owner-teacher.js';
@@ -311,10 +312,11 @@ function buildTeacherAxisCell(list){
     const teacher = findTeacher(teacherId);
     const entries = byTeacher[teacherId];
     const weekday = entries[0]?.day || '';
-    const loadCount = countSlotAssignmentUnits(entries.map(e=>({
+    const loadCount = countBusiestHalfUnits(entries.map(e=>({
       studentId: e.studentId,
       day: e.day || weekday,
       slot: e.slot,
+      half: e.half,
       dualGroupId: e.dualGroupId || null,
     })));
     const displayRows = collapseDualAssignmentDisplayRows(entries);
@@ -361,7 +363,8 @@ function buildStudentAxisCell(list){
       : (()=>{
         const c = level ? subjectColor(level, a.subject) : {bg:'#eee', text:'#333'};
         const subjectAbbr = SUBJECT_ABBR[a.subject] || a.subject.slice(0, 1);
-        return `<span class="sched-student-tag" style="background:${c.bg};color:${c.text};">${subjectAbbr}</span>`;
+        const when = isShortHalf(a.half) ? halfLabel(a.half) : '';
+        return `<span class="sched-student-tag" style="background:${c.bg};color:${c.text};">${subjectAbbr}${when ? ' '+when : ''}</span>`;
       })();
     const teacher = findTeacher(a.teacherId);
     const makeupBadge = a.kind==='makeup'
@@ -499,10 +502,11 @@ function buildWeekTeacherFilterCell(teacher, dateStr, slot){
     return '<div class="sched-empty">—</div>';
   }
   const weekday = getDayStatus(dateStr).weekday;
-  const loadCount = countSlotAssignmentUnits(list.map(e=>({
+  const loadCount = countBusiestHalfUnits(list.map(e=>({
     studentId: e.studentId,
     day: e.day || weekday,
     slot: e.slot,
+    half: e.half,
     dualGroupId: e.dualGroupId || null,
   })));
   const displayRows = collapseDualAssignmentDisplayRows(list);

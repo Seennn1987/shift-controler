@@ -503,6 +503,16 @@
 
       <div style="height:22px"></div>
 
+      <label class="field-label">小学・40分の授業料（1コマあたり）</label>
+      <div class="field-hint tight">小学生の40分授業だけに使います。90分の表とは別です。金額はここに入れてください。</div>
+      <label class="field-label">ベーシック</label>
+      <div id="tuitionShortBasicArea"></div>
+      <div style="height:12px"></div>
+      <label class="field-label">アドバンス</label>
+      <div id="tuitionShortAdvanceArea"></div>
+
+      <div style="height:22px"></div>
+
       <label class="field-label">プログラミング 月額（円/月）</label>
       <div class="field-hint tight">学年に関係なく1つの金額です。その月にプログラミングの確定コマがある生徒だけ、月に1回「分析」タブの売上に足します。欠席しても月額は変わりません。</div>
       <div class="tuition-input-row">
@@ -549,6 +559,17 @@
         <div class="pay-input-item">
           <label for="feeElearningInput">Eラーニング費（円/月）</label>
           <input type="text" inputmode="numeric" id="feeElearningInput">
+        </div>
+      </div>
+
+      <div style="height:22px"></div>
+
+      <label class="field-label" for="shortLessonPayPercentInput">40分授業の講師給与（90分のコマ単価の何%）</label>
+      <div class="field-hint tight">初期値は50です。40分を1回教えたとき、その講師のその日のコマ単価にこの割合を掛けます。前半と後半の両方を教えたら2回分です。50のとき、両方で今までどおりの満額になります。</div>
+      <div class="tuition-input-row">
+        <div class="pay-input-item">
+          <label for="shortLessonPayPercentInput">割合（%）</label>
+          <input type="text" inputmode="numeric" id="shortLessonPayPercentInput">
         </div>
       </div>
 

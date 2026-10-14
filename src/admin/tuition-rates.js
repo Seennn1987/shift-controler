@@ -70,10 +70,43 @@ function studentTuitionRate(rates, student){
   return tuitionRateFor(rates, student.level, student.grade, student.tuitionCourse);
 }
 
+/** 小学40分だけ。小1〜小6。未入力は0円（90分の表はコピーしない）。 */
+function shortTuitionGradeRows(){
+  const level = '小学';
+  return [{
+    level,
+    items: Array.from({ length: GRADE_MAX_BY_LEVEL[level] }, (_, i)=>({
+      key: tuitionGradeKey(level, i + 1),
+      label: `${LEVEL_ABBR[level]}${i + 1}`,
+    })),
+  }];
+}
+
+function normalizeShortTuitionRates(d){
+  const saved = d?.tuitionGradeRatesShort || {};
+  const result = { basic: {}, advance: {} };
+  ['basic', 'advance'].forEach(course=>{
+    shortTuitionGradeRows().forEach(({ items })=>{
+      items.forEach(({ key })=>{
+        result[course][key] = validRate(saved[course]?.[key]) ?? 0;
+      });
+    });
+  });
+  return result;
+}
+
+function studentShortTuitionRate(rates, student){
+  if(!student || student.level !== '小学') return 0;
+  return tuitionRateFor(rates, student.level, student.grade, student.tuitionCourse);
+}
+
 export {
   tuitionGradeRows,
   normalizeTuitionGradeRates,
+  shortTuitionGradeRows,
+  normalizeShortTuitionRates,
   effectiveTuitionCourse,
   tuitionRateFor,
   studentTuitionRate,
+  studentShortTuitionRate,
 };

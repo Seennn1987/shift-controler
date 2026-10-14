@@ -1,14 +1,15 @@
 import { SUBJECT_MAP, DAYS, SLOTS, WEEKDAY_JP, WEEK_FULL } from '../shared/constants.js';
+import { halfLabel, isShortHalf, komaCountForTeacherSlot, lessonPayForSlot, normalizeHalf, occupiesHalf, slotTimeForHalf } from '../shared/lesson-span.js';
 import { HOLIDAYS_JP } from '../shared/holidays.js';
 import { pad2, daysInYearMonth, toDateStr, getTodayStr, isOnOrAfterDate } from '../shared/date-utils.js';
 import { firebaseConfig, fbAuth, fbDb, STORAGE_KEY, getSecondaryAuth, S } from './state.js';
 import { getDayStatus } from './calendar.js';
 import { getDateSlotState, gradeLabel, isTeacherAvailableOnDate } from './schedule-core.js';
 import { assignmentAppliesOnDate, findEffectiveAssignment, isPreferredSubjectForTeacher, issueAssignmentApproval, revokePendingApprovalTicket } from './teacher-schedule-tab.js';
-import { findDualPairAtSlot, resolveDualRowAssignmentState, countSlotAssignmentUnits, teacherTeachesBoth } from './dual-subject.js';
+import { findDualPairAtSlot, resolveDualRowAssignmentState, countBusiestHalfUnits, countSlotAssignmentUnits, teacherTeachesBoth } from './dual-subject.js';
 import { findTeacher, getOwnerTeacher } from './owner-teacher.js';
 import { isActivePerson, personAppliesOnDate } from './active-people.js';
-import { studentTuitionRate } from './tuition-rates.js';
+import { studentShortTuitionRate, studentTuitionRate } from './tuition-rates.js';
 
 // ---- 欠席・振替（特定の実日付にのみ影響。曜日パターン自体は変えない） ----
 // {id, studentId, courseId, subject, day, slot, date, status:'pending'|'resolved', makeup:null|{date,slot,teacherId}}
@@ -16,8 +17,13 @@ import { studentTuitionRate } from './tuition-rates.js';
 // {id, teacherId, date, slots:[4,6], note} 欠勤登録そのもの（取り消し・監査用）
 // {id, teacherId, date, slot, substituteTeacherId} その日その枠だけ、代講講師が担当する記録（曜日パターン自体は変えない）
 
-function findAbsenceFor(studentId, courseId, dateStr, day, slot){
-  return S.absences.find(ab=> ab.studentId===studentId && ab.courseId===courseId && ab.date===dateStr && ab.day===day && ab.slot===slot) || null;
+function findAbsenceFor(studentId, courseId, dateStr, day, slot, half){
+  const want = half === 'early' || half === 'late' || half === 'full' ? normalizeHalf(half) : null;
+  return S.absences.find(ab=>{
+    if(!(ab.studentId===studentId && ab.courseId===courseId && ab.date===dateStr && ab.day===day && Number(ab.slot)===Number(slot))) return false;
+    if(want) return normalizeHalf(ab.half) === want;
+    return true;
+  }) || null;
 }
 
 function resolveDualGroupIdForSlot(studentId, courseId, day, slot){
@@ -42,8 +48,8 @@ function findDualAbsenceSiblings(absence){
 }
 
 /** 双教科は片方だけ欠席があってもコマ全体を欠席扱いにする */
-function isAbsentOnDate(studentId, courseId, dateStr, day, slot){
-  if(findAbsenceFor(studentId, courseId, dateStr, day, slot)) return true;
+function isAbsentOnDate(studentId, courseId, dateStr, day, slot, half){
+  if(findAbsenceFor(studentId, courseId, dateStr, day, slot, half)) return true;
   const dualGroupId = resolveDualGroupIdForSlot(studentId, courseId, day, slot);
   if(!dualGroupId) return false;
   const student = S.students.find(s=> s.id === studentId);
@@ -69,19 +75,22 @@ function ensureDualAbsenceRecords(absence){
   });
 }
 
-function recordAbsence(studentId, courseId, subject, day, slot, dateStr){
-  if(findAbsenceFor(studentId, courseId, dateStr, day, slot)) return;
-  S.absences.push({
+function recordAbsence(studentId, courseId, subject, day, slot, dateStr, half){
+  const h = normalizeHalf(half);
+  if(findAbsenceFor(studentId, courseId, dateStr, day, slot, h)) return;
+  const row = {
     id:'abs-'+Date.now()+'-'+Math.random().toString(36).slice(2,6),
     studentId, courseId, subject, day, slot, date:dateStr, status:'pending', makeup:null
-  });
+  };
+  if(h !== 'full') row.half = h;
+  S.absences.push(row);
 }
 
 /** 双教科 slot は2教科まとめて欠席登録する */
-function recordStudentSlotAbsence(studentId, courseId, subject, day, slot, dateStr){
+function recordStudentSlotAbsence(studentId, courseId, subject, day, slot, dateStr, half){
   const student = S.students.find(s=> s.id === studentId);
   if(!student){
-    recordAbsence(studentId, courseId, subject, day, slot, dateStr);
+    recordAbsence(studentId, courseId, subject, day, slot, dateStr, half);
     return;
   }
   const dualGroupId = resolveDualGroupIdForSlot(studentId, courseId, day, slot);
@@ -94,7 +103,7 @@ function recordStudentSlotAbsence(studentId, courseId, subject, day, slot, dateS
       return;
     }
   }
-  recordAbsence(studentId, courseId, subject, day, slot, dateStr);
+  recordAbsence(studentId, courseId, subject, day, slot, dateStr, half);
 }
 
 async function dropMakeupSideEffects(ab){
@@ -358,7 +367,7 @@ function getTeacherLessonsOnDate(teacherId, dateStr){
   S.assignments.forEach(a=>{
     if(a.teacherId!==teacherId) return;
     if(!assignmentAppliesOnDate(a, dateStr)) return;
-    if(isAbsentOnDate(a.studentId, a.courseId, dateStr, a.day, a.slot)) return;
+    if(isAbsentOnDate(a.studentId, a.courseId, dateStr, a.day, a.slot, normalizeHalf(a.half))) return;
     bySlot[a.slot] = bySlot[a.slot] || [];
     const dualGroupId = a.dualGroupId || resolveDualGroupIdForSlot(a.studentId, a.courseId, weekday, a.slot);
     if(dualGroupId && bySlot[a.slot].some(e=> e.studentId === a.studentId)) return;
@@ -389,7 +398,7 @@ function listPendingTeacherAbsenceWorkItems(yearMonth){
         const key = `${ta.date}:${ta.teacherId}:${slotNum}:${e.studentId}`;
         if(seen.has(key)) return;
         if(findSubstitutionOnDate(ta.teacherId, ta.date, slotNum, e.studentId)) return;
-        if(isAbsentOnDate(e.studentId, e.courseId, ta.date, status.weekday, slotNum)) return;
+        if(isAbsentOnDate(e.studentId, e.courseId, ta.date, status.weekday, slotNum, normalizeHalf(e.half))) return;
         seen.add(key);
         const student = S.students.find(s=> s.id === e.studentId);
         items.push({
@@ -501,6 +510,10 @@ function findSubstituteCandidatesForStudent(dateStr, slot, absentTeacherId, stud
   const dualPair = findDualPairAtSlot(student.courses, weekday, slot);
   const dualSubjects = dualPair?.subjects;
 
+  const studentLesson = dayList.find(a=>
+    a.studentId === studentId && Number(a.slot) === Number(slot) && a.teacherId === absentTeacherId
+  );
+  const capHalf = studentLesson?.half === 'early' || studentLesson?.half === 'late' ? studentLesson.half : undefined;
   const qualified = S.teachers.filter(t=>{
     if(!isActivePerson(t)) return false;
     if(t.id===absentTeacherId) return false;
@@ -509,14 +522,7 @@ function findSubstituteCandidatesForStudent(dateStr, slot, absentTeacherId, stud
     }else if(!t.subjects.some(ts=>ts.level===student.level && ts.subject===subject)){
       return false;
     }
-    const used = countSlotAssignmentUnits(
-      dayList.filter(a=> a.teacherId === t.id && a.slot === slot).map(a=>({
-        studentId: a.studentId,
-        day: weekday,
-        slot,
-        dualGroupId: a.dualGroupId || null,
-      })),
-    );
+    const used = countTeacherLoadOnDate(t.id, dateStr, slot, studentId, capHalf);
     return used < S.teacherCapacity;
   });
 
@@ -542,14 +548,7 @@ function findSubstituteCandidatesForStudent(dateStr, slot, absentTeacherId, stud
   });
   const owner = getOwnerTeacher();
   if(owner.id !== absentTeacherId){
-    const ownerUsed = countSlotAssignmentUnits(
-      dayList.filter(a=> a.teacherId === owner.id && a.slot === slot).map(a=>({
-        studentId: a.studentId,
-        day: weekday,
-        slot,
-        dualGroupId: a.dualGroupId || null,
-      })),
-    );
+    const ownerUsed = countTeacherLoadOnDate(owner.id, dateStr, slot, studentId, capHalf);
     if(ownerUsed < S.teacherCapacity){
       withKeys.push({ teacher: owner, group: 99, prefSubject: false, rate: Infinity });
     }
@@ -706,7 +705,14 @@ async function cancelTeacherAbsence(id){
 }
 
 // 指定日・指定コマにおける講師の実際の負荷（曜日パターンの確定分から、その日欠席の生徒を除き、振替で入る生徒を足す）
-function countTeacherLoadOnDate(teacherId, dateStr, slot, excludeStudentId){
+function countLoadUnits(units, half){
+  if(half === 'early' || half === 'late'){
+    return countSlotAssignmentUnits(units.filter(u=> occupiesHalf(u.half, half)));
+  }
+  return countBusiestHalfUnits(units);
+}
+
+function countTeacherLoadOnDate(teacherId, dateStr, slot, excludeStudentId, half){
   const status = getDayStatus(dateStr);
   if(status.type!=='open') return 0;
   const weekday = status.weekday;
@@ -716,12 +722,13 @@ function countTeacherLoadOnDate(teacherId, dateStr, slot, excludeStudentId){
     if(a.teacherId!==teacherId || Number(a.slot)!==Number(slot)) return;
     if(!assignmentAppliesOnDate(a, dateStr)) return;
     if(a.studentId===excludeStudentId) return;
-    if(isAbsentOnDate(a.studentId, a.courseId, dateStr, a.day, a.slot)) return;
+    if(isAbsentOnDate(a.studentId, a.courseId, dateStr, a.day, a.slot, normalizeHalf(a.half))) return;
     if(isAssignedTeacherMissingOnDate(a, dateStr)) return;
     units.push({
       studentId: a.studentId,
       day: weekday,
       slot,
+      half: a.half,
       dualGroupId: a.dualGroupId || resolveDualGroupIdForSlot(a.studentId, a.courseId, weekday, slot),
     });
   });
@@ -735,13 +742,14 @@ function countTeacherLoadOnDate(teacherId, dateStr, slot, excludeStudentId){
       studentId: ab.studentId,
       day: weekday,
       slot,
+      half: ab.makeup.half || ab.half,
       dualGroupId: resolveDualGroupIdForSlot(ab.studentId, ab.courseId, ab.day, ab.slot),
     });
   });
-  return countSlotAssignmentUnits(units);
+  return countLoadUnits(units, half);
 }
 // 指定日・指定コマにおける教室全体の実際の負荷
-function countRoomLoadOnDate(dateStr, slot, excludeStudentId){
+function countRoomLoadOnDate(dateStr, slot, excludeStudentId, half){
   const status = getDayStatus(dateStr);
   if(status.type!=='open') return 0;
   const weekday = status.weekday;
@@ -750,12 +758,13 @@ function countRoomLoadOnDate(dateStr, slot, excludeStudentId){
     if(Number(a.slot)!==Number(slot)) return;
     if(!assignmentAppliesOnDate(a, dateStr)) return;
     if(a.studentId===excludeStudentId) return;
-    if(isAbsentOnDate(a.studentId, a.courseId, dateStr, a.day, a.slot)) return;
+    if(isAbsentOnDate(a.studentId, a.courseId, dateStr, a.day, a.slot, normalizeHalf(a.half))) return;
     if(isAssignedTeacherMissingOnDate(a, dateStr)) return;
     units.push({
       studentId: a.studentId,
       day: weekday,
       slot,
+      half: a.half,
       dualGroupId: a.dualGroupId || resolveDualGroupIdForSlot(a.studentId, a.courseId, weekday, slot),
     });
   });
@@ -768,44 +777,53 @@ function countRoomLoadOnDate(dateStr, slot, excludeStudentId){
       studentId: ab.studentId,
       day: weekday,
       slot,
+      half: ab.makeup.half || ab.half,
       dualGroupId: resolveDualGroupIdForSlot(ab.studentId, ab.courseId, ab.day, ab.slot),
     });
   });
-  return countSlotAssignmentUnits(units);
+  return countLoadUnits(units, half);
 }
 
-function originalAbsenceSlotOnDate(studentId, dateStr){
-  const ab = S.absences.find(a=> a.studentId === studentId && a.date === dateStr);
-  return ab ? Number(ab.slot) : null;
+function originalAbsenceTarget(studentId, dateStr){
+  const ab = S.absences.find(a=> a.studentId === studentId && a.date === dateStr && a.status === 'pending');
+  if(!ab) return null;
+  return { slot: Number(ab.slot), half: normalizeHalf(ab.half), date: ab.date };
 }
 
-function collectMakeupSlotsOnDate(studentId, dateStr, teacherFilter){
+function collectMakeupSlotsOnDate(studentId, dateStr, teacherFilter, sourceHalf){
   const status = getDayStatus(dateStr);
   if(status.type !== 'open') return { teacherSlots: [], ownerOnlySlots: [] };
-  const skipSlot = originalAbsenceSlotOnDate(studentId, dateStr);
+  const skip = originalAbsenceTarget(studentId, dateStr);
+  const shortSearch = isShortHalf(sourceHalf);
+  const halves = shortSearch ? ['early', 'late'] : [null];
   const teacherSlots = [];
   const ownerOnlySlots = [];
   const owner = getOwnerTeacher();
   for(const slot of SLOTS){
-    if(skipSlot !== null && Number(slot.id) === skipSlot) continue;
-    const roomLoad = countRoomLoadOnDate(dateStr, slot.id, studentId);
+    for(const half of halves){
+    if(!shortSearch && skip && Number(slot.id) === skip.slot && !isShortHalf(skip.half)) continue;
+    if(shortSearch && skip && Number(slot.id) === skip.slot && half === normalizeHalf(skip.half) && skip.date === dateStr) continue;
+    const capHalf = half === 'early' || half === 'late' ? half : undefined;
+    const roomLoad = countRoomLoadOnDate(dateStr, slot.id, studentId, capHalf);
     if(roomLoad >= S.roomCapacity) continue;
     const cands = S.teachers
       .filter(isActivePerson)
       .filter(teacherFilter)
       .filter(t=> isTeacherAvailableOnDate(t.id, dateStr, slot.id))
-      .map(t=>({teacher:t, used: countTeacherLoadOnDate(t.id, dateStr, slot.id, studentId)}))
+      .map(t=>({teacher:t, used: countTeacherLoadOnDate(t.id, dateStr, slot.id, studentId, capHalf)}))
       .filter(c=> c.used < S.teacherCapacity)
       .sort((a,b)=> a.used - b.used);
-    const ownerUsed = countTeacherLoadOnDate(owner.id, dateStr, slot.id, studentId);
+    const ownerUsed = countTeacherLoadOnDate(owner.id, dateStr, slot.id, studentId, capHalf);
     const ownerCand = ownerUsed < S.teacherCapacity
       ? { teacher: owner, used: ownerUsed }
       : null;
+    const rowHalf = capHalf || 'full';
     if(cands.length > 0){
       if(ownerCand) cands.push(ownerCand);
-      teacherSlots.push({ date: dateStr, slot, candidates: cands });
+      teacherSlots.push({ date: dateStr, slot, half: rowHalf, candidates: cands });
     }else if(ownerCand){
-      ownerOnlySlots.push({ date: dateStr, slot, candidates: [ownerCand] });
+      ownerOnlySlots.push({ date: dateStr, slot, half: rowHalf, candidates: [ownerCand] });
+    }
     }
   }
   return { teacherSlots, ownerOnlySlots };
@@ -842,11 +860,12 @@ function collectMakeupCandidatesInRange(afterDateStr, dayCollector, limit){
   return results;
 }
 
-function findMakeupCandidatesOnDate(studentId, level, subject, dateStr){
+function findMakeupCandidatesOnDate(studentId, level, subject, dateStr, sourceHalf){
   return flattenMakeupSlotsOnDate(collectMakeupSlotsOnDate(
     studentId,
     dateStr,
     t=> t.subjects.some(ts=> ts.level === level && ts.subject === subject),
+    sourceHalf,
   ));
 }
 
@@ -860,13 +879,14 @@ function findDualMakeupCandidatesOnDate(studentId, level, subjects, dateStr){
 }
 
 // 欠席日当日の別コマも含め、対応可能な振替候補を日付順に探す
-function findMakeupCandidates(studentId, level, subject, afterDateStr, limit){
+function findMakeupCandidates(studentId, level, subject, afterDateStr, limit, sourceHalf){
   return collectMakeupCandidatesInRange(
     afterDateStr,
     dateStr=> collectMakeupSlotsOnDate(
       studentId,
       dateStr,
       t=> t.subjects.some(ts=> ts.level === level && ts.subject === subject),
+      sourceHalf,
     ),
     limit,
   );
@@ -885,19 +905,22 @@ function findDualMakeupCandidates(studentId, level, subjects, afterDateStr, limi
   );
 }
 
-async function confirmMakeup(absenceId, makeupDate, makeupSlot, teacherId){
+async function confirmMakeup(absenceId, makeupDate, makeupSlot, teacherId, makeupHalf){
   const ab = S.absences.find(a=>a.id===absenceId);
   if(!ab) return {ok:false, msg:'欠席記録が見つかりません。'};
   ensureDualAbsenceRecords(ab);
   const siblings = findDualAbsenceSiblings(ab);
-  const roomLoad = countRoomLoadOnDate(makeupDate, makeupSlot, ab.studentId);
+  const destHalf = isShortHalf(ab.half) ? normalizeHalf(makeupHalf || 'early') : 'full';
+  const capHalf = destHalf === 'full' ? undefined : destHalf;
+  const roomLoad = countRoomLoadOnDate(makeupDate, makeupSlot, ab.studentId, capHalf);
   if(roomLoad>=S.roomCapacity) return {ok:false, msg:'その日程は教室全体の定員に達しています。'};
-  const teacherLoad = countTeacherLoadOnDate(teacherId, makeupDate, makeupSlot, ab.studentId);
+  const teacherLoad = countTeacherLoadOnDate(teacherId, makeupDate, makeupSlot, ab.studentId, capHalf);
   if(teacherLoad>=S.teacherCapacity) return {ok:false, msg:'その講師はその日程の定員に達しています。'};
   const makeupWeekday = getDayStatus(makeupDate).weekday;
   const dualGroupId = resolveDualGroupIdForSlot(ab.studentId, ab.courseId, ab.day, ab.slot);
   siblings.forEach((sibling, idx)=>{
     sibling.makeup = {date:makeupDate, slot:makeupSlot, teacherId};
+    if(destHalf !== 'full') sibling.makeup.half = destHalf;
     sibling.status = 'resolved';
     delete sibling.makeupRejected;
     const teacher = findTeacher(teacherId);
@@ -913,6 +936,7 @@ async function confirmMakeup(absenceId, makeupDate, makeupSlot, teacherId){
       oneTimeDate: makeupDate,
       dualGroupId: dualGroupId || null,
     };
+    if(destHalf !== 'full') makeupEntry.half = destHalf;
     if(teacher?.loginUid){
       S.pendingAssignments.push(makeupEntry);
     }else{
@@ -932,10 +956,14 @@ async function confirmMakeup(absenceId, makeupDate, makeupSlot, teacherId){
 function enrichAssignmentEntry(a, weekday){
   const student = S.students.find(s=> s.id === a.studentId);
   const course = student?.courses.find(c=> c.id === a.courseId);
-  const ds = course?.desiredSlots.find(d=> d.day === weekday && Number(d.slot) === Number(a.slot));
+  const want = normalizeHalf(a.half);
+  const ds = course?.desiredSlots.find(d=>
+    d.day === weekday && Number(d.slot) === Number(a.slot) && normalizeHalf(d.half) === want
+  );
   return {
     ...a,
     day: weekday,
+    half: want === 'full' ? undefined : want,
     dualGroupId: a.dualGroupId || ds?.dualGroupId || null,
   };
 }
@@ -966,6 +994,7 @@ function listCoversMakeup(list, ab){
     a.studentId === ab.studentId &&
     a.courseId === ab.courseId &&
     Number(a.slot) === Number(ab.makeup.slot) &&
+    normalizeHalf(a.half) === normalizeHalf(ab.makeup.half) &&
     a.teacherId === ab.makeup.teacherId &&
     (a.kind === 'makeup' || a.source === 'makeup' || a.oneTimeDate === ab.makeup.date)
   );
@@ -978,7 +1007,8 @@ function makeupAssignmentPending(ab){
     a.studentId === ab.studentId &&
     a.courseId === ab.courseId &&
     a.oneTimeDate === ab.makeup.date &&
-    Number(a.slot) === Number(ab.makeup.slot)
+    Number(a.slot) === Number(ab.makeup.slot) &&
+    normalizeHalf(a.half) === normalizeHalf(ab.makeup.half)
   );
 }
 
@@ -989,7 +1019,8 @@ function removeMakeupAssignmentsFor(ab){
     a.studentId === ab.studentId &&
     a.courseId === ab.courseId &&
     a.oneTimeDate === makeup.date &&
-    Number(a.slot) === Number(makeup.slot);
+    Number(a.slot) === Number(makeup.slot) &&
+    normalizeHalf(a.half) === normalizeHalf(makeup.half);
   S.assignments = S.assignments.filter(a=> !drop(a));
   S.pendingAssignments = S.pendingAssignments.filter(a=> !drop(a));
   S.draftAssignments = S.draftAssignments.filter(a=> !drop(a));
@@ -1003,7 +1034,7 @@ function getEffectiveDayAssignments(dateStr){
   S.assignments.forEach(a=>{
     if(a.day!==weekday) return;
     if(!assignmentAppliesOnDate(a, dateStr)) return;
-    if(isAbsentOnDate(a.studentId, a.courseId, dateStr, a.day, a.slot)) return;
+    if(isAbsentOnDate(a.studentId, a.courseId, dateStr, a.day, a.slot, normalizeHalf(a.half))) return;
     const sub = findSubstitutionOnDate(a.teacherId, dateStr, a.slot, a.studentId);
     const teacherAbsent = !sub && isTeacherAbsentForStudent(a.teacherId, dateStr, a.slot, a.studentId);
     const effectiveTeacherId = sub ? sub.substituteTeacherId : a.teacherId;
@@ -1012,6 +1043,7 @@ function getEffectiveDayAssignments(dateStr){
       teacherId:effectiveTeacherId, kind: assignmentKind(a), source:a.source,
       substituted: !!sub, originalTeacherId: sub ? a.teacherId : null,
       teacherAbsent,
+      half: a.half,
       dualGroupId: a.dualGroupId || null,
       oneTimeDate: a.oneTimeDate || null,
     }, weekday));
@@ -1019,12 +1051,13 @@ function getEffectiveDayAssignments(dateStr){
   S.pendingAssignments.forEach(a=>{
     if(a.day!==weekday) return;
     if(!assignmentAppliesOnDate(a, dateStr)) return;
-    if(isAbsentOnDate(a.studentId, a.courseId, dateStr, a.day, a.slot)) return;
+    if(isAbsentOnDate(a.studentId, a.courseId, dateStr, a.day, a.slot, normalizeHalf(a.half))) return;
     const teacherAbsent = isTeacherAbsentForStudent(a.teacherId, dateStr, a.slot, a.studentId);
     list.push(enrichAssignmentEntry({
       studentId:a.studentId, courseId:a.courseId, subject:a.subject, slot:a.slot,
       teacherId:a.teacherId, kind: assignmentKind(a), source:a.source, pending:true,
       teacherAbsent,
+      half: a.half,
       dualGroupId: a.dualGroupId || null,
       oneTimeDate: a.oneTimeDate || null,
     }, weekday));
@@ -1032,12 +1065,13 @@ function getEffectiveDayAssignments(dateStr){
   S.draftAssignments.forEach(a=>{
     if(a.day!==weekday) return;
     if(!assignmentAppliesOnDate(a, dateStr)) return;
-    if(isAbsentOnDate(a.studentId, a.courseId, dateStr, a.day, a.slot)) return;
+    if(isAbsentOnDate(a.studentId, a.courseId, dateStr, a.day, a.slot, normalizeHalf(a.half))) return;
     const teacherAbsent = isTeacherAbsentForStudent(a.teacherId, dateStr, a.slot, a.studentId);
     list.push(enrichAssignmentEntry({
       studentId:a.studentId, courseId:a.courseId, subject:a.subject, slot:a.slot,
       teacherId:a.teacherId, kind: assignmentKind(a), source:a.source, draft:true,
       teacherAbsent,
+      half: a.half,
       dualGroupId: a.dualGroupId || null,
       oneTimeDate: a.oneTimeDate || null,
     }, weekday));
@@ -1051,6 +1085,7 @@ function getEffectiveDayAssignments(dateStr){
       subject: ab.subject,
       day: weekday,
       slot: ab.makeup.slot,
+      half: ab.makeup.half,
       teacherId: ab.makeup.teacherId,
       kind: 'makeup',
       pending: makeupAssignmentPending(ab),
@@ -1072,22 +1107,33 @@ function computeTeacherOpenings(dateStr, onlyTeacherId){
     SLOTS.forEach(slot=>{
       const state = getDateSlotState(t.id, dateStr, slot.id); // 'none'|'normal'|'preferred'
       if(state==='none') return; // ×は対象外
-      const booked = countSlotAssignmentUnits(
-        dayList.filter(a=> a.teacherId === t.id && a.slot === slot.id).map(a=>({
-          studentId: a.studentId,
-          day: status.weekday,
-          slot: a.slot,
-          dualGroupId: a.dualGroupId || null,
-        })),
-      );
+      const mine = dayList.filter(a=> a.teacherId === t.id && Number(a.slot) === Number(slot.id));
+      const early = countSlotAssignmentUnits(mine.filter(a=> occupiesHalf(a.half, 'early')));
+      const late = countSlotAssignmentUnits(mine.filter(a=> occupiesHalf(a.half, 'late')));
+      const earlyLeft = Math.max(0, S.teacherCapacity - early);
+      const lateLeft = Math.max(0, S.teacherCapacity - late);
+      const remaining = Math.max(earlyLeft, lateLeft);
       let kind;
-      if(booked===0){ kind='empty'; emptyCount++; }
-      else if(booked<S.teacherCapacity){ kind='partial'; partialCount++; }
-      else{ kind='full'; }
-      rows.push({teacher:t, slot, state, booked, kind, remaining: S.teacherCapacity-booked});
+      if(early === 0 && late === 0){ kind='empty'; emptyCount++; }
+      else if(earlyLeft === 0 && lateLeft === 0){ kind='full'; }
+      else{ kind='partial'; partialCount++; }
+      const booked = S.teacherCapacity - remaining;
+      rows.push({teacher:t, slot, state, booked, kind, remaining, early, late});
     });
   });
   return {partialCount, emptyCount, rows};
+}
+
+function countTeacherKomaInList(list){
+  const bySlot = new Map();
+  (list || []).forEach(a=>{
+    const key = String(a.slot);
+    if(!bySlot.has(key)) bySlot.set(key, []);
+    bySlot.get(key).push(a);
+  });
+  let n = 0;
+  bySlot.forEach(group=>{ n += komaCountForTeacherSlot(group); });
+  return n;
 }
 
 // その日の実際のレッスン一覧（欠席・振替反映済み）から、売上・講師コスト・コスト率を計算する
@@ -1102,16 +1148,8 @@ function countTeacherLessonsBefore(teacherId, dateStr){
   let guard = 0;
   while(d < end && guard < 370){
     const ds = toDateStr(d.getFullYear(), d.getMonth(), d.getDate());
-    const weekday = getDayStatus(ds).weekday;
     const list = getEffectiveDayAssignments(ds);
-    count += countSlotAssignmentUnits(
-      list.filter(a=> a.teacherId === teacherId).map(a=>({
-        studentId: a.studentId,
-        day: weekday,
-        slot: a.slot,
-        dualGroupId: a.dualGroupId || null,
-      })),
-    );
+    count += countTeacherKomaInList(list.filter(a=> a.teacherId === teacherId));
     d.setDate(d.getDate()+1);
     guard++;
   }
@@ -1137,15 +1175,15 @@ function getTeacherMonthLessonCounts(){
       const groups = new Map();
       list.forEach(a=>{
         if(!groups.has(a.teacherId)) groups.set(a.teacherId, { all: [], draft: [] });
-        const unit = { studentId: a.studentId, day: weekday, slot: a.slot, dualGroupId: a.dualGroupId || null };
+        const unit = { studentId: a.studentId, day: weekday, slot: a.slot, half: a.half, dualGroupId: a.dualGroupId || null };
         groups.get(a.teacherId).all.push(unit);
         if(a.draft) groups.get(a.teacherId).draft.push(unit);
       });
       groups.forEach((g, teacherId)=>{
         if(!byTeacher.has(teacherId)) byTeacher.set(teacherId, months.map(()=> ({ total: 0, draft: 0 })));
         const row = byTeacher.get(teacherId)[mi];
-        row.total += countSlotAssignmentUnits(g.all);
-        row.draft += countSlotAssignmentUnits(g.draft);
+        row.total += countTeacherKomaInList(g.all);
+        row.draft += countTeacherKomaInList(g.draft);
       });
     }
   });
@@ -1210,9 +1248,11 @@ function countStudentLessonsBefore(student, dateStr){
   return count;
 }
 
-function getStudentTuitionForDate(student, dateStr){
+function getStudentTuitionForDate(student, dateStr, assignment){
   if(!student) return 0;
-  const rate = studentTuitionRate(S.tuitionGradeRates, student);
+  const rate = isShortHalf(assignment?.half)
+    ? studentShortTuitionRate(S.tuitionGradeRatesShort, student)
+    : studentTuitionRate(S.tuitionGradeRates, student);
   const freeCount = Number(student.freeLessonCount) || 0;
   if(freeCount <= 0) return rate;
   const before = countStudentLessonsBefore(student, dateStr);
@@ -1262,21 +1302,26 @@ function computeDayFinance(dateStr, includeTransport){
     // プログラミング（1教科）は月額で集計するため、コマごとの授業料は0円
     if(isMonthlyFeeLesson(a)) return;
     const student = S.students.find(s=>s.id===a.studentId);
-    revenue += getStudentTuitionForDate(student, dateStr);
+    revenue += getStudentTuitionForDate(student, dateStr, a);
   });
 
   // 講師コスト（コマ給）は「講師×コマ」単位で1回だけ支払う（同じコマに生徒が2人いても、講師が受け取るのは1コマ分）
   let lessonCost = 0;
-  const teacherSlotSet = new Set(); // "teacherId|slot" の重複排除
+  const teacherSlotGroups = new Map();
   const teacherIdsToday = new Set();
   list.forEach(a=>{
-    teacherSlotSet.add(`${a.teacherId}|${a.slot}`);
+    if(!a.teacherId) return;
+    const key = `${a.teacherId}|${a.slot}`;
+    if(!teacherSlotGroups.has(key)) teacherSlotGroups.set(key, []);
+    teacherSlotGroups.get(key).push(a);
     teacherIdsToday.add(a.teacherId);
   });
-  teacherSlotSet.forEach(key=>{
+  teacherSlotGroups.forEach((assignments, key)=>{
     const tid = key.split('|')[0];
     const teacher = findTeacher(tid);
-    lessonCost += teacher ? getTeacherRateForDate(teacher, dateStr) : 0;
+    if(!teacher) return;
+    const rate = getTeacherRateForDate(teacher, dateStr);
+    lessonCost += lessonPayForSlot(rate, S.shortLessonPayPercent, assignments);
   });
   // 交通費（出勤日1回だけ）は別集計にしておき、含める/含めないを切り替えられるようにする
   let transportCost = 0;
@@ -1351,14 +1396,16 @@ function getStudentDateRows(student, dateStr){
         return;
       }
 
-      const absence = findAbsenceFor(student.id, course.id, dateStr, ds.day, ds.slot);
+      const half = normalizeHalf(ds.half);
+      const absence = findAbsenceFor(student.id, course.id, dateStr, ds.day, ds.slot, half);
       if(absence && absence.status === 'resolved' && absence.makeup) return;
-      const eff = findEffectiveAssignment(student.id, course.id, ds.day, ds.slot, yearMonth, dateStr);
+      const eff = findEffectiveAssignment(student.id, course.id, ds.day, ds.slot, yearMonth, dateStr, half);
       const missingTeacher = eff && isAssignedTeacherMissingOnDate(eff.entry, dateStr)
         ? eff.entry
         : null;
       rows.push({
         slot,
+        half,
         course,
         courses: null,
         dualPair: null,

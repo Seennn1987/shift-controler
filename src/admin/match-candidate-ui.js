@@ -80,6 +80,7 @@ export function renderMatchCandidateList(candidates, opts){
     showConfirm = true,
     showPrefPairAction = true,
     showPrefPairSetAction = false,
+    half = undefined,
     dual = false,
     subjects = null,
     confirmLabel = 'この講師に依頼',
@@ -109,6 +110,7 @@ export function renderMatchCandidateList(candidates, opts){
         data-subject="${escapeAttr(subject)}"
         data-day="${escapeAttr(day)}"
         data-slot="${slot}"
+        ${half === 'early' || half === 'late' ? `data-half="${half}"` : ''}
         data-teacher="${escapeAttr(cand.teacher.id)}"
         ${dual ? 'data-dual="1"' : ''}
         ${dateStr ? `data-date="${escapeAttr(dateStr)}"` : ''}>${confirmLabel}</button>` : '';

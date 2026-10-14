@@ -1,4 +1,5 @@
 import { SLOTS, WEEKDAY_JP } from '../shared/constants.js';
+import { halfLabel, isShortHalf, slotTimeForHalf } from '../shared/lesson-span.js';
 import { collapseTeacherCalendarEntries, ticketSubjectMatchesEntry, buildDualSubjectTagsHtml } from '../admin/dual-subject.js';
 import { subjectColor } from '../admin/schedule-core.js';
 import { pad2, daysInYearMonth, toDateStr } from '../shared/date-utils.js';
@@ -102,7 +103,9 @@ function buildSubjectTagsHtml(entry){
     return buildDualSubjectTagsHtml(level, entry.subjects, subjectColor);
   }
   const c = subjectColor(level, entry.subject);
-  return `<span class="sched-student-tag" style="background:${c.bg};color:${c.text};">${entry.subject}</span>`;
+  const slotDef = SLOTS.find(s=> Number(s.id) === Number(entry.slot));
+  const when = isShortHalf(entry.half) && slotDef ? ` ${halfLabel(entry.half)} ${slotTimeForHalf(slotDef, entry.half)}` : '';
+  return `<span class="sched-student-tag" style="background:${c.bg};color:${c.text};">${entry.subject}${when}</span>`;
 }
 
 function buildStudentLineHtml(entry, isLast, showCancelInRow, dateStr){

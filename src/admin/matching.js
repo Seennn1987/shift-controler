@@ -1,4 +1,5 @@
 import { DAYS, SLOTS, WEEKDAY_JP, WEEK_FULL, LEVELS_ORDER, GRADE_MAX_BY_LEVEL } from '../shared/constants.js';
+import { normalizeHalf } from '../shared/lesson-span.js';
 import { HOLIDAYS_JP } from '../shared/holidays.js';
 import { pad2, daysInYearMonth, toDateStr, getTodayStr, isOnOrAfterDate } from '../shared/date-utils.js';
 import { firebaseConfig, fbAuth, fbDb, STORAGE_KEY, getSecondaryAuth, S } from './state.js';
@@ -87,19 +88,20 @@ function bulkAutoAssign({ studentId } = {}){
             });
             return;
           }
-          if(findAbsenceFor(s.id, course.id, dateStr, ds.day, ds.slot)) return;
-          if(findEffectiveAssignment(s.id, course.id, ds.day, ds.slot, ym, dateStr)) return;
+          const half = normalizeHalf(ds.half);
+          if(findAbsenceFor(s.id, course.id, dateStr, ds.day, ds.slot, half)) return;
+          if(findEffectiveAssignment(s.id, course.id, ds.day, ds.slot, ym, dateStr, half)) return;
 
           const candidateCount = S.teachers
             .filter(isActivePerson)
             .filter(t=> isTeacherAvailableOnDate(t.id, dateStr, ds.slot) &&
               t.subjects.some(ts=> ts.level === s.level && ts.subject === course.subject))
-            .map(t=> buildCandidateInfo(s.id, course.id, s.level, course.subject, ds.day, ds.slot, t, dateStr))
+            .map(t=> buildCandidateInfo(s.id, course.id, s.level, course.subject, ds.day, ds.slot, t, dateStr, half))
             .filter(c=> !c.full).length;
 
           pending.push({
             dateStr, studentId: s.id, courseId: course.id, subject: course.subject,
-            day: ds.day, slot: ds.slot, candidateCount,
+            day: ds.day, slot: ds.slot, half, candidateCount,
           });
         });
       });
@@ -124,8 +126,8 @@ function bulkAutoAssign({ studentId } = {}){
       if(p.dualPair.entries.some(({ course })=>
         findAbsenceFor(p.studentId, course.id, p.dateStr, p.day, p.slot))){ skipped++; return; }
     }else{
-      if(findEffectiveAssignment(p.studentId, p.courseId, p.day, p.slot, ym, p.dateStr)){ skipped++; return; }
-      if(findAbsenceFor(p.studentId, p.courseId, p.dateStr, p.day, p.slot)){ skipped++; return; }
+      if(findEffectiveAssignment(p.studentId, p.courseId, p.day, p.slot, ym, p.dateStr, p.half)){ skipped++; return; }
+      if(findAbsenceFor(p.studentId, p.courseId, p.dateStr, p.day, p.slot, p.half)){ skipped++; return; }
     }
 
     const student = S.students.find(s=> s.id === p.studentId);
@@ -146,7 +148,7 @@ function bulkAutoAssign({ studentId } = {}){
         .filter(isActivePerson)
         .filter(t=> isTeacherAvailableOnDate(t.id, p.dateStr, p.slot) &&
           t.subjects.some(ts=> ts.level === student.level && ts.subject === p.subject))
-        .map(t=> buildCandidateInfo(p.studentId, p.courseId, student.level, p.subject, p.day, p.slot, t, p.dateStr))
+        .map(t=> buildCandidateInfo(p.studentId, p.courseId, student.level, p.subject, p.day, p.slot, t, p.dateStr, p.half))
         .filter(c=> !c.full)
         .sort(compareCandidateInfo);
     }
@@ -160,7 +162,7 @@ function bulkAutoAssign({ studentId } = {}){
       )
       : confirmAssignment(
         p.studentId, p.courseId, p.subject, p.day, p.slot,
-        candidates[0].teacher.id, 'auto', { dateStr: p.dateStr },
+        candidates[0].teacher.id, 'auto', { dateStr: p.dateStr, half: p.half },
       );
     if(result.ok) filled++; else skipped++;
   });
@@ -583,7 +585,7 @@ function getStudentListStatus(student){
   (student.courses || []).forEach(course=>{
     (course.desiredSlots || []).forEach(ds=>{
       totalSlots++;
-      if(!findEffectiveAssignment(student.id, course.id, ds.day, ds.slot, ym)){
+      if(!findEffectiveAssignment(student.id, course.id, ds.day, ds.slot, ym, null, normalizeHalf(ds.half))){
         pendingSlots++;
       }
     });
@@ -1950,7 +1952,7 @@ function jumpToCalendarForStudent(studentId, courseId){
   const pending = course.desiredSlots.find(ds=>{
     const nearDate = findNearestFutureDate(ds.day);
     const ym = nearDate ? nearDate.slice(0,7) : S.referenceYearMonth;
-    return !findEffectiveAssignment(studentId, courseId, ds.day, ds.slot, ym);
+    return !findEffectiveAssignment(studentId, courseId, ds.day, ds.slot, ym, null, normalizeHalf(ds.half));
   });
   const target = pending || course.desiredSlots[0];
   const dateStr = findNearestFutureDate(target.day);
