@@ -72,12 +72,9 @@ const { S } = stateMod;
 
 const DATE = '2026-10-19';
 
-function post(){}
-
 const results = [];
-function check(id, hypothesisId, ok, detail){
-  results.push({ id, hypothesisId, ok, detail });
-  post(hypothesisId, id, { ok, ...detail });
+function check(id, _hypothesisId, ok, detail){
+  results.push({ id, ok, detail });
   const mark = ok ? 'OK' : 'NG';
   console.log(`${mark} ${id} ${JSON.stringify(detail)}`);
 }
