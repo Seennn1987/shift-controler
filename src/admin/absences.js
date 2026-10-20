@@ -466,6 +466,15 @@ function isAssignedTeacherMissingOnDate(assignment, dateStr){
   return isTeacherAbsentForStudent(assignment.teacherId, dateStr, assignment.slot, assignment.studentId);
 }
 
+/** その日その授業に実際に入る講師。代講があれば代講先。欠勤で代講がなければ null。 */
+function teachingTeacherIdOnDate(assignment, dateStr){
+  if(!assignment || !dateStr) return null;
+  const sub = findSubstitutionOnDate(assignment.teacherId, dateStr, assignment.slot, assignment.studentId);
+  if(sub) return sub.substituteTeacherId;
+  if(isTeacherAbsentForStudent(assignment.teacherId, dateStr, assignment.slot, assignment.studentId)) return null;
+  return assignment.teacherId;
+}
+
 function recordTeacherAbsence(teacherId, dateStr, slots, studentId){
   let ta = findTeacherAbsence(teacherId, dateStr);
   if(!ta){
@@ -493,7 +502,7 @@ function recordTeacherAbsence(teacherId, dateStr, slots, studentId){
 
 // その日その枠に代講候補になりうる講師を探す（欠勤本人を除外、その枠にいる全生徒の教科・学年に対応でき、空きがある講師）
 // その日その枠・その生徒1人分について、代講候補になりうる講師を探す
-// （実際の当日の負荷=getEffectiveDayAssignmentsベースで空きを判定するため、同じ枠内で他の生徒に既に代講が決まっていても正しく数えられる）
+// （空きは、その日実際に入る講師で数える。代講で外れた講師は空き、代わりに入った講師は埋まる）
 // その日その枠・その生徒1人分について、代講候補になりうる講師を、追加コストが低い順に並べて返す
 // 優先順位：①その枠に既に1人だけ担当している講師（追加コストゼロ）
 //         ②当日は他のコマで出勤予定があり、この枠が空いている講師（交通費の追加なし）
@@ -704,7 +713,7 @@ async function cancelTeacherAbsence(id){
   await revokeDroppedSubstitutions(dropped);
 }
 
-// 指定日・指定コマにおける講師の実際の負荷（曜日パターンの確定分から、その日欠席の生徒を除き、振替で入る生徒を足す）
+// 指定日・指定コマにおける講師の実際の負荷（確定・承認待ち・仮決めから、その日欠席の生徒を除き、振替を足す。代講があれば代講先の負荷にする）
 function countLoadUnits(units, half){
   if(half === 'early' || half === 'late'){
     return countSlotAssignmentUnits(units.filter(u=> occupiesHalf(u.half, half)));
@@ -719,11 +728,11 @@ function countTeacherLoadOnDate(teacherId, dateStr, slot, excludeStudentId, half
   const units = [];
   const listed = S.assignments.concat(S.pendingAssignments, S.draftAssignments);
   listed.forEach(a=>{
-    if(a.teacherId!==teacherId || Number(a.slot)!==Number(slot)) return;
+    if(Number(a.slot)!==Number(slot)) return;
+    if(teachingTeacherIdOnDate(a, dateStr)!==teacherId) return;
     if(!assignmentAppliesOnDate(a, dateStr)) return;
     if(a.studentId===excludeStudentId) return;
     if(isAbsentOnDate(a.studentId, a.courseId, dateStr, a.day, a.slot, normalizeHalf(a.half))) return;
-    if(isAssignedTeacherMissingOnDate(a, dateStr)) return;
     units.push({
       studentId: a.studentId,
       day: weekday,
