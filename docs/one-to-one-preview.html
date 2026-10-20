@@ -1,0 +1,121 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ピタコマ 1対1コース プレビュー</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Zen+Kaku+Gothic+New:wght@400;500;700;900&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/src/shared/styles/variables.css">
+  <link rel="stylesheet" href="/src/admin/styles/admin.css">
+  <style>
+    body{padding:24px;background:var(--bg-soft);}
+    .preview-note{max-width:900px;margin:0 auto 20px;font-size:var(--text-md);color:var(--ink);}
+    .preview-note h1{font-size:var(--text-xl);margin:0 0 8px;}
+    .preview-wrap{max-width:900px;margin:0 auto;display:flex;flex-direction:column;gap:16px;}
+    .preview-row{display:flex;flex-wrap:wrap;gap:16px;align-items:flex-start;}
+    .preview-pop{position:relative;min-width:280px;max-width:340px;}
+  </style>
+</head>
+<body>
+  <div class="preview-note">
+    <h1>1対1コース（試しページ）</h1>
+    <p>基本設定に、1対1用の金額表を足します。生徒の教科を選ぶところに「この教科は1対1」を足し、カレンダーのマスには「1対1」と出します。印のない教科は今までどおり2人です。講師のお給料は変えません。</p>
+  </div>
+
+  <div class="preview-wrap">
+    <div class="card">
+      <h2>基本設定：1対1の授業料</h2>
+      <label class="field-label">1対1の授業料（90分・1コマあたり）</label>
+      <div class="field-hint tight">1対1にした教科だけ、この金額を使います。ベーシックとアドバンスは、生徒ごとに選んだコースのままです。空欄のままにすると0円です。</div>
+      <label class="field-label">ベーシック</label>
+      <div id="oneBasic"></div>
+      <div style="height:12px"></div>
+      <label class="field-label">アドバンス</label>
+      <div id="oneAdvance"></div>
+      <div style="height:22px"></div>
+      <label class="field-label">1対1の授業料（小学・40分・1コマあたり）</label>
+      <div class="field-hint tight">小学生の40分で、1対1にした教科だけに使います。90分の1対1の表とは別です。空欄のままにすると0円です。</div>
+      <label class="field-label">ベーシック</label>
+      <div id="oneShortBasic"></div>
+      <div style="height:12px"></div>
+      <label class="field-label">アドバンス</label>
+      <div id="oneShortAdvance"></div>
+    </div>
+
+    <div class="card">
+      <h2>生徒の教科</h2>
+      <div class="preview-row">
+        <div class="student-course-popover preview-pop" role="dialog">
+          <div class="scp-slot-context">月曜 4講</div>
+          <div class="scp-title">教科を変更</div>
+          <p class="scp-hint">各教科の横で、このコマに講師が組めるか確認できます。</p>
+          <div class="scp-subjects">
+            <button type="button" class="scp-subject-row scp-subject-active">
+              <span class="scp-subject-name" style="background:var(--green-100);color:var(--green-900);">国語</span>
+              <span class="match-status-badge is-ready scp-status-badge">組める（3名）</span>
+            </button>
+            <button type="button" class="scp-subject-row">
+              <span class="scp-subject-name" style="background:var(--brand-50);color:var(--brand-700);">数学</span>
+              <span class="match-status-badge is-ready scp-status-badge">組める（2名）</span>
+            </button>
+          </div>
+          <div class="scp-one-to-one">
+            <label class="chip"><input type="checkbox" checked><span>この教科は1対1</span></label>
+            <p class="scp-hint">教科を入れたあと、ここで1対1にできます。この教科の希望コマ全部が対象で、隣に別の生徒は置きません。</p>
+            <p class="form-msg"></p>
+          </div>
+        </div>
+        <div>
+          <table class="avail-grid student-course-grid">
+            <thead><tr><th class="slot-h">時間割</th><th>月</th></tr></thead>
+            <tbody>
+              <tr>
+                <th class="slot-h">4講<br><span class="slot-time">16:30〜18:00</span></th>
+                <td class="scc-cell scc-filled">
+                  <button type="button" class="scc-slot-btn scc-slot-filled-btn">
+                    <span class="scc-subject-name" style="background:var(--green-100);color:var(--green-900);">国語</span>
+                    <span class="match-status-badge is-no-shift">1対1</span>
+                    <span class="scc-cell-badge match-status-badge is-ready">組める</span>
+                  </button>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+          <div class="scc-summary" style="margin-top:8px;">
+            <span class="scc-summary-tag" style="background:var(--green-100);color:var(--green-900);">国語 1対1 週2コマ</span>
+            <span class="scc-summary-tag" style="background:var(--brand-50);color:var(--brand-700);">数学 週1コマ</span>
+          </div>
+          <p class="form-msg" style="display:block;margin:10px 0 0;">国語は月曜のコマで山田さんと一緒に組まれています。先に隣の生徒を外してください。</p>
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>確定したコマの定員</h2>
+      <div class="match-slot mp-slot-readonly">
+        <div class="ms-slot-label">4講（16:30〜18:00）</div>
+        <div class="confirmed-box">
+          <span class="cb-label">確定</span>
+          <span class="cb-teacher">講師：佐藤 健太（1/1）</span>
+        </div>
+      </div>
+      <p class="field-hint tight">1対1の教科がある時間は、その講師は生徒1人で満席です。2人授業の時間は今までどおり1/2です。</p>
+    </div>
+  </div>
+  <script>
+    const elem = ['小1','小2','小3','小4','小5','小6'];
+    const mid = ['中1','中2','中3'];
+    const high = ['高1','高2','高3'];
+    function rows(labels){
+      return `<div class="tuition-input-row tuition-grade-row">${labels.map(label=>`
+        <div class="pay-input-item"><label>${label}（円/コマ）</label><input type="text" inputmode="numeric" value="0"></div>
+      `).join('')}</div>`;
+    }
+    document.getElementById('oneBasic').innerHTML = rows(elem) + rows(mid);
+    document.getElementById('oneAdvance').innerHTML = rows(elem) + rows(mid) + rows(high);
+    document.getElementById('oneShortBasic').innerHTML = rows(elem);
+    document.getElementById('oneShortAdvance').innerHTML = rows(elem);
+  </script>
+</body>
+</html>

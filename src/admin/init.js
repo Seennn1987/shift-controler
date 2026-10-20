@@ -27,6 +27,21 @@ import { shortTuitionGradeRows, tuitionGradeRows } from './tuition-rates.js';
 
 const TUITION_AREA_IDS = { basic: 'tuitionBasicArea', advance: 'tuitionAdvanceArea' };
 const SHORT_TUITION_AREA_IDS = { basic: 'tuitionShortBasicArea', advance: 'tuitionShortAdvanceArea' };
+const ONE_TUITION_AREA_IDS = { basic: 'tuitionOneBasicArea', advance: 'tuitionOneAdvanceArea' };
+const ONE_SHORT_TUITION_AREA_IDS = { basic: 'tuitionOneShortBasicArea', advance: 'tuitionOneShortAdvanceArea' };
+
+function tuitionInputsHtml(course, items, idPrefix, courseAttr, keyAttr, store){
+  return `<div class="tuition-input-row tuition-grade-row">
+    ${items.map(({ key, label })=>{
+      const id = `${idPrefix}-${course}-${key}`;
+      const value = store?.[course]?.[key] ?? 0;
+      return `<div class="pay-input-item">
+        <label for="${id}">${label}（円/コマ）</label>
+        <input type="text" inputmode="numeric" id="${id}" data-${courseAttr}="${course}" data-${keyAttr}="${key}" value="${value}">
+      </div>`;
+    }).join('')}
+  </div>`;
+}
 
 function renderTuitionGradeInputs(){
   Object.entries(TUITION_AREA_IDS).forEach(([course, areaId])=>{
@@ -62,6 +77,27 @@ function renderShortTuitionInputs(){
           </div>`;
         }).join('')}
       </div>`).join('');
+  });
+}
+
+function renderOneTuitionInputs(){
+  Object.entries(ONE_TUITION_AREA_IDS).forEach(([course, areaId])=>{
+    const area = document.getElementById(areaId);
+    if(!area) return;
+    area.innerHTML = tuitionGradeRows(course).map(({ items })=>
+      tuitionInputsHtml(course, items, 'tuition-one', 'one-tuition-course', 'one-tuition-key', S.tuitionGradeRatesOne)
+    ).join('');
+  });
+}
+
+function renderOneShortTuitionInputs(){
+  const rows = shortTuitionGradeRows();
+  Object.entries(ONE_SHORT_TUITION_AREA_IDS).forEach(([course, areaId])=>{
+    const area = document.getElementById(areaId);
+    if(!area) return;
+    area.innerHTML = rows.map(({ items })=>
+      tuitionInputsHtml(course, items, 'tuition-one-short', 'one-short-tuition-course', 'one-short-tuition-key', S.tuitionGradeRatesShortOne)
+    ).join('');
   });
 }
 
@@ -113,6 +149,8 @@ async function init(){
   document.getElementById('settingsRoomCapacityInput').value = String(S.roomCapacity);
   renderTuitionGradeInputs();
   renderShortTuitionInputs();
+  renderOneTuitionInputs();
+  renderOneShortTuitionInputs();
   document.getElementById('shortLessonPayPercentInput').value = String(S.shortLessonPayPercent ?? 50);
   document.getElementById('finGradientMinInput').value = String(S.finGradientMin);
   document.getElementById('finGradientMaxInput').value = String(S.finGradientMax);
@@ -402,6 +440,7 @@ async function init(){
       S.tuitionGradeRatesShort[course][key] = v;
       input.value = String(v);
       if(typeof renderFinance === 'function') renderFinance();
+      renderStudentFeePreview();
       scheduleSave();
     });
   });
@@ -423,6 +462,37 @@ async function init(){
       S.tuitionGradeRates[course][key] = v;
       input.value = String(v);
       if(typeof renderFinance === 'function') renderFinance();
+      renderStudentFeePreview();
+      scheduleSave();
+    });
+  });
+  Object.values(ONE_TUITION_AREA_IDS).forEach(areaId=>{
+    document.getElementById(areaId).addEventListener('change', (e)=>{
+      const input = e.target.closest('input[data-one-tuition-course]');
+      if(!input) return;
+      const { oneTuitionCourse: course, oneTuitionKey: key } = input.dataset;
+      let v = parseInt(input.value, 10);
+      if(!Number.isFinite(v) || v < 0) v = 0;
+      if(!S.tuitionGradeRatesOne[course]) S.tuitionGradeRatesOne[course] = {};
+      S.tuitionGradeRatesOne[course][key] = v;
+      input.value = String(v);
+      if(typeof renderFinance === 'function') renderFinance();
+      renderStudentFeePreview();
+      scheduleSave();
+    });
+  });
+  Object.values(ONE_SHORT_TUITION_AREA_IDS).forEach(areaId=>{
+    document.getElementById(areaId).addEventListener('change', (e)=>{
+      const input = e.target.closest('input[data-one-short-tuition-course]');
+      if(!input) return;
+      const { oneShortTuitionCourse: course, oneShortTuitionKey: key } = input.dataset;
+      let v = parseInt(input.value, 10);
+      if(!Number.isFinite(v) || v < 0) v = 0;
+      if(!S.tuitionGradeRatesShortOne[course]) S.tuitionGradeRatesShortOne[course] = {};
+      S.tuitionGradeRatesShortOne[course][key] = v;
+      input.value = String(v);
+      if(typeof renderFinance === 'function') renderFinance();
+      renderStudentFeePreview();
       scheduleSave();
     });
   });

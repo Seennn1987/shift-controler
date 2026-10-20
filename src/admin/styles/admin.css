@@ -1736,6 +1736,10 @@
   .student-course-popover .scp-title{font-size:var(--text-md);font-weight:700;color:var(--ink);margin-bottom:4px;}
   .student-course-popover .scp-hint{font-size:var(--text-xs);color:var(--ink-soft);margin:0 0 10px;line-height:1.4;}
   .student-course-popover .scp-subjects{display:flex;flex-direction:column;gap:6px;margin-bottom:8px;}
+  .student-course-popover .scp-one-to-one{margin-top:8px;padding-top:8px;border-top:1px solid var(--border);display:flex;flex-direction:column;gap:6px;}
+  .student-course-popover .scp-one-to-one .scp-hint{margin:0;}
+  .student-course-popover .scp-one-to-one .form-msg{margin:0;}
+  .student-course-popover .scp-one-to-one .chip span{white-space:normal;}
   .student-course-popover .scp-subject-row{
     display:flex;align-items:center;justify-content:space-between;gap:8px;width:100%;
     border:1px solid var(--border);border-radius:var(--radius-md);padding:8px 10px;

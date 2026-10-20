@@ -100,13 +100,46 @@ function studentShortTuitionRate(rates, student){
   return tuitionRateFor(rates, student.level, student.grade, student.tuitionCourse);
 }
 
+/** 1対1用。未入力は0円（2人授業の金額はコピーしない） */
+function normalizeBlankGradeRates(saved, rowsFor){
+  const result = { basic: {}, advance: {} };
+  ['basic', 'advance'].forEach(course=>{
+    rowsFor(course).forEach(({ items })=>{
+      items.forEach(({ key })=>{
+        result[course][key] = validRate(saved?.[course]?.[key]) ?? 0;
+      });
+    });
+  });
+  return result;
+}
+
+function normalizeOneTuitionRates(d){
+  return normalizeBlankGradeRates(d?.tuitionGradeRatesOne, tuitionGradeRows);
+}
+
+function normalizeOneShortTuitionRates(d){
+  return normalizeBlankGradeRates(d?.tuitionGradeRatesShortOne, ()=> shortTuitionGradeRows());
+}
+
+function tuitionDurationNote({ fullCount, shortCount, oneCount }){
+  const base = shortCount && fullCount
+    ? `90分が週${fullCount}コマ、40分が週${shortCount}コマです。`
+    : (shortCount ? `1コマ40分です。週${shortCount}コマ` : `1コマ90分です。週${fullCount}コマ`);
+  if(!oneCount) return base;
+  const sep = base.endsWith('。') ? '' : '。';
+  return `${base}${sep}1対1が週${oneCount}コマです。`;
+}
+
 export {
   tuitionGradeRows,
   normalizeTuitionGradeRates,
   shortTuitionGradeRows,
   normalizeShortTuitionRates,
+  normalizeOneTuitionRates,
+  normalizeOneShortTuitionRates,
   effectiveTuitionCourse,
   tuitionRateFor,
   studentTuitionRate,
   studentShortTuitionRate,
+  tuitionDurationNote,
 };

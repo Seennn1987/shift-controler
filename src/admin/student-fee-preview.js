@@ -4,7 +4,7 @@ import { S } from './state.js';
 import { isMonthlyFeeLesson } from './absences.js';
 import { countSlotAssignmentUnits } from './dual-subject.js';
 import { buildFeeTablesHtml } from './print-sheet-html.js';
-import { studentShortTuitionRate, tuitionRateFor } from './tuition-rates.js';
+import { studentShortTuitionRate, tuitionDurationNote, tuitionRateFor } from './tuition-rates.js';
 
 function numberInput(id){
   const v = parseInt(String(document.getElementById(id)?.value || '').replace(/[^\d]/g, ''), 10);
@@ -16,7 +16,7 @@ function formWeeklyLessons(){
   const list = [];
   (S.formCourses || []).forEach(c=>{
     (c.desiredSlots || []).forEach(ds=>{
-      list.push({ studentId:'form', day: ds.day, slot: ds.slot, subject: c.subject, half: ds.half, dualGroupId: ds.dualGroupId || null });
+      list.push({ studentId:'form', day: ds.day, slot: ds.slot, subject: c.subject, half: ds.half, dualGroupId: ds.dualGroupId || null, oneToOne: !!c.oneToOne });
     });
   });
   return list;
@@ -31,11 +31,11 @@ function collectFormFeeData(){
   const freeOn = document.getElementById('freeLessonToggle')?.checked;
   const studentLike = { level, grade, tuitionCourse: course };
   const fullRate = tuitionRateFor(S.tuitionGradeRates, level, grade, course);
-  const shortRate = studentShortTuitionRate(S.tuitionGradeRatesShort, studentLike);
   const tuitionLessons = lessons.filter(a=> !isMonthlyFeeLesson(a));
   const seenDual = new Set();
   let fullCount = 0;
   let shortCount = 0;
+  let oneCount = 0;
   let tuitionMonthly = 0;
   tuitionLessons.forEach(a=>{
     if(a.dualGroupId){
@@ -43,17 +43,23 @@ function collectFormFeeData(){
       if(seenDual.has(key)) return;
       seenDual.add(key);
     }
+    const pair = a.dualGroupId
+      ? tuitionLessons.filter(x=> x.dualGroupId === a.dualGroupId && x.slot === a.slot)
+      : [a];
+    const one = pair.some(x=> x.oneToOne);
+    const rate = isShortHalf(a.half)
+      ? studentShortTuitionRate(one ? S.tuitionGradeRatesShortOne : S.tuitionGradeRatesShort, studentLike)
+      : tuitionRateFor(one ? S.tuitionGradeRatesOne : S.tuitionGradeRates, level, grade, course);
+    if(one) oneCount++;
     if(isShortHalf(a.half)){
       shortCount++;
-      tuitionMonthly += shortRate * 4;
+      tuitionMonthly += rate * 4;
     }else{
       fullCount++;
-      tuitionMonthly += fullRate * 4;
+      tuitionMonthly += rate * 4;
     }
   });
-  const durationNote = shortCount && fullCount
-    ? `90分が週${fullCount}コマ、40分が週${shortCount}コマです。`
-    : (shortCount ? `1コマ40分です。週${shortCount}コマ` : `1コマ90分です。週${fullCount}コマ`);
+  const durationNote = tuitionDurationNote({ fullCount, shortCount, oneCount });
   return {
     fees: S.studentFees || {},
     rate: fullRate,

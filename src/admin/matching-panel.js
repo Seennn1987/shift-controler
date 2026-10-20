@@ -21,8 +21,7 @@ import {
   confirmDualAssignment,
   countRoomSlot,
   countRoomSlotOnDate,
-  countTeacherSlot,
-  countTeacherSlotOnDate,
+  teacherSeatTextOnDate,
   findEffectiveAssignment,
   isPreferredPair,
   removePreferredPairFor,
@@ -777,7 +776,7 @@ function buildMatchingSlotCard(r, student, dateStr, weekday){
         dual: isDual,
       });
     }
-    const used = teacher ? countTeacherSlotOnDate(teacher.id, dateStr, r.slot.id, null) : 0;
+    const seatText = teacher ? teacherSeatTextOnDate(teacher.id, dateStr, r.slot.id) : `0/${S.teacherCapacity}`;
     const prefHtml = buildPrefPairActionHtmlForTeacher(student.id, r.course.id, r.existing.teacherId);
     const ownerUnconfirm = isOwnerTeacher(teacher)
       ? `<button type="button" class="unconfirm-btn" data-student="${student.id}" data-course="${r.course.id}" data-day="${weekday}" data-slot="${r.slot.id}" data-date="${dateStr}"${r.half === 'early' || r.half === 'late' ? ` data-half="${r.half}"` : ''}${isDual ? ' data-dual="1"' : ''}>確定を解除</button>`
@@ -787,7 +786,7 @@ function buildMatchingSlotCard(r, student, dateStr, weekday){
       <div class="confirmed-box">
         <span class="cb-label">確定</span>
         ${subjectTag}
-        <span class="cb-teacher">講師：${teacherHonorific(teacher)}（${used}/${S.teacherCapacity}）</span>
+        <span class="cb-teacher">講師：${teacherHonorific(teacher)}（${seatText}）</span>
         <div class="confirmed-box-actions">${prefHtml}${ownerUnconfirm}</div>
       </div>
     </div>`;

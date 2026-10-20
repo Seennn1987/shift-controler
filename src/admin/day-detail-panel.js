@@ -27,7 +27,7 @@ import {
   cancelAssignment,
   cancelDualAssignment,
   countRoomSlotOnDate,
-  countTeacherSlotOnDate,
+  teacherSeatTextOnDate,
   findAlternativeSlots,
   replaceDesiredSlot,
   withdrawPendingAssignment,
@@ -40,7 +40,8 @@ import { buildPrefPairActionHtmlForTeacher, buildDraftSlotCardHtml, buildWaiting
 import { mountWithdrawConfirm } from './withdraw-pending-ui.js';
 import { mountInlineConfirm, showInlineNotice } from '../shared/inline-confirm.js';
 import { analyzePendingMatchSlot } from './match-slot-status.js';
-import { buildDualSubjectTagsHtml, findDualPairForStudent, collapseDualAssignmentDisplayRows, countBusiestHalfUnits } from './dual-subject.js';
+import { buildDualSubjectTagsHtml, findDualPairForStudent, collapseDualAssignmentDisplayRows } from './dual-subject.js';
+import { busiestSeatText } from './one-to-one.js';
 import { findTeacher } from './owner-teacher.js';
 
 function dualMakeupDataAttrs(isDual, subjects){
@@ -62,7 +63,7 @@ function buildMakeupCandidateRowsHtml(absenceId, makeupCands){
       html += `<div class="match-cand">
         <span class="match-badge full">${mLabel}</span>
         <span>${cand.teacher.name}</span>
-        <span class="cap-note">${cand.used}/${S.teacherCapacity}人</span>
+        <span class="cap-note">${cand.used}/${cand.cap ?? S.teacherCapacity}人</span>
         <button type="button" class="confirm-makeup-btn" data-absence="${absenceId}" data-date="${mc.date}" data-slot="${mc.slot.id}" data-teacher="${cand.teacher.id}"${mc.half === 'early' || mc.half === 'late' ? ` data-half="${mc.half}"` : ''}>振替を確定</button>
       </div>`;
     });
@@ -337,7 +338,7 @@ export function renderDayDetailPanel(container, dateStr){
 
       if(r.existing){
         const teacher = findTeacher(r.existing.teacherId);
-        const used = teacher ? countTeacherSlotOnDate(teacher.id, dateStr, r.slot.id, null) : 0;
+        const seatText = teacher ? teacherSeatTextOnDate(teacher.id, dateStr, r.slot.id) : `0/${S.teacherCapacity}`;
         const autoBadge = r.existing.source === 'auto' ? '<span class="auto-badge">自動</span>' : '';
         if(r.isDraft){
           const roomUsed = countRoomSlotOnDate(dateStr, r.slot.id, null);
@@ -380,7 +381,7 @@ export function renderDayDetailPanel(container, dateStr){
               <span class="cb-label">確定${autoBadge}</span>
               ${subjectTag}
               <span class="cb-teacher">講師：${teacherHonorific(teacher)}</span>
-              <span class="cb-cap">（定員 ${used}/${S.teacherCapacity}）</span>
+              <span class="cb-cap">（定員 ${seatText}）</span>
               <div class="confirmed-box-actions">${prefHtml}
                 <button class="absent-btn" data-student="${filterStudent.id}" data-course="${r.course.id}" data-subject="${r.course.subject}" data-day="${weekday}" data-slot="${r.slot.id}" data-date="${dateStr}"${r.half === 'early' || r.half === 'late' ? ` data-half="${r.half}"` : ''}${dualAttr}>欠席にする</button>
                 <button class="unconfirm-btn" data-student="${filterStudent.id}" data-course="${r.course.id}" data-day="${weekday}" data-slot="${r.slot.id}" data-date="${dateStr}"${r.half === 'early' || r.half === 'late' ? ` data-half="${r.half}"` : ''}${dualAttr}>確定を解除</button>
@@ -504,13 +505,6 @@ export function renderDayDetailPanel(container, dateStr){
       Object.keys(slotByTeacher).forEach(teacherId=>{
         const teacher = findTeacher(teacherId);
         const entries = slotByTeacher[teacherId];
-        const loadCount = countBusiestHalfUnits(entries.map(e=>({
-          studentId: e.studentId,
-          day: weekday,
-          slot: e.slot,
-          half: e.half,
-          dualGroupId: e.dualGroupId || null,
-        })));
         const displayRows = collapseDualAssignmentDisplayRows(entries);
         let studentsHtml = '';
         displayRows.forEach(a=>{
@@ -518,7 +512,7 @@ export function renderDayDetailPanel(container, dateStr){
         });
         html += `<div class="sched-teacher-box">
           <div class="sched-teacher-head-row">
-            <div class="sched-teacher-name">${teacherHonorific(teacher)}<span class="sched-cap">（${loadCount}/${S.teacherCapacity}）</span></div>
+            <div class="sched-teacher-name">${teacherHonorific(teacher)}<span class="sched-cap">（${busiestSeatText(entries)}）</span></div>
             <button type="button" class="ghost handle-teacher-absence-btn" data-teacher="${teacherId}" data-date="${dateStr}" aria-expanded="false">欠勤・代講</button>
           </div>
           ${studentsHtml}

@@ -10,6 +10,7 @@ import { findDualPairAtSlot, resolveDualRowAssignmentState, countBusiestHalfUnit
 import { findTeacher, getOwnerTeacher } from './owner-teacher.js';
 import { isActivePerson, personAppliesOnDate } from './active-people.js';
 import { studentShortTuitionRate, studentTuitionRate } from './tuition-rates.js';
+import { assignmentUsesOneToOnePrice, listHasOneToOne, studentSubjectsAreOneToOne, teacherSeatCap } from './one-to-one.js';
 
 // ---- 欠席・振替（特定の実日付にのみ影響。曜日パターン自体は変えない） ----
 // {id, studentId, courseId, subject, day, slot, date, status:'pending'|'resolved', makeup:null|{date,slot,teacherId}}
@@ -532,7 +533,9 @@ function findSubstituteCandidatesForStudent(dateStr, slot, absentTeacherId, stud
       return false;
     }
     const used = countTeacherLoadOnDate(t.id, dateStr, slot, studentId, capHalf);
-    return used < S.teacherCapacity;
+    const incomingOne = studentSubjectsAreOneToOne(studentId, dualSubjects?.length === 2 ? dualSubjects : [subject]);
+    const cap = teacherSeatCap(teacherLoadHasOneToOne(t.id, dateStr, slot, studentId, capHalf), incomingOne);
+    return used < cap;
   });
 
   function groupOf(t){
@@ -558,7 +561,9 @@ function findSubstituteCandidatesForStudent(dateStr, slot, absentTeacherId, stud
   const owner = getOwnerTeacher();
   if(owner.id !== absentTeacherId){
     const ownerUsed = countTeacherLoadOnDate(owner.id, dateStr, slot, studentId, capHalf);
-    if(ownerUsed < S.teacherCapacity){
+    const ownerIncoming = studentSubjectsAreOneToOne(studentId, dualSubjects?.length === 2 ? dualSubjects : [subject]);
+    const ownerCap = teacherSeatCap(teacherLoadHasOneToOne(owner.id, dateStr, slot, studentId, capHalf), ownerIncoming);
+    if(ownerUsed < ownerCap){
       withKeys.push({ teacher: owner, group: 99, prefSubject: false, rate: Infinity });
     }
   }
@@ -721,9 +726,9 @@ function countLoadUnits(units, half){
   return countBusiestHalfUnits(units);
 }
 
-function countTeacherLoadOnDate(teacherId, dateStr, slot, excludeStudentId, half){
+function collectTeacherLoadUnits(teacherId, dateStr, slot, excludeStudentId){
   const status = getDayStatus(dateStr);
-  if(status.type!=='open') return 0;
+  if(status.type!=='open') return [];
   const weekday = status.weekday;
   const units = [];
   const listed = S.assignments.concat(S.pendingAssignments, S.draftAssignments);
@@ -735,6 +740,7 @@ function countTeacherLoadOnDate(teacherId, dateStr, slot, excludeStudentId, half
     if(isAbsentOnDate(a.studentId, a.courseId, dateStr, a.day, a.slot, normalizeHalf(a.half))) return;
     units.push({
       studentId: a.studentId,
+      courseId: a.courseId,
       day: weekday,
       slot,
       half: a.half,
@@ -749,13 +755,41 @@ function countTeacherLoadOnDate(teacherId, dateStr, slot, excludeStudentId, half
     if(listCoversMakeup(listed, ab)) return;
     units.push({
       studentId: ab.studentId,
+      courseId: ab.courseId,
       day: weekday,
       slot,
       half: ab.makeup.half || ab.half,
       dualGroupId: resolveDualGroupIdForSlot(ab.studentId, ab.courseId, ab.day, ab.slot),
     });
   });
-  return countLoadUnits(units, half);
+  return units;
+}
+
+/** 同じ生徒の記録が複数あっても、その半分の席は1人分 */
+function dedupeSeatUnits(units){
+  const seenDual = new Set();
+  const seen = new Set();
+  const out = [];
+  (units || []).forEach(u=>{
+    if(u.dualGroupId){
+      const dualKey = `${u.studentId}:${u.slot}:${u.dualGroupId}`;
+      if(seenDual.has(dualKey)) return;
+      seenDual.add(dualKey);
+    }
+    const key = `${u.studentId}:${normalizeHalf(u.half)}`;
+    if(seen.has(key)) return;
+    seen.add(key);
+    out.push(u);
+  });
+  return out;
+}
+
+function countTeacherLoadOnDate(teacherId, dateStr, slot, excludeStudentId, half){
+  return countLoadUnits(dedupeSeatUnits(collectTeacherLoadUnits(teacherId, dateStr, slot, excludeStudentId)), half);
+}
+
+function teacherLoadHasOneToOne(teacherId, dateStr, slot, excludeStudentId, half){
+  return listHasOneToOne(dedupeSeatUnits(collectTeacherLoadUnits(teacherId, dateStr, slot, excludeStudentId)), half);
 }
 // 指定日・指定コマにおける教室全体の実際の負荷
 function countRoomLoadOnDate(dateStr, slot, excludeStudentId, half){
@@ -790,7 +824,7 @@ function countRoomLoadOnDate(dateStr, slot, excludeStudentId, half){
       dualGroupId: resolveDualGroupIdForSlot(ab.studentId, ab.courseId, ab.day, ab.slot),
     });
   });
-  return countLoadUnits(units, half);
+  return countLoadUnits(dedupeSeatUnits(units), half);
 }
 
 function originalAbsenceTarget(studentId, dateStr){
@@ -799,7 +833,7 @@ function originalAbsenceTarget(studentId, dateStr){
   return { slot: Number(ab.slot), half: normalizeHalf(ab.half), date: ab.date };
 }
 
-function collectMakeupSlotsOnDate(studentId, dateStr, teacherFilter, sourceHalf){
+function collectMakeupSlotsOnDate(studentId, dateStr, teacherFilter, sourceHalf, incomingOneToOne){
   const status = getDayStatus(dateStr);
   if(status.type !== 'open') return { teacherSlots: [], ownerOnlySlots: [] };
   const skip = originalAbsenceTarget(studentId, dateStr);
@@ -819,12 +853,17 @@ function collectMakeupSlotsOnDate(studentId, dateStr, teacherFilter, sourceHalf)
       .filter(isActivePerson)
       .filter(teacherFilter)
       .filter(t=> isTeacherAvailableOnDate(t.id, dateStr, slot.id))
-      .map(t=>({teacher:t, used: countTeacherLoadOnDate(t.id, dateStr, slot.id, studentId, capHalf)}))
-      .filter(c=> c.used < S.teacherCapacity)
+      .map(t=>{
+        const used = countTeacherLoadOnDate(t.id, dateStr, slot.id, studentId, capHalf);
+        const cap = teacherSeatCap(teacherLoadHasOneToOne(t.id, dateStr, slot.id, studentId, capHalf), incomingOneToOne);
+        return { teacher:t, used, cap };
+      })
+      .filter(c=> c.used < c.cap)
       .sort((a,b)=> a.used - b.used);
     const ownerUsed = countTeacherLoadOnDate(owner.id, dateStr, slot.id, studentId, capHalf);
-    const ownerCand = ownerUsed < S.teacherCapacity
-      ? { teacher: owner, used: ownerUsed }
+    const ownerCap = teacherSeatCap(teacherLoadHasOneToOne(owner.id, dateStr, slot.id, studentId, capHalf), incomingOneToOne);
+    const ownerCand = ownerUsed < ownerCap
+      ? { teacher: owner, used: ownerUsed, cap: ownerCap }
       : null;
     const rowHalf = capHalf || 'full';
     if(cands.length > 0){
@@ -875,6 +914,7 @@ function findMakeupCandidatesOnDate(studentId, level, subject, dateStr, sourceHa
     dateStr,
     t=> t.subjects.some(ts=> ts.level === level && ts.subject === subject),
     sourceHalf,
+    studentSubjectsAreOneToOne(studentId, [subject]),
   ));
 }
 
@@ -884,6 +924,8 @@ function findDualMakeupCandidatesOnDate(studentId, level, subjects, dateStr){
     studentId,
     dateStr,
     t=> teacherTeachesBoth(t, level, subjectA, subjectB),
+    undefined,
+    studentSubjectsAreOneToOne(studentId, subjects),
   ));
 }
 
@@ -896,6 +938,7 @@ function findMakeupCandidates(studentId, level, subject, afterDateStr, limit, so
       dateStr,
       t=> t.subjects.some(ts=> ts.level === level && ts.subject === subject),
       sourceHalf,
+      studentSubjectsAreOneToOne(studentId, [subject]),
     ),
     limit,
   );
@@ -909,6 +952,8 @@ function findDualMakeupCandidates(studentId, level, subjects, afterDateStr, limi
       studentId,
       dateStr,
       t=> teacherTeachesBoth(t, level, subjectA, subjectB),
+      undefined,
+      studentSubjectsAreOneToOne(studentId, subjects),
     ),
     limit,
   );
@@ -924,7 +969,9 @@ async function confirmMakeup(absenceId, makeupDate, makeupSlot, teacherId, makeu
   const roomLoad = countRoomLoadOnDate(makeupDate, makeupSlot, ab.studentId, capHalf);
   if(roomLoad>=S.roomCapacity) return {ok:false, msg:'その日程は教室全体の定員に達しています。'};
   const teacherLoad = countTeacherLoadOnDate(teacherId, makeupDate, makeupSlot, ab.studentId, capHalf);
-  if(teacherLoad>=S.teacherCapacity) return {ok:false, msg:'その講師はその日程の定員に達しています。'};
+  const incomingOne = studentSubjectsAreOneToOne(ab.studentId, siblings.map(s=> s.subject));
+  const seatCap = teacherSeatCap(teacherLoadHasOneToOne(teacherId, makeupDate, makeupSlot, ab.studentId, capHalf), incomingOne);
+  if(teacherLoad>=seatCap) return {ok:false, msg:'その講師はその日程の定員に達しています。'};
   const makeupWeekday = getDayStatus(makeupDate).weekday;
   const dualGroupId = resolveDualGroupIdForSlot(ab.studentId, ab.courseId, ab.day, ab.slot);
   siblings.forEach((sibling, idx)=>{
@@ -1117,10 +1164,14 @@ function computeTeacherOpenings(dateStr, onlyTeacherId){
       const state = getDateSlotState(t.id, dateStr, slot.id); // 'none'|'normal'|'preferred'
       if(state==='none') return; // ×は対象外
       const mine = dayList.filter(a=> a.teacherId === t.id && Number(a.slot) === Number(slot.id));
-      const early = countSlotAssignmentUnits(mine.filter(a=> occupiesHalf(a.half, 'early')));
-      const late = countSlotAssignmentUnits(mine.filter(a=> occupiesHalf(a.half, 'late')));
-      const earlyLeft = Math.max(0, S.teacherCapacity - early);
-      const lateLeft = Math.max(0, S.teacherCapacity - late);
+      const earlyList = mine.filter(a=> occupiesHalf(a.half, 'early'));
+      const lateList = mine.filter(a=> occupiesHalf(a.half, 'late'));
+      const early = countSlotAssignmentUnits(earlyList);
+      const late = countSlotAssignmentUnits(lateList);
+      const earlyCap = listHasOneToOne(earlyList, 'early') ? 1 : S.teacherCapacity;
+      const lateCap = listHasOneToOne(lateList, 'late') ? 1 : S.teacherCapacity;
+      const earlyLeft = Math.max(0, earlyCap - early);
+      const lateLeft = Math.max(0, lateCap - late);
       const remaining = Math.max(earlyLeft, lateLeft);
       let kind;
       if(early === 0 && late === 0){ kind='empty'; emptyCount++; }
@@ -1259,9 +1310,11 @@ function countStudentLessonsBefore(student, dateStr){
 
 function getStudentTuitionForDate(student, dateStr, assignment){
   if(!student) return 0;
-  const rate = isShortHalf(assignment?.half)
-    ? studentShortTuitionRate(S.tuitionGradeRatesShort, student)
-    : studentTuitionRate(S.tuitionGradeRates, student);
+  const one = assignmentUsesOneToOnePrice(student, assignment);
+  const short = isShortHalf(assignment?.half);
+  const rate = short
+    ? studentShortTuitionRate(one ? S.tuitionGradeRatesShortOne : S.tuitionGradeRatesShort, student)
+    : studentTuitionRate(one ? S.tuitionGradeRatesOne : S.tuitionGradeRates, student);
   const freeCount = Number(student.freeLessonCount) || 0;
   if(freeCount <= 0) return rate;
   const before = countStudentLessonsBefore(student, dateStr);
@@ -1341,7 +1394,8 @@ function computeDayFinance(dateStr, includeTransport){
 
   const cost = lessonCost + (includeTransport ? transportCost : 0);
   const ratio = revenue>0 ? (cost/revenue*100) : null;
-  return {revenue, lessonCost, transportCost, cost, ratio, lessonCount: countSlotAssignmentUnits(list)};
+  const lessonCount = countSlotAssignmentUnits(list);
+  return {revenue, lessonCost, transportCost, cost, ratio, lessonCount};
 }
 
 // コスト率に応じて、白→赤へ連続的に濃くなる色を返す（3段階の分類はしない。100%以上は最大濃度で頭打ち）

@@ -14,6 +14,7 @@ import {
   buildCalAlertSubjectTag, buildCalAlertTeacherHead, buildCalAlertWhenPill, calAlertDateParts,
 } from '../shared/cal-alert-row.js';
 import { countSlotAssignmentUnits, findDualPairAtSlot, buildDualSubjectTagsHtml } from './dual-subject.js';
+import { busiestSeatText, isOneToOneCourse, listHasOneToOne, teacherSeatCap, findStudentCourse } from './one-to-one.js';
 import { findTeacher, isOwnerTeacher, isOwnerTeacherId } from './owner-teacher.js';
 import { isActivePerson, personAppliesOnDate } from './active-people.js';
 
@@ -561,10 +562,14 @@ function countTeacherCourseSlotCoverage(teacher, studentId, courseId, level, sub
   const slots = course.desiredSlots.filter(ds=> !S.regularClosedDays.includes(ds.day));
   if(slots.length === 0) return { covered: 0, total: 0 };
   let covered = 0;
+  const incomingOne = isOneToOneCourse(course);
   slots.forEach(ds=>{
     if(!teacher.subjects.some(ts=> ts.level === level && ts.subject === subject)) return;
     if(!getWeekdayAvailabilityInMonth(teacher.id, ds.day, ds.slot, ym)) return;
-    if(countTeacherSlot(teacher.id, ds.day, ds.slot, studentId, ym) >= S.teacherCapacity) return;
+    const capHalf = ds.half === 'early' || ds.half === 'late' ? ds.half : undefined;
+    const used = countTeacherSlot(teacher.id, ds.day, ds.slot, studentId, ym, capHalf);
+    const cap = teacherSeatCap(teacherSlotHasOneToOne(teacher.id, ds.day, ds.slot, studentId, ym, capHalf), incomingOne);
+    if(used >= cap) return;
     covered++;
   });
   return { covered, total: slots.length };
@@ -576,11 +581,15 @@ function buildCandidateInfo(studentId, courseId, level, subject, day, slot, teac
   const used = dateStr
     ? countTeacherSlotOnDate(teacher.id, dateStr, slot, studentId, capHalf)
     : countTeacherSlot(teacher.id, day, slot, studentId, ym, capHalf);
+  const occupiedOne = dateStr
+    ? teacherSlotHasOneToOneOnDate(teacher.id, dateStr, slot, studentId, capHalf)
+    : teacherSlotHasOneToOne(teacher.id, day, slot, studentId, ym, capHalf);
+  const cap = teacherSeatCap(occupiedOne, isOneToOneCourse(findStudentCourse(studentId, courseId)));
   const coverage = countTeacherCourseSlotCoverage(teacher, studentId, courseId, level, subject, ym);
   return {
     teacher, used,
-    remaining: S.teacherCapacity - used,
-    full: used >= S.teacherCapacity,
+    remaining: cap - used,
+    full: used >= cap,
     prefPair: isPreferredPair(studentId, courseId, teacher.id),
     courseSlotCoverage: coverage.covered,
     courseSlotCoverageTotal: coverage.total,
@@ -623,13 +632,25 @@ function countUnitsForHalf(matched, half){
   return Math.max(early, late);
 }
 
-function countTeacherSlotOnDate(teacherId, dateStr, slot, excludeStudentId, half){
+function matchedTeacherOnDate(teacherId, dateStr, slot, excludeStudentId){
   const all = S.assignments.concat(S.pendingAssignments, S.draftAssignments);
-  const matched = all.filter(a=>
+  return all.filter(a=>
     a.teacherId === teacherId && Number(a.slot) === Number(slot) &&
     a.studentId !== excludeStudentId && assignmentAppliesOnDate(a, dateStr)
   );
+}
+
+function countTeacherSlotOnDate(teacherId, dateStr, slot, excludeStudentId, half){
+  const matched = matchedTeacherOnDate(teacherId, dateStr, slot, excludeStudentId);
   return countUnitsForHalf(matched, half);
+}
+
+function teacherSlotHasOneToOneOnDate(teacherId, dateStr, slot, excludeStudentId, half){
+  return listHasOneToOne(matchedTeacherOnDate(teacherId, dateStr, slot, excludeStudentId), half);
+}
+
+function teacherSeatTextOnDate(teacherId, dateStr, slot){
+  return busiestSeatText(matchedTeacherOnDate(teacherId, dateStr, slot, null));
 }
 
 function countRoomSlotOnDate(dateStr, slot, excludeStudentId, half){
@@ -730,14 +751,21 @@ function countCourseConfirmed(studentId, courseId, yearMonth){
     a.studentId===studentId && a.courseId===courseId && isAssignmentEffectiveInMonth(a, ym)
   ).length;
 }
-function countTeacherSlot(teacherId, day, slot, excludeStudentId, yearMonth, half){
+function matchedTeacherSlot(teacherId, day, slot, excludeStudentId, yearMonth){
   const ym = getActiveYearMonth(yearMonth);
   const all = S.assignments.concat(S.pendingAssignments, S.draftAssignments);
-  const matched = all.filter(a=>
+  return all.filter(a=>
     a.teacherId === teacherId && a.day === day && a.slot === slot && a.studentId !== excludeStudentId &&
     isAssignmentEffectiveInMonth(a, ym)
   );
-  return countUnitsForHalf(matched, half);
+}
+
+function countTeacherSlot(teacherId, day, slot, excludeStudentId, yearMonth, half){
+  return countUnitsForHalf(matchedTeacherSlot(teacherId, day, slot, excludeStudentId, yearMonth), half);
+}
+
+function teacherSlotHasOneToOne(teacherId, day, slot, excludeStudentId, yearMonth, half){
+  return listHasOneToOne(matchedTeacherSlot(teacherId, day, slot, excludeStudentId, yearMonth), half);
 }
 function countRoomSlot(day, slot, excludeStudentId, yearMonth, half){
   const ym = getActiveYearMonth(yearMonth);
@@ -808,6 +836,13 @@ async function issueAssignmentApproval(studentId, courseId, subject, day, slot, 
   }
 }
 
+function seatCapForPlacement(teacherId, day, slot, studentId, capHalf, incomingOne, dateStr){
+  const occupied = dateStr
+    ? teacherSlotHasOneToOneOnDate(teacherId, dateStr, slot, studentId, capHalf)
+    : teacherSlotHasOneToOne(teacherId, day, slot, studentId, undefined, capHalf);
+  return teacherSeatCap(occupied, incomingOne);
+}
+
 // 教室長が選んだ担当は、まず仮決めとして保存する（送信後に講師承認）。教室長自身は仮決めせず確定する。
 function confirmAssignment(studentId, courseId, subject, day, slot, teacherId, source, opts){
   source = source || 'manual';
@@ -825,14 +860,17 @@ function confirmAssignment(studentId, courseId, subject, day, slot, teacherId, s
   const capHalf = half === 'early' || half === 'late' ? half : undefined;
   const slotDef = SLOTS.find(s=> s.id === slot);
   const slotLabel = slotDef ? `${slotDef.label}${halfLabel(half) ? ' '+halfLabel(half) : ''}` : `${slot}講`;
+  const incomingOne = isOneToOneCourse(findStudentCourse(studentId, courseId));
+  const teacherLabel = owner ? teacher.name : `${teacher.name}先生`;
 
   if(dateStr && !recurring){
     if(!owner && !isTeacherAvailableOnDate(teacherId, dateStr, slot)){
       return {ok:false, msg:`${teacher.name}先生はこの日のシフト未登録です。`};
     }
     const teacherUsed = countTeacherSlotOnDate(teacherId, dateStr, slot, studentId, capHalf);
-    if(teacherUsed >= S.teacherCapacity){
-      return {ok:false, msg:`${owner ? teacher.name : teacher.name+'先生'}は${dateStr} ${slotLabel}の定員（${S.teacherCapacity}人）に達しています。`};
+    const seatCap = seatCapForPlacement(teacherId, day, slot, studentId, capHalf, incomingOne, dateStr);
+    if(teacherUsed >= seatCap){
+      return {ok:false, msg:`${teacherLabel}は${dateStr} ${slotLabel}の定員（${seatCap}人）に達しています。`};
     }
     const roomUsed = countRoomSlotOnDate(dateStr, slot, studentId, capHalf);
     if(roomUsed >= S.roomCapacity){
@@ -841,8 +879,9 @@ function confirmAssignment(studentId, courseId, subject, day, slot, teacherId, s
     removeSlotAssignmentsOnDate(studentId, courseId, day, slot, dateStr, half);
   }else{
     const teacherUsed = countTeacherSlot(teacherId, day, slot, studentId, undefined, capHalf);
-    if(teacherUsed >= S.teacherCapacity){
-      return {ok:false, msg:`${owner ? teacher.name : teacher.name+'先生'}は${day}曜${slotLabel}の定員（${S.teacherCapacity}人）に達しています。`};
+    const seatCap = seatCapForPlacement(teacherId, day, slot, studentId, capHalf, incomingOne, null);
+    if(teacherUsed >= seatCap){
+      return {ok:false, msg:`${teacherLabel}は${day}曜${slotLabel}の定員（${seatCap}人）に達しています。`};
     }
     const roomUsed = countRoomSlot(day, slot, studentId, undefined, capHalf);
     if(roomUsed >= S.roomCapacity){
@@ -895,9 +934,10 @@ function confirmDualAssignment(studentId, dualPair, day, slot, teacherId, source
       return { ok: false, msg: `${teacherLabel}はこの日のシフト未登録です。` };
     }
     const teacherUsed = countTeacherSlotOnDate(teacherId, dateStr, slot, studentId);
-    if(teacherUsed >= S.teacherCapacity){
+    const seatCap = seatCapForPlacement(teacherId, day, slot, studentId, undefined, courses.some(isOneToOneCourse), dateStr);
+    if(teacherUsed >= seatCap){
       const slotLabel = SLOTS.find(s=> s.id === slot)?.label || `${slot}講`;
-      return { ok: false, msg: `${teacherLabel}は${dateStr} ${slotLabel}の定員（${S.teacherCapacity}人）に達しています。` };
+      return { ok: false, msg: `${teacherLabel}は${dateStr} ${slotLabel}の定員（${seatCap}人）に達しています。` };
     }
     const roomUsed = countRoomSlotOnDate(dateStr, slot, studentId);
     if(roomUsed >= S.roomCapacity){
@@ -909,8 +949,9 @@ function confirmDualAssignment(studentId, dualPair, day, slot, teacherId, source
     });
   }else{
     const teacherUsed = countTeacherSlot(teacherId, day, slot, studentId);
-    if(teacherUsed >= S.teacherCapacity){
-      return { ok: false, msg: `${teacherLabel}は${day}曜${SLOTS.find(s=> s.id === slot).label}の定員（${S.teacherCapacity}人）に達しています。` };
+    const seatCap = seatCapForPlacement(teacherId, day, slot, studentId, undefined, courses.some(isOneToOneCourse), null);
+    if(teacherUsed >= seatCap){
+      return { ok: false, msg: `${teacherLabel}は${day}曜${SLOTS.find(s=> s.id === slot).label}の定員（${seatCap}人）に達しています。` };
     }
     const roomUsed = countRoomSlot(day, slot, studentId);
     if(roomUsed >= S.roomCapacity){
@@ -1415,4 +1456,4 @@ async function replaceDesiredSlot(studentId, courseId, oldDay, oldSlot, newDay, 
 }
 
 
-export { loadPendingChangeRequests, loadPendingCancellationRequests, resolveScheduleChangeRequest, resolveScheduleChangeRequests, loadAssignmentApprovals, invalidateAssignmentApprovalsCache, loadDismissedApprovalIds, saveDismissedApprovalIds, approvalAppliesInMonth, openMatchingForApprovalTicket, renderApprovalDashboardItem, renderApprovalStatus, renderTeacherScheduleTab, openTeacherScheduleEditor, renderTeacherScheduleGrid, isPreferredPair, getPreferredTeachersForCourse, getPreferredPairsForTeacher, addPreferredPair, removePreferredPair, removePreferredPairFor, isPreferredSubjectForTeacher, teacherWorksOtherSlotOnWeekday, countTeacherCourseSlotCoverage, buildCandidateInfo, findAssignment, getActiveYearMonth, teacherHasSubmittedMonth, isAssignmentEffectiveInMonth, assignmentAppliesOnDate, findEffectiveAssignment, countCourseConfirmed, countTeacherSlot, countTeacherSlotOnDate, countRoomSlot, countRoomSlotOnDate, issueAssignmentApproval, confirmAssignment, confirmDualAssignment, cancelAssignment, cancelDualAssignment, cancelDraftAuto, cancelAllDrafts, sendDraftAssignments, countAssignmentsInMonth, withdrawPendingAssignment, approvePendingLessonAsAdmin, findAlternativeSlots, replaceDesiredSlot, revokePendingApprovalTicket, revokePendingApprovalTicketsForStudent, revokePendingCancellationRequestsForStudent, revokePendingCancellationForSlot, revokePendingRequestsForTeacher, dropAssignmentsForRemovedDesiredSlots, syncStudentIdentityOnTickets };
+export { loadPendingChangeRequests, loadPendingCancellationRequests, resolveScheduleChangeRequest, resolveScheduleChangeRequests, loadAssignmentApprovals, invalidateAssignmentApprovalsCache, loadDismissedApprovalIds, saveDismissedApprovalIds, approvalAppliesInMonth, openMatchingForApprovalTicket, renderApprovalDashboardItem, renderApprovalStatus, renderTeacherScheduleTab, openTeacherScheduleEditor, renderTeacherScheduleGrid, isPreferredPair, getPreferredTeachersForCourse, getPreferredPairsForTeacher, addPreferredPair, removePreferredPair, removePreferredPairFor, isPreferredSubjectForTeacher, teacherWorksOtherSlotOnWeekday, countTeacherCourseSlotCoverage, buildCandidateInfo, findAssignment, getActiveYearMonth, teacherHasSubmittedMonth, isAssignmentEffectiveInMonth, assignmentAppliesOnDate, findEffectiveAssignment, countCourseConfirmed, countTeacherSlot, countTeacherSlotOnDate, teacherSlotHasOneToOne, teacherSlotHasOneToOneOnDate, teacherSeatTextOnDate, countRoomSlot, countRoomSlotOnDate, issueAssignmentApproval, confirmAssignment, confirmDualAssignment, cancelAssignment, cancelDualAssignment, cancelDraftAuto, cancelAllDrafts, sendDraftAssignments, countAssignmentsInMonth, withdrawPendingAssignment, approvePendingLessonAsAdmin, findAlternativeSlots, replaceDesiredSlot, revokePendingApprovalTicket, revokePendingApprovalTicketsForStudent, revokePendingCancellationRequestsForStudent, revokePendingCancellationForSlot, revokePendingRequestsForTeacher, dropAssignmentsForRemovedDesiredSlots, syncStudentIdentityOnTickets };

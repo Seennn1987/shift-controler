@@ -5,6 +5,7 @@ import { S } from './state.js';
 import { shortName } from './calendar.js';
 import { isAvailable, isTeacherAvailableOnDate } from './schedule-core.js';
 import { isActivePerson } from './active-people.js';
+import { isOneToOneCourse, teacherSeatCap } from './one-to-one.js';
 import {
   countRoomSlot,
   countRoomSlotOnDate,
@@ -13,6 +14,8 @@ import {
   findEffectiveAssignment,
   getActiveYearMonth,
   teacherHasSubmittedMonth,
+  teacherSlotHasOneToOne,
+  teacherSlotHasOneToOneOnDate,
 } from './teacher-schedule-tab.js';
 
 function escapeHtml(str){
@@ -60,12 +63,19 @@ export function getCapableTeachers(level, subject){
 }
 
 /** 生徒登録の週カレンダー用：その学年を教えられ、毎週そのコマに出勤でき、まだ受け持てる講師の人数 */
+function teacherLimit(teacherId, day, slotId, excludeId, yearMonth, dateStr, capHalf, incomingOneToOne){
+  const occupied = dateStr
+    ? teacherSlotHasOneToOneOnDate(teacherId, dateStr, slotId, excludeId, capHalf)
+    : teacherSlotHasOneToOne(teacherId, day, slotId, excludeId, yearMonth, capHalf);
+  return teacherSeatCap(occupied, incomingOneToOne);
+}
+
 export function countOpenTeachersForLevel(level, day, slotId, yearMonth, half){
   const capHalf = half === 'early' || half === 'late' ? half : undefined;
   return S.teachers.filter(isActivePerson).filter(t=>
     t.subjects.some(ts=> ts.level === level) &&
     isAvailable(t, day, slotId, yearMonth) &&
-    countTeacherSlot(t.id, day, slotId, null, yearMonth, capHalf) < S.teacherCapacity
+    countTeacherSlot(t.id, day, slotId, null, yearMonth, capHalf) < teacherLimit(t.id, day, slotId, null, yearMonth, null, capHalf, false)
   ).length;
 }
 
@@ -78,7 +88,7 @@ export function getCapableTeachersForBoth(level, subjectA, subjectB){
 }
 
 /** 生徒登録時：2教科・同一コマ（小学）の可否 */
-export function analyzeDualSubjectAtSlot(level, subjectA, subjectB, day, slotId, yearMonth){
+export function analyzeDualSubjectAtSlot(level, subjectA, subjectB, day, slotId, yearMonth, oneToOne){
   return analyzePendingDualMatchSlot(
     { id: '__slot_preview__', level },
     subjectA,
@@ -86,10 +96,11 @@ export function analyzeDualSubjectAtSlot(level, subjectA, subjectB, day, slotId,
     day,
     slotId,
     yearMonth,
+    oneToOne,
   );
 }
 
-function analyzePendingDualMatchSlot(student, subjectA, subjectB, day, slotId, yearMonth){
+function analyzePendingDualMatchSlot(student, subjectA, subjectB, day, slotId, yearMonth, oneToOne){
   const ym = getActiveYearMonth(yearMonth);
   const studentId = student.id;
 
@@ -119,12 +130,14 @@ function analyzePendingDualMatchSlot(student, subjectA, subjectB, day, slotId, y
     };
   }
 
+  const incomingOne = !!oneToOne;
   const teacherHasSlot = (teacher)=> isAvailable(teacher, day, slotId, ym);
   const teacherUsedCount = (teacherId, excludeId)=> countTeacherSlot(teacherId, day, slotId, excludeId, ym);
+  const limitFor = (teacherId, excludeId)=> teacherLimit(teacherId, day, slotId, excludeId, ym, null, undefined, incomingOne);
 
   const available = capable.filter(t=>{
     if(!teacherHasSlot(t)) return false;
-    return teacherUsedCount(t.id, studentId) < S.teacherCapacity;
+    return teacherUsedCount(t.id, studentId) < limitFor(t.id, studentId);
   });
 
   const priorityTeachers = available.filter(t=> teacherUsedCount(t.id, null) === 1);
@@ -153,7 +166,7 @@ function analyzePendingDualMatchSlot(student, subjectA, subjectB, day, slotId, y
   const atCapacity = capable.filter(t=>
     teacherHasSubmittedMonth(t.id, ym) &&
     teacherHasSlot(t) &&
-    teacherUsedCount(t.id, studentId) >= S.teacherCapacity
+    teacherUsedCount(t.id, studentId) >= limitFor(t.id, studentId)
   );
 
   const detailLines = [];
@@ -204,10 +217,10 @@ export function renderDualSubjectPickerBadge(analysis){
 }
 
 /** 生徒登録時：教科・コマだけ決まった状態での可否（プレビュー用） */
-export function analyzeSubjectAtSlot(level, subject, day, slotId, yearMonth, half){
+export function analyzeSubjectAtSlot(level, subject, day, slotId, yearMonth, half, oneToOne){
   return analyzePendingMatchSlot(
     { id: '__slot_preview__', level },
-    { id: '__slot_preview__', subject },
+    { id: '__slot_preview__', subject, oneToOne: !!oneToOne },
     day,
     slotId,
     yearMonth,
@@ -272,14 +285,16 @@ export function analyzePendingMatchSlot(student, course, day, slotId, yearMonth,
     if(dateStr) return isTeacherAvailableOnDate(teacher.id, dateStr, slotId);
     return isAvailable(teacher, day, slotId, ym);
   };
+  const incomingOne = isOneToOneCourse(course);
   const teacherUsedCount = (teacherId, excludeId)=>{
     if(dateStr) return countTeacherSlotOnDate(teacherId, dateStr, slotId, excludeId, capHalf);
     return countTeacherSlot(teacherId, day, slotId, excludeId, ym, capHalf);
   };
+  const limitFor = (teacherId, excludeId)=> teacherLimit(teacherId, day, slotId, excludeId, ym, dateStr, capHalf, incomingOne);
 
   const available = capable.filter(t=>{
     if(!teacherHasSlot(t)) return false;
-    return teacherUsedCount(t.id, studentId) < S.teacherCapacity;
+    return teacherUsedCount(t.id, studentId) < limitFor(t.id, studentId);
   });
 
   const priorityTeachers = available.filter(t=> teacherUsedCount(t.id, null) === 1);
@@ -308,7 +323,7 @@ export function analyzePendingMatchSlot(student, course, day, slotId, yearMonth,
   const atCapacity = capable.filter(t=>
     teacherHasSubmittedMonth(t.id, ym) &&
     teacherHasSlot(t) &&
-    teacherUsedCount(t.id, studentId) >= S.teacherCapacity
+    teacherUsedCount(t.id, studentId) >= limitFor(t.id, studentId)
   );
 
   const detailLines = [];

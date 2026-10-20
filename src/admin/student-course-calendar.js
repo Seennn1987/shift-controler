@@ -2,6 +2,8 @@ import { SUBJECT_MAP, DAYS, SLOTS } from '../shared/constants.js';
 import { halfLabel, normalizeHalf, shortLessonSubjectAllowed, slotTimeForHalf } from '../shared/lesson-span.js';
 import { subjectColor } from './schedule-core.js';
 import { S } from './state.js';
+import { isOneToOneCourse, oneToOneShareBlockMessage } from './one-to-one.js';
+import { showInlineNotice } from '../shared/inline-confirm.js';
 import {
   assignDualSlotSubjects,
   clearOverlappingSlots,
@@ -46,8 +48,35 @@ function slotLabel(day, slotId){
   return `${day}曜 ${slot?.label || ''}（${slot?.time || ''}）`;
 }
 
-function cellStatusBadgeHtml(level, subject, day, slotId, yearMonth, half){
-  const analysis = analyzeSubjectAtSlot(level, subject, day, slotId, yearMonth, half);
+function courseBySubject(formCourses, subject){
+  return (formCourses || []).find(c=> c.subject === subject) || null;
+}
+
+function oneToOneBadgeHtml(formCourses, subject){
+  if(!isOneToOneCourse(courseBySubject(formCourses, subject))) return '';
+  return '<span class="match-status-badge is-no-shift">1対1</span>';
+}
+
+function setCourseOneToOne(formCourses, subject, on){
+  const course = courseBySubject(formCourses, subject);
+  if(!course) return { ok: false, msg: '先に教科を選んでください。' };
+  if(on){
+    const msg = oneToOneShareBlockMessage(S.editingStudentId, course);
+    if(msg) return { ok: false, msg };
+    course.oneToOne = true;
+  }else{
+    delete course.oneToOne;
+  }
+  return { ok: true, msg: '' };
+}
+
+function notifyOneToOneBlock(msg){
+  if(!msg || msg === '先に教科を選んでください。') return;
+  showInlineNotice(document.getElementById('courseList'), msg);
+}
+
+function cellStatusBadgeHtml(level, subject, day, slotId, yearMonth, half, oneToOne){
+  const analysis = analyzeSubjectAtSlot(level, subject, day, slotId, yearMonth, half, oneToOne);
   const map = {
     priority: 'is-priority',
     ready: 'is-ready',
@@ -61,8 +90,8 @@ function cellStatusBadgeHtml(level, subject, day, slotId, yearMonth, half){
   return `<span class="scc-cell-badge match-status-badge ${cls}">${label}</span>`;
 }
 
-function cellDualStatusBadgeHtml(level, subjectA, subjectB, day, slotId, yearMonth){
-  const analysis = analyzeDualSubjectAtSlot(level, subjectA, subjectB, day, slotId, yearMonth);
+function cellDualStatusBadgeHtml(level, subjectA, subjectB, day, slotId, yearMonth, oneToOne){
+  const analysis = analyzeDualSubjectAtSlot(level, subjectA, subjectB, day, slotId, yearMonth, oneToOne);
   const map = {
     priority: 'is-priority',
     ready: 'is-ready',
@@ -114,10 +143,12 @@ export { assignDualSlotSubjects } from './dual-subject.js';
 
 export function normalizeFormCoursesForSave(formCourses){
   pruneAndSync(formCourses);
-  return formCourses.filter(c=> c.desiredSlots.length > 0).map(c=>({
-    ...c,
-    weeklyCount: c.desiredSlots.length,
-  }));
+  return formCourses.filter(c=> c.desiredSlots.length > 0).map(c=>{
+    const next = { ...c, weeklyCount: c.desiredSlots.length };
+    if(next.oneToOne) next.oneToOne = true;
+    else delete next.oneToOne;
+    return next;
+  });
 }
 
 /** マスの中だけ短く表示する（保存するデータは正式名のまま） */
@@ -125,15 +156,17 @@ function cellSubjectLabel(subject){
   return subject === 'プログラミング' ? 'プログラ' : subject;
 }
 
-function halfSlotButtonHtml(level, day, slot, half, yearMonth, occupant){
+function halfSlotButtonHtml(level, day, slot, half, yearMonth, occupant, formCourses){
   const time = slotTimeForHalf(slot, half);
   const label = halfLabel(half);
   if(occupant){
     const c = subjectColor(level, occupant.subject);
-    const badge = cellStatusBadgeHtml(level, occupant.subject, day, slot.id, yearMonth, half);
+    const oneToOne = isOneToOneCourse(courseBySubject(formCourses, occupant.subject));
+    const badge = cellStatusBadgeHtml(level, occupant.subject, day, slot.id, yearMonth, half, oneToOne);
     return `<button type="button" class="scc-slot-btn scc-slot-filled-btn scc-half-btn" data-half="${half}">
       <span class="scc-dual-mode-label">${label} ${time}</span>
       <span class="scc-subject-name" style="background:${c.bg};color:${c.text};">${cellSubjectLabel(occupant.subject)}</span>
+      ${oneToOneBadgeHtml(formCourses, occupant.subject)}
       ${badge}
     </button>`;
   }
@@ -144,11 +177,19 @@ function halfSlotButtonHtml(level, day, slot, half, yearMonth, occupant){
   </button>`;
 }
 
-function renderDualSubjectTags(level, subjects){
+function renderDualSubjectTags(level, subjects, formCourses){
   return subjects.map(sub=>{
     const c = subjectColor(level, sub);
-    return `<span class="scc-subject-name" style="background:${c.bg};color:${c.text};">${cellSubjectLabel(sub)}</span>`;
+    return `<span class="scc-subject-name" style="background:${c.bg};color:${c.text};">${cellSubjectLabel(sub)}</span>${oneToOneBadgeHtml(formCourses, sub)}`;
   }).join('<span class="scc-dual-plus">+</span>');
+}
+
+function oneToOneBoxHtml(id){
+  return `<div class="scp-one-to-one">
+    <label class="chip"><input type="checkbox" id="${id}"><span>この教科は1対1</span></label>
+    <p class="scp-hint">教科を入れたあと、ここで1対1にできます。この教科の希望コマ全部が対象で、隣に別の生徒は置きません。</p>
+    <p class="form-msg" id="${id}Msg"></p>
+  </div>`;
 }
 
 function mountPopover(anchor, pop){
@@ -172,7 +213,7 @@ function mountPopover(anchor, pop){
   setTimeout(()=> document.addEventListener('click', onDocumentClick, true), 0);
 }
 
-function showSubjectPopover(anchor, { level, day, slot, currentSubject, onPick, onClear, yearMonth }){
+function showSubjectPopover(anchor, { level, day, slot, currentSubject, formCourses, onPick, onClear, onChange, yearMonth }){
   closePopover();
   const subjects = SUBJECT_MAP[level] || [];
   const pop = document.createElement('div');
@@ -185,21 +226,41 @@ function showSubjectPopover(anchor, { level, day, slot, currentSubject, onPick, 
     <div class="scp-subjects">${subjects.map(sub=>{
       const c = subjectColor(level, sub);
       const active = sub === currentSubject ? ' scp-subject-active' : '';
-      const analysis = analyzeSubjectAtSlot(level, sub, day, slot, yearMonth);
+      const oneToOne = isOneToOneCourse(courseBySubject(formCourses, sub));
+      const analysis = analyzeSubjectAtSlot(level, sub, day, slot, yearMonth, undefined, oneToOne);
       const badge = renderSubjectPickerBadge(analysis);
       return `<button type="button" class="scp-subject-row${active}" data-subject="${sub}">
         <span class="scp-subject-name" style="background:${c.bg};color:${c.text};">${sub}</span>
         ${badge}
       </button>`;
     }).join('')}</div>
+    ${oneToOneBoxHtml('scpOneToOne')}
     ${currentSubject ? '<button type="button" class="scp-clear-btn ghost">このコマを空にする</button>' : ''}
   `;
   mountPopover(anchor, pop);
+
+  const box = pop.querySelector('#scpOneToOne');
+  const msg = pop.querySelector('#scpOneToOneMsg');
+  const currentCourse = courseBySubject(formCourses, currentSubject);
+  box.checked = isOneToOneCourse(currentCourse);
+  box.disabled = !currentCourse;
+  box.addEventListener('change', ()=>{
+    const result = setCourseOneToOne(formCourses, currentSubject, box.checked);
+    if(!result.ok){
+      box.checked = isOneToOneCourse(courseBySubject(formCourses, currentSubject));
+      msg.textContent = result.msg;
+      return;
+    }
+    msg.textContent = '';
+    closePopover();
+    Promise.resolve(onChange()).then(()=> notifyOneToOneBlock(result.msg));
+  });
 
   pop.querySelectorAll('.scp-subject-row').forEach(btn=>{
     btn.addEventListener('click', ()=>{
       onPick(btn.dataset.subject);
       closePopover();
+      onChange();
     });
   });
   pop.querySelector('.scp-clear-btn')?.addEventListener('click', ()=>{
@@ -238,6 +299,7 @@ function showElementaryPopover(anchor, { level, day, slot, dualPair, focusHalf, 
     <p class="scp-hint" id="scpFullBlocked" hidden>前半か後半に授業があるため、90分は選べません。</p>
     <div class="scp-section-label" id="scpSingleLabel">1教科</div>
     <div class="scp-subjects scp-subjects-compact" id="scpSingleList"></div>
+    ${oneToOneBoxHtml('scpOneToOne')}
     <details class="scp-dual-details">
       <summary class="scp-dual-summary">2教科で登録（90分の中で2教科）— 必要な場合のみ</summary>
       <div class="scp-dual-pick">
@@ -257,6 +319,12 @@ function showElementaryPopover(anchor, { level, day, slot, dualPair, focusHalf, 
         </div>
         <div class="scp-dual-status" id="scpDualStatus"></div>
         <button type="button" class="confirm-btn scp-dual-save" id="scpDualSave" disabled>2教科で登録</button>
+        <div class="scp-one-to-one">
+          <label class="chip"><input type="checkbox" id="scpOneToOneA"><span id="scpOneToOneALabel">1教科目は1対1</span></label>
+          <label class="chip"><input type="checkbox" id="scpOneToOneB"><span id="scpOneToOneBLabel">2教科目は1対1</span></label>
+          <p class="scp-hint">登録済みの教科だけ、1対1にできます。この教科の希望コマ全部が対象です。</p>
+          <p class="form-msg" id="scpDualOneMsg"></p>
+        </div>
       </div>
     </details>
     ${(dualPair || fullOcc || earlyOcc || lateOcc) ? '<button type="button" class="scp-clear-btn ghost">この授業を空にする</button>' : ''}
@@ -288,7 +356,8 @@ function showElementaryPopover(anchor, { level, day, slot, dualPair, focusHalf, 
     singleList.innerHTML = list.map(sub=>{
       const c = subjectColor(level, sub);
       const active = selected === sub ? ' scp-subject-active' : '';
-      const analysis = analyzeSubjectAtSlot(level, sub, day, slot, yearMonth, half);
+      const oneToOne = isOneToOneCourse(courseBySubject(formCourses, sub));
+      const analysis = analyzeSubjectAtSlot(level, sub, day, slot, yearMonth, half, oneToOne);
       const badge = renderSubjectPickerBadge(analysis);
       return `<button type="button" class="scp-subject-row${active}" data-single-subject="${sub}">
         <span class="scp-subject-name" style="background:${c.bg};color:${c.text};">${sub}</span>
@@ -316,6 +385,10 @@ function showElementaryPopover(anchor, { level, day, slot, dualPair, focusHalf, 
     pop.querySelector('#scpSingleLabel').textContent = mode === 'full' ? '1教科・90分' : `1教科・40分（${halfLabel(mode)}）`;
     const dualDetails = pop.querySelector('.scp-dual-details');
     if(dualDetails) dualDetails.hidden = mode !== 'full';
+    const oneBox = pop.querySelector('#scpOneToOne');
+    const subject = currentSubject();
+    oneBox.disabled = !subject;
+    oneBox.checked = isOneToOneCourse(courseBySubject(formCourses, subject));
     renderSingleList();
   }
 
@@ -338,8 +411,23 @@ function showElementaryPopover(anchor, { level, day, slot, dualPair, focusHalf, 
         : '';
       return;
     }
-    const analysis = analyzeDualSubjectAtSlot(level, pickA, pickB, day, slot, yearMonth);
+    const pairOne = [pickA, pickB].some(sub=> isOneToOneCourse(courseBySubject(formCourses, sub)));
+    const analysis = analyzeDualSubjectAtSlot(level, pickA, pickB, day, slot, yearMonth, pairOne);
     statusEl.innerHTML = renderDualSubjectPickerBadge(analysis);
+    const labelA = pop.querySelector('#scpOneToOneALabel');
+    const labelB = pop.querySelector('#scpOneToOneBLabel');
+    if(labelA) labelA.textContent = pickA ? `${pickA}は1対1` : '1教科目は1対1';
+    if(labelB) labelB.textContent = pickB ? `${pickB}は1対1` : '2教科目は1対1';
+    const boxA = pop.querySelector('#scpOneToOneA');
+    const boxB = pop.querySelector('#scpOneToOneB');
+    if(boxA){
+      boxA.disabled = !courseBySubject(formCourses, pickA);
+      boxA.checked = isOneToOneCourse(courseBySubject(formCourses, pickA));
+    }
+    if(boxB){
+      boxB.disabled = !courseBySubject(formCourses, pickB);
+      boxB.checked = isOneToOneCourse(courseBySubject(formCourses, pickB));
+    }
   }
 
   pop.querySelectorAll('[data-dual-role="a"] .scp-dual-chip').forEach(chip=>{
@@ -381,6 +469,36 @@ function showElementaryPopover(anchor, { level, day, slot, dualPair, focusHalf, 
   });
 
   if(dualPair && mode === 'full') pop.querySelector('.scp-dual-details')?.setAttribute('open', '');
+  const oneBox = pop.querySelector('#scpOneToOne');
+  const oneMsg = pop.querySelector('#scpOneToOneMsg');
+  oneBox.addEventListener('change', ()=>{
+    const result = setCourseOneToOne(formCourses, currentSubject(), oneBox.checked);
+    if(!result.ok){
+      oneBox.checked = isOneToOneCourse(courseBySubject(formCourses, currentSubject()));
+      oneMsg.textContent = result.msg;
+      return;
+    }
+    oneMsg.textContent = '';
+    closePopover();
+    Promise.resolve(onChange()).then(()=> notifyOneToOneBlock(result.msg));
+  });
+  const dualMsg = pop.querySelector('#scpDualOneMsg');
+  [['#scpOneToOneA', ()=> pickA], ['#scpOneToOneB', ()=> pickB]].forEach(([sel, subjectOf])=>{
+    const box = pop.querySelector(sel);
+    box.checked = isOneToOneCourse(courseBySubject(formCourses, subjectOf()));
+    box.addEventListener('change', ()=>{
+      const subject = subjectOf();
+      const result = setCourseOneToOne(formCourses, subject, box.checked);
+      if(!result.ok){
+        box.checked = isOneToOneCourse(courseBySubject(formCourses, subject));
+        dualMsg.textContent = result.msg;
+        return;
+      }
+      dualMsg.textContent = '';
+      closePopover();
+      Promise.resolve(onChange()).then(()=> notifyOneToOneBlock(result.msg));
+    });
+  });
   syncDualUi();
   syncDuration();
 }
@@ -412,27 +530,30 @@ export function renderStudentCourseCalendar(container, opts){
       }else if(dualEnabled && !dualPair && !fullOcc){
         tableHtml += `<td class="scc-cell scc-split" data-day="${day}" data-slot="${slot.id}">
           <div class="scc-half-stack">
-            ${halfSlotButtonHtml(level, day, slot, 'early', yearMonth, earlyOcc)}
-            ${halfSlotButtonHtml(level, day, slot, 'late', yearMonth, lateOcc)}
+            ${halfSlotButtonHtml(level, day, slot, 'early', yearMonth, earlyOcc, formCourses)}
+            ${halfSlotButtonHtml(level, day, slot, 'late', yearMonth, lateOcc, formCourses)}
           </div>
         </td>`;
       }else if(dualPair){
-        const badge = cellDualStatusBadgeHtml(level, dualPair.subjects[0], dualPair.subjects[1], day, slot.id, yearMonth);
+        const pairOne = dualPair.subjects.some(sub=> isOneToOneCourse(courseBySubject(formCourses, sub)));
+        const badge = cellDualStatusBadgeHtml(level, dualPair.subjects[0], dualPair.subjects[1], day, slot.id, yearMonth, pairOne);
         tableHtml += `<td class="scc-cell scc-filled scc-dual" data-day="${day}" data-slot="${slot.id}">
           <button type="button" class="scc-slot-btn scc-slot-filled-btn">
-            <span class="scc-dual-tags">${renderDualSubjectTags(level, dualPair.subjects)}</span>
+            <span class="scc-dual-tags">${renderDualSubjectTags(level, dualPair.subjects, formCourses)}</span>
             <span class="scc-dual-mode-label">90分・2教科</span>
             ${badge}
           </button>
         </td>`;
       }else if(single){
         const c = subjectColor(level, single.subject);
-        const badge = cellStatusBadgeHtml(level, single.subject, day, slot.id, yearMonth);
+        const oneToOne = isOneToOneCourse(courseBySubject(formCourses, single.subject));
+        const badge = cellStatusBadgeHtml(level, single.subject, day, slot.id, yearMonth, undefined, oneToOne);
         const modeLabel = dualEnabled ? '<span class="scc-dual-mode-label">90分</span>' : '';
         tableHtml += `<td class="scc-cell scc-filled" data-day="${day}" data-slot="${slot.id}">
           <button type="button" class="scc-slot-btn scc-slot-filled-btn" data-half="full">
             ${modeLabel}
             <span class="scc-subject-name" style="background:${c.bg};color:${c.text};">${cellSubjectLabel(single.subject)}</span>
+            ${oneToOneBadgeHtml(formCourses, single.subject)}
             ${badge}
           </button>
         </td>`;
@@ -451,7 +572,8 @@ export function renderStudentCourseCalendar(container, opts){
   const summaryHtml = activeCourses.length
     ? activeCourses.map(c=>{
       const col = subjectColor(level, c.subject);
-      return `<span class="scc-summary-tag" style="background:${col.bg};color:${col.text};">${c.subject} 週${c.desiredSlots.length}コマ</span>`;
+      const one = c.oneToOne ? ' 1対1' : '';
+      return `<span class="scc-summary-tag" style="background:${col.bg};color:${col.text};">${c.subject}${one} 週${c.desiredSlots.length}コマ</span>`;
     }).join('')
     : '<span class="scc-summary-empty">空いているマスをクリックして、教科を選んでください。</span>';
 
@@ -492,9 +614,10 @@ export function renderStudentCourseCalendar(container, opts){
         day,
         slot,
         currentSubject: single?.subject || null,
+        formCourses,
+        onChange,
         onPick: subject=>{
           assignSlotSubject(formCourses, genCourseId, day, slot, subject);
-          onChange();
         },
         onClear: ()=>{
           clearSlotSubject(formCourses, day, slot);

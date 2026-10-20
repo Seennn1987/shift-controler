@@ -4,7 +4,7 @@ import { HOLIDAYS_JP } from '../shared/holidays.js';
 import { pad2, daysInYearMonth, toDateStr, getTodayStr } from '../shared/date-utils.js';
 import { firebaseConfig, fbAuth, fbDb, STORAGE_KEY, getSecondaryAuth, S } from './state.js';
 import { computeDayFinance, computeTeacherOpenings, costRatioColor, getEffectiveDayAssignments, getStudentDateRows, getAbsenceRecordsOnDate } from './absences.js';
-import { collapseDualAssignmentDisplayRows, countBusiestHalfUnits, countSlotAssignmentUnits, buildDualSubjectTagsHtml } from './dual-subject.js';
+import { collapseDualAssignmentDisplayRows, countSlotAssignmentUnits, buildDualSubjectTagsHtml } from './dual-subject.js';
 import { buildFlowStatusBadgeHtml, buildFlowStatusBadgeChipHtml } from './match-candidate-ui.js';
 import { calLinesToEntriesHtml, computeSyncedWeekAnchor, getDayStatus, getUnassignedRowsForDate, refreshCalToolbarSecondary, renderCalendar, studentRowToCalLine, updateCalPeriodLabel } from './calendar.js';
 import { findTeacher } from './owner-teacher.js';
@@ -16,6 +16,7 @@ import { renderTeacherScheduleTab } from './teacher-schedule-tab.js';
 import { renderTeacherList } from './teachers.js';
 import { isActivePerson } from './active-people.js';
 import { buildMonthFinanceCompare, formatFinanceDelta, formatYen } from './finance-metrics.js';
+import { busiestSeatText } from './one-to-one.js';
 
 // 収支タブ（講師コスト率の可視化：日・週・月）
 // =====================================================================
@@ -311,18 +312,10 @@ function buildTeacherAxisCell(list){
   Object.keys(byTeacher).forEach(teacherId=>{
     const teacher = findTeacher(teacherId);
     const entries = byTeacher[teacherId];
-    const weekday = entries[0]?.day || '';
-    const loadCount = countBusiestHalfUnits(entries.map(e=>({
-      studentId: e.studentId,
-      day: e.day || weekday,
-      slot: e.slot,
-      half: e.half,
-      dualGroupId: e.dualGroupId || null,
-    })));
     const displayRows = collapseDualAssignmentDisplayRows(entries);
     const studentsHtml = displayRows.map(weekAssignmentStudentCard).join('');
     boxesHtml += `<div class="sched-teacher-group">
-      <div class="sched-teacher-head">${teacherHonorific(teacher)}<span class="sched-cap">\uff08${loadCount}/${S.teacherCapacity}\uff09</span></div>
+      <div class="sched-teacher-head">${teacherHonorific(teacher)}<span class="sched-cap">（${busiestSeatText(entries)}）</span></div>
       <div class="sched-teacher-students">${studentsHtml}</div>
     </div>`;
   });
@@ -501,18 +494,10 @@ function buildWeekTeacherFilterCell(teacher, dateStr, slot){
   if(list.length===0 && absences.length===0){
     return '<div class="sched-empty">—</div>';
   }
-  const weekday = getDayStatus(dateStr).weekday;
-  const loadCount = countBusiestHalfUnits(list.map(e=>({
-    studentId: e.studentId,
-    day: e.day || weekday,
-    slot: e.slot,
-    half: e.half,
-    dualGroupId: e.dualGroupId || null,
-  })));
   const displayRows = collapseDualAssignmentDisplayRows(list);
   const studentsHtml = displayRows.map(weekAssignmentStudentCard).join('') + buildWeekAbsenceTeacherBlock(absences);
   return `<div class="sched-teacher-group">
-    <div class="sched-teacher-head">${teacherHonorific(teacher)}<span class="sched-cap">（${loadCount}/${S.teacherCapacity}）</span></div>
+    <div class="sched-teacher-head">${teacherHonorific(teacher)}<span class="sched-cap">（${busiestSeatText(list)}）</span></div>
     <div class="sched-teacher-students">${studentsHtml}</div>
   </div>`;
 }
