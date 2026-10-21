@@ -8,6 +8,13 @@ export const firebaseConfig = {
   measurementId: "G-G3TEYJYJFW"
 };
 
+export function isClosedCopyPage(){
+  if(typeof location === 'undefined') return false;
+  const host = location.hostname;
+  if(host !== '127.0.0.1' && host !== 'localhost') return false;
+  return new URLSearchParams(location.search).get('closed') === '1';
+}
+
 export function initPrimaryFirebase() {
   const hasDefault = firebase.apps.some(a => a.name === '[DEFAULT]');
   if (!hasDefault) {
@@ -15,6 +22,9 @@ export function initPrimaryFirebase() {
   }
   const fbAuth = firebase.auth();
   const fbDb = firebase.firestore();
+  if(isClosedCopyPage()){
+    fbDb.useEmulator('127.0.0.1', 8180);
+  }
   fbDb.settings({ experimentalAutoDetectLongPolling: true, merge: true });
   return { fbAuth, fbDb };
 }

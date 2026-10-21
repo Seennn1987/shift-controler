@@ -19,6 +19,7 @@ import { renderMatching } from './matching.js';
 import { gradeLabel } from './schedule-core.js';
 import { invalidateAssignmentApprovalsCache, openTeacherScheduleEditor, renderTeacherScheduleTab } from './teacher-schedule-tab.js';
 import { collapseTeacherCalendarEntries, formatDualSubjectLabel, ticketCoversSubjects, ticketSubjectList } from './dual-subject.js';
+import { pendingCoversTicketSubjects } from '../shared/promote-guard.mjs';
 import { collectMakeupEntriesForTeacher, isTeacherAbsentForStudent, recordTeacherAbsence, reopenOrphanedMakeups, reopenRejectedMakeups, studentAbsentDatesForAssignment } from './absences.js';
 import { normalizeMatchingPriority } from './matching-config.js';
 import { applyGradePromotionsIfNeeded } from './grade-promotion.js';
@@ -317,21 +318,50 @@ function takePendingMatchingTicket(ticket){
   return indices.map(i=> S.pendingAssignments.splice(i, 1)[0]);
 }
 
+function matchingRowsForTicket(list, ticket){
+  return (list || []).filter(row => pendingMatchesTicket(row, ticket));
+}
+
+async function markTicketPromoted(ticketId){
+  await fbDb.collection('assignmentApprovals').doc(ticketId).update({
+    promoted: true,
+    adminAttention: false,
+  });
+}
+
 async function promotePendingAssignment(ticket, ticketId){
+  const waiting = matchingRowsForTicket(S.pendingAssignments, ticket);
+  if(!pendingCoversTicketSubjects(ticket, waiting)){
+    if(pendingCoversTicketSubjects(ticket, matchingRowsForTicket(S.assignments, ticket))){
+      try{
+        await markTicketPromoted(ticketId);
+      }catch(e){
+        console.error('チケットの昇格フラグ更新エラー:', e);
+      }
+      invalidateAssignmentApprovalsCache();
+    }
+    return;
+  }
   const taken = takePendingMatchingTicket(ticket);
-  if(taken.length === 0) return;
+  if(!pendingCoversTicketSubjects(ticket, taken)){
+    S.pendingAssignments.push(...taken);
+    return;
+  }
   S.assignments.push(...taken);
+  const saved = await saveAppState();
+  if(!saved){
+    const ids = new Set(taken.map(row => row.id));
+    S.assignments = S.assignments.filter(row => !ids.has(row.id));
+    S.pendingAssignments.push(...taken);
+    return;
+  }
   try{
-    await fbDb.collection('assignmentApprovals').doc(ticketId).update({
-      promoted: true,
-      adminAttention: false,
-    });
+    await markTicketPromoted(ticketId);
   }catch(e){
     console.error('チケットの昇格フラグ更新エラー:', e);
   }
   invalidateAssignmentApprovalsCache();
   scheduleSyncTeacherAssignments();
-  scheduleSave();
   renderMatching();
   renderCalendar();
 }
@@ -898,9 +928,9 @@ async function readCloudStateRev(ref){
 }
 
 async function saveAppStateNow(){
-  if(S.saveBlocked) return;
+  if(S.saveBlocked) return false;
   const ref = getStateDocRef();
-  if(!ref) return;
+  if(!ref) return false;
   const nextRev = (S.stateRev || 0) + 1;
   const state = {
     teachers: S.teachers,
@@ -953,17 +983,18 @@ async function saveAppStateNow(){
       try{
         if(await readCloudStateRev(ref) !== S.stateRev){
           blockSavesForConflict();
-          return;
+          return false;
         }
       }catch(readErr){
         console.error('保存回数の確認エラー:', readErr);
       }
     }
     showSaveErrorFlash();
-    return;
+    return false;
   }
   S.saveInFlight = false;
   await syncClosureSettings();
+  return true;
 }
 
 const STALE_CHECK_MIN_INTERVAL_MS = 30_000;

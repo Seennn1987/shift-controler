@@ -100,13 +100,42 @@ function studentShortTuitionRate(rates, student){
   return tuitionRateFor(rates, student.level, student.grade, student.tuitionCourse);
 }
 
-/** 1対1用。未入力は0円（2人授業の金額はコピーしない） */
-function normalizeBlankGradeRates(saved, rowsFor){
+/**
+ * 2026年4月改訂の料金表。1対1の「追加コマ」（週1回の月額を4で割った1コマ分）。
+ * 40分は小学生の欄だけ。高校のベーシックは表に無い。
+ */
+const DEFAULT_ONE_TUITION = {
+  basic: {
+    '小学1': 5000, '小学2': 5000, '小学3': 5000,
+    '小学4': 6000, '小学5': 6000, '小学6': 6000,
+    '中学1': 7000, '中学2': 7000, '中学3': 8000,
+  },
+  advance: {
+    '小学1': 7000, '小学2': 7000, '小学3': 7000,
+    '小学4': 8000, '小学5': 8000, '小学6': 8000,
+    '中学1': 8000, '中学2': 8000, '中学3': 8500,
+    '高校1': 8000, '高校2': 9000, '高校3': 10000,
+  },
+};
+
+const DEFAULT_ONE_SHORT_TUITION = {
+  basic: {
+    '小学1': 2500, '小学2': 2500, '小学3': 2500,
+    '小学4': 3000, '小学5': 3000, '小学6': 3000,
+  },
+  advance: {
+    '小学1': 3500, '小学2': 3500, '小学3': 3500,
+    '小学4': 4000, '小学5': 4000, '小学6': 4000,
+  },
+};
+
+/** 1対1用。保存が無ければ料金表の初期値。2人授業の金額はコピーしない */
+function normalizeBlankGradeRates(saved, rowsFor, fallback){
   const result = { basic: {}, advance: {} };
   ['basic', 'advance'].forEach(course=>{
     rowsFor(course).forEach(({ items })=>{
       items.forEach(({ key })=>{
-        result[course][key] = validRate(saved?.[course]?.[key]) ?? 0;
+        result[course][key] = validRate(saved?.[course]?.[key]) ?? (fallback?.[course]?.[key] ?? 0);
       });
     });
   });
@@ -114,11 +143,11 @@ function normalizeBlankGradeRates(saved, rowsFor){
 }
 
 function normalizeOneTuitionRates(d){
-  return normalizeBlankGradeRates(d?.tuitionGradeRatesOne, tuitionGradeRows);
+  return normalizeBlankGradeRates(d?.tuitionGradeRatesOne, tuitionGradeRows, DEFAULT_ONE_TUITION);
 }
 
 function normalizeOneShortTuitionRates(d){
-  return normalizeBlankGradeRates(d?.tuitionGradeRatesShortOne, ()=> shortTuitionGradeRows());
+  return normalizeBlankGradeRates(d?.tuitionGradeRatesShortOne, ()=> shortTuitionGradeRows(), DEFAULT_ONE_SHORT_TUITION);
 }
 
 function tuitionDurationNote({ fullCount, shortCount, oneCount }){

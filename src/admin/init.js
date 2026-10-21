@@ -1,3 +1,4 @@
+import { isClosedCopyPage } from '../shared/firebase-config.js';
 import { pad2, toDateStr, getTodayStr } from '../shared/date-utils.js';
 import { firebaseConfig, fbAuth, fbDb, STORAGE_KEY, getSecondaryAuth, S } from './state.js';
 import { bindPayrollUi, renderPayroll } from './payroll-ui.js';
@@ -24,6 +25,11 @@ import { installReadSafetySelfTest } from './read-safety-selftest.js';
 import { bindStudentFeePreview } from './student-fee-preview.js';
 import { clampShortPayPercent } from '../shared/lesson-span.js';
 import { shortTuitionGradeRows, tuitionGradeRows } from './tuition-rates.js';
+
+if(isClosedCopyPage()){
+  const banner = document.getElementById('closedCopyBanner');
+  if(banner) banner.hidden = false;
+}
 
 const TUITION_AREA_IDS = { basic: 'tuitionBasicArea', advance: 'tuitionAdvanceArea' };
 const SHORT_TUITION_AREA_IDS = { basic: 'tuitionShortBasicArea', advance: 'tuitionShortAdvanceArea' };

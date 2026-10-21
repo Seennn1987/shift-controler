@@ -1,0 +1,18 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>閉じたコピーの確認</title>
+<link rel="stylesheet" href="/src/shared/styles/variables.css">
+<link rel="stylesheet" href="/src/admin/styles/admin.css">
+</head>
+<body>
+<div id="closedCopyBanner" hidden>これは試し用のコピーです。本番ではありません</div>
+<pre id="closedReport" style="white-space:pre-wrap;font-family:var(--font-family);font-size:var(--text-base);padding:var(--space-4);color:var(--ink);"></pre>
+<script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore-compat.js"></script>
+<script type="module" src="/src/admin/closed-copy-check.js"></script>
+</body>
+</html>

@@ -992,6 +992,16 @@
   }
   .list-leave-flash .matching-panel-result-msg{margin:0 0 10px;}
   .makeup-alert-flash{margin:0 0 var(--space-3);}
+  #closedCopyBanner{
+    margin:0;
+    padding:var(--space-3);
+    background:var(--warning-bg);
+    color:var(--warning-ink);
+    border-bottom:1px solid var(--warning-ink);
+    font-size:var(--text-base);
+    font-weight:var(--font-weight-bold);
+    text-align:center;
+  }
   .student-row-status{
     flex-shrink:0;font-size:var(--text-xs);font-weight:700;padding:4px 10px;border-radius:var(--radius-pill);
     border:1px solid transparent;min-width:88px;text-align:center;line-height:1.3;
