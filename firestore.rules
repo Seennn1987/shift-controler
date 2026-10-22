@@ -92,7 +92,11 @@ service cloud.firestore {
       );
     }
     match /lessonDrafts/{docId} {
-      allow read: if request.auth != null && request.auth.uid == resource.data.adminUid;
+      // まだ保存していない仮決めは中身が空なので、空の確認も教室長のログインなら通す
+      allow read: if request.auth != null && (
+        resource == null ||
+        request.auth.uid == resource.data.adminUid
+      );
       allow create: if request.auth != null && request.auth.uid == request.resource.data.adminUid;
       allow update, delete: if request.auth != null && request.auth.uid == resource.data.adminUid;
     }

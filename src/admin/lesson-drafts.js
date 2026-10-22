@@ -17,6 +17,22 @@ function draftRef(id){
   return fbDb.collection('lessonDrafts').doc(id);
 }
 
+function isMissingDraftRead(err){
+  const code = err && (err.code || '');
+  return code === 'permission-denied' || code === 'permission_denied';
+}
+
+/** すでに入っている仮決めだけ中身を返す。まだ無いものは空。空の確認が拒否されても新規として扱う。 */
+async function readStoredDraft(id){
+  try{
+    const snap = await draftRef(id).get();
+    return snap.exists ? snap.data() : null;
+  }catch(err){
+    if(isMissingDraftRead(err)) return null;
+    throw err;
+  }
+}
+
 function payloadOf(entry, uid){
   const out = { adminUid: uid, id: entry.id };
   Object.keys(entry).forEach(key => {
@@ -90,8 +106,7 @@ export async function commitLessonDrafts({ upserts = [], deleteIds = [], forceFa
     for(const group of chunk(rows, BATCH_LIMIT)){
       const previous = new Map();
       for(const entry of group){
-        const snap = await draftRef(entry.id).get();
-        previous.set(entry.id, snap.exists ? snap.data() : null);
+        previous.set(entry.id, await readStoredDraft(entry.id));
       }
       const batch = fbDb.batch();
       group.forEach(entry => batch.set(draftRef(entry.id), payloadOf(entry, uid)));
@@ -101,11 +116,12 @@ export async function commitLessonDrafts({ upserts = [], deleteIds = [], forceFa
     for(const group of chunk(removals, BATCH_LIMIT)){
       const snaps = [];
       for(const id of group){
-        const snap = await draftRef(id).get();
-        snaps.push({ id, data: snap.exists ? snap.data() : null });
+        const data = await readStoredDraft(id);
+        if(data) snaps.push({ id, data });
       }
+      if(!snaps.length) continue;
       const batch = fbDb.batch();
-      group.forEach(id => batch.delete(draftRef(id)));
+      snaps.forEach(item => batch.delete(draftRef(item.id)));
       await batch.commit();
       applied.push({ type: 'delete', snaps });
     }
