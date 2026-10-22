@@ -91,5 +91,10 @@ service cloud.firestore {
         request.auth.uid == request.resource.data.teacherLoginUid
       );
     }
+    match /lessonDrafts/{docId} {
+      allow read: if request.auth != null && request.auth.uid == resource.data.adminUid;
+      allow create: if request.auth != null && request.auth.uid == request.resource.data.adminUid;
+      allow update, delete: if request.auth != null && request.auth.uid == resource.data.adminUid;
+    }
   }
 }

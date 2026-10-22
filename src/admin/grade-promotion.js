@@ -2,6 +2,7 @@ import { LEVEL_ABBR } from '../shared/constants.js';
 import { getTodayStr } from '../shared/date-utils.js';
 import { fbAuth, fbDb, S } from './state.js';
 import { isActivePerson } from './active-people.js';
+import { persistDraftDiff } from './lesson-drafts.js';
 
 /** 4月始まりの年度。2026-04-01 → 2026、2026-03-31 → 2025 */
 function schoolYearOf(dateStr){
@@ -149,7 +150,14 @@ async function applyGradePromotionsIfNeeded(){
   S.lastGradePromotionYear = stored;
   if(stored >= currentYear) return { didWrite: false };
 
+  const beforeDrafts = (S.draftAssignments || []).map(entry => ({
+    ...entry,
+    subjects: Array.isArray(entry.subjects) ? entry.subjects.slice() : entry.subjects,
+    skippedDates: Array.isArray(entry.skippedDates) ? entry.skippedDates.slice() : entry.skippedDates,
+  }));
   const { changedCount, high3Count } = applyPromotionsUntil(currentYear);
+  const draftsSaved = await persistDraftDiff(beforeDrafts);
+  if(!draftsSaved) S.draftAssignments = beforeDrafts;
   if(changedCount > 0) await syncPromotedTicketGrades();
   S.pendingGradePromotionNotice = buildPromotionNotice({ changedCount, high3Count });
   return { didWrite: true };

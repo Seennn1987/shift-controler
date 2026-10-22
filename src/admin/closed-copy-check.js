@@ -5,6 +5,8 @@ import { clampShortPayPercent } from '../shared/lesson-span.js';
 import { toDateStr } from '../shared/date-utils.js';
 import { normalizeOneShortTuitionRates, normalizeOneTuitionRates, normalizeShortTuitionRates, normalizeTuitionGradeRates } from './tuition-rates.js';
 import { computeDayFinance, getEffectiveDayAssignments, getMonthlyFeeStudentIds, getStudentTuitionForDate, isMonthlyFeeLesson } from './absences.js';
+import { commitLessonDrafts, loadLessonDrafts } from './lesson-drafts.js';
+import { listsAfterDraftSave, mergeDraftsForRead, unionDrafts } from '../shared/lesson-draft-diff.mjs';
 import { computeLiveMonthPayroll } from './payroll.js';
 import { getUnassignedRowsForDate } from './calendar.js';
 
@@ -193,6 +195,54 @@ function oneKomaTuition(student, dateStr, row){
   return getStudentTuitionForDate(student, dateStr, row);
 }
 
+async function checkDraftStore(messages){
+  const uid = 'closed-draft-test';
+  const dualA = {
+    id: 'safety-draft-dual-a', studentId: 's-safety', subject: '国語', day: '木', slot: 5,
+    teacherId: 't-safety', source: 'manual', dualGroupId: 'dual-safety',
+  };
+  const dualB = {
+    id: 'safety-draft-dual-b', studentId: 's-safety', subject: '社会', day: '木', slot: 5,
+    teacherId: 't-safety', source: 'manual', dualGroupId: 'dual-safety',
+  };
+  const single = {
+    id: 'safety-draft-single', studentId: 's-safety', subject: '算数', day: '月', slot: 4,
+    teacherId: 't-safety', source: 'manual',
+  };
+  const failed = await commitLessonDrafts({ upserts: [dualA, dualB], forceFail: true, adminUid: uid, quiet: true });
+  if(failed) fail(messages, '失敗させた保存が成功しました');
+  const absent = await loadLessonDrafts(uid);
+  if(absent.some(entry => entry.id === dualA.id || entry.id === dualB.id)){
+    fail(messages, '保存に失敗した2教科が画面に残る置き場へ書かれました');
+  }
+  const saved = await commitLessonDrafts({ upserts: [dualA, dualB, single], adminUid: uid, quiet: true });
+  if(!saved) fail(messages, '仮決めを試し用のコピーへ保存できませんでした');
+  const loaded = await loadLessonDrafts(uid);
+  if(!loaded.some(entry => entry.id === dualA.id) || !loaded.some(entry => entry.id === dualB.id)){
+    fail(messages, '2教科の仮決めが片方だけです');
+  }
+  if(!loaded.some(entry => entry.day === '木') || loaded.some(entry => String(entry.day).includes('\uFFFD'))){
+    fail(messages, '木曜日の文字を読み戻せません');
+  }
+  const hidden = listsAfterDraftSave([], [{ id: 'not-saved', day: '火' }], false);
+  if(hidden.length !== 0) fail(messages, '保存失敗なのに画面へ出ます');
+  const removed = await commitLessonDrafts({ deleteIds: [single.id], adminUid: uid, quiet: true });
+  if(!removed) fail(messages, '1件の解除を保存できませんでした');
+  const afterDelete = await loadLessonDrafts(uid);
+  if(afterDelete.some(entry => entry.id === single.id)) fail(messages, '解除した仮決めが残っています');
+  if(!afterDelete.some(entry => entry.id === dualA.id) || !afterDelete.some(entry => entry.id === dualB.id)){
+    fail(messages, '1件の解除でほかの仮決めが消えました');
+  }
+  const union = unionDrafts(afterDelete, [{ id: 'safety-draft-old', day: '火', subject: '理科' }]);
+  if(!union.list.some(entry => entry.id === dualA.id) || !union.missing.some(entry => entry.id === 'safety-draft-old')){
+    fail(messages, 'もともとある仮決めを残したまま移せていません');
+  }
+  const pendingKept = mergeDraftsForRead(afterDelete, [], [], [{ id: dualA.id }]);
+  if(pendingKept.some(entry => entry.id === dualA.id)) fail(messages, '承認待ちと同じ仮決めがもう一度出ます');
+  if(!pendingKept.some(entry => entry.id === dualB.id)) fail(messages, '承認待ちでない仮決めまで隠れました');
+  await commitLessonDrafts({ deleteIds: afterDelete.map(entry => entry.id), adminUid: uid, quiet: true });
+}
+
 export async function runClosedCopyCheck(){
   const banner = document.getElementById('closedCopyBanner');
   if(banner && isClosedCopyPage()) banner.hidden = false;
@@ -210,6 +260,46 @@ export async function runClosedCopyCheck(){
   }
   applyDoc(doc);
   checkPromoteRules(messages);
+  const weekdaysOk = new Set(['月', '火', '水', '木', '金', '土', '日']);
+  [doc.assignments, doc.pendingAssignments, doc.draftAssignments].forEach(list => {
+    (list || []).forEach(entry => {
+      if(!entry || !entry.day) return;
+      if(!weekdaysOk.has(entry.day) || String(entry.day).includes('\uFFFD')){
+        fail(messages, '読み込んだ授業の曜日が壊れています');
+      }
+    });
+  });
+  const tuitionBeforeProbe = tuitionMap().total;
+  const programmingBeforeProbe = programmingCount();
+  const monthlyBeforeProbe = getMonthlyFeeStudentIds(2026, 9).size;
+  S.draftAssignments.push({
+    id: 'draft-money-probe',
+    studentId: (S.students[0] && S.students[0].id) || 's',
+    subject: '国語',
+    day: '木',
+    slot: 5,
+    teacherId: (S.teachers[0] && S.teachers[0].id) || 't',
+    source: 'manual',
+  });
+  if(tuitionMap().total !== tuitionBeforeProbe) fail(messages, '仮決めを足すと授業料が変わります');
+  if(programmingCount() !== programmingBeforeProbe) fail(messages, '仮決めを足すとプログラミングの件数が変わります');
+  if(getMonthlyFeeStudentIds(2026, 9).size !== monthlyBeforeProbe) fail(messages, '仮決めを足すとプログラミング月額が変わります');
+  S.draftAssignments.pop();
+  const beforeState = snap.docs.map(item => ({
+    id: item.id,
+    pending: JSON.stringify(item.data().pendingAssignments || []),
+    drafts: JSON.stringify(item.data().draftAssignments || []),
+  }));
+  await checkDraftStore(messages);
+  const afterSnap = await fbDb.collection('appState').get();
+  const afterState = afterSnap.docs.map(item => ({
+    id: item.id,
+    pending: JSON.stringify(item.data().pendingAssignments || []),
+    drafts: JSON.stringify(item.data().draftAssignments || []),
+  }));
+  if(JSON.stringify(beforeState) !== JSON.stringify(afterState)){
+    fail(messages, '試しの保存で、もとからある仮決めか承認待ちが変わりました');
+  }
   const beforeHits = DATES.map(dateStr => {
     const name = dateStr === '2026-10-21' || dateStr === '2026-10-28' ? '篠原' : '長山';
     const subject = name === '篠原' ? '国語' : '理科';

@@ -11,6 +11,7 @@ import { findTeacher, getOwnerTeacher } from './owner-teacher.js';
 import { isActivePerson, personAppliesOnDate } from './active-people.js';
 import { studentShortTuitionRate, studentTuitionRate } from './tuition-rates.js';
 import { assignmentUsesOneToOnePrice, listHasOneToOne, studentSubjectsAreOneToOne, teacherSeatCap } from './one-to-one.js';
+import { persistDraftDiff, restoreLessonLists, snapshotLessonLists } from './lesson-drafts.js';
 
 // ---- 欠席・振替（特定の実日付にのみ影響。曜日パターン自体は変えない） ----
 // {id, studentId, courseId, subject, day, slot, date, status:'pending'|'resolved', makeup:null|{date,slot,teacherId}}
@@ -114,7 +115,13 @@ async function dropMakeupSideEffects(ab){
   const siblings = findDualAbsenceSiblings(ab);
   const subjects = siblings.map(s=> s.subject);
   const makeupWeekday = makeup.date ? getDayStatus(makeup.date).weekday : null;
+  const snap = snapshotLessonLists();
   siblings.forEach(sibling=> removeMakeupAssignmentsFor(sibling));
+  const draftsSaved = await persistDraftDiff(snap.drafts);
+  if(!draftsSaved){
+    restoreLessonLists(snap);
+    return;
+  }
   if(!student || makeupWeekday == null) return;
   try{
     const coursePayload = subjects.length === 2

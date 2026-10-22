@@ -9,7 +9,8 @@ import { refreshCalFilterOptions, setCalFilterStudent, setCalFilterTeacher, clea
 import { sortByNameKana } from '../shared/person-sort.js';
 import { renderCalendarWeek, switchCalMode, switchView } from './finance-ui.js';
 import { gradeLabel, getDateSlotState, isTeacherAvailableOnDate, subjectColor } from './schedule-core.js';
-import { approveCancellationRequest, approveCancellationRequests, rejectCancellationRequest, saveStudents, scheduleSave, scheduleSyncTeacherAssignments, saveAppState } from './students-persistence.js';
+import { approveCancellationRequest, approveCancellationRequests, rejectCancellationRequest, saveStudents, scheduleSave, scheduleSyncTeacherAssignments } from './students-persistence.js';
+import { commitLessonDrafts, persistDraftDiff, restoreLessonLists, snapshotLessonLists } from './lesson-drafts.js';
 import { renderTeacherList } from './teachers.js';
 import { assignmentAppliesOnDate, approvalAppliesInMonth, buildCandidateInfo, confirmAssignment, confirmDualAssignment, cancelAllDrafts, cancelDraftAuto, findEffectiveAssignment, getActiveYearMonth, getPreferredTeachersForCourse, loadAssignmentApprovals, loadDismissedApprovalIds, loadPendingCancellationRequests, loadPendingChangeRequests, openMatchingForApprovalTicket, approvePendingLessonAsAdmin, renderApprovalDashboardItem, resolveScheduleChangeRequest, resolveScheduleChangeRequests, saveDismissedApprovalIds, sendDraftAssignments, teacherHasSubmittedMonth, revokePendingApprovalTicketsForStudent, revokePendingCancellationRequestsForStudent, revokePendingCancellationForSlot, dropAssignmentsForRemovedDesiredSlots, syncStudentIdentityOnTickets } from './teacher-schedule-tab.js';
 import { findDualPairAtSlot, teacherTeachesBoth, buildDualSubjectTagsHtml } from './dual-subject.js';
@@ -41,7 +42,7 @@ function autoSlotPatternLabel(p){
   return `${p.day}曜${slotLabel}の${subject}`;
 }
 
-function bulkAutoAssign({ studentId } = {}){
+async function bulkAutoAssign({ studentId } = {}){
   const ym = S.referenceYearMonth;
   const pending = [];
   const targetStudents = (studentId
@@ -110,6 +111,7 @@ function bulkAutoAssign({ studentId } = {}){
 
   pending.sort((a, b)=> a.candidateCount - b.candidateCount);
 
+  const snap = snapshotLessonLists();
   let filled = 0, skipped = 0, skippedNoCandidate = 0;
   const noCandidateLabels = [];
   const rememberNoCandidate = (p)=>{
@@ -118,20 +120,20 @@ function bulkAutoAssign({ studentId } = {}){
     if(!noCandidateLabels.includes(label)) noCandidateLabels.push(label);
   };
 
-  pending.forEach(p=>{
-    if(p.candidateCount === 0){ skipped++; rememberNoCandidate(p); return; }
+  for(const p of pending){
+    if(p.candidateCount === 0){ skipped++; rememberNoCandidate(p); continue; }
     if(p.dual){
       if(p.dualPair.entries.some(({ course })=>
-        findEffectiveAssignment(p.studentId, course.id, p.day, p.slot, ym, p.dateStr))){ skipped++; return; }
+        findEffectiveAssignment(p.studentId, course.id, p.day, p.slot, ym, p.dateStr))){ skipped++; continue; }
       if(p.dualPair.entries.some(({ course })=>
-        findAbsenceFor(p.studentId, course.id, p.dateStr, p.day, p.slot))){ skipped++; return; }
+        findAbsenceFor(p.studentId, course.id, p.dateStr, p.day, p.slot))){ skipped++; continue; }
     }else{
-      if(findEffectiveAssignment(p.studentId, p.courseId, p.day, p.slot, ym, p.dateStr, p.half)){ skipped++; return; }
-      if(findAbsenceFor(p.studentId, p.courseId, p.dateStr, p.day, p.slot, p.half)){ skipped++; return; }
+      if(findEffectiveAssignment(p.studentId, p.courseId, p.day, p.slot, ym, p.dateStr, p.half)){ skipped++; continue; }
+      if(findAbsenceFor(p.studentId, p.courseId, p.dateStr, p.day, p.slot, p.half)){ skipped++; continue; }
     }
 
     const student = S.students.find(s=> s.id === p.studentId);
-    if(!student){ skipped++; return; }
+    if(!student){ skipped++; continue; }
 
     let candidates;
     if(p.dual){
@@ -153,24 +155,32 @@ function bulkAutoAssign({ studentId } = {}){
         .sort(compareCandidateInfo);
     }
 
-    if(candidates.length === 0){ skipped++; rememberNoCandidate(p); return; }
+    if(candidates.length === 0){ skipped++; rememberNoCandidate(p); continue; }
 
     const result = p.dual
-      ? confirmDualAssignment(
+      ? await confirmDualAssignment(
         p.studentId, p.dualPair, p.day, p.slot,
-        candidates[0].teacher.id, 'auto', { dateStr: p.dateStr },
+        candidates[0].teacher.id, 'auto', { dateStr: p.dateStr, stageOnly: true },
       )
-      : confirmAssignment(
+      : await confirmAssignment(
         p.studentId, p.courseId, p.subject, p.day, p.slot,
-        candidates[0].teacher.id, 'auto', { dateStr: p.dateStr, half: p.half },
+        candidates[0].teacher.id, 'auto', { dateStr: p.dateStr, half: p.half, stageOnly: true },
       );
     if(result.ok) filled++; else skipped++;
-  });
+  }
 
-  return { filled, skipped, skippedNoCandidate, noCandidateLabels, total: pending.length };
+  const saved = await persistDraftDiff(snap.drafts);
+  if(!saved){
+    restoreLessonLists(snap);
+    return { filled: 0, skipped, skippedNoCandidate, noCandidateLabels, total: pending.length, saved: false };
+  }
+  return { filled, skipped, skippedNoCandidate, noCandidateLabels, total: pending.length, saved: true };
 }
 
-function formatStudentAutoAssignMessage({ filled, skippedNoCandidate, noCandidateLabels }){
+function formatStudentAutoAssignMessage({ filled, skippedNoCandidate, noCandidateLabels, saved }){
+  if(saved === false){
+    return '仮決めを保存できませんでした。この回の分は画面に出していません。';
+  }
   if(filled === 0){
     return 'この月は自動で組めるコマがありません。';
   }
@@ -204,7 +214,8 @@ async function runStudentMonthAutoAssign(studentId){
     confirmLabel: '自動で決める',
     variant: 'primary',
   }, async ()=>{
-    const stats = bulkAutoAssign({ studentId });
+    const stats = await bulkAutoAssign({ studentId });
+    if(stats.saved === false) return { ok: false, msg: formatStudentAutoAssignMessage(stats) };
     scheduleSave();
     refreshAfterMatchingChange();
     return { ok: true, msg: formatStudentAutoAssignMessage(stats) };
@@ -229,11 +240,14 @@ function countStudentMonthAutoDrafts(studentId){
   ).length;
 }
 
-function cancelStudentMonthAutoDrafts(studentId){
+async function cancelStudentMonthAutoDrafts(studentId){
+  const snap = snapshotLessonLists();
   const ids = getStudentMonthAutoDraftIds(studentId);
   const count = S.draftAssignments.filter(a=> ids.has(a.id)).length;
   S.draftAssignments = S.draftAssignments.filter(a=> !ids.has(a.id));
-  return count;
+  const saved = await persistDraftDiff(snap.drafts);
+  if(!saved) restoreLessonLists(snap);
+  return saved ? count : 0;
 }
 
 async function runStudentMonthAutoCancel(studentId){
@@ -249,17 +263,18 @@ async function runStudentMonthAutoCancel(studentId){
     confirmLabel: 'キャンセルする',
     variant: 'danger',
   }, async ()=>{
-    cancelStudentMonthAutoDrafts(studentId);
+    const count = await cancelStudentMonthAutoDrafts(studentId);
+    if(!count) return { ok: false, msg: '仮決めを解除できませんでした。画面はそのままです。' };
     scheduleSave();
     refreshAfterMatchingChange();
-    return { ok: true, msg: `自動で決めた仮決め ${slotCount}件を解除しました。` };
+    return { ok: true, msg: `自動で決めた仮決め ${count}件を解除しました。` };
   });
   if(result?.cancelled) return { ok: false, cancelled: true, msg: '' };
   return { ok: result?.ok !== false, msg: result?.msg || '' };
 }
 
 // 下書きのうち source==='auto' だけをまとめて解除する（送信済み・確定済みには触れない）
-function bulkCancelAuto(){
+async function bulkCancelAuto(){
   return cancelDraftAuto();
 }
 
@@ -789,6 +804,11 @@ function purgeLocalRecordsForStudent(id){
 
 async function deleteStudent(id){
   const student = S.students.find(s=> s.id === id);
+  const draftIds = (S.draftAssignments || []).filter(a=> a.studentId === id).map(a=> a.id);
+  if(draftIds.length){
+    const saved = await commitLessonDrafts({ deleteIds: draftIds });
+    if(!saved) return;
+  }
   S.students = S.students.filter(s=>s.id!==id);
   purgeLocalRecordsForStudent(id);
   if(S.editingStudentId===id) resetStudentForm();
@@ -1030,11 +1050,14 @@ function getUpcomingAutoDraftIds(){
   return ids;
 }
 
-function cancelUpcomingAutoDrafts(){
+async function cancelUpcomingAutoDrafts(){
+  const snap = snapshotLessonLists();
   const ids = getUpcomingAutoDraftIds();
   const count = S.draftAssignments.filter(a=> ids.has(a.id)).length;
   S.draftAssignments = S.draftAssignments.filter(a=> !ids.has(a.id));
-  return count;
+  const saved = await persistDraftDiff(snap.drafts);
+  if(!saved) restoreLessonLists(snap);
+  return saved ? count : 0;
 }
 
 function buildMatchingAlgorithmExtraHtml(){
@@ -1110,7 +1133,11 @@ function bindShortageDashboardActions(wrap){
       confirmLabel: '自動で決める',
       variant: 'primary',
     }, async ()=>{
-      const { filled, skipped, total } = bulkAutoAssign();
+      const { filled, skipped, total, saved } = await bulkAutoAssign();
+      if(saved === false){
+        if(resultEl) resultEl.textContent = '仮決めを保存できませんでした。この回の分は画面に出していません。';
+        return { ok: false };
+      }
       scheduleSave();
       refreshAfterMatchingChange();
       if(total === 0){
@@ -1150,12 +1177,11 @@ function bindShortageDashboardActions(wrap){
       confirmLabel: '送信する',
       variant: 'primary',
     }, async ()=>{
-      const { sent, skippedNoLogin, noLoginTeachers: skippedNames } = await sendDraftAssignments();
-      if(S.saveTimer){
-        clearTimeout(S.saveTimer);
-        S.saveTimer = null;
+      const { sent, skippedNoLogin, noLoginTeachers: skippedNames, saved } = await sendDraftAssignments();
+      if(!saved){
+        if(resultEl) resultEl.textContent = '保存できませんでした。仮決めはそのままです。';
+        return { ok: false };
       }
-      await saveAppState();
       scheduleSyncTeacherAssignments();
       refreshAfterMatchingChange();
       if(resultEl){
@@ -1186,7 +1212,11 @@ function bindShortageDashboardActions(wrap){
       confirmLabel: '解除する',
       variant: 'danger',
     }, async ()=>{
-      const count = cancelUpcomingAutoDrafts();
+      const count = await cancelUpcomingAutoDrafts();
+      if(!count){
+        if(resultEl) resultEl.textContent = '仮決めを解除できませんでした。画面はそのままです。';
+        return { ok: false };
+      }
       scheduleSave();
       refreshAfterMatchingChange();
       if(resultEl) resultEl.textContent = `自動で決めた仮決め ${count}件を解除しました。`;
@@ -1207,7 +1237,11 @@ function bindShortageDashboardActions(wrap){
       confirmLabel: 'すべて解除',
       variant: 'danger',
     }, async ()=>{
-      const count = cancelAllDrafts();
+      const count = await cancelAllDrafts();
+      if(!count){
+        if(resultEl) resultEl.textContent = '仮決めを解除できませんでした。画面はそのままです。';
+        return { ok: false };
+      }
       scheduleSave();
       refreshAfterMatchingChange();
       if(resultEl) resultEl.textContent = `仮決め ${count}件を解除しました。`;

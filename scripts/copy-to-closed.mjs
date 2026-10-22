@@ -17,9 +17,9 @@ const cred = JSON.parse(fs.readFileSync('/Users/shoui/.config/firebase/mirailab_
 function request(transport, options, body){
   return new Promise((resolve, reject) => {
     const req = transport.request(options, res => {
-      let raw = '';
-      res.on('data', chunk => { raw += chunk; });
-      res.on('end', () => resolve({ status: res.statusCode, raw }));
+      const chunks = [];
+      res.on('data', chunk => chunks.push(chunk));
+      res.on('end', () => resolve({ status: res.statusCode, raw: Buffer.concat(chunks).toString('utf8') }));
     });
     req.on('error', reject);
     if(body) req.write(body);

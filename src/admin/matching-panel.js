@@ -355,10 +355,10 @@ function buildPostAssignBannersHtml(){
 }
 
 function bindFutureWeeksOffer(root){
-  root.querySelector('#mpApplyFutureBtn')?.addEventListener('click', ()=>{
+  root.querySelector('#mpApplyFutureBtn')?.addEventListener('click', async ()=>{
     const offer = matchingPanelFutureOffer;
     if(!offer) return;
-    const result = confirmAssignment(offer.studentId, offer.courseId, offer.subject, offer.day, offer.slot, offer.teacherId, 'manual', { recurring: true, dateStr: offer.dateStr });
+    const result = await confirmAssignment(offer.studentId, offer.courseId, offer.subject, offer.day, offer.slot, offer.teacherId, 'manual', { recurring: true, dateStr: offer.dateStr });
     if(!result.ok){
       showInlineNotice(root, result.msg, { variant: 'warn' });
       return;
@@ -449,15 +449,15 @@ function buildRowSubjectTagHtml(student, r){
   return `<span class="sched-student-tag" style="background:${c.bg};color:${c.text};">${r.course.subject}</span>`;
 }
 
-function cancelRowDraftOrAssignment(btn){
+async function cancelRowDraftOrAssignment(btn){
   const dateStr = /^\d{4}-\d{2}-\d{2}$/.test(btn.dataset.date || '') ? btn.dataset.date : null;
   if(btn.dataset.dual === '1'){
     const student = S.students.find(s=> s.id === btn.dataset.student);
     const dualPair = findDualPairForStudent(student, btn.dataset.day, Number(btn.dataset.slot));
-    if(dualPair) cancelDualAssignment(btn.dataset.student, dualPair, btn.dataset.day, Number(btn.dataset.slot), dateStr);
-    return;
+    if(!dualPair) return false;
+    return cancelDualAssignment(btn.dataset.student, dualPair, btn.dataset.day, Number(btn.dataset.slot), dateStr);
   }
-  cancelAssignment(btn.dataset.student, btn.dataset.course, btn.dataset.day, Number(btn.dataset.slot), dateStr, btn.dataset.half || undefined);
+  return cancelAssignment(btn.dataset.student, btn.dataset.course, btn.dataset.day, Number(btn.dataset.slot), dateStr, btn.dataset.half || undefined);
 }
 
 function buildAssignmentFlashMessage({slotLabel, subject, teacherName, draft, pending, owner, swap}){
@@ -516,8 +516,9 @@ function resolvePendingTeacherName(btn, dateStr){
 
 function bindUnconfirmButtons(root){
   root.querySelectorAll('.unconfirm-btn').forEach(btn=>{
-    btn.addEventListener('click', ()=>{
-      cancelRowDraftOrAssignment(btn);
+    btn.addEventListener('click', async ()=>{
+      const removed = await cancelRowDraftOrAssignment(btn);
+      if(!removed) return;
       scheduleSave();
       matchingPanelFlashMsg = '確定を解除しました。';
       afterMatchingChange(btn.dataset.date || null);
@@ -573,8 +574,9 @@ function openDraftSwapList(root, btn){
       reopenBtn.focus();
     }
   });
-  actions.querySelector('.draft-swap-remove-btn').addEventListener('click', ()=>{
-    cancelRowDraftOrAssignment(btn);
+  actions.querySelector('.draft-swap-remove-btn').addEventListener('click', async ()=>{
+    const removed = await cancelRowDraftOrAssignment(btn);
+    if(!removed) return;
     scheduleSave();
     matchingPanelFlashMsg = '仮決めを外しました。';
     afterMatchingChange(btn.dataset.date || null);
@@ -611,7 +613,7 @@ function bindChangeTeacherButtons(root){
   });
 }
 
-function handleConfirmClick(root, btn, { swap = false } = {}){
+async function handleConfirmClick(root, btn, { swap = false } = {}){
   const teacher = findTeacher(btn.dataset.teacher);
   let result;
   if(btn.dataset.dual === '1'){
@@ -621,7 +623,7 @@ function handleConfirmClick(root, btn, { swap = false } = {}){
       showInlineNotice(root, '2教科の登録が見つかりません。', { variant: 'warn' });
       return;
     }
-    result = confirmDualAssignment(
+    result = await confirmDualAssignment(
       btn.dataset.student,
       dualPair,
       btn.dataset.day,
@@ -631,7 +633,7 @@ function handleConfirmClick(root, btn, { swap = false } = {}){
       { dateStr: btn.dataset.date || null },
     );
   }else{
-    result = confirmAssignment(
+    result = await confirmAssignment(
       btn.dataset.student,
       btn.dataset.course,
       btn.dataset.subject,

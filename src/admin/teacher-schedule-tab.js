@@ -7,7 +7,8 @@ import { findCustomClosure, getDayStatus, renderCalendar } from './calendar.js';
 import { renderMatrix } from './finance-ui.js';
 import { renderMatching, renderShortageDashboard, renderStudentList } from './matching.js';
 import { cycleTeacherState, findTeacherSchedule, getOrCreateDraftSchedule, getDateSlotState, getWeekdayAvailabilityInMonth, gradeLabel, isAvailable, isPreferredDay, isTeacherAvailableOnDate, setDateSlotState, subjectColor } from './schedule-core.js';
-import { saveStudents, saveTeacherScheduleDoc, scheduleSave, scheduleSyncTeacherAssignments, approveCancellationRequest, rejectCancellationRequest } from './students-persistence.js';
+import { saveStudents, saveTeacherScheduleDoc, scheduleSave, scheduleSyncTeacherAssignments, approveCancellationRequest, rejectCancellationRequest, saveAppState } from './students-persistence.js';
+import { commitLessonDrafts, persistDraftDiff, restoreLessonLists, snapshotLessonLists } from './lesson-drafts.js';
 import { mountInlineConfirm, showInlineNotice } from '../shared/inline-confirm.js';
 import {
   buildApprovalAlertRowHtml, buildCalAlertPersonInline,
@@ -843,10 +844,18 @@ function seatCapForPlacement(teacherId, day, slot, studentId, capHalf, incomingO
   return teacherSeatCap(occupied, incomingOne);
 }
 
+async function saveDraftChange(snap, opts){
+  if(opts && opts.stageOnly) return true;
+  const saved = await persistDraftDiff(snap.drafts, { forceFail: !!(opts && opts.forceFail) });
+  if(!saved) restoreLessonLists(snap);
+  return saved;
+}
+
 // 教室長が選んだ担当は、まず仮決めとして保存する（送信後に講師承認）。教室長自身は仮決めせず確定する。
-function confirmAssignment(studentId, courseId, subject, day, slot, teacherId, source, opts){
+async function confirmAssignment(studentId, courseId, subject, day, slot, teacherId, source, opts){
   source = source || 'manual';
   opts = opts || {};
+  const snap = snapshotLessonLists();
   const dateStr = opts.dateStr || null;
   const recurring = !!opts.recurring;
   const teacher = findTeacher(teacherId);
@@ -897,17 +906,17 @@ function confirmAssignment(studentId, courseId, subject, day, slot, teacherId, s
   if(half !== 'full') entry.half = half;
   if(dateStr && !recurring) entry.oneTimeDate = dateStr;
 
-  if(owner){
-    S.assignments.push(entry);
-    return {ok:true, draft:false, pending:false};
-  }
-  S.draftAssignments.push(entry);
-  return {ok:true, draft:true, pending:false};
+  if(owner) S.assignments.push(entry);
+  else S.draftAssignments.push(entry);
+  const saved = await saveDraftChange(snap, opts);
+  if(!saved) return {ok:false, msg:'仮決めを保存できませんでした。もう一度押してください。'};
+  return {ok:true, draft:!owner, pending:false};
 }
 
-function confirmDualAssignment(studentId, dualPair, day, slot, teacherId, source, opts){
+async function confirmDualAssignment(studentId, dualPair, day, slot, teacherId, source, opts){
   source = source || 'manual';
   opts = opts || {};
+  const snap = snapshotLessonLists();
   const dateStr = opts.dateStr || null;
   const teacher = findTeacher(teacherId);
   if(!teacher) return { ok: false, msg: '講師が見つかりません。' };
@@ -972,21 +981,25 @@ function confirmDualAssignment(studentId, dualPair, day, slot, teacherId, source
     if(dateStr) entry.oneTimeDate = dateStr;
     list.push(entry);
   });
+  const saved = await saveDraftChange(snap, opts);
+  if(!saved) return { ok: false, msg: '仮決めを保存できませんでした。もう一度押してください。' };
   return { ok: true, draft: !owner, pending: false, dual: true, subjects: courses.map(c=> c.subject) };
 }
 
-function cancelDualAssignment(studentId, dualPair, day, slot, dateStr){
+async function cancelDualAssignment(studentId, dualPair, day, slot, dateStr){
+  const snap = snapshotLessonLists();
   dualPair.entries.forEach(({ course })=>{
-    cancelAssignment(studentId, course.id, day, slot, dateStr);
+    if(dateStr) removeSlotAssignmentsOnDate(studentId, course.id, day, slot, dateStr);
+    else removeAllSlotAssignments(studentId, course.id, day, slot);
   });
+  return saveDraftChange(snap);
 }
-function cancelAssignment(studentId, courseId, day, slot, dateStr, half){
+async function cancelAssignment(studentId, courseId, day, slot, dateStr, half){
+  const snap = snapshotLessonLists();
   const h = resolveDesiredHalf(studentId, courseId, day, slot, half);
-  if(dateStr){
-    removeSlotAssignmentsOnDate(studentId, courseId, day, slot, dateStr, h);
-    return;
-  }
-  removeAllSlotAssignments(studentId, courseId, day, slot, h);
+  if(dateStr) removeSlotAssignmentsOnDate(studentId, courseId, day, slot, dateStr, h);
+  else removeAllSlotAssignments(studentId, courseId, day, slot, h);
+  return saveDraftChange(snap);
 }
 
 function listSlotAssignmentEntries(studentId, courseId, day, slot, half){
@@ -1005,11 +1018,10 @@ async function dropStudentDesiredSlot(student, course, day, slot, half){
   courses.forEach(c=>{
     listSlotAssignmentEntries(student.id, c.id, day, slot, isDual ? 'full' : half).forEach(e=> entries.push(e));
   });
-  if(isDual){
-    cancelDualAssignment(student.id, dualPair, day, slot, null);
-  }else{
-    cancelAssignment(student.id, course.id, day, slot, null, half);
-  }
+  const removed = isDual
+    ? await cancelDualAssignment(student.id, dualPair, day, slot, null)
+    : await cancelAssignment(student.id, course.id, day, slot, null, half);
+  if(!removed) return;
   const seen = new Set();
   try{
     for(const entry of entries){
@@ -1060,71 +1072,110 @@ function countAssignmentsInMonth(list, yearMonth){
   return list.filter(a=> isAssignmentEffectiveInMonth(a, ym)).length;
 }
 
-function cancelDraftAuto(){
+async function cancelDraftAuto(){
+  const snap = snapshotLessonLists();
   const count = S.draftAssignments.filter(a=> a.source === 'auto').length;
   S.draftAssignments = S.draftAssignments.filter(a=> a.source !== 'auto');
-  return count;
+  const saved = await saveDraftChange(snap);
+  return saved ? count : 0;
 }
 
-function cancelAllDrafts(){
+async function cancelAllDrafts(){
+  const snap = snapshotLessonLists();
   const count = S.draftAssignments.length;
   S.draftAssignments = [];
-  return count;
+  const saved = await saveDraftChange(snap);
+  return saved ? count : 0;
 }
 
-async function sendDraftAssignments(){
-  const ym = getActiveYearMonth();
-  const drafts = S.draftAssignments.filter(a=> isAssignmentEffectiveInMonth(a, ym));
-  const outOfMonthDrafts = S.draftAssignments.filter(a=> !isAssignmentEffectiveInMonth(a, ym));
-  if(drafts.length === 0){
-    return { sent: 0, pending: 0, skippedNoLogin: 0, noLoginTeachers: [] };
-  }
-  S.draftAssignments = [...outOfMonthDrafts];
-  let pending = 0;
-  let skippedNoLogin = 0;
-  const noLoginTeachers = new Set();
-  const keptDrafts = [];
+async function issueDraftApprovals(moving){
   const issuedDual = new Set();
-  for(const entry of drafts){
-    const teacher = S.teachers.find(t=> t.id === entry.teacherId);
-    if(!teacher?.loginUid){
-      skippedNoLogin++;
-      if(teacher) noLoginTeachers.add(teacher.name);
-      keptDrafts.push(entry);
-      continue;
-    }
-    S.pendingAssignments.push(entry);
+  for(const entry of moving){
     if(entry.dualGroupId){
       const groupKey = `${entry.studentId}:${entry.day}:${entry.slot}:${entry.dualGroupId}:${entry.oneTimeDate || ''}`;
-      if(!issuedDual.has(groupKey)){
-        const siblings = drafts.filter(d=>
-          d.dualGroupId === entry.dualGroupId &&
-          d.studentId === entry.studentId &&
-          d.day === entry.day &&
-          Number(d.slot) === Number(entry.slot) &&
-          (d.oneTimeDate || null) === (entry.oneTimeDate || null)
-        );
-        await issueAssignmentApproval(
-          entry.studentId, entry.courseId, entry.subject, entry.day, entry.slot,
-          entry.teacherId, entry.oneTimeDate || null,
-          { subjects: siblings.map(d=> d.subject), dualGroupId: entry.dualGroupId },
-        );
-        issuedDual.add(groupKey);
-      }
+      if(issuedDual.has(groupKey)) continue;
+      const siblings = moving.filter(d=>
+        d.dualGroupId === entry.dualGroupId &&
+        d.studentId === entry.studentId &&
+        d.day === entry.day &&
+        Number(d.slot) === Number(entry.slot) &&
+        (d.oneTimeDate || null) === (entry.oneTimeDate || null)
+      );
+      await issueAssignmentApproval(
+        entry.studentId, entry.courseId, entry.subject, entry.day, entry.slot,
+        entry.teacherId, entry.oneTimeDate || null,
+        { subjects: siblings.map(d=> d.subject), dualGroupId: entry.dualGroupId },
+      );
+      issuedDual.add(groupKey);
     }else{
       await issueAssignmentApproval(
         entry.studentId, entry.courseId, entry.subject, entry.day, entry.slot,
         entry.teacherId, entry.oneTimeDate || null,
       );
     }
-    pending++;
   }
-  S.draftAssignments.push(...keptDrafts);
+}
+
+async function sendDraftAssignments(){
+  const snapDrafts = S.draftAssignments.slice();
+  const snapPending = S.pendingAssignments.slice();
+  const ym = getActiveYearMonth();
+  const drafts = snapDrafts.filter(a=> isAssignmentEffectiveInMonth(a, ym));
+  const outOfMonthDrafts = snapDrafts.filter(a=> !isAssignmentEffectiveInMonth(a, ym));
+  if(drafts.length === 0){
+    return { sent: 0, pending: 0, skippedNoLogin: 0, noLoginTeachers: [], saved: true };
+  }
+  const noLoginTeachers = new Set();
+  const keptDrafts = [];
+  const moving = [];
+  for(const entry of drafts){
+    const teacher = S.teachers.find(t=> t.id === entry.teacherId);
+    if(!teacher?.loginUid){
+      if(teacher) noLoginTeachers.add(teacher.name);
+      keptDrafts.push(entry);
+      continue;
+    }
+    moving.push(entry);
+  }
+  if(moving.length === 0){
+    return {
+      sent: 0,
+      pending: 0,
+      skippedNoLogin: keptDrafts.length,
+      noLoginTeachers: [...noLoginTeachers],
+      saved: true,
+    };
+  }
+  S.draftAssignments = [...outOfMonthDrafts, ...keptDrafts];
+  moving.forEach(entry => S.pendingAssignments.push(entry));
+  if(S.saveTimer){
+    clearTimeout(S.saveTimer);
+    S.saveTimer = null;
+  }
+  const saved = await saveAppState();
+  if(!saved){
+    S.draftAssignments = snapDrafts;
+    S.pendingAssignments = snapPending;
+    return {
+      sent: 0,
+      pending: 0,
+      skippedNoLogin: keptDrafts.length,
+      noLoginTeachers: [...noLoginTeachers],
+      saved: false,
+    };
+  }
+  await commitLessonDrafts({ deleteIds: moving.map(entry => entry.id), quiet: true });
+  try{
+    await issueDraftApprovals(moving);
+  }catch(err){
+    console.error('承認依頼の発行エラー:', err);
+  }
   return {
-    sent: pending,
-    pending,
-    skippedNoLogin,
+    sent: moving.length,
+    pending: moving.length,
+    skippedNoLogin: keptDrafts.length,
     noLoginTeachers: [...noLoginTeachers],
+    saved: true,
   };
 }
 
@@ -1339,11 +1390,10 @@ async function withdrawPendingAssignment(studentId, courseId, day, slot, dateStr
   const oneTimeDate = eff.entry.oneTimeDate || null;
   const dualPair = findDualPairAtSlot(student.courses || [], day, slot);
   const isDual = dualPair && dualPair.entries.some(e=> e.course.id === courseId);
-  if(isDual){
-    cancelDualAssignment(studentId, dualPair, day, slot, dateStr || null);
-  }else{
-    cancelAssignment(studentId, courseId, day, slot, dateStr || null);
-  }
+  const removed = isDual
+    ? await cancelDualAssignment(studentId, dualPair, day, slot, dateStr || null)
+    : await cancelAssignment(studentId, courseId, day, slot, dateStr || null);
+  if(!removed) return { ok: false, msg: '保存できませんでした。もう一度押してください。' };
   try{
     const subjects = isDual ? dualPair.subjects : [course.subject];
     const coursePayload = { subject: subjects.join('・'), subjects };

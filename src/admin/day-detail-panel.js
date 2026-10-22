@@ -209,15 +209,15 @@ function buildRowSubjectTagHtml(student, r){
   return `<span class="sched-student-tag" style="background:${c.bg};color:${c.text};">${r.course.subject}${when}</span>`;
 }
 
-function cancelRowDraftOrAssignment(btn){
+async function cancelRowDraftOrAssignment(btn){
   const dateStr = /^\d{4}-\d{2}-\d{2}$/.test(btn.dataset.date || '') ? btn.dataset.date : null;
   if(btn.dataset.dual === '1'){
     const student = S.students.find(s=> s.id === btn.dataset.student);
     const dualPair = findDualPairForStudent(student, btn.dataset.day, Number(btn.dataset.slot));
-    if(dualPair) cancelDualAssignment(btn.dataset.student, dualPair, btn.dataset.day, Number(btn.dataset.slot), dateStr);
-    return;
+    if(!dualPair) return false;
+    return cancelDualAssignment(btn.dataset.student, dualPair, btn.dataset.day, Number(btn.dataset.slot), dateStr);
   }
-  cancelAssignment(btn.dataset.student, btn.dataset.course, btn.dataset.day, Number(btn.dataset.slot), dateStr, btn.dataset.half || undefined);
+  return cancelAssignment(btn.dataset.student, btn.dataset.course, btn.dataset.day, Number(btn.dataset.slot), dateStr, btn.dataset.half || undefined);
 }
 
 export function getDayDetailTitle(dateStr){
@@ -562,7 +562,8 @@ export function bindDayDetailEvents(container, dateStr, onRefresh){
 
   container.querySelectorAll('.unconfirm-btn').forEach(btn=>{
     btn.addEventListener('click', async ()=>{
-      cancelRowDraftOrAssignment(btn);
+      const removed = await cancelRowDraftOrAssignment(btn);
+      if(!removed) return;
       const student = S.students.find(s=> s.id === btn.dataset.student);
       const dateStr = /^\d{4}-\d{2}-\d{2}$/.test(btn.dataset.date || '') ? btn.dataset.date : null;
       try{

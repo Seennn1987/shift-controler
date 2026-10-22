@@ -24,6 +24,8 @@ import { collectMakeupEntriesForTeacher, isTeacherAbsentForStudent, recordTeache
 import { normalizeMatchingPriority } from './matching-config.js';
 import { applyGradePromotionsIfNeeded } from './grade-promotion.js';
 import { clearSaveErrorFlash, showSaveConflictFlash, showSaveErrorFlash } from './save-state-flash.js';
+import { commitLessonDrafts, loadLessonDrafts } from './lesson-drafts.js';
+import { mergeDraftsForRead } from '../shared/lesson-draft-diff.mjs';
 import { clampShortPayPercent } from '../shared/lesson-span.js';
 import { normalizeOneShortTuitionRates, normalizeOneTuitionRates, normalizeShortTuitionRates, normalizeTuitionGradeRates } from './tuition-rates.js';
 
@@ -937,7 +939,7 @@ async function saveAppStateNow(){
     students: S.students,
     assignments: S.assignments,
     pendingAssignments: S.pendingAssignments,
-    draftAssignments: S.draftAssignments,
+    // 仮決めは1件ずつ別の置き場へ保存する。ここに戻すと、古い画面がまとめて消してしまう。
     absences: S.absences,
     teacherAbsences: S.teacherAbsences,
     teacherSubstitutions: S.teacherSubstitutions,
@@ -1021,6 +1023,53 @@ function startStaleStateWatcher(){
   document.addEventListener('visibilitychange', checkCloudStateOnReturn);
 }
 
+// 仮決めを別の置き場へ写したあと、授業一覧の中の仮決め欄だけ空にする。承認待ちは触らない。
+async function clearLegacyDraftField(){
+  const ref = getStateDocRef();
+  if(!ref) return false;
+  const nextRev = (S.stateRev || 0) + 1;
+  try{
+    await ref.set({
+      draftAssignments: [],
+      rev: nextRev,
+      updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
+    }, { mergeFields: ['draftAssignments', 'rev', 'updatedAt'] });
+    S.stateRev = nextRev;
+    return true;
+  }catch(err){
+    console.error('仮決め欄の整理エラー:', err);
+    return false;
+  }
+}
+
+async function adoptLessonDrafts(legacyList){
+  const legacy = Array.isArray(legacyList) ? legacyList.filter(entry => entry && entry.id) : [];
+  let remote = [];
+  try{
+    remote = await loadLessonDrafts();
+  }catch(err){
+    console.error('仮決めの読み込みエラー:', err);
+    showSaveErrorFlash();
+    return legacy;
+  }
+  const merged = mergeDraftsForRead(remote, legacy, S.assignments, S.pendingAssignments);
+  const missing = merged.filter(entry => !remote.some(item => item.id === entry.id));
+  if(missing.length){
+    const saved = await commitLessonDrafts({ upserts: missing });
+    if(!saved) return merged;
+  }
+  const placed = new Set([
+    ...(S.assignments || []).map(entry => entry && entry.id),
+    ...(S.pendingAssignments || []).map(entry => entry && entry.id),
+  ]);
+  const staleIds = remote.filter(entry => entry && placed.has(entry.id)).map(entry => entry.id);
+  if(staleIds.length){
+    await commitLessonDrafts({ deleteIds: staleIds, quiet: true });
+  }
+  if(legacy.length) await clearLegacyDraftField();
+  return merged;
+}
+
 // ログイン後、Firestoreから全データを読み込む（初回ログイン時はドキュメントが無いので空データで初期化する）
 async function loadAppStateFromFirestore(){
   const ref = getStateDocRef();
@@ -1093,6 +1142,7 @@ async function loadAppStateFromFirestore(){
     S.payrollLocks = {};
     S.googleCalendar = normalizeGoogleCalendarState(null);
   }
+  S.draftAssignments = await adoptLessonDrafts(S.draftAssignments || []);
   S.teacherSchedules = await loadAllTeacherSchedules();
 
   startTeacherScheduleListener(); // 以降は講師本人による変更もリアルタイムで反映する

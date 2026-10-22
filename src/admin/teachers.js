@@ -10,6 +10,7 @@ import { fillBaseAvailArea, readBaseAvailArea, renderRaiseScheduleList, subjectC
 import { scheduleSave, saveTeacherSubjectsDoc, clearDeletedTeacherCloudDocs, rememberRetiredTeacherLogin, scheduleSyncTeacherAssignments } from './students-persistence.js';
 import { getPreferredPairsForTeacher, revokePendingRequestsForTeacher, renderTeacherScheduleTab } from './teacher-schedule-tab.js';
 import { isActivePerson, markPersonLeft, renderLeaveFlash } from './active-people.js';
+import { commitLessonDrafts } from './lesson-drafts.js';
 import { renderLessonHistoryHtml } from './lesson-history.js';
 
 
@@ -488,6 +489,11 @@ async function setTeacherLeft(id, left){
 
 async function deleteTeacher(id){
   const teacher = S.teachers.find(t=> t.id === id);
+  const draftIds = (S.draftAssignments || []).filter(a=> a.teacherId === id).map(a=> a.id);
+  if(draftIds.length){
+    const saved = await commitLessonDrafts({ deleteIds: draftIds });
+    if(!saved) return;
+  }
   rememberRetiredTeacherLogin(teacher);
   S.teachers = S.teachers.filter(t=>t.id!==id);
   const keep = a=> a.teacherId !== id;
