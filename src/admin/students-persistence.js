@@ -710,6 +710,7 @@ function expandAssignmentForTeacherCalendar(a, approvalStatus, teacherId){
     skippedDates: [...(a.skippedDates || []), ...studentAbsentDatesForAssignment(a)],
     courseStartDate: student?.courseStartDate || null,
     leftDate: leaveDates[0] || null,
+    extraBookingId: a.extraBookingId || null,
   };
   if(a.oneTimeDate){
     if(absentDates.includes(a.oneTimeDate)) return [];
@@ -939,6 +940,8 @@ async function saveAppStateNow(){
     students: S.students,
     assignments: S.assignments,
     pendingAssignments: S.pendingAssignments,
+    extraBookings: S.extraBookings || [],
+    extraHolds: S.extraHolds || [],
     // 仮決めは1件ずつ別の置き場へ保存する。ここに戻すと、古い画面がまとめて消してしまう。
     absences: S.absences,
     teacherAbsences: S.teacherAbsences,
@@ -1083,6 +1086,8 @@ async function loadAppStateFromFirestore(){
     S.assignments = d.assignments || [];
     S.pendingAssignments = d.pendingAssignments || [];
     S.draftAssignments = d.draftAssignments || [];
+    S.extraBookings = d.extraBookings || [];
+    S.extraHolds = d.extraHolds || [];
     S.absences = d.absences || [];
     S.teacherAbsences = d.teacherAbsences || [];
     S.teacherSubstitutions = d.teacherSubstitutions || [];
@@ -1119,6 +1124,8 @@ async function loadAppStateFromFirestore(){
     S.assignments = [];
     S.pendingAssignments = [];
     S.draftAssignments = [];
+    S.extraBookings = [];
+    S.extraHolds = [];
     S.absences = [];
     S.teacherAbsences = [];
     S.teacherSubstitutions = [];

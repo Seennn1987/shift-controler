@@ -12,6 +12,7 @@ import { isActivePerson, personAppliesOnDate } from './active-people.js';
 import { studentShortTuitionRate, studentTuitionRate } from './tuition-rates.js';
 import { assignmentUsesOneToOnePrice, listHasOneToOne, studentSubjectsAreOneToOne, teacherSeatCap } from './one-to-one.js';
 import { persistDraftDiff, restoreLessonLists, snapshotLessonLists } from './lesson-drafts.js';
+import { liveExtraHolds } from './extra-lesson-count.mjs';
 
 // ---- 欠席・振替（特定の実日付にのみ影響。曜日パターン自体は変えない） ----
 // {id, studentId, courseId, subject, day, slot, date, status:'pending'|'resolved', makeup:null|{date,slot,teacherId}}
@@ -85,7 +86,27 @@ function recordAbsence(studentId, courseId, subject, day, slot, dateStr, half){
     studentId, courseId, subject, day, slot, date:dateStr, status:'pending', makeup:null
   };
   if(h !== 'full') row.half = h;
+  attachExtraLessonLink(row);
   S.absences.push(row);
+}
+
+function attachExtraLessonLink(row){
+  const half = normalizeHalf(row.half);
+  const hold = (S.extraHolds || []).find(item =>
+    item.studentId === row.studentId && item.courseId === row.courseId && item.date === row.date &&
+    Number(item.slot) === Number(row.slot) && normalizeHalf(item.half) === half
+  );
+  const listed = []
+    .concat(S.assignments || [], S.pendingAssignments || [], S.draftAssignments || []);
+  const assignment = listed.find(item =>
+    item.extraBookingId && item.studentId === row.studentId && item.courseId === row.courseId &&
+    item.oneTimeDate === row.date && Number(item.slot) === Number(row.slot) && normalizeHalf(item.half) === half
+  );
+  const source = hold || assignment;
+  if(!source?.extraBookingId) return;
+  row.extraBookingId = source.extraBookingId;
+  row.extraLineId = source.extraLineId;
+  if(source.oneToOne) row.oneToOne = true;
 }
 
 /** 双教科 slot は2教科まとめて欠席登録する */
@@ -818,6 +839,26 @@ function countRoomLoadOnDate(dateStr, slot, excludeStudentId, half){
       dualGroupId: a.dualGroupId || resolveDualGroupIdForSlot(a.studentId, a.courseId, weekday, slot),
     });
   });
+  S.pendingAssignments.concat(S.draftAssignments).forEach(a=>{
+    if(!a.extraBookingId || Number(a.slot)!==Number(slot)) return;
+    if(!assignmentAppliesOnDate(a, dateStr)) return;
+    if(a.studentId===excludeStudentId) return;
+    if(isAbsentOnDate(a.studentId, a.courseId, dateStr, a.day, a.slot, normalizeHalf(a.half))) return;
+    units.push({
+      studentId: a.studentId,
+      day: weekday,
+      slot,
+      half: a.half,
+    });
+  });
+  liveExtraHolds(S.extraHolds, S.absences, dateStr, slot, excludeStudentId).forEach(hold => {
+    units.push({
+      studentId: hold.studentId,
+      day: weekday,
+      slot,
+      half: hold.half,
+    });
+  });
   S.absences.forEach(ab=>{
     if(!ab.makeup) return;
     if(ab.makeup.date!==dateStr || ab.makeup.slot!==slot) return;
@@ -976,7 +1017,8 @@ async function confirmMakeup(absenceId, makeupDate, makeupSlot, teacherId, makeu
   const roomLoad = countRoomLoadOnDate(makeupDate, makeupSlot, ab.studentId, capHalf);
   if(roomLoad>=S.roomCapacity) return {ok:false, msg:'その日程は教室全体の定員に達しています。'};
   const teacherLoad = countTeacherLoadOnDate(teacherId, makeupDate, makeupSlot, ab.studentId, capHalf);
-  const incomingOne = studentSubjectsAreOneToOne(ab.studentId, siblings.map(s=> s.subject));
+  const incomingOne = siblings.some(sibling => sibling.oneToOne)
+    || studentSubjectsAreOneToOne(ab.studentId, siblings.map(s=> s.subject));
   const seatCap = teacherSeatCap(teacherLoadHasOneToOne(teacherId, makeupDate, makeupSlot, ab.studentId, capHalf), incomingOne);
   if(teacherLoad>=seatCap) return {ok:false, msg:'その講師はその日程の定員に達しています。'};
   const makeupWeekday = getDayStatus(makeupDate).weekday;
@@ -1000,6 +1042,11 @@ async function confirmMakeup(absenceId, makeupDate, makeupSlot, teacherId, makeu
       dualGroupId: dualGroupId || null,
     };
     if(destHalf !== 'full') makeupEntry.half = destHalf;
+    if(sibling.extraBookingId){
+      makeupEntry.extraBookingId = sibling.extraBookingId;
+      makeupEntry.extraLineId = sibling.extraLineId;
+      if(sibling.oneToOne) makeupEntry.oneToOne = true;
+    }
     if(teacher?.loginUid){
       S.pendingAssignments.push(makeupEntry);
     }else{
@@ -1109,6 +1156,8 @@ function getEffectiveDayAssignments(dateStr){
       half: a.half,
       dualGroupId: a.dualGroupId || null,
       oneTimeDate: a.oneTimeDate || null,
+      extraBookingId: a.extraBookingId || null,
+      oneToOne: a.oneToOne === true,
     }, weekday));
   });
   S.pendingAssignments.forEach(a=>{
@@ -1123,6 +1172,8 @@ function getEffectiveDayAssignments(dateStr){
       half: a.half,
       dualGroupId: a.dualGroupId || null,
       oneTimeDate: a.oneTimeDate || null,
+      extraBookingId: a.extraBookingId || null,
+      oneToOne: a.oneToOne === true,
     }, weekday));
   });
   S.draftAssignments.forEach(a=>{
@@ -1137,6 +1188,8 @@ function getEffectiveDayAssignments(dateStr){
       half: a.half,
       dualGroupId: a.dualGroupId || null,
       oneTimeDate: a.oneTimeDate || null,
+      extraBookingId: a.extraBookingId || null,
+      oneToOne: a.oneToOne === true,
     }, weekday));
   });
   S.absences.forEach(ab=>{

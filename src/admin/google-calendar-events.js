@@ -60,7 +60,8 @@ export function googleCalendarEventSummary(entry, slot, studentName, teacherName
   const student = studentName || '';
   const teacher = teacherName || '';
   const when = isShortHalf(entry.half) ? halfLabel(entry.half) : '';
-  return `${slot.label}${when ? ' '+when : ''} ${subject} ${student} / ${teacher}`.replace(/\s+/g, ' ').trim();
+  const extra = entry.extraBookingId ? '追加 ' : '';
+  return `${extra}${slot.label}${when ? ' '+when : ''} ${subject} ${student} / ${teacher}`.replace(/\s+/g, ' ').trim();
 }
 
 export function buildGoogleCalendarEvent(dateStr, entry, studentName, teacherName){

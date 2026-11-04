@@ -7,6 +7,7 @@ import { computeDayFinance, computeTeacherOpenings, costRatioColor, getEffective
 import { collapseDualAssignmentDisplayRows, countSlotAssignmentUnits, buildDualSubjectTagsHtml } from './dual-subject.js';
 import { buildFlowStatusBadgeHtml, buildFlowStatusBadgeChipHtml } from './match-candidate-ui.js';
 import { calLinesToEntriesHtml, computeSyncedWeekAnchor, getDayStatus, getUnassignedRowsForDate, refreshCalToolbarSecondary, renderCalendar, studentRowToCalLine, updateCalPeriodLabel } from './calendar.js';
+import { extraHoldCalendarLines, extraAssignmentCalendarLines } from './extra-lessons.js';
 import { findTeacher } from './owner-teacher.js';
 import { resolveFilterTeacher } from './cal-filter.js';
 import { renderMatching } from './matching.js';
@@ -219,14 +220,18 @@ function renderCalendarWeekGrid(axis){
       const list = getEffectiveDayAssignments(ds).filter(a=>a.slot===slot.id);
       const unassigned = getUnassignedRowsForDate(ds).filter(r=>r.slot.id===slot.id);
       const absences = getAbsenceRecordsOnDate(ds).filter(r=> Number(r.slot) === slot.id);
-      if(list.length===0 && unassigned.length===0 && absences.length===0){
+      const holdLines = extraHoldCalendarLines(ds).filter(line => line.slot === slot.id);
+      if(list.length===0 && unassigned.length===0 && absences.length===0 && holdLines.length===0){
         tbody += `<td class="sched-cell week-date-cell is-empty" data-date="${ds}"><div class="sched-empty">\u4e88\u5b9a\u306a\u3057</div></td>`;
         return;
       }
-      const totalCount = countSlotAssignmentUnits(list) + unassigned.length + absences.length;
-      const cellInner = axis==='student'
+      const totalCount = countSlotAssignmentUnits(list) + unassigned.length + absences.length + holdLines.length;
+      const holdHtml = holdLines.map(line =>
+        `<button type="button" class="cal-entry pending" data-extra-booking="${line.extraBookingId}" data-extra-student="${line.studentId || ''}">${line.text}</button>`
+      ).join('');
+      const cellInner = (axis==='student'
         ? buildStudentAxisCell(list) + buildWeekUnassignedStudentBoxes(unassigned) + buildWeekAbsenceStudentBoxes(absences)
-        : buildTeacherAxisCell(list) + buildWeekUnassignedTeacherBlock(unassigned) + buildWeekAbsenceTeacherBlock(absences);
+        : buildTeacherAxisCell(list) + buildWeekUnassignedTeacherBlock(unassigned) + buildWeekAbsenceTeacherBlock(absences)) + holdHtml;
       tbody += `<td class="sched-cell week-date-cell" data-date="${ds}">
         <div class="sched-cell-inner">
           <div class="sched-total">\u5408\u8a08${totalCount}\u540d</div>
@@ -249,6 +254,14 @@ function renderCalendarWeekGrid(axis){
 }
 
 function bindWeekGridDateClicks(root){
+  root.querySelectorAll('button.cal-entry[data-extra-booking]').forEach(btn=>{
+    btn.addEventListener('click', (event)=>{
+      event.stopPropagation();
+      document.dispatchEvent(new CustomEvent('extra-lesson:open', {
+        detail: { studentId: btn.dataset.extraStudent, bookingId: btn.dataset.extraBooking },
+      }));
+    });
+  });
   root.querySelectorAll('.week-date-head[data-date], .week-date-cell[data-date]').forEach(el=>{
     el.addEventListener('click', ()=>{
       const dateStr = el.dataset.date;
@@ -275,16 +288,17 @@ function weekAssignmentStudentCard(a){
       const subjectAbbr = SUBJECT_ABBR[a.subject] || a.subject.slice(0, 1);
       return `<span class="sched-student-tag" style="background:${c.bg};color:${c.text};">${subjectAbbr}</span>`;
     })();
-  const makeupBadge = a.kind==='makeup'
-    ? `<span class="auto-badge" style="background:#fff;color:var(--ink);border:1px dashed var(--ink);">${a.pending ? '振替・承認待ち' : '振替'}</span>`
-    : '';
-  return buildWeekTeacherStudentCard({
+    const makeupBadge = a.kind==='makeup'
+      ? `<span class="auto-badge" style="background:#fff;color:var(--ink);border:1px dashed var(--ink);">${a.pending ? '振替・承認待ち' : '振替'}</span>`
+      : '';
+    const extraBadge = a.extraBookingId ? '<span class="match-status-badge is-no-shift">追加</span>' : '';
+    return buildWeekTeacherStudentCard({
     subjectHtml,
     studentName,
     gradeLabel: gLabel,
     isDraft: !!a.draft,
     isWaiting: !!a.pending,
-    makeupBadge,
+    makeupBadge: `${makeupBadge}${extraBadge}`,
   });
 }
 
@@ -363,6 +377,7 @@ function buildStudentAxisCell(list){
     const makeupBadge = a.kind==='makeup'
       ? `<span class="auto-badge" style="background:#fff;color:var(--ink);border:1px dashed var(--ink);">${a.pending ? '振替・承認待ち' : '振替'}</span>`
       : '';
+    const extraBadge = a.extraBookingId ? '<span class="match-status-badge is-no-shift">追加</span>' : '';
     const flowBadgeHtml = buildFlowStatusBadgeHtml({ draft: !!a.draft, waiting: !!a.pending });
     const teacherText = a.pending
       ? '<span class="sched-card-meta-value is-pending">—</span>'
@@ -371,7 +386,7 @@ function buildStudentAxisCell(list){
       ${flowBadgeHtml}
       <div class="sched-card-row1 sched-card-row1--inline">
         ${subjectHtml}
-        <span class="sched-card-name-line">${studentName}${gLabel ? `<span class="grade-tag">（${gLabel}）</span>` : ''}${makeupBadge}</span>
+        <span class="sched-card-name-line">${studentName}${gLabel ? `<span class="grade-tag">（${gLabel}）</span>` : ''}${makeupBadge}${extraBadge}</span>
       </div>
       <div class="sched-card-row2 sched-card-row2--grid">
         <span class="sched-card-meta-label">講師</span>
@@ -471,10 +486,12 @@ function buildWeekAbsenceTeacherBlock(absenceRows){
 // 生徒絞り込み時：月間カレンダーと同じ cal-entry 形式で表示する
 function buildWeekStudentFilterCell(student, dateStr, slot){
   const rows = getStudentDateRows(student, dateStr).filter(r=>r.slot.id===slot.id);
-  if(rows.length===0){
+  const lines = rows.map(r=> studentRowToCalLine(r, student));
+  extraHoldCalendarLines(dateStr, student.id).filter(line => line.slot === slot.id).forEach(line => lines.push(line));
+  extraAssignmentCalendarLines(dateStr, student.id).filter(line => line.slot === slot.id).forEach(line => lines.push(line));
+  if(lines.length===0){
     return '<div class="sched-empty">—</div>';
   }
-  const lines = rows.map(r=> studentRowToCalLine(r, student));
   return calLinesToEntriesHtml(lines);
 }
 

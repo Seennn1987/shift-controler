@@ -3,7 +3,7 @@ import { normalizeHalf } from '../shared/lesson-span.js';
 import { HOLIDAYS_JP } from '../shared/holidays.js';
 import { pad2, daysInYearMonth, toDateStr, getTodayStr, isOnOrAfterDate } from '../shared/date-utils.js';
 import { firebaseConfig, fbAuth, fbDb, STORAGE_KEY, getSecondaryAuth, S } from './state.js';
-import { findAbsenceFor, listPendingAbsenceWorkItems, listPendingTeacherAbsenceWorkItems, setMakeupPlacementFromAbsence } from './absences.js';
+import { findAbsenceFor, listPendingAbsenceWorkItems, listPendingTeacherAbsenceWorkItems, setMakeupPlacementFromAbsence, recordStudentSlotAbsence, markNoMakeup, cancelAbsenceRecord, isTeacherAbsentForStudent } from './absences.js';
 import { getDayStatus, getUnassignedRowsForDate, renderCalendar, syncMonthChange } from './calendar.js';
 import { refreshCalFilterOptions, setCalFilterStudent, setCalFilterTeacher, clearCalFilter, refreshAllPersonComboboxes } from './filter-ui.js';
 import { sortByNameKana } from '../shared/person-sort.js';
@@ -12,9 +12,9 @@ import { gradeLabel, getDateSlotState, isTeacherAvailableOnDate, subjectColor } 
 import { approveCancellationRequest, approveCancellationRequests, rejectCancellationRequest, saveStudents, scheduleSave, scheduleSyncTeacherAssignments } from './students-persistence.js';
 import { commitLessonDrafts, persistDraftDiff, restoreLessonLists, snapshotLessonLists } from './lesson-drafts.js';
 import { renderTeacherList } from './teachers.js';
-import { assignmentAppliesOnDate, approvalAppliesInMonth, buildCandidateInfo, confirmAssignment, confirmDualAssignment, cancelAllDrafts, cancelDraftAuto, findEffectiveAssignment, getActiveYearMonth, getPreferredTeachersForCourse, loadAssignmentApprovals, loadDismissedApprovalIds, loadPendingCancellationRequests, loadPendingChangeRequests, openMatchingForApprovalTicket, approvePendingLessonAsAdmin, renderApprovalDashboardItem, resolveScheduleChangeRequest, resolveScheduleChangeRequests, saveDismissedApprovalIds, sendDraftAssignments, teacherHasSubmittedMonth, revokePendingApprovalTicketsForStudent, revokePendingCancellationRequestsForStudent, revokePendingCancellationForSlot, dropAssignmentsForRemovedDesiredSlots, syncStudentIdentityOnTickets } from './teacher-schedule-tab.js';
+import { assignmentAppliesOnDate, approvalAppliesInMonth, buildCandidateInfo, confirmAssignment, confirmDualAssignment, cancelAssignment, cancelAllDrafts, cancelDraftAuto, countRoomSlotOnDate, countTeacherSlotOnDate, teacherSlotHasOneToOneOnDate, findEffectiveAssignment, getActiveYearMonth, getPreferredTeachersForCourse, loadAssignmentApprovals, loadDismissedApprovalIds, loadPendingCancellationRequests, loadPendingChangeRequests, openMatchingForApprovalTicket, approvePendingLessonAsAdmin, renderApprovalDashboardItem, resolveScheduleChangeRequest, resolveScheduleChangeRequests, saveDismissedApprovalIds, sendDraftAssignments, teacherHasSubmittedMonth, revokePendingApprovalTicket, revokePendingApprovalTicketsForStudent, revokePendingCancellationRequestsForStudent, revokePendingCancellationForSlot, dropAssignmentsForRemovedDesiredSlots, syncStudentIdentityOnTickets } from './teacher-schedule-tab.js';
 import { findDualPairAtSlot, teacherTeachesBoth, buildDualSubjectTagsHtml } from './dual-subject.js';
-import { findTeacher } from './owner-teacher.js';
+import { findTeacher, isOwnerTeacher } from './owner-teacher.js';
 import { mountInlineConfirm, showActiveTabNotice } from '../shared/inline-confirm.js';
 import { dismissAppConfirmDialog, runAppConfirmDialog } from '../shared/app-confirm-dialog.js';
 import { activeStudents, isActivePerson, markPersonLeft, renderLeaveFlash } from './active-people.js';
@@ -32,6 +32,8 @@ import {
   renderStudentCourseCalendar,
   resetCourseCalendarSelection,
 } from './student-course-calendar.js';
+import { focusExtraBooking, renderExtraLessonSection } from './extra-lessons.js';
+import { isPayrollLocked } from './payroll.js';
 
 // ---- 一括自動仮組み ----
 // 表示中の月の各開校日について、未確定の希望コマを日付単位で自動的に埋める。
@@ -430,6 +432,38 @@ async function handleCourseStartDateChange(){
   renderFormCourses();
 }
 
+function paintExtraLessons(){
+  renderExtraLessonSection(document.getElementById('extraLessonSection'), {
+    getDayStatus,
+    confirmAssignment,
+    scheduleSave,
+    countRoomSlotOnDate,
+    countTeacherSlotOnDate,
+    teacherSlotHasOneToOneOnDate,
+    isTeacherAvailableOnDate,
+    findTeacher,
+    isOwnerTeacher,
+    recordStudentSlotAbsence,
+    findAbsenceFor,
+    markNoMakeup,
+    cancelAbsenceRecord,
+    cancelAssignment,
+    revokePendingApprovalTicket,
+    isPayrollLocked,
+    isTeacherAbsent: isTeacherAbsentForStudent,
+    refresh(){
+      renderFormCourses();
+      renderCalendar();
+    },
+    openMakeupCalendar(absenceId){
+      const absence = (S.absences || []).find(row => row.id === absenceId);
+      if(absence) setMakeupPlacementFromAbsence(absence);
+      switchView('calendar');
+      renderCalendar();
+    },
+  });
+}
+
 function renderFormCourses(){
   const level = getSelectedStudentLevel();
   const wrap = document.getElementById('courseList');
@@ -437,6 +471,7 @@ function renderFormCourses(){
   if(!S.editingStudentId){
     wrap.innerHTML = '<p class="scc-locked-hint">「基本情報を登録」を押すと、ここで希望コマを選べます。</p>';
     renderStudentMatchingAction();
+    paintExtraLessons();
     return;
   }
   renderStudentCourseCalendar(wrap, {
@@ -450,6 +485,7 @@ function renderFormCourses(){
     },
   });
   renderStudentMatchingAction();
+  paintExtraLessons();
 }
 
 function updateStudentFormUi(){
@@ -2054,6 +2090,13 @@ function jumpToCalendarForTeacher(teacherId, dateStr){
   document.dispatchEvent(new CustomEvent('calendar:show-day', { detail: { dateStr } }));
   window.scrollTo({top:0, behavior:'smooth'});
 }
+
+document.addEventListener('extra-lesson:open', (event)=>{
+  const student = S.students.find(row => row.id === event.detail?.studentId);
+  if(!student) return;
+  focusExtraBooking(student.id, event.detail.bookingId);
+  fillStudentFormForEdit(student);
+});
 
 // =====================================================================
 

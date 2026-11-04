@@ -1,0 +1,201 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>追加コマ</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Zen+Kaku+Gothic+New:wght@400;500;700;900&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/src/shared/styles/variables.css">
+  <link rel="stylesheet" href="/src/admin/styles/admin.css">
+  <style>
+    html, body{margin:0;background:#fff;}
+    .shot{max-width:760px;margin:0;padding:16px 16px 20px;}
+    .cal-shot{max-width:760px;}
+    .cal-shot .cal-grid{min-height:0;}
+    .cal-entry.confirmed{background:#E3F2E6;color:#1B5E20;}
+  </style>
+</head>
+<body>
+  <div id="root"></div>
+  <script>
+    const step = new URLSearchParams(location.search).get('step') || 'list';
+    const root = document.getElementById('root');
+
+    const count = `<p class="extra-lesson-count"><span class="extra-count-part">未配置 5</span><span class="extra-count-sep">｜</span><span class="extra-count-part">配置済み 3（承認待ち 3）</span><span class="extra-count-sep">｜</span><span class="extra-count-part">実施済み 0</span></p>`;
+
+    const views = {
+      list: `<div class="shot"><div class="card">
+        <h2>山田 さんを編集</h2>
+        <div class="field-label">受講科目</div>
+        <p class="field-hint">算数・国語</p>
+        <div class="extra-lesson-section">
+          <div class="extra-lesson-head"><span class="field-label">追加コマ</span>
+            <button type="button" class="confirm-btn">追加コマを登録</button></div>
+          <div class="extra-lesson-card">
+            <div class="extra-lesson-title">冬期講習｜算数4・国語4｜合計8コマ</div>
+            ${count}
+            <p class="field-hint">12/20（日）〜1/7（水）｜見込み 要確認</p>
+            <div class="extra-lesson-actions">
+              <button type="button" class="confirm-btn">日程を決める</button>
+              <button type="button" class="confirm-btn">詳細・変更</button>
+            </div>
+          </div>
+        </div>
+      </div></div>`,
+      form: `<div class="shot"><div class="card">
+        <div class="extra-lesson-section">
+          <div class="extra-lesson-head"><span class="field-label">追加コマを登録</span></div>
+          <p class="field-hint">目的と科目のコマ数だけでも保存できます。日程と講師はあとから決められます。</p>
+          <div class="field-label">追加の目的・名称</div>
+          <div class="chip-row">
+            <label class="chip"><input type="radio" name="purpose"><span>通常の追加授業</span></label>
+            <label class="chip"><input type="radio" name="purpose" checked><span>季節講習</span></label>
+            <label class="chip"><input type="radio" name="purpose"><span>自由記入</span></label>
+          </div>
+          <label class="field-label" for="term">講習</label>
+          <select id="term"><option>冬期講習</option></select>
+          <div class="field-label">科目とコマ数</div>
+          <div class="extra-subject-list">
+            <label class="extra-subject-row"><span>算数</span><input class="extra-count" type="text" value="4"></label>
+            <label class="extra-subject-row"><span>国語</span><input class="extra-count" type="text" value="4"></label>
+            <label class="extra-subject-row"><span>プログラミング <span class="field-hint">毎週は未受講</span></span><input class="extra-count" type="text" value="2"></label>
+          </div>
+          <p class="extra-lesson-count">合計 10コマ</p>
+          <div class="field-label">授業時間・形式</div>
+          <div class="chip-row">
+            <label class="chip"><input type="radio" checked><span>90分</span></label>
+            <label class="chip"><input type="radio"><span>40分</span></label>
+            <label class="chip"><input type="radio" checked><span>1対2</span></label>
+            <label class="chip"><input type="radio"><span>1対1</span></label>
+          </div>
+          <p class="field-hint">この申込みの科目に同じ時間と形式を使います。プログラミングは90分のままです。40分は小学だけです。</p>
+          <div class="field-label">対象期間</div>
+          <div class="extra-period"><input type="date" value="2026-12-20"><span>〜</span><input type="date" value="2027-01-07"></div>
+          <div class="field-label">料金の見込み</div>
+          <div class="extra-lesson-card">
+            <div>算数 4コマ × 要確認</div>
+            <div>国語 4コマ × 要確認</div>
+            <div>プログラミング 2コマ × 月額に含む</div>
+            <p class="extra-lesson-count">合計 要確認・月額に含む</p>
+            <p class="field-hint">ここに出る金額は見込みです。売上と給与に入るのは、講師が決まって確定した授業の日だけです。</p>
+          </div>
+          <div class="extra-lesson-actions">
+            <button type="button" class="confirm-btn">登録する</button>
+            <button type="button" class="confirm-btn">やめる</button>
+          </div>
+        </div>
+      </div></div>`,
+      choose: `<div class="shot"><div class="card">
+        <div class="extra-lesson-card">
+          <div class="extra-lesson-title">冬期講習を登録しました</div>
+          <p class="extra-lesson-count">算数4・国語4｜合計8コマ</p>
+          <p class="field-hint">日程を今決めるか、未配置のままあとで決めるかを選んでください。</p>
+          <div class="extra-lesson-actions">
+            <button type="button" class="confirm-btn">今すぐ日程を決める</button>
+            <button type="button" class="confirm-btn">あとで決める</button>
+          </div>
+        </div>
+      </div></div>`,
+      schedule: `<div class="shot"><div class="card">
+        <div class="extra-lesson-head"><span class="field-label">日程を決める</span></div>
+        <div class="extra-lesson-card">
+          <div class="extra-lesson-title">山田｜冬期講習</div>
+          ${count}
+          <div class="extra-month-nav">
+            <button type="button" class="confirm-btn">前の月</button>
+            <span>2026年12月</span>
+            <button type="button" class="confirm-btn">次の月</button>
+          </div>
+          <div class="extra-day-grid" aria-label="冬期講習のカレンダー">
+            <span>月</span><span>火</span><span>水</span><span>木</span><span>金</span><span>土</span><span>日</span>
+            <button type="button" class="extra-day-btn is-selected">21</button>
+            <button type="button" class="extra-day-btn">22</button>
+            <button type="button" class="extra-day-btn">23</button>
+            <button type="button" class="extra-day-btn">24</button>
+            <button type="button" class="extra-day-btn">25</button>
+            <button type="button" class="extra-day-btn">26</button>
+            <button type="button" class="extra-day-btn" disabled>27<small>定休日</small></button>
+          </div>
+          <div class="field-label">12/21（月）</div>
+          <div class="extra-lesson-actions">
+            <button type="button" class="confirm-btn">5講 教室 3/12</button>
+            <button type="button" class="confirm-btn" disabled>6講 教室 12/12 満席</button>
+          </div>
+          <div class="field-label">講師</div>
+          <div class="extra-lesson-actions">
+            <button type="button" class="confirm-btn">佐藤先生</button>
+            <button type="button" class="confirm-btn">講師はあとで</button>
+          </div>
+          <div class="field-label">登録前の確認</div>
+          <ul class="extra-pick-list">
+            <li>山田｜算数｜12/21（月） 5講｜講師未定｜1コマ <button type="button" class="confirm-btn">外す</button></li>
+          </ul>
+          <p class="field-hint">未配置より多くは登録できません。講師未定の日程は教室の1人分を確保し、売上と給与には入りません。</p>
+          <div class="extra-lesson-actions">
+            <button type="button" class="confirm-btn">この内容で登録</button>
+            <button type="button" class="confirm-btn">一覧へ戻る</button>
+          </div>
+        </div>
+      </div></div>`,
+      detail: `<div class="shot"><div class="card">
+        <div class="extra-lesson-head"><span class="field-label">詳細・変更</span></div>
+        <div class="extra-lesson-card">
+          <div class="extra-lesson-title">冬期講習｜算数4・国語4｜合計8コマ</div>
+          ${count}
+          <p class="field-hint">12/20（日）〜1/7（水）｜見込み 要確認</p>
+          <div class="field-label">各回</div>
+          <div class="extra-item">
+            <span class="match-status-badge is-priority">承認待ち</span>
+            <span>算数｜12/21（月） 5講｜佐藤</span>
+            <span class="extra-lesson-actions"><button type="button" class="confirm-btn">日程を外す</button><button type="button" class="confirm-btn">欠席にする</button></span>
+          </div>
+          <div class="extra-item">
+            <span class="match-status-badge is-priority">講師未定</span>
+            <span>国語｜12/22（火） 5講｜講師未定</span>
+            <span class="extra-lesson-actions"><button type="button" class="confirm-btn">日程を外す</button><button type="button" class="confirm-btn">欠席にする</button></span>
+          </div>
+          <div class="extra-item">
+            <span class="match-status-badge is-priority">振替待ち</span>
+            <span>算数｜12/23（水） 5講｜佐藤</span>
+            <span class="extra-lesson-actions"><button type="button" class="confirm-btn">日程を外す</button><button type="button" class="confirm-btn">振替先を選ぶ</button><button type="button" class="confirm-btn">振替なし</button><button type="button" class="confirm-btn">欠席を取り消す</button></span>
+          </div>
+          <div class="field-label">申込数</div>
+          <div class="extra-subject-list">
+            <label class="extra-subject-row"><span>算数</span><input class="extra-count" type="text" value="4"></label>
+            <label class="extra-subject-row"><span>国語</span><input class="extra-count" type="text" value="4"></label>
+          </div>
+          <div class="extra-lesson-actions">
+            <button type="button" class="confirm-btn">申込数を保存</button>
+            <button type="button" class="confirm-btn">名称・期間を変更</button>
+            <button type="button" class="confirm-btn">日程を決める</button>
+            <button type="button" class="danger-ghost">申込みを取り消す</button>
+            <button type="button" class="confirm-btn">一覧へ戻る</button>
+          </div>
+          <div class="field-label">変更の履歴</div>
+          <ul class="extra-history">
+            <li>12/1 10:12 教室長 日程を登録（→ 算数 12/21 5講 講師未定）</li>
+            <li>12/1 10:08 教室長 申込みを登録（→ 算数4・国語4｜合計8コマ）</li>
+          </ul>
+        </div>
+      </div></div>`,
+      calendar: `<div class="shot cal-shot"><div class="card">
+        <h2>カレンダー</h2>
+        <p class="field-hint">山田さんで絞り込み中</p>
+        <div class="cal-grid">
+          <div class="cal-dow">月</div><div class="cal-dow">火</div><div class="cal-dow">水</div><div class="cal-dow">木</div><div class="cal-dow">金</div><div class="cal-dow sat">土</div><div class="cal-dow sun">日</div>
+          <div class="cal-cell open"><div class="cal-daynum">21</div><div class="cal-entries"><button type="button" class="cal-entry pending">算:山田 追加・講師未定</button></div></div>
+          <div class="cal-cell open"><div class="cal-daynum">22</div><div class="cal-entries"><button type="button" class="cal-entry pending">算:山田 追加・承認待ち</button></div></div>
+          <div class="cal-cell open"><div class="cal-daynum">23</div><div class="cal-entries"><button type="button" class="cal-entry confirmed">国:山田 追加</button></div></div>
+          <div class="cal-cell open"><div class="cal-daynum">24</div><div class="cal-entries"><button type="button" class="cal-entry absent">算:山田:欠席</button></div></div>
+          <div class="cal-cell open no-activity"><div class="cal-daynum">25</div></div>
+          <div class="cal-cell open no-activity"><div class="cal-daynum">26</div></div>
+          <div class="cal-cell closed-weekday"><div class="cal-daynum">27</div><div class="cal-sublabel">定休日</div></div>
+        </div>
+      </div></div>`,
+    };
+
+    root.innerHTML = views[step] || views.list;
+  </script>
+</body>
+</html>

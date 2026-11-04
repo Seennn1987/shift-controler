@@ -27,6 +27,8 @@ export const S = {
   assignments: [],
   pendingAssignments: [],
   draftAssignments: [],
+  extraBookings: [],
+  extraHolds: [],
   roomCapacity: 12,
   teacherCapacity: 2,
   tuitionGradeRates: normalizeTuitionGradeRates(null),

@@ -105,7 +105,8 @@ function buildSubjectTagsHtml(entry){
   const c = subjectColor(level, entry.subject);
   const slotDef = SLOTS.find(s=> Number(s.id) === Number(entry.slot));
   const when = isShortHalf(entry.half) && slotDef ? ` ${halfLabel(entry.half)} ${slotTimeForHalf(slotDef, entry.half)}` : '';
-  return `<span class="sched-student-tag" style="background:${c.bg};color:${c.text};">${entry.subject}${when}</span>`;
+  const extra = entry.extraBookingId ? '<span class="mycal-extra-badge">追加</span>' : '';
+  return `<span class="sched-student-tag" style="background:${c.bg};color:${c.text};">${entry.subject}${when}</span>${extra}`;
 }
 
 function buildStudentLineHtml(entry, isLast, showCancelInRow, dateStr){

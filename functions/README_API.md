@@ -159,8 +159,10 @@
 |---|---|
 | `teachers[]` | 講師。`id`, `name`, `nameKana`, `perLessonRate`（1コマの給料）, `dailyTransport`（1日の交通費）, `raiseSchedule[]`（`yearMonth`, `rate`）, `earlyLessonException`（最初のXコマの単価）, `subjects[]`, `loginUid`, `loginEmail`, `employeeNumber`, `left`, `leftDate` |
 | `students[]` | 生徒。`id`, `name`, `nameKana`, `level`（小学/中学/高校）, `grade`（数字）, `courses[]`（`id`, `subject`, `desiredSlots[]`）, `courseStartDate`, `freeLessonCount`（最初の◯コマ無料）, `left`, `leftDate` |
-| `assignments[]` | 確定した授業。**毎週の曜日と時限**で持つ（`day: '月'`, `slot: 5`, `studentId`, `courseId`, `teacherId`, `subject`）。1回だけの授業は `oneTimeDate`。`teacherId: '__owner__'` は教室長 |
+| `assignments[]` | 確定した授業。**毎週の曜日と時限**で持つ（`day: '月'`, `slot: 5`, `studentId`, `courseId`, `teacherId`, `subject`）。1回だけの授業は `oneTimeDate`。追加コマは `extraBookingId` と `extraLineId`。`teacherId: '__owner__'` は教室長 |
 | `pendingAssignments[]` / `draftAssignments[]` | 承認待ち / 仮組み（形は `assignments` と同じ） |
+| `extraBookings[]` | 追加コマの申込み。`studentId`, `purposeLabel`, `lines[]`（科目とコマ数）, `periodStart`, `periodEnd`。日程が無くても保存できる。取消は `cancelledAt` |
+| `extraHolds[]` | 講師未定の追加コマ。日付は入っているが講師は空。教室の人数には入り、売上と給与には入らない |
 | `absences[]` | 生徒の欠席。`date`, `slot`, `status: pending/resolved`, `makeup: { date, slot, teacherId }`（振替先） |
 | `teacherAbsences[]` | 講師の欠勤。`teacherId`, `date`, `slots[]`, `studentIdsBySlot` |
 | `teacherSubstitutions[]` | 代講。`teacherId`（元の講師）, `substituteTeacherId`, `date`, `slot`, `studentId` |

@@ -18,6 +18,7 @@ import { countSlotAssignmentUnits, findDualPairAtSlot, buildDualSubjectTagsHtml 
 import { busiestSeatText, isOneToOneCourse, listHasOneToOne, teacherSeatCap, findStudentCourse } from './one-to-one.js';
 import { findTeacher, isOwnerTeacher, isOwnerTeacherId } from './owner-teacher.js';
 import { isActivePerson, personAppliesOnDate } from './active-people.js';
+import { extraSeatReleased, liveExtraHolds } from './extra-lesson-count.mjs';
 
 // 講師スケジュール（月次提出）タブ
 // =====================================================================
@@ -658,9 +659,11 @@ function countRoomSlotOnDate(dateStr, slot, excludeStudentId, half){
   const all = S.assignments.concat(S.pendingAssignments, S.draftAssignments);
   const matched = all.filter(a=>
     Number(a.slot) === Number(slot) && a.studentId !== excludeStudentId &&
-    assignmentAppliesOnDate(a, dateStr)
+    assignmentAppliesOnDate(a, dateStr) &&
+    !extraSeatReleased(a, dateStr, S.absences)
   );
-  return countUnitsForHalf(matched, half);
+  const holds = liveExtraHolds(S.extraHolds, S.absences, dateStr, slot, excludeStudentId);
+  return countUnitsForHalf(matched.concat(holds), half);
 }
 
 function resolveDesiredHalf(studentId, courseId, day, slot, explicit){
@@ -869,7 +872,7 @@ async function confirmAssignment(studentId, courseId, subject, day, slot, teache
   const capHalf = half === 'early' || half === 'late' ? half : undefined;
   const slotDef = SLOTS.find(s=> s.id === slot);
   const slotLabel = slotDef ? `${slotDef.label}${halfLabel(half) ? ' '+halfLabel(half) : ''}` : `${slot}講`;
-  const incomingOne = isOneToOneCourse(findStudentCourse(studentId, courseId));
+  const incomingOne = opts.oneToOne === true || (opts.extraBookingId ? false : isOneToOneCourse(findStudentCourse(studentId, courseId)));
   const teacherLabel = owner ? teacher.name : `${teacher.name}先生`;
 
   if(dateStr && !recurring){
@@ -905,6 +908,11 @@ async function confirmAssignment(studentId, courseId, subject, day, slot, teache
   };
   if(half !== 'full') entry.half = half;
   if(dateStr && !recurring) entry.oneTimeDate = dateStr;
+  if(opts.extraBookingId){
+    entry.extraBookingId = opts.extraBookingId;
+    entry.extraLineId = opts.extraLineId;
+    if(opts.oneToOne) entry.oneToOne = true;
+  }
 
   if(owner) S.assignments.push(entry);
   else S.draftAssignments.push(entry);

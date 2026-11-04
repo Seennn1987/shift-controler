@@ -14,6 +14,7 @@ import { findEffectiveAssignment, renderApprovalStatus, renderTeacherScheduleTab
 import { findDualPairAtSlot, collapseDualAssignmentDisplayRows, countBusiestHalfUnits, formatDualSubjectLabel } from './dual-subject.js';
 import { findTeacher } from './owner-teacher.js';
 import { isActivePerson, personAppliesOnDate } from './active-people.js';
+import { extraAssignmentCalendarLines, extraHoldCalendarLines } from './extra-lessons.js';
 
 // カレンダー（トップページ・TimeTree風シンプルUI）
 // =====================================================================
@@ -86,24 +87,31 @@ function studentRowToCalLine(r, student){
     return {text:`${subAbbr}:欠席`, cls:'absent'};
   }
   if(r.existing){
+    const extra = r.existing.extraBookingId ? ' 追加' : '';
+    const link = r.existing.extraBookingId
+      ? { extraBookingId: r.existing.extraBookingId, studentId: student.id }
+      : {};
     if(r.isPending){
       const teacher = findTeacher(r.existing.teacherId);
       const tName = teacher ? shortName(teacher.name) : '?';
-      return {text:`${subAbbr}:${tName}(待)`, cls:'pending'};
+      return {text:`${subAbbr}:${tName}(待)${extra}`, cls:'pending', ...link};
     }
     if(r.isDraft){
       const teacher = findTeacher(r.existing.teacherId);
       const tName = teacher ? shortName(teacher.name) : '?';
-      return {text:`${subAbbr}:${tName}(仮)`, cls:'draft'};
+      return {text:`${subAbbr}:${tName}(仮)${extra}`, cls:'draft', ...link};
     }
     const teacher = findTeacher(r.existing.teacherId);
-    return {text:`${subAbbr}:${teacher?shortName(teacher.name):'?'}`, cls:'confirmed', bg:sc.bg, color:sc.text};
+    return {text:`${subAbbr}:${teacher?shortName(teacher.name):'?'}${extra}`, cls:'confirmed', bg:sc.bg, color:sc.text, ...link};
   }
   return {text:`${subAbbr}:講師なし`, cls:'pending'};
 }
 
 function calLineToHtml(l){
   const styleAttr = l.bg ? ` style="background:${l.bg};color:${l.color};"` : '';
+  if(l.extraBookingId){
+    return `<button type="button" class="cal-entry ${l.cls}"${styleAttr} data-extra-booking="${l.extraBookingId}" data-extra-student="${l.studentId || ''}">${l.text}</button>`;
+  }
   return `<div class="cal-entry ${l.cls}"${styleAttr}>${l.text}</div>`;
 }
 
@@ -144,7 +152,13 @@ function buildDayCellLines(dateStr, filterStudent){
         text = `${subAbbr}:${student?shortName(student.name):'?'}`;
         cls = 'confirmed';
       }
-      lines.push({text, cls, bg: cls==='confirmed' ? sc.bg : undefined, color: cls==='confirmed' ? sc.text : undefined});
+      const line = {text, cls, bg: cls==='confirmed' ? sc.bg : undefined, color: cls==='confirmed' ? sc.text : undefined};
+      if(a.extraBookingId){
+        line.text += ' 追加';
+        line.extraBookingId = a.extraBookingId;
+        line.studentId = a.studentId;
+      }
+      lines.push(line);
     });
     getAbsenceRecordsOnDate(dateStr).forEach(row=>{
       const student = row.student;
@@ -157,6 +171,8 @@ function buildDayCellLines(dateStr, filterStudent){
       });
     });
   }
+  extraHoldCalendarLines(dateStr, filterStudent?.id).forEach(line => lines.push(line));
+  if(filterStudent) extraAssignmentCalendarLines(dateStr, filterStudent.id).forEach(line => lines.push(line));
   return lines;
 }
 
@@ -464,6 +480,14 @@ function renderCalendar(){
   }
 
   grid.innerHTML = html;
+  grid.querySelectorAll('button.cal-entry[data-extra-booking]').forEach(btn=>{
+    btn.addEventListener('click', (event)=>{
+      event.stopPropagation();
+      document.dispatchEvent(new CustomEvent('extra-lesson:open', {
+        detail: { studentId: btn.dataset.extraStudent, bookingId: btn.dataset.extraBooking },
+      }));
+    });
+  });
   grid.querySelectorAll('.cal-cell[data-date]').forEach(cell=>{
     cell.addEventListener('click', ()=>{
       S.calSelectedDate = cell.dataset.date;

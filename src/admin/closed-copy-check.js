@@ -40,6 +40,8 @@ function applyDoc(d){
   S.payrollOfficeDays = d.payrollOfficeDays || {};
   S.payrollLocks = d.payrollLocks || {};
   S.roomCapacity = d.roomCapacity || 12;
+  S.extraBookings = d.extraBookings || [];
+  S.extraHolds = d.extraHolds || [];
 }
 
 function studentByName(part){

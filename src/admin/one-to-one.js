@@ -13,6 +13,7 @@ export function findStudentCourse(studentId, courseId){
 
 export function assignmentIsOneToOne(assignment){
   if(!assignment) return false;
+  if(assignment.extraBookingId) return assignment.oneToOne === true;
   return isOneToOneCourse(findStudentCourse(assignment.studentId, assignment.courseId));
 }
 
@@ -25,6 +26,7 @@ export function studentSubjectsAreOneToOne(studentId, subjects){
 /** 同じ90分の2教科は、どちらかが1対1なら1対1の金額 */
 export function assignmentUsesOneToOnePrice(student, assignment){
   if(!student || !assignment) return false;
+  if(assignment.extraBookingId) return assignment.oneToOne === true;
   if(assignment.dualGroupId){
     const pair = (student.courses || []).filter(c=>
       (c.desiredSlots || []).some(ds=>

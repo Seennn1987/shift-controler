@@ -81,6 +81,7 @@ function collectDayLessons(dateStr){
       subjects: [e.subject],
       status,
       makeupFrom: e.kind === 'makeup' ? findMakeupSourceDate(e.studentId, dateStr, e.slot) : null,
+      extraBookingId: e.extraBookingId || null,
     };
     byKey.set(key, row);
     rows.push(row);
@@ -180,7 +181,8 @@ function rowHtml(row, view){
   const tags = row.subjects.length === 2
     ? buildDualSubjectTagsHtml(level, row.subjects, subjectColor)
     : buildCalAlertSubjectTag(subjectColor, level, row.subjects[0]);
-  const tail = `<span class="cal-alert-row-tail">${tags}${badgeFor(row, view)}</span>`;
+  const extra = row.extraBookingId ? '<span class="approval-badge pending">追加</span>' : '';
+  const tail = `<span class="cal-alert-row-tail">${tags}${badgeFor(row, view)}${extra}</span>`;
   return `<div class="approval-item cal-alert-row-c4">${buildCalAlertRowBody([buildCalAlertWhenPill(md, weekday, slotLabel), head, tail], 'person')}</div>`;
 }
 

@@ -1,0 +1,187 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>追加コマ（試しページ）</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Zen+Kaku+Gothic+New:wght@400;500;700;900&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/src/shared/styles/variables.css">
+  <link rel="stylesheet" href="/src/admin/styles/admin.css">
+</head>
+<body>
+  <div class="preview-note" style="padding:16px;">
+    <h1 style="font-size:20px;margin:0 0 8px;">追加コマ（試しページ）</h1>
+    <p>山田さんの冬期講習です。申込みは先に保存し、日程はあとから入れます。このページは見本で、教室のデータは変わりません。</p>
+  </div>
+  <div class="preview-wrap" style="max-width:720px;margin:0 auto;padding:0 16px 48px;">
+    <div class="card">
+      <h2>山田 さんを編集</h2>
+      <div class="field-label">受講科目</div>
+      <p class="field-hint">算数・国語</p>
+      <div id="extraRoot"></div>
+    </div>
+  </div>
+  <script type="module">
+    const root = document.getElementById('extraRoot');
+    const state = {
+      mode: 'list',
+      unplaced: 5,
+      pending: 3,
+      hold: 0,
+      done: 0,
+      picks: [],
+    };
+
+    function countHtml(){
+      const placed = state.pending + state.hold;
+      const parts = [];
+      if(state.pending) parts.push(`承認待ち ${state.pending}`);
+      if(state.hold) parts.push(`講師未定 ${state.hold}`);
+      const detail = parts.length ? `（${parts.join('、')}）` : '';
+      return `<span class="extra-count-part">未配置 ${state.unplaced}</span><span class="extra-count-sep">｜</span><span class="extra-count-part">配置済み ${placed}${detail}</span><span class="extra-count-sep">｜</span><span class="extra-count-part">実施済み ${state.done}</span>`;
+    }
+
+    function esc(value){
+      return String(value ?? '').replace(/[&<>"]/g, ch => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[ch]));
+    }
+
+    function paint(){
+      if(state.mode === 'form') root.innerHTML = formHtml();
+      else if(state.mode === 'choose') root.innerHTML = chooseHtml();
+      else if(state.mode === 'schedule') root.innerHTML = scheduleHtml();
+      else root.innerHTML = listHtml();
+      bind();
+    }
+
+    function listHtml(){
+      return `<div class="extra-lesson-section">
+        <div class="extra-lesson-head"><span class="field-label">追加コマ</span>
+          <button type="button" class="confirm-btn" data-action="form">追加コマを登録</button></div>
+        <div class="extra-lesson-card">
+          <div class="extra-lesson-title">冬期講習｜算数4・国語4｜合計8コマ</div>
+          <p class="extra-lesson-count">${countHtml()}</p>
+          <p class="field-hint">12/20（日）〜1/7（水）｜見込み 要確認</p>
+          <div class="extra-lesson-actions">
+            <button type="button" class="confirm-btn" data-action="schedule">日程を決める</button>
+            <button type="button" class="confirm-btn" data-action="detail">詳細・変更</button>
+          </div>
+        </div>
+      </div>`;
+    }
+
+    function formHtml(){
+      return `<div class="extra-lesson-section">
+        <div class="extra-lesson-head"><span class="field-label">追加コマを登録</span></div>
+        <p class="field-hint">目的と科目のコマ数だけでも保存できます。日程と講師はあとから決められます。</p>
+        <div class="field-label">追加の目的・名称</div>
+        <div class="chip-row">
+          <label class="chip"><input type="radio" name="purpose" value="extra"><span>通常の追加授業</span></label>
+          <label class="chip"><input type="radio" name="purpose" value="seasonal" checked><span>季節講習</span></label>
+          <label class="chip"><input type="radio" name="purpose" value="custom"><span>自由記入</span></label>
+        </div>
+        <div class="field-label">科目とコマ数</div>
+        <div class="extra-subject-list">
+          <label class="extra-subject-row"><span>算数</span><input class="extra-count" id="math" type="text" inputmode="numeric" value="4"></label>
+          <label class="extra-subject-row"><span>国語</span><input class="extra-count" id="jp" type="text" inputmode="numeric" value="4"></label>
+        </div>
+        <p class="extra-lesson-count" id="total">合計 8コマ</p>
+        <div class="field-label">授業時間・形式</div>
+        <div class="chip-row">
+          <label class="chip"><input type="radio" name="minutes" value="90" checked><span>90分</span></label>
+          <label class="chip"><input type="radio" name="minutes" value="40"><span>40分</span></label>
+          <label class="chip"><input type="radio" name="format" value="pair" checked><span>1対2</span></label>
+          <label class="chip"><input type="radio" name="format" value="one"><span>1対1</span></label>
+        </div>
+        <div class="field-label">対象期間</div>
+        <div class="extra-period"><input type="date" value="2026-12-20"><span>〜</span><input type="date" value="2027-01-07"></div>
+        <div class="field-label">料金の見込み</div>
+        <div class="extra-lesson-card"><p class="extra-lesson-count">要確認</p><p class="field-hint">単価が分からないときは0円にしません。ここに出る金額は見込みです。</p></div>
+        <div class="extra-lesson-actions">
+          <button type="button" class="confirm-btn" data-action="save">登録する</button>
+          <button type="button" class="confirm-btn" data-action="list">やめる</button>
+        </div>
+        <p class="form-msg" id="msg" role="status"></p>
+      </div>`;
+    }
+
+    function chooseHtml(){
+      return `<div class="extra-lesson-section"><div class="extra-lesson-card">
+        <div class="extra-lesson-title">冬期講習を登録しました</div>
+        <p class="extra-lesson-count">算数4・国語4｜合計8コマ</p>
+        <p class="field-hint">日程を今決めるか、未配置のままあとで決めるかを選んでください。</p>
+        <div class="extra-lesson-actions">
+          <button type="button" class="confirm-btn" data-action="schedule">今すぐ日程を決める</button>
+          <button type="button" class="confirm-btn" data-action="list">あとで決める</button>
+        </div>
+      </div></div>`;
+    }
+
+    function scheduleHtml(){
+      const days = [21, 22, 23, 24].map(day => {
+        const on = state.picks.some(pick => pick.day === day);
+        return `<button type="button" class="extra-day-btn${on ? ' is-selected' : ''}" data-day="${day}">${day}</button>`;
+      }).join('');
+      const picks = state.picks.map(pick => `<li>山田｜算数｜12/${pick.day}（水）${pick.full ? ' 満席のため不可' : ' 5講｜講師未定｜1コマ'}</li>`).join('');
+      return `<div class="extra-lesson-section"><div class="extra-lesson-card">
+        <div class="extra-lesson-title">山田｜冬期講習</div>
+        <p class="extra-lesson-count">${countHtml()}</p>
+        <div class="extra-day-grid">${days}<button type="button" class="extra-day-btn" disabled>25<small>休み</small></button></div>
+        <p class="field-hint">12/22は教室が満席です。選んでも登録できません。</p>
+        <div class="extra-lesson-actions">
+          <button type="button" class="confirm-btn" data-day="21">12/21 5講 教室 3/12</button>
+          <button type="button" class="confirm-btn" data-day="22" disabled>12/22 5講 教室 12/12 満席</button>
+        </div>
+        ${picks ? `<div class="field-label">登録前の確認</div><ul class="extra-pick-list">${picks}</ul>` : ''}
+        <div class="extra-lesson-actions">
+          <button type="button" class="confirm-btn" data-action="commit" ${state.picks.length ? '' : 'disabled'}>この内容で登録</button>
+          <button type="button" class="confirm-btn" data-action="list">一覧へ戻る</button>
+        </div>
+      </div></div>`;
+    }
+
+    function bind(){
+      root.querySelectorAll('[data-action="form"]').forEach(btn => btn.addEventListener('click', () => { state.mode = 'form'; paint(); }));
+      root.querySelectorAll('[data-action="list"]').forEach(btn => btn.addEventListener('click', () => { state.mode = 'list'; paint(); }));
+      root.querySelectorAll('[data-action="schedule"]').forEach(btn => btn.addEventListener('click', () => { state.mode = 'schedule'; paint(); }));
+      root.querySelectorAll('[data-action="detail"]').forEach(btn => btn.addEventListener('click', () => { state.mode = 'list'; paint(); }));
+      root.querySelector('#math')?.addEventListener('input', updateTotal);
+      root.querySelector('#jp')?.addEventListener('input', updateTotal);
+      root.querySelector('[data-action="save"]')?.addEventListener('click', () => {
+        const math = parseInt(root.querySelector('#math').value, 10) || 0;
+        const jp = parseInt(root.querySelector('#jp').value, 10) || 0;
+        if(math + jp < 1){
+          root.querySelector('#msg').textContent = '科目のコマ数を1以上にしてください。';
+          return;
+        }
+        state.mode = 'choose';
+        paint();
+      });
+      root.querySelectorAll('[data-day]').forEach(btn => btn.addEventListener('click', () => {
+        const day = Number(btn.dataset.day);
+        if(day === 22) return;
+        if(state.picks.some(pick => pick.day === day)) return;
+        if(state.picks.length >= state.unplaced) return;
+        state.picks.push({ day });
+        paint();
+      }));
+      root.querySelector('[data-action="commit"]')?.addEventListener('click', () => {
+        state.hold += state.picks.length;
+        state.unplaced -= state.picks.length;
+        state.picks = [];
+        state.mode = 'list';
+        paint();
+      });
+    }
+
+    function updateTotal(){
+      const math = parseInt(root.querySelector('#math').value, 10) || 0;
+      const jp = parseInt(root.querySelector('#jp').value, 10) || 0;
+      const total = root.querySelector('#total');
+      if(total) total.textContent = `合計 ${math + jp}コマ`;
+    }
+
+    paint();
+  </script>
+</body>
+</html>
