@@ -8,178 +8,273 @@
   <link href="https://fonts.googleapis.com/css2?family=Zen+Kaku+Gothic+New:wght@400;500;700;900&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="/src/shared/styles/variables.css">
   <link rel="stylesheet" href="/src/admin/styles/admin.css">
+  <style>button.cal-cell{appearance:none;border-style:solid;border-color:transparent;font:inherit;color:inherit;text-align:left;width:100%;}</style>
 </head>
 <body>
   <div class="preview-note" style="padding:16px;">
     <h1 style="font-size:20px;margin:0 0 8px;">追加コマ（試しページ）</h1>
-    <p>山田さんの冬期講習です。申込みは先に保存し、日程はあとから入れます。このページは見本で、教室のデータは変わりません。</p>
+    <p>山田さんの冬期講習です。申込みは生徒の画面で先に保存し、日程はいつもの月カレンダーと右のパネルで1件ずつ入れます。このページは見本で、教室のデータは変わりません。</p>
   </div>
-  <div class="preview-wrap" style="max-width:720px;margin:0 auto;padding:0 16px 48px;">
-    <div class="card">
-      <h2>山田 さんを編集</h2>
-      <div class="field-label">受講科目</div>
-      <p class="field-hint">算数・国語</p>
-      <div id="extraRoot"></div>
+  <div id="page" class="preview-wrap" style="max-width:960px;margin:0 auto;padding:0 16px 48px;"></div>
+  <aside id="drawer" class="matching-drawer" aria-hidden="true">
+    <div class="matching-drawer-header">
+      <div class="matching-drawer-header-main">
+        <h2 class="matching-drawer-title" id="drawerTitle">12月21日（月）</h2>
+      </div>
+      <button type="button" class="matching-drawer-close" id="drawerClose" aria-label="閉じる">×</button>
     </div>
-  </div>
+    <div class="matching-drawer-return-bar">
+      <button type="button" class="ghost matching-drawer-return-btn" id="backList">一覧へ戻る</button>
+    </div>
+    <div id="drawerBody" class="matching-drawer-body"></div>
+  </aside>
   <script type="module">
-    const root = document.getElementById('extraRoot');
+    const page = document.getElementById('page');
+    const drawer = document.getElementById('drawer');
+    const drawerBody = document.getElementById('drawerBody');
     const state = {
       mode: 'list',
-      unplaced: 5,
+      date: '',
+      slot: '',
+      subject: '',
+      math: 3,
+      jp: 2,
       pending: 3,
+      draft: 0,
       hold: 0,
       done: 0,
-      picks: [],
+      flash: '',
     };
-
-    function countHtml(){
-      const placed = state.pending + state.hold;
-      const parts = [];
-      if(state.pending) parts.push(`承認待ち ${state.pending}`);
-      if(state.hold) parts.push(`講師未定 ${state.hold}`);
-      const detail = parts.length ? `（${parts.join('、')}）` : '';
-      return `<span class="extra-count-part">未配置 ${state.unplaced}</span><span class="extra-count-sep">｜</span><span class="extra-count-part">配置済み ${placed}${detail}</span><span class="extra-count-sep">｜</span><span class="extra-count-part">実施済み ${state.done}</span>`;
-    }
 
     function esc(value){
       return String(value ?? '').replace(/[&<>"]/g, ch => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[ch]));
     }
 
+    function unplaced(){ return state.math + state.jp; }
+
+    function countHtml(){
+      const placed = state.pending + state.draft + state.hold;
+      const parts = [];
+      if(state.pending) parts.push(`承認待ち ${state.pending}`);
+      if(state.draft) parts.push(`仮決め ${state.draft}`);
+      if(state.hold) parts.push(`講師未定 ${state.hold}`);
+      const detail = parts.length ? `（${parts.join('、')}）` : '';
+      return `<span class="extra-count-part">未配置 ${unplaced()}</span><span class="extra-count-sep">｜</span><span class="extra-count-part">配置済み ${placed}${detail}</span><span class="extra-count-sep">｜</span><span class="extra-count-part">実施済み ${state.done}</span>`;
+    }
+
     function paint(){
-      if(state.mode === 'form') root.innerHTML = formHtml();
-      else if(state.mode === 'choose') root.innerHTML = chooseHtml();
-      else if(state.mode === 'schedule') root.innerHTML = scheduleHtml();
-      else root.innerHTML = listHtml();
+      document.body.classList.toggle('cal-drawer-open', state.mode === 'calendar' && !!state.date);
+      drawer.classList.toggle('is-open', state.mode === 'calendar' && !!state.date);
+      drawer.setAttribute('aria-hidden', state.mode === 'calendar' && state.date ? 'false' : 'true');
+      if(state.mode === 'form') page.innerHTML = formHtml();
+      else if(state.mode === 'choose') page.innerHTML = chooseHtml();
+      else if(state.mode === 'calendar') page.innerHTML = calendarHtml();
+      else page.innerHTML = listHtml();
+      if(state.mode === 'calendar' && state.date) paintDrawer();
       bind();
     }
 
     function listHtml(){
-      return `<div class="extra-lesson-section">
-        <div class="extra-lesson-head"><span class="field-label">追加コマ</span>
-          <button type="button" class="confirm-btn" data-action="form">追加コマを登録</button></div>
-        <div class="extra-lesson-card">
-          <div class="extra-lesson-title">冬期講習｜算数4・国語4｜合計8コマ</div>
-          <p class="extra-lesson-count">${countHtml()}</p>
-          <p class="field-hint">12/20（日）〜1/7（水）｜見込み 要確認</p>
-          <div class="extra-lesson-actions">
-            <button type="button" class="confirm-btn" data-action="schedule">日程を決める</button>
-            <button type="button" class="confirm-btn" data-action="detail">詳細・変更</button>
+      return `<div class="card"><h2>山田 さんを編集</h2>
+        <div class="field-label">受講科目</div>
+        <p class="field-hint">算数・国語</p>
+        <div class="extra-lesson-section">
+          <div class="extra-lesson-head"><span class="field-label">追加コマ</span>
+            <button type="button" class="confirm-btn" data-action="form">追加コマを登録</button></div>
+          <div class="extra-lesson-card">
+            <div class="extra-lesson-title">冬期講習｜算数4・国語4｜合計8コマ</div>
+            <p class="extra-lesson-count">${countHtml()}</p>
+            <p class="field-hint">12/20（日）〜1/7（水）｜見込み 要確認</p>
+            <div class="extra-lesson-actions">
+              <button type="button" class="confirm-btn" data-action="calendar">日程を決める</button>
+              <button type="button" class="confirm-btn" data-action="list">詳細・変更</button>
+            </div>
           </div>
         </div>
       </div>`;
     }
 
     function formHtml(){
-      return `<div class="extra-lesson-section">
+      const row = (name, hint) => `<label class="extra-subject-row"><span>${name}${hint ? ` <span class="field-hint">${hint}</span>` : ''}</span><input class="extra-count" data-subject="${name}" type="text" inputmode="numeric" value="${name === '算数' || name === '国語' ? '4' : ''}" placeholder="0" aria-label="${name}のコマ数"></label>`;
+      return `<div class="card"><div class="extra-lesson-section">
         <div class="extra-lesson-head"><span class="field-label">追加コマを登録</span></div>
         <p class="field-hint">目的と科目のコマ数だけでも保存できます。日程と講師はあとから決められます。</p>
-        <div class="field-label">追加の目的・名称</div>
-        <div class="chip-row">
-          <label class="chip"><input type="radio" name="purpose" value="extra"><span>通常の追加授業</span></label>
-          <label class="chip"><input type="radio" name="purpose" value="seasonal" checked><span>季節講習</span></label>
-          <label class="chip"><input type="radio" name="purpose" value="custom"><span>自由記入</span></label>
-        </div>
         <div class="field-label">科目とコマ数</div>
         <div class="extra-subject-list">
-          <label class="extra-subject-row"><span>算数</span><input class="extra-count" id="math" type="text" inputmode="numeric" value="4"></label>
-          <label class="extra-subject-row"><span>国語</span><input class="extra-count" id="jp" type="text" inputmode="numeric" value="4"></label>
+          ${row('国語', '')}
+          ${row('算数', '')}
+          ${row('英語', '毎週は未受講')}
+          ${row('理科', '毎週は未受講')}
+          ${row('社会', '毎週は未受講')}
+          ${row('プログラミング', '毎週は未受講')}
         </div>
         <p class="extra-lesson-count" id="total">合計 8コマ</p>
-        <div class="field-label">授業時間・形式</div>
-        <div class="chip-row">
-          <label class="chip"><input type="radio" name="minutes" value="90" checked><span>90分</span></label>
-          <label class="chip"><input type="radio" name="minutes" value="40"><span>40分</span></label>
-          <label class="chip"><input type="radio" name="format" value="pair" checked><span>1対2</span></label>
-          <label class="chip"><input type="radio" name="format" value="one"><span>1対1</span></label>
-        </div>
-        <div class="field-label">対象期間</div>
-        <div class="extra-period"><input type="date" value="2026-12-20"><span>〜</span><input type="date" value="2027-01-07"></div>
-        <div class="field-label">料金の見込み</div>
-        <div class="extra-lesson-card"><p class="extra-lesson-count">要確認</p><p class="field-hint">単価が分からないときは0円にしません。ここに出る金額は見込みです。</p></div>
         <div class="extra-lesson-actions">
           <button type="button" class="confirm-btn" data-action="save">登録する</button>
           <button type="button" class="confirm-btn" data-action="list">やめる</button>
         </div>
         <p class="form-msg" id="msg" role="status"></p>
-      </div>`;
+      </div></div>`;
     }
 
     function chooseHtml(){
-      return `<div class="extra-lesson-section"><div class="extra-lesson-card">
+      return `<div class="card"><div class="extra-lesson-section"><div class="extra-lesson-card">
         <div class="extra-lesson-title">冬期講習を登録しました</div>
         <p class="extra-lesson-count">算数4・国語4｜合計8コマ</p>
-        <p class="field-hint">日程を今決めるか、未配置のままあとで決めるかを選んでください。</p>
+        <p class="field-hint">日程は、いつもの月カレンダーで日を押して決めます。</p>
         <div class="extra-lesson-actions">
-          <button type="button" class="confirm-btn" data-action="schedule">今すぐ日程を決める</button>
+          <button type="button" class="confirm-btn" data-action="calendar">今すぐ日程を決める</button>
           <button type="button" class="confirm-btn" data-action="list">あとで決める</button>
         </div>
-      </div></div>`;
+      </div></div></div>`;
     }
 
-    function scheduleHtml(){
-      const days = [21, 22, 23, 24].map(day => {
-        const on = state.picks.some(pick => pick.day === day);
-        return `<button type="button" class="extra-day-btn${on ? ' is-selected' : ''}" data-day="${day}">${day}</button>`;
+    function calendarHtml(){
+      const days = [
+        ['21', '月', true], ['22', '火', true], ['23', '水', true], ['24', '木', true],
+        ['25', '金', true], ['26', '土', true], ['27', '日', false],
+      ];
+      const cells = days.map(([day, dow, open]) => {
+        const selected = state.date === day ? ' selected' : '';
+        if(!open){
+          return `<div class="cal-cell closed-weekday"><div class="cal-daynum">${day}</div><div class="cal-sublabel">定休</div></div>`;
+        }
+        return `<button type="button" class="cal-cell open${selected}" data-date="${day}" aria-label="12月${day}日（${dow}）">
+          <div class="cal-daynum">${day}</div>
+        </button>`;
       }).join('');
-      const picks = state.picks.map(pick => `<li>山田｜算数｜12/${pick.day}（水）${pick.full ? ' 満席のため不可' : ' 5講｜講師未定｜1コマ'}</li>`).join('');
-      return `<div class="extra-lesson-section"><div class="extra-lesson-card">
-        <div class="extra-lesson-title">山田｜冬期講習</div>
+      return `<div class="card">
+        <div class="field-label">山田さんで絞り込み中</div>
+        <h2 style="margin:8px 0;">2026年12月</h2>
+        <p class="field-hint">日を押すと、右にその日の追加コマが出ます。</p>
         <p class="extra-lesson-count">${countHtml()}</p>
-        <div class="extra-day-grid">${days}<button type="button" class="extra-day-btn" disabled>25<small>休み</small></button></div>
-        <p class="field-hint">12/22は教室が満席です。選んでも登録できません。</p>
-        <div class="extra-lesson-actions">
-          <button type="button" class="confirm-btn" data-day="21">12/21 5講 教室 3/12</button>
-          <button type="button" class="confirm-btn" data-day="22" disabled>12/22 5講 教室 12/12 満席</button>
+        <div class="cal-grid" aria-label="2026年12月">
+          <div class="cal-dow">月</div><div class="cal-dow">火</div><div class="cal-dow">水</div><div class="cal-dow">木</div><div class="cal-dow">金</div><div class="cal-dow sat">土</div><div class="cal-dow sun">日</div>
+          ${cells}
         </div>
-        ${picks ? `<div class="field-label">登録前の確認</div><ul class="extra-pick-list">${picks}</ul>` : ''}
+      </div>`;
+    }
+
+    function roomFor(day, slot){
+      if(day === '22' && slot === '5') return 12;
+      if(slot === '6') return 12;
+      if(slot === '5') return 3;
+      return 1;
+    }
+
+    function paintDrawer(){
+      const titles = { '21': '12月21日（月）', '22': '12月22日（火）', '23': '12月23日（水）', '24': '12月24日（木）', '25': '12月25日（金）', '26': '12月26日（土）' };
+      document.getElementById('drawerTitle').textContent = titles[state.date] || '';
+      const flash = state.flash ? `<p class="form-msg" role="status">${esc(state.flash)}</p>` : '';
+      state.flash = '';
+      if(!unplaced()){
+        drawerBody.innerHTML = `${flash}<div class="cal-empty-day">未配置の追加コマはありません。</div>`;
+        return;
+      }
+      drawerBody.innerHTML = `${flash}<div class="cal-day-note">冬期講習の残りを、この日に入れられます。</div>${slotCard('5', '16:40〜18:10')}${slotCard('6', '18:20〜19:50')}`;
+      drawerBody.querySelectorAll('[data-pick-subject]').forEach(btn => btn.addEventListener('click', () => {
+        state.slot = btn.dataset.slot;
+        state.subject = btn.dataset.pickSubject;
+        paintDrawer();
+      }));
+      drawerBody.querySelectorAll('[data-place]').forEach(btn => btn.addEventListener('click', () => {
+        const key = state.subject === '算数' ? 'math' : 'jp';
+        if(state[key] < 1) return;
+        state[key] -= 1;
+        if(btn.dataset.place === 'later') state.hold += 1;
+        else state.draft += 1;
+        const who = btn.dataset.place === 'later' ? '講師未定' : '佐藤';
+        state.flash = `${state.subject}を12/${state.date}の${state.slot}講に入れました。${who}です。`;
+        state.subject = '';
+        state.slot = '';
+        paint();
+      }));
+    }
+
+    function slotCard(slot, time){
+      const used = roomFor(state.date, slot);
+      const full = used >= 12;
+      const openSubject = (name, left) => {
+        if(!left) return '';
+        const selected = state.slot === slot && state.subject === name;
+        return `<button type="button" class="confirm-btn" data-pick-subject="${name}" data-slot="${slot}" ${full ? 'disabled' : ''}>${name} 残り${left}</button>
+          ${selected ? teacherRows() : ''}`;
+      };
+      return `<div class="match-slot mp-slot-card">
+        <div class="ms-slot-label">${slot}講（${time}）<span class="mp-slot-meta">教室 ${used}/12${full ? ' 満席' : ''}</span></div>
         <div class="extra-lesson-actions">
-          <button type="button" class="confirm-btn" data-action="commit" ${state.picks.length ? '' : 'disabled'}>この内容で登録</button>
-          <button type="button" class="confirm-btn" data-action="list">一覧へ戻る</button>
+          ${openSubject('算数', state.math)}
+          ${openSubject('国語', state.jp)}
         </div>
-      </div></div>`;
+      </div>`;
+    }
+
+    function teacherRows(){
+      return `<div class="match-slot-rows">
+        <div class="match-cand-row">
+          <span class="match-cand-rank">1</span>
+          <div class="match-cand-main">
+            <div class="match-cand-head">
+              <span class="match-cand-name">佐藤</span>
+              <div class="match-cand-actions"><button type="button" class="confirm-btn" data-place="teacher">この日に入れる</button></div>
+            </div>
+          </div>
+        </div>
+        <div class="match-cand-row">
+          <span class="match-cand-rank"></span>
+          <div class="match-cand-main">
+            <div class="match-cand-head">
+              <span class="match-cand-name">講師はあとで</span>
+              <div class="match-cand-actions"><button type="button" class="confirm-btn" data-place="later">講師はあとで</button></div>
+            </div>
+          </div>
+        </div>
+      </div>`;
     }
 
     function bind(){
-      root.querySelectorAll('[data-action="form"]').forEach(btn => btn.addEventListener('click', () => { state.mode = 'form'; paint(); }));
-      root.querySelectorAll('[data-action="list"]').forEach(btn => btn.addEventListener('click', () => { state.mode = 'list'; paint(); }));
-      root.querySelectorAll('[data-action="schedule"]').forEach(btn => btn.addEventListener('click', () => { state.mode = 'schedule'; paint(); }));
-      root.querySelectorAll('[data-action="detail"]').forEach(btn => btn.addEventListener('click', () => { state.mode = 'list'; paint(); }));
-      root.querySelector('#math')?.addEventListener('input', updateTotal);
-      root.querySelector('#jp')?.addEventListener('input', updateTotal);
-      root.querySelector('[data-action="save"]')?.addEventListener('click', () => {
-        const math = parseInt(root.querySelector('#math').value, 10) || 0;
-        const jp = parseInt(root.querySelector('#jp').value, 10) || 0;
-        if(math + jp < 1){
-          root.querySelector('#msg').textContent = '科目のコマ数を1以上にしてください。';
+      page.querySelectorAll('[data-action="form"]').forEach(btn => btn.addEventListener('click', () => { state.mode = 'form'; state.date = ''; paint(); }));
+      page.querySelectorAll('[data-action="list"]').forEach(btn => btn.addEventListener('click', () => { state.mode = 'list'; state.date = ''; paint(); }));
+      page.querySelectorAll('[data-action="calendar"]').forEach(btn => btn.addEventListener('click', () => { state.mode = 'calendar'; state.date = '21'; paint(); }));
+      page.querySelectorAll('[data-date]').forEach(btn => btn.addEventListener('click', () => {
+        state.date = btn.dataset.date;
+        state.slot = '';
+        state.subject = '';
+        paint();
+      }));
+      page.querySelector('[data-action="save"]')?.addEventListener('click', () => {
+        const values = [...page.querySelectorAll('[data-subject]')].map(input => parseInt(input.value, 10) || 0);
+        if(values.reduce((sum, n) => sum + n, 0) < 1){
+          page.querySelector('#msg').textContent = '科目のコマ数を1以上にしてください。';
           return;
         }
         state.mode = 'choose';
         paint();
       });
-      root.querySelectorAll('[data-day]').forEach(btn => btn.addEventListener('click', () => {
-        const day = Number(btn.dataset.day);
-        if(day === 22) return;
-        if(state.picks.some(pick => pick.day === day)) return;
-        if(state.picks.length >= state.unplaced) return;
-        state.picks.push({ day });
-        paint();
+      page.querySelectorAll('[data-subject]').forEach(input => input.addEventListener('input', () => {
+        const values = [...page.querySelectorAll('[data-subject]')].map(row => parseInt(row.value, 10) || 0);
+        const total = page.querySelector('#total');
+        if(total) total.textContent = `合計 ${values.reduce((sum, n) => sum + n, 0)}コマ`;
       }));
-      root.querySelector('[data-action="commit"]')?.addEventListener('click', () => {
-        state.hold += state.picks.length;
-        state.unplaced -= state.picks.length;
-        state.picks = [];
-        state.mode = 'list';
-        paint();
-      });
     }
 
-    function updateTotal(){
-      const math = parseInt(root.querySelector('#math').value, 10) || 0;
-      const jp = parseInt(root.querySelector('#jp').value, 10) || 0;
-      const total = root.querySelector('#total');
-      if(total) total.textContent = `合計 ${math + jp}コマ`;
-    }
+    document.getElementById('drawerClose').addEventListener('click', () => {
+      state.date = '';
+      state.slot = '';
+      state.subject = '';
+      paint();
+    });
+    document.getElementById('backList').addEventListener('click', () => {
+      state.mode = 'list';
+      state.date = '';
+      paint();
+    });
+    document.addEventListener('keydown', (event) => {
+      if(event.key === 'Escape' && state.date){
+        state.date = '';
+        paint();
+      }
+    });
 
     paint();
   </script>

@@ -2251,18 +2251,6 @@
   input.extra-count{width:72px;max-width:72px;text-align:center;}
   .extra-period{display:flex;align-items:center;gap:8px;flex-wrap:wrap;}
   .extra-period input[type=date]{max-width:160px;}
-  .extra-month-nav{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin:8px 0;}
-  .extra-day-grid{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:4px;margin:8px 0;}
-  .extra-day-btn{
-    min-height:44px;border:1px solid var(--border);border-radius:var(--radius-sm);
-    background:var(--surface-card);color:var(--ink);font-family:inherit;font-size:var(--text-sm);font-weight:700;cursor:pointer;
-    display:flex;flex-direction:column;align-items:center;justify-content:center;padding:4px 2px;
-  }
-  .extra-day-btn small{font-size:var(--text-xs);font-weight:700;color:var(--ink-soft);}
-  .extra-day-btn:hover{border-color:var(--brand-500);}
-  .extra-day-btn.is-selected{border-color:var(--green-600);background:var(--green-100);}
-  .extra-day-btn:disabled{background:var(--surface-muted);color:var(--ink-soft);cursor:not-allowed;}
-  .extra-day-btn:focus-visible{outline:2px solid var(--brand-500);outline-offset:1px;}
   .extra-item{display:flex;flex-wrap:wrap;gap:8px;align-items:center;padding:8px 0;border-top:1px solid var(--border);}
   .extra-pick-list,.extra-history{margin:8px 0;padding-left:1.2em;}
   button.cal-entry{display:block;width:100%;text-align:left;border:none;font-family:inherit;cursor:pointer;}

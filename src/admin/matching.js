@@ -32,7 +32,7 @@ import {
   renderStudentCourseCalendar,
   resetCourseCalendarSelection,
 } from './student-course-calendar.js';
-import { focusExtraBooking, renderExtraLessonSection } from './extra-lessons.js';
+import { focusExtraBooking, renderExtraLessonSection, setExtraLessonDeps } from './extra-lessons.js';
 import { isPayrollLocked } from './payroll.js';
 
 // ---- 一括自動仮組み ----
@@ -432,8 +432,8 @@ async function handleCourseStartDateChange(){
   renderFormCourses();
 }
 
-function paintExtraLessons(){
-  renderExtraLessonSection(document.getElementById('extraLessonSection'), {
+function extraLessonDeps(){
+  return {
     getDayStatus,
     confirmAssignment,
     scheduleSave,
@@ -461,7 +461,23 @@ function paintExtraLessons(){
       switchView('calendar');
       renderCalendar();
     },
-  });
+    openCalendar(booking){
+      openExtraLessonCalendar(booking);
+    },
+  };
+}
+
+function openExtraLessonCalendar(booking){
+  if(!booking?.studentId) return;
+  const today = getTodayStr();
+  let dateStr = booking.periodStart || today;
+  if(dateStr < today) dateStr = today;
+  if(booking.periodEnd && today > booking.periodEnd && booking.periodStart) dateStr = booking.periodStart;
+  jumpToCalendarForDate(booking.studentId, dateStr);
+}
+
+function paintExtraLessons(){
+  renderExtraLessonSection(document.getElementById('extraLessonSection'), extraLessonDeps());
 }
 
 function renderFormCourses(){
@@ -2090,6 +2106,8 @@ function jumpToCalendarForTeacher(teacherId, dateStr){
   document.dispatchEvent(new CustomEvent('calendar:show-day', { detail: { dateStr } }));
   window.scrollTo({top:0, behavior:'smooth'});
 }
+
+setExtraLessonDeps(extraLessonDeps());
 
 document.addEventListener('extra-lesson:open', (event)=>{
   const student = S.students.find(row => row.id === event.detail?.studentId);

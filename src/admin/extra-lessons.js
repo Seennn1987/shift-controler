@@ -1,6 +1,6 @@
 import { SUBJECT_MAP, SLOTS, WEEKDAY_JP, SUBJECT_ABBR } from '../shared/constants.js';
-import { halfLabel, occupiesHalf, shortLessonSubjectAllowed, supportsShortLesson } from '../shared/lesson-span.js';
-import { getTodayStr, isOnOrAfterDate, toDateStr } from '../shared/date-utils.js';
+import { halfLabel, occupiesHalf, shortLessonSubjectAllowed, slotTimeForHalf, supportsShortLesson } from '../shared/lesson-span.js';
+import { getTodayStr, isOnOrAfterDate } from '../shared/date-utils.js';
 import { fbAuth, S } from './state.js';
 import { isActivePerson } from './active-people.js';
 import { findTeacher, isOwnerTeacher } from './owner-teacher.js';
@@ -26,6 +26,12 @@ let ui = {
 };
 let deps = {};
 let flash = '';
+let panelFlash = '';
+
+export function setExtraLessonDeps(nextDeps){
+  if(nextDeps) deps = nextDeps;
+  ensureArrays();
+}
 
 function esc(value){
   return String(value ?? '')
@@ -282,7 +288,6 @@ export function renderExtraLessonSection(host, nextDeps){
 function sectionHtml(student){
   if(ui.mode === 'form') return formHtml(student, findBooking(ui.bookingId));
   if(ui.mode === 'choose') return chooseHtml(student, findBooking(ui.bookingId));
-  if(ui.mode === 'schedule') return scheduleHtml(student, findBooking(ui.bookingId));
   if(ui.mode === 'detail') return detailHtml(student, findBooking(ui.bookingId));
   return listHtml(student);
 }
@@ -410,56 +415,12 @@ function chooseHtml(student, booking){
   return `<div class="extra-lesson-card">
     <div class="extra-lesson-title">${esc(booking.purposeLabel)}を登録しました</div>
     <p class="extra-lesson-count">${esc(subjectLine(booking))}</p>
-    <p class="field-hint">日程を今決めるか、未配置のままあとで決めるかを選んでください。</p>
+    <p class="field-hint">日程は、いつもの月カレンダーで日を押して決めます。</p>
     <div class="extra-lesson-actions">
       <button type="button" class="confirm-btn" data-action="schedule" data-id="${esc(booking.id)}">今すぐ日程を決める</button>
       <button type="button" class="confirm-btn" data-action="back">あとで決める</button>
     </div>
   </div>`;
-}
-
-function scheduleHtml(student, booking){
-  if(!booking) return listHtml(student);
-  const summary = summaryFor(booking);
-  if(!ui.scheduleMonth) ui.scheduleMonth = (booking.periodStart || getTodayStr()).slice(0, 7);
-  const monthLabel = `${ui.scheduleMonth.slice(0, 4)}年${Number(ui.scheduleMonth.slice(5))}月`;
-  return `<div class="extra-lesson-head"><span class="field-label">日程を決める</span></div>
-    <div class="extra-lesson-card">
-      <div class="extra-lesson-title">${esc(student.name)}｜${esc(booking.purposeLabel)}</div>
-      <p class="extra-lesson-count">${countHtml(summary)}</p>
-      <div class="extra-month-nav">
-        <button type="button" class="confirm-btn" data-action="prev-month">前の月</button>
-        <span>${monthLabel}</span>
-        <button type="button" class="confirm-btn" data-action="next-month">次の月</button>
-      </div>
-      ${monthGridHtml(student, booking)}
-      ${pickDateHtml(student, booking)}
-      ${pickListHtml(student, booking)}
-      <div class="extra-lesson-actions">
-        <button type="button" class="confirm-btn" data-action="commit-picks" ${ui.picks.length ? '' : 'disabled'}>この内容で登録</button>
-        <button type="button" class="confirm-btn" data-action="back">一覧へ戻る</button>
-      </div>
-      <p class="form-msg" id="extraFormMsg" role="status"></p>
-    </div>`;
-}
-
-function monthGridHtml(student, booking){
-  const [year, month] = ui.scheduleMonth.split('-').map(Number);
-  const first = new Date(year, month - 1, 1);
-  const pad = (first.getDay() + 6) % 7;
-  const days = new Date(year, month, 0).getDate();
-  const heads = ['月', '火', '水', '木', '金', '土', '日'].map(day => `<span>${day}</span>`).join('');
-  let cells = '';
-  for(let i = 0; i < pad; i++) cells += '<span></span>';
-  for(let day = 1; day <= days; day++){
-    const dateStr = toDateStr(year, month - 1, day);
-    const status = deps.getDayStatus ? deps.getDayStatus(dateStr) : { type: 'open' };
-    const closed = status.type !== 'open';
-    const selected = ui.pickDate === dateStr ? ' is-selected' : '';
-    const reason = closed ? (status.closureLabel || status.holidayName || '休み') : '';
-    cells += `<button type="button" class="extra-day-btn${selected}" data-action="pick-date" data-date="${dateStr}" ${closed ? 'disabled' : ''}>${day}${reason ? `<small>${esc(reason)}</small>` : ''}</button>`;
-  }
-  return `<div class="extra-day-grid" aria-label="${esc(booking.purposeLabel)}のカレンダー">${heads}${cells}</div>`;
 }
 
 function openLines(booking){
@@ -478,34 +439,90 @@ export function slotChoicesForLines(lines){
   return choices;
 }
 
-function pickDateHtml(student, booking){
-  if(!ui.pickDate) return '<p class="field-hint">日付を押すと、講と科目を選べます。</p>';
-  const lines = openLines(booking);
-  if(!lines.length) return '<p class="field-hint">未配置のコマはありません。</p>';
-  const choices = slotChoicesForLines(lines);
-  const slots = SLOTS.map(slot => choices.map(half => {
-    const used = roomUsed(student, ui.pickDate, slot.id, half, ui.picks);
-    const full = used >= S.roomCapacity;
-    const when = half === 'full' ? '' : ` ${halfLabel(half)}`;
-    return `<button type="button" class="confirm-btn" data-action="pick-slot" data-slot="${slot.id}" data-half="${half}" ${full ? 'disabled' : ''}>${esc(slot.label)}${when} 教室 ${used}/${S.roomCapacity}${full ? ' 満席' : ''}</button>`;
-  }).join('')).join('');
-  return `<div class="extra-pick-block">
-    <div class="field-label">${esc(dateText(ui.pickDate))}</div>
-    <div class="extra-lesson-actions">${slots}</div>
-    <div id="extraTeacherBox"></div>
+export function extraDayPanelHtml(student, dateStr){
+  if(!student || !dateStr || !deps.getDayStatus) return '';
+  if(deps.getDayStatus(dateStr).type !== 'open') return '';
+  const note = panelFlash ? `<p class="form-msg" role="status">${esc(panelFlash)}</p>` : '';
+  panelFlash = '';
+  const blocks = bookingsFor(student.id).filter(booking => !booking.cancelledAt).map(booking => {
+    const lines = openLines(booking);
+    if(!lines.length) return '';
+    const choices = slotChoicesForLines(lines);
+    const cards = SLOTS.map(slot => choices.map(half => extraSlotCard(student, booking, lines, dateStr, slot, half)).join('')).join('');
+    return `<div class="cal-day-note">${esc(booking.purposeLabel)}の残りを、この日に入れられます。</div>${cards}`;
+  }).join('');
+  return blocks ? `${note}${blocks}` : note;
+}
+
+function extraSlotCard(student, booking, lines, dateStr, slot, half){
+  const fitting = lines.filter(row => lineMinutes(row.line) === 40 ? half !== 'full' : half === 'full');
+  if(!fitting.length) return '';
+  const used = roomUsed(student, dateStr, slot.id, half, []);
+  const full = used >= S.roomCapacity;
+  const when = half === 'full' ? '' : ` ${halfLabel(half)}`;
+  const time = half === 'full' ? slot.time : slotTimeForHalf(slot, half);
+  const subjects = fitting.map(row => {
+    const reason = holdBlock(student, row.line, dateStr, slot.id, half, [], booking);
+    return `<button type="button" class="confirm-btn" data-extra-subject="1" data-extra-booking="${esc(booking.id)}" data-extra-line="${esc(row.line.id)}" data-extra-date="${esc(dateStr)}" data-extra-slot="${slot.id}" data-extra-half="${esc(half)}" ${reason ? 'disabled' : ''}>${esc(row.line.subject)} 残り${row.left}${reason ? ` ${esc(reason)}` : ''}</button>`;
+  }).join('');
+  return `<div class="match-slot mp-slot-card">
+    <div class="ms-slot-label">${esc(slot.label)}${esc(when)}（${esc(time)}）<span class="mp-slot-meta">教室 ${used}/${S.roomCapacity}${full ? ' 満席' : ''}</span></div>
+    <div class="extra-lesson-actions">${subjects}</div>
+    <div class="extra-teacher-mount"></div>
   </div>`;
 }
 
-function pickListHtml(student, booking){
-  if(!ui.picks.length) return '';
-  const rows = ui.picks.map((pick, index) => {
-    const line = lineById(booking, pick.lineId);
-    const teacher = pick.teacherId ? findTeacher(pick.teacherId) : null;
-    return `<li>${esc(student.name)}｜${esc(line?.subject || '')}｜${esc(dateText(pick.date))} ${esc(slotText(pick.slot, pick.half))}｜${esc(teacher ? teacher.name : '講師未定')}｜1コマ
-      <button type="button" class="confirm-btn" data-action="drop-pick" data-index="${index}">外す</button></li>`;
+export function bindExtraDayPanel(root, student, onPlaced){
+  if(!root || !student) return;
+  root.querySelectorAll('[data-extra-subject]').forEach(btn => btn.addEventListener('click', () => {
+    const booking = findBooking(btn.dataset.extraBooking);
+    const line = lineById(booking, btn.dataset.extraLine);
+    const mount = btn.closest('.mp-slot-card')?.querySelector('.extra-teacher-mount');
+    if(!booking || !line || !mount) return;
+    const date = btn.dataset.extraDate;
+    const slot = Number(btn.dataset.extraSlot);
+    const half = lineMinutes(line) === 40 ? btn.dataset.extraHalf : 'full';
+    mount.innerHTML = extraTeacherRows(student, booking, line, date, slot, half);
+    mount.querySelectorAll('[data-extra-teacher]').forEach(teacherBtn => teacherBtn.addEventListener('click', async () => {
+      const result = await placeExtraLesson(student, {
+        bookingId: booking.id,
+        lineId: line.id,
+        date,
+        slot,
+        half,
+        teacherId: teacherBtn.dataset.extraTeacher || '',
+      });
+      panelFlash = result.msg || '';
+      if(onPlaced) onPlaced();
+    }));
+  }));
+}
+
+function extraTeacherRows(student, booking, line, date, slot, half){
+  const rows = (S.teachers || []).filter(isActivePerson).map((teacher, index) => {
+    const reason = teacherBlock(student, line, teacher, date, slot, half, [], booking);
+    return `<div class="match-cand-row">
+      <span class="match-cand-rank">${index + 1}</span>
+      <div class="match-cand-main">
+        <div class="match-cand-head">
+          <span class="match-cand-name">${esc(teacher.name)}</span>
+          <div class="match-cand-actions"><button type="button" class="confirm-btn" data-extra-teacher="${esc(teacher.id)}" ${reason ? 'disabled' : ''}>この日に入れる${reason ? ` ${esc(reason)}` : ''}</button></div>
+        </div>
+      </div>
+    </div>`;
   }).join('');
-  return `<div class="field-label">登録前の確認</div><ul class="extra-pick-list">${rows}</ul>
-    <p class="field-hint">未配置より多くは登録できません。講師未定の日程は教室の1人分を確保し、売上と給与には入りません。</p>`;
+  const holdReason = holdBlock(student, line, date, slot, half, [], booking);
+  return `<div class="match-slot-rows">${rows}
+    <div class="match-cand-row">
+      <span class="match-cand-rank"></span>
+      <div class="match-cand-main">
+        <div class="match-cand-head">
+          <span class="match-cand-name">講師はあとで</span>
+          <div class="match-cand-actions"><button type="button" class="confirm-btn" data-extra-teacher="" ${holdReason ? 'disabled' : ''}>講師はあとで${holdReason ? ` ${esc(holdReason)}` : ''}</button></div>
+        </div>
+      </div>
+    </div>
+  </div>`;
 }
 
 function detailHtml(student, booking){
@@ -594,10 +611,8 @@ function bindSection(host, student){
     deps.refresh();
   }));
   host.querySelectorAll('[data-action="schedule"]').forEach(btn => btn.addEventListener('click', () => {
-    ui.mode = 'schedule';
-    ui.bookingId = btn.dataset.id || ui.bookingId;
-    ui.pickDate = '';
-    deps.refresh();
+    const booking = findBooking(btn.dataset.id || ui.bookingId);
+    if(booking && deps.openCalendar) deps.openCalendar(booking);
   }));
   host.querySelectorAll('[data-action="edit"]').forEach(btn => btn.addEventListener('click', () => {
     ui.mode = 'form';
@@ -620,20 +635,6 @@ function bindSection(host, student){
   paintPrice(host, student);
   host.querySelector('[data-action="save-form"]')?.addEventListener('click', () => saveForm(host, student));
   host.querySelector('[data-action="save-counts"]')?.addEventListener('click', () => saveCounts(host, student));
-  host.querySelector('[data-action="prev-month"]')?.addEventListener('click', () => shiftMonth(-1));
-  host.querySelector('[data-action="next-month"]')?.addEventListener('click', () => shiftMonth(1));
-  host.querySelectorAll('[data-action="pick-date"]').forEach(btn => btn.addEventListener('click', () => {
-    ui.pickDate = btn.dataset.date;
-    deps.refresh();
-  }));
-  host.querySelectorAll('[data-action="pick-slot"]').forEach(btn => btn.addEventListener('click', () => {
-    showTeacherChoices(host, student, Number(btn.dataset.slot), btn.dataset.half);
-  }));
-  host.querySelectorAll('[data-action="drop-pick"]').forEach(btn => btn.addEventListener('click', () => {
-    ui.picks.splice(Number(btn.dataset.index), 1);
-    deps.refresh();
-  }));
-  host.querySelector('[data-action="commit-picks"]')?.addEventListener('click', () => commitPicks(host, student));
   host.querySelector('[data-action="cancel-booking"]')?.addEventListener('click', event => {
     mountInlineConfirm(host, event.currentTarget, {
       message: 'この申込みを取り消しますか？実施済みがある場合は取り消せません。',
@@ -856,70 +857,16 @@ function saveCounts(host, student){
   deps.refresh();
 }
 
-function shiftMonth(delta){
-  const [year, month] = ui.scheduleMonth.split('-').map(Number);
-  const date = new Date(year, month - 1 + delta, 1);
-  ui.scheduleMonth = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
-  ui.pickDate = '';
-  deps.refresh();
-}
-
-function showTeacherChoices(host, student, slot, half){
-  const booking = findBooking(ui.bookingId);
-  const box = host.querySelector('#extraTeacherBox');
-  if(!booking || !box) return;
-  const lines = openLines(booking).filter(row => {
-    const picked = ui.picks.filter(pick => pick.lineId === row.line.id).length;
-    return picked < row.left;
-  }).filter(row => lineMinutes(row.line) === 40 ? half !== 'full' : half === 'full');
-  if(!lines.length){
-    box.innerHTML = '<p class="form-msg">この時間に入れられる未配置の科目がありません。</p>';
-    return;
-  }
-  const lineButtons = lines.map(row =>
-    `<button type="button" class="confirm-btn" data-line="${esc(row.line.id)}">${esc(row.line.subject)} 残り${row.left - ui.picks.filter(pick => pick.lineId === row.line.id).length}</button>`
-  ).join('');
-  box.innerHTML = `<div class="field-label">科目</div><div class="extra-lesson-actions">${lineButtons}</div><div id="extraTeacherList"></div>`;
-  box.querySelectorAll('[data-line]').forEach(btn => btn.addEventListener('click', () => {
-    const line = lineById(booking, btn.dataset.line);
-    const list = box.querySelector('#extraTeacherList');
-    const useHalf = lineMinutes(line) === 40 ? half : 'full';
-    list.innerHTML = teacherListHtml(student, line, slot, useHalf);
-    list.querySelectorAll('[data-teacher]').forEach(teacherBtn => teacherBtn.addEventListener('click', () => {
-      addPick(host, student, {
-        date: ui.pickDate,
-        slot,
-        half: lineMinutes(line) === 40 ? half : 'full',
-        lineId: line.id,
-        teacherId: teacherBtn.dataset.teacher || '',
-      });
-    }));
-  }));
-}
-
-function teacherListHtml(student, line, slot, half){
-  const useHalf = lineMinutes(line) === 40 ? half : 'full';
-  const buttons = (S.teachers || []).filter(isActivePerson).map(teacher => {
-    const reason = teacherBlock(student, line, teacher, ui.pickDate, slot, useHalf, ui.picks);
-    const owner = isOwnerTeacher(teacher);
-    return `<button type="button" class="confirm-btn" data-teacher="${esc(teacher.id)}" ${reason ? 'disabled' : ''}>${esc(teacher.name)}${owner ? '' : '先生'}${reason ? ` ${esc(reason)}` : ''}</button>`;
-  }).join('');
-  const holdReason = holdBlock(student, line, ui.pickDate, slot, useHalf, ui.picks);
-  return `<div class="field-label">講師</div>
-    <div class="extra-lesson-actions">
-      ${buttons}
-      <button type="button" class="confirm-btn" data-teacher="" ${holdReason ? 'disabled' : ''}>講師はあとで${holdReason ? ` ${esc(holdReason)}` : ''}</button>
-    </div>`;
-}
-
-function holdBlock(student, line, dateStr, slot, half, picks){
+function holdBlock(student, line, dateStr, slot, half, picks, booking){
+  const target = booking || findBooking(ui.bookingId);
   const status = deps.getDayStatus(dateStr);
   if(status.type !== 'open') return '休みの日です。';
+  if(deps.isPayrollLocked(dateStr.slice(0, 7))) return 'この月の給与は確定済みです。';
   if(student.courseStartDate && !isOnOrAfterDate(dateStr, student.courseStartDate)) return '受講開始日より前です。';
   if(studentBusy(student, dateStr, slot, half) || picks.some(pick => pick.date === dateStr && Number(pick.slot) === Number(slot) && halfOverlaps(pick.half, half))){
     return 'この生徒の別の授業と重なります。';
   }
-  const summary = summaryFor(findBooking(ui.bookingId));
+  const summary = summaryFor(target);
   const row = summary.lines.find(item => item.line.id === line.id);
   const picked = picks.filter(pick => pick.lineId === line.id).length;
   if(!row || picked >= row.summary.unplaced) return '未配置より多くは選べません。';
@@ -927,8 +874,8 @@ function holdBlock(student, line, dateStr, slot, half, picks){
   return '';
 }
 
-function teacherBlock(student, line, teacher, dateStr, slot, half, picks){
-  const common = holdBlock(student, line, dateStr, slot, half, picks);
+function teacherBlock(student, line, teacher, dateStr, slot, half, picks, booking){
+  const common = holdBlock(student, line, dateStr, slot, half, picks, booking);
   if(common) return common;
   if(isOwnerTeacher(teacher)) return '';
   const teaches = (teacher.subjects || []).some(row => row.level === student.level && row.subject === line.subject);
@@ -938,93 +885,61 @@ function teacherBlock(student, line, teacher, dateStr, slot, half, picks){
   const used = deps.countTeacherSlotOnDate(teacher.id, dateStr, slot, student.id, capHalf)
     + picks.filter(pick => pick.teacherId === teacher.id && pick.date === dateStr && Number(pick.slot) === Number(slot) && halfOverlaps(pick.half, half)).length;
   const occupied = deps.teacherSlotHasOneToOneOnDate(teacher.id, dateStr, slot, student.id, capHalf)
-    || picks.some(pick => pick.teacherId === teacher.id && pick.date === dateStr && Number(pick.slot) === Number(slot) && halfOverlaps(pick.half, half) && lineById(findBooking(ui.bookingId), pick.lineId)?.oneToOne);
+    || picks.some(pick => pick.teacherId === teacher.id && pick.date === dateStr && Number(pick.slot) === Number(slot) && halfOverlaps(pick.half, half) && line.oneToOne);
   const cap = teacherSeatCap(occupied, line.oneToOne);
   if(used >= cap) return line.oneToOne ? '1対1の枠が埋まっています。' : 'この講師の人数が埋まっています。';
   return '';
 }
 
-function addPick(host, student, pick){
-  const booking = findBooking(ui.bookingId);
+export async function placeExtraLesson(student, pick){
+  const booking = findBooking(pick.bookingId);
   const line = lineById(booking, pick.lineId);
-  const msg = host.querySelector('#extraFormMsg');
+  if(!booking || !line) return { ok: false, msg: '申込みが見つかりません。' };
+  const teacher = pick.teacherId ? findTeacher(pick.teacherId) : null;
   const reason = pick.teacherId
-    ? teacherBlock(student, line, findTeacher(pick.teacherId), pick.date, pick.slot, pick.half, ui.picks)
-    : holdBlock(student, line, pick.date, pick.slot, pick.half, ui.picks);
-  if(reason){
-    if(msg) msg.textContent = reason;
-    return;
-  }
-  ui.picks.push(pick);
-  deps.refresh();
-}
-
-async function commitPicks(host, student){
-  const booking = findBooking(ui.bookingId);
-  if(!booking || !ui.picks.length) return;
-  const placed = [];
-  for(const pick of ui.picks){
-    const line = lineById(booking, pick.lineId);
-    const reason = pick.teacherId
-      ? teacherBlock(student, line, findTeacher(pick.teacherId), pick.date, pick.slot, pick.half, [])
-      : holdBlock(student, line, pick.date, pick.slot, pick.half, []);
-    if(reason){
-      flash = `${dateText(pick.date)} ${slotText(pick.slot, pick.half)}：${reason}`;
-      if(placed.length){
-        pushHistory(booking, '日程を登録', '', placed.join('、'));
-        deps.scheduleSave();
-      }
-      ui.picks = [];
-      deps.refresh();
-      return;
-    }
-    if(!pick.teacherId){
-      S.extraHolds.push({
-        id: newId('exh'),
+    ? teacherBlock(student, line, teacher, pick.date, pick.slot, pick.half, [], booking)
+    : holdBlock(student, line, pick.date, pick.slot, pick.half, [], booking);
+  if(reason) return { ok: false, msg: reason };
+  if(!pick.teacherId){
+    ensureArrays();
+    S.extraHolds.push({
+      id: newId('exh'),
+      extraBookingId: booking.id,
+      extraLineId: line.id,
+      studentId: student.id,
+      courseId: line.courseId,
+      subject: line.subject,
+      date: pick.date,
+      day: weekdayOf(pick.date),
+      slot: pick.slot,
+      half: normHalf(pick.half),
+      oneToOne: !!line.oneToOne,
+    });
+  }else{
+    const result = await deps.confirmAssignment(
+      student.id,
+      line.courseId,
+      line.subject,
+      weekdayOf(pick.date),
+      pick.slot,
+      pick.teacherId,
+      'extra',
+      {
+        dateStr: pick.date,
+        half: lineMinutes(line) === 40 ? pick.half : 'full',
+        oneToOne: !!line.oneToOne,
         extraBookingId: booking.id,
         extraLineId: line.id,
-        studentId: student.id,
-        courseId: line.courseId,
-        subject: line.subject,
-        date: pick.date,
-        day: weekdayOf(pick.date),
-        slot: pick.slot,
-        half: normHalf(pick.half),
-        oneToOne: !!line.oneToOne,
-      });
-    }else{
-      const result = await deps.confirmAssignment(
-        student.id,
-        line.courseId,
-        line.subject,
-        weekdayOf(pick.date),
-        pick.slot,
-        pick.teacherId,
-        'extra',
-        {
-          dateStr: pick.date,
-          half: lineMinutes(line) === 40 ? pick.half : 'full',
-          oneToOne: !!line.oneToOne,
-          extraBookingId: booking.id,
-          extraLineId: line.id,
-        },
-      );
-      if(!result?.ok){
-        flash = result?.msg || '登録できませんでした。';
-        deps.scheduleSave();
-        ui.picks = [];
-        deps.refresh();
-        return;
-      }
-    }
-    const teacher = pick.teacherId ? findTeacher(pick.teacherId) : null;
-    placed.push(`${line.subject} ${dateText(pick.date)} ${slotText(pick.slot, pick.half)} ${teacher ? teacher.name : '講師未定'}`);
+      },
+    );
+    if(!result?.ok) return { ok: false, msg: result?.msg || '登録できませんでした。' };
   }
-  pushHistory(booking, '日程を登録', '', placed.join('、'));
+  const who = teacher ? teacher.name : '講師未定';
+  const text = `${line.subject} ${dateText(pick.date)} ${slotText(pick.slot, pick.half)} ${who}`;
+  pushHistory(booking, '日程を登録', '', text);
   deps.scheduleSave();
-  ui.picks = [];
-  ui.mode = 'detail';
   deps.refresh();
+  return { ok: true, msg: `${line.subject}を${dateText(pick.date)}の${slotText(pick.slot, pick.half)}に入れました。${who}です。` };
 }
 
 async function saved(message){

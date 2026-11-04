@@ -38,6 +38,7 @@ import {
 import { buildDualMatchCandidatesHtml, buildMatchCandidatesHtml } from './match-candidates-html.js';
 import { buildPrefPairActionHtmlForTeacher, buildDraftSlotCardHtml, buildWaitingSlotCardHtml, buildFlowStatusBadgeChipHtml } from './match-candidate-ui.js';
 import { mountWithdrawConfirm } from './withdraw-pending-ui.js';
+import { bindExtraDayPanel, extraDayPanelHtml } from './extra-lessons.js';
 import { mountInlineConfirm, showInlineNotice } from '../shared/inline-confirm.js';
 import { analyzePendingMatchSlot } from './match-slot-status.js';
 import { buildDualSubjectTagsHtml, findDualPairForStudent, collapseDualAssignmentDisplayRows } from './dual-subject.js';
@@ -291,19 +292,23 @@ export function renderDayDetailPanel(container, dateStr){
       return;
     }
     const rows = getStudentDateRows(filterStudent, dateStr);
+    const extraHtml = extraDayPanelHtml(filterStudent, dateStr);
     if(rows.length === 0){
       const placementHtml = buildMakeupPlacementHtml(dateStr);
-      if(placementHtml){
-        container.innerHTML = `<div class="cal-day-note">${filterStudent.name}さんの振替先として、この日の空きコマを選べます。</div>
+      if(placementHtml || extraHtml){
+        const makeup = placementHtml
+          ? `<div class="cal-day-note">${filterStudent.name}さんの振替先として、この日の空きコマを選べます。</div>
           <button type="button" class="ghost mp-action day-detail-go-month" data-student-id="${filterStudent.id}">${filterStudent.name}さんの月間一覧へ</button>
-          ${placementHtml}`;
+          ${placementHtml}`
+          : '';
+        container.innerHTML = `${extraHtml}${makeup}`;
         return;
       }
       container.innerHTML = `<div class="cal-empty-day">${filterStudent.name}さんは、この曜日（${weekday}曜日）に希望しているコマがありません。</div>`;
       return;
     }
 
-    let html = `<div class="cal-day-note">${filterStudent.name}さんの希望曜日パターン（＋振替）から、この日の状況を表示しています。講師を選ぶと下書き保存されます。「講師にスケジュールを送信」で依頼できます。</div>`;
+    let html = `${extraHtml}<div class="cal-day-note">${filterStudent.name}さんの希望曜日パターン（＋振替）から、この日の状況を表示しています。講師を選ぶと下書き保存されます。「講師にスケジュールを送信」で依頼できます。</div>`;
     html += `<button type="button" class="ghost mp-action day-detail-go-month" data-student-id="${filterStudent.id}">${filterStudent.name}さんの月間一覧へ</button>`;
     html += buildMakeupPlacementHtml(dateStr);
 
@@ -662,6 +667,9 @@ export function bindDayDetailEvents(container, dateStr, onRefresh){
       refresh();
     });
   });
+
+  const filterStudent = resolveFilterStudent();
+  if(filterStudent) bindExtraDayPanel(container, filterStudent, refresh);
 
   container.querySelectorAll('.find-makeup-btn').forEach(btn=>{
     btn.addEventListener('click', ()=>{
