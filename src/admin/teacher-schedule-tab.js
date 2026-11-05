@@ -586,7 +586,7 @@ function buildCandidateInfo(studentId, courseId, level, subject, day, slot, teac
   const occupiedOne = dateStr
     ? teacherSlotHasOneToOneOnDate(teacher.id, dateStr, slot, studentId, capHalf)
     : teacherSlotHasOneToOne(teacher.id, day, slot, studentId, ym, capHalf);
-  const cap = teacherSeatCap(occupiedOne, isOneToOneCourse(findStudentCourse(studentId, courseId)));
+  const cap = teacherSeatCap(occupiedOne, isOneToOneCourse(findStudentCourse(studentId, courseId), dateStr));
   const coverage = countTeacherCourseSlotCoverage(teacher, studentId, courseId, level, subject, ym);
   return {
     teacher, used,
@@ -648,11 +648,11 @@ function countTeacherSlotOnDate(teacherId, dateStr, slot, excludeStudentId, half
 }
 
 function teacherSlotHasOneToOneOnDate(teacherId, dateStr, slot, excludeStudentId, half){
-  return listHasOneToOne(matchedTeacherOnDate(teacherId, dateStr, slot, excludeStudentId), half);
+  return listHasOneToOne(matchedTeacherOnDate(teacherId, dateStr, slot, excludeStudentId), half, dateStr);
 }
 
 function teacherSeatTextOnDate(teacherId, dateStr, slot){
-  return busiestSeatText(matchedTeacherOnDate(teacherId, dateStr, slot, null));
+  return busiestSeatText(matchedTeacherOnDate(teacherId, dateStr, slot, null), dateStr);
 }
 
 function countRoomSlotOnDate(dateStr, slot, excludeStudentId, half){
@@ -872,7 +872,7 @@ async function confirmAssignment(studentId, courseId, subject, day, slot, teache
   const capHalf = half === 'early' || half === 'late' ? half : undefined;
   const slotDef = SLOTS.find(s=> s.id === slot);
   const slotLabel = slotDef ? `${slotDef.label}${halfLabel(half) ? ' '+halfLabel(half) : ''}` : `${slot}講`;
-  const incomingOne = opts.oneToOne === true || (opts.extraBookingId ? false : isOneToOneCourse(findStudentCourse(studentId, courseId)));
+  const incomingOne = opts.oneToOne === true || (opts.extraBookingId ? false : isOneToOneCourse(findStudentCourse(studentId, courseId), recurring ? null : dateStr));
   const teacherLabel = owner ? teacher.name : `${teacher.name}先生`;
 
   if(dateStr && !recurring){
@@ -951,7 +951,7 @@ async function confirmDualAssignment(studentId, dualPair, day, slot, teacherId, 
       return { ok: false, msg: `${teacherLabel}はこの日のシフト未登録です。` };
     }
     const teacherUsed = countTeacherSlotOnDate(teacherId, dateStr, slot, studentId);
-    const seatCap = seatCapForPlacement(teacherId, day, slot, studentId, undefined, courses.some(isOneToOneCourse), dateStr);
+    const seatCap = seatCapForPlacement(teacherId, day, slot, studentId, undefined, courses.some(c=> isOneToOneCourse(c, dateStr)), dateStr);
     if(teacherUsed >= seatCap){
       const slotLabel = SLOTS.find(s=> s.id === slot)?.label || `${slot}講`;
       return { ok: false, msg: `${teacherLabel}は${dateStr} ${slotLabel}の定員（${seatCap}人）に達しています。` };
@@ -966,7 +966,7 @@ async function confirmDualAssignment(studentId, dualPair, day, slot, teacherId, 
     });
   }else{
     const teacherUsed = countTeacherSlot(teacherId, day, slot, studentId);
-    const seatCap = seatCapForPlacement(teacherId, day, slot, studentId, undefined, courses.some(isOneToOneCourse), null);
+    const seatCap = seatCapForPlacement(teacherId, day, slot, studentId, undefined, courses.some(c=> isOneToOneCourse(c)), null);
     if(teacherUsed >= seatCap){
       return { ok: false, msg: `${teacherLabel}は${day}曜${SLOTS.find(s=> s.id === slot).label}の定員（${seatCap}人）に達しています。` };
     }
@@ -1124,12 +1124,13 @@ async function issueDraftApprovals(moving){
   }
 }
 
-async function sendDraftAssignments(){
+async function sendDraftAssignments({ only } = {}){
   const snapDrafts = S.draftAssignments.slice();
   const snapPending = S.pendingAssignments.slice();
   const ym = getActiveYearMonth();
-  const drafts = snapDrafts.filter(a=> isAssignmentEffectiveInMonth(a, ym));
-  const outOfMonthDrafts = snapDrafts.filter(a=> !isAssignmentEffectiveInMonth(a, ym));
+  const inMonth = a=> isAssignmentEffectiveInMonth(a, ym) && (!a.oneTimeDate || a.oneTimeDate.startsWith(ym));
+  const drafts = snapDrafts.filter(a=> only ? only(a) : inMonth(a));
+  const outOfMonthDrafts = snapDrafts.filter(a=> !drafts.includes(a));
   if(drafts.length === 0){
     return { sent: 0, pending: 0, skippedNoLogin: 0, noLoginTeachers: [], saved: true };
   }
@@ -1180,6 +1181,7 @@ async function sendDraftAssignments(){
   }
   return {
     sent: moving.length,
+    sentIds: moving.map(entry => entry.id),
     pending: moving.length,
     skippedNoLogin: keptDrafts.length,
     noLoginTeachers: [...noLoginTeachers],
@@ -1427,11 +1429,15 @@ async function approvePendingLessonAsAdmin(studentId, courseId, day, slot, dateS
     return { ok: false, msg: '授業日を過ぎた授業だけ、代わりに承認できます。' };
   }
   const student = S.students.find(s=> s.id === studentId);
-  const course = student?.courses.find(c=> c.id === courseId);
-  if(!student || !course){
+  if(!student){
     return { ok: false, msg: '生徒または教科が見つかりません。' };
   }
   const eff = findEffectiveAssignment(studentId, courseId, day, slot, dateStr.slice(0, 7), dateStr);
+  const course = student.courses.find(c=> c.id === courseId)
+    || (eff?.entry?.extraBookingId ? { id: courseId, subject: eff.entry.subject } : null);
+  if(!course){
+    return { ok: false, msg: '生徒または教科が見つかりません。' };
+  }
   if(!eff?.isPending || eff.isDraft){
     return { ok: false, msg: '承認待ちの授業が見つかりません。' };
   }

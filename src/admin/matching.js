@@ -15,13 +15,13 @@ import { renderTeacherList } from './teachers.js';
 import { assignmentAppliesOnDate, approvalAppliesInMonth, buildCandidateInfo, confirmAssignment, confirmDualAssignment, cancelAssignment, cancelAllDrafts, cancelDraftAuto, countRoomSlotOnDate, countTeacherSlotOnDate, teacherSlotHasOneToOneOnDate, findEffectiveAssignment, getActiveYearMonth, getPreferredTeachersForCourse, loadAssignmentApprovals, loadDismissedApprovalIds, loadPendingCancellationRequests, loadPendingChangeRequests, openMatchingForApprovalTicket, approvePendingLessonAsAdmin, renderApprovalDashboardItem, resolveScheduleChangeRequest, resolveScheduleChangeRequests, saveDismissedApprovalIds, sendDraftAssignments, teacherHasSubmittedMonth, revokePendingApprovalTicket, revokePendingApprovalTicketsForStudent, revokePendingCancellationRequestsForStudent, revokePendingCancellationForSlot, dropAssignmentsForRemovedDesiredSlots, syncStudentIdentityOnTickets } from './teacher-schedule-tab.js';
 import { findDualPairAtSlot, teacherTeachesBoth, buildDualSubjectTagsHtml } from './dual-subject.js';
 import { findTeacher, isOwnerTeacher } from './owner-teacher.js';
-import { mountInlineConfirm, showActiveTabNotice } from '../shared/inline-confirm.js';
+import { mountInlineConfirm, showActiveTabNotice, showInlineNotice } from '../shared/inline-confirm.js';
 import { dismissAppConfirmDialog, runAppConfirmDialog } from '../shared/app-confirm-dialog.js';
 import { activeStudents, isActivePerson, markPersonLeft, renderLeaveFlash } from './active-people.js';
 import { renderLessonHistoryHtml } from './lesson-history.js';
 import { printStudentSheet } from './print-sheet.js';
 import { renderStudentFeePreview } from './student-fee-preview.js';
-import { effectiveTuitionCourse } from './tuition-rates.js';
+import { effectiveTuitionCourse, gradeKeyOf } from './tuition-rates.js';
 import {
   buildApprovalAlertRowHtml, buildCalAlertPersonHead, buildCalAlertPersonInline,
   buildCalAlertSubjectTag, buildCalAlertTeacherHead, buildCalAlertWhenPill,
@@ -34,6 +34,7 @@ import {
 } from './student-course-calendar.js';
 import { focusExtraBooking, renderExtraLessonSection, setExtraLessonDeps } from './extra-lessons.js';
 import { isPayrollLocked } from './payroll.js';
+import { recordChange } from './course-history.js';
 
 // ---- 一括自動仮組み ----
 // 表示中の月の各開校日について、未確定の希望コマを日付単位で自動的に埋める。
@@ -421,6 +422,42 @@ function fillStudentProfileFields(s){
   });
 }
 
+function readChangeFromDate(){
+  const v = document.getElementById('studentChangeFromInput')?.value || '';
+  return /^\d{4}-\d{2}-\d{2}$/.test(v) ? v : getTodayStr();
+}
+
+/** 変える日より後の月も料金が変わるので、その日以降に確定済みの月が1つでもあれば止める */
+function changeFromBlockMessage(from){
+  const latest = Object.keys(S.payrollLocks || {})
+    .filter(ym=> ym >= from.slice(0, 7) && isPayrollLocked(ym))
+    .sort()
+    .pop();
+  if(!latest) return '';
+  return `${Number(latest.slice(5, 7))}月の給与は確定済みです。「学年・コース・1対1を変える日」に、その次の月からの日を選んでください。`;
+}
+
+/** 1対1を切り替えた教科だけ、切り替えた日を残す */
+function withOneToOneChanges(prevCourses, nextCourses, from){
+  return nextCourses.map(course=>{
+    const next = { ...course };
+    const old = (prevCourses || []).find(c=> c.id === course.id);
+    const was = old?.oneToOne === true;
+    const changes = !old ? []
+      : (was !== (next.oneToOne === true) ? recordChange(old.oneToOneChanges, was, from, next.oneToOne === true) : (old.oneToOneChanges || []));
+    if(changes.length) next.oneToOneChanges = changes;
+    else delete next.oneToOneChanges;
+    return next;
+  });
+}
+
+function oneToOneChanged(prevCourses, nextCourses){
+  return nextCourses.some(course=>{
+    const old = (prevCourses || []).find(c=> c.id === course.id);
+    return old && (old.oneToOne === true) !== (course.oneToOne === true);
+  });
+}
+
 async function handleCourseStartDateChange(){
   if(!S.editingStudentId) return;
   const idx = S.students.findIndex(s=> s.id === S.editingStudentId);
@@ -451,6 +488,8 @@ function extraLessonDeps(){
     revokePendingApprovalTicket,
     isPayrollLocked,
     isTeacherAbsent: isTeacherAbsentForStudent,
+    sendDraftAssignments,
+    afterSend: refreshAfterMatchingChange,
     refresh(){
       renderFormCourses();
       renderCalendar();
@@ -496,8 +535,9 @@ function renderFormCourses(){
     genCourseId,
     courseStartDate: readCourseStartDate(),
     onChange: async ()=>{
-      await persistFormCourses();
+      const block = await persistFormCourses();
       renderFormCourses();
+      if(block) showInlineNotice(wrap, block, { variant: 'warn' });
     },
   });
   renderStudentMatchingAction();
@@ -510,6 +550,8 @@ function updateStudentFormUi(){
   document.getElementById('studentFormModeTitle').textContent = isEdit ? `${name || '生徒'} さんを編集` : '生徒を登録';
   document.getElementById('studentSaveBtn').textContent = isEdit ? '基本情報を更新' : '基本情報を登録';
   document.getElementById('studentCancelBtn').style.display = isEdit ? 'inline-block' : 'none';
+  const changeFrom = document.getElementById('studentChangeFromArea');
+  if(changeFrom) changeFrom.hidden = !isEdit;
 }
 
 function renderStudentMatchingAction(){
@@ -541,9 +583,19 @@ async function persistFormCourses(){
   if(idx < 0) return;
   const student = S.students[idx];
   const oldCourses = JSON.parse(JSON.stringify(student.courses || []));
-  const courses = normalizeFormCoursesForSave(S.formCourses);
+  const from = readChangeFromDate();
+  let courses = normalizeFormCoursesForSave(S.formCourses);
+  if(oneToOneChanged(oldCourses, courses)){
+    const block = changeFromBlockMessage(from);
+    if(block){
+      S.formCourses = JSON.parse(JSON.stringify(oldCourses));
+      return block;
+    }
+  }
+  courses = withOneToOneChanges(oldCourses, courses, from);
   await dropAssignmentsForRemovedDesiredSlots(student, oldCourses, courses);
   S.students[idx].courses = JSON.parse(JSON.stringify(courses));
+  S.formCourses = JSON.parse(JSON.stringify(courses));
   S.students[idx].courseStartDate = readCourseStartDate();
   await saveStudents();
   renderStudentList();
@@ -575,6 +627,8 @@ function fillStudentFormForEdit(s){
   document.querySelectorAll('input[name=studentLevel]').forEach(r=> r.checked = (r.value===s.level));
   buildStudentGradeArea(s.grade || null);
   setCourseStartDateInput(s.courseStartDate || getTodayStr());
+  const changeFromInput = document.getElementById('studentChangeFromInput');
+  if(changeFromInput) changeFromInput.value = getTodayStr();
   fillFreeLessonFields(s.freeLessonCount || 0);
   fillStudentProfileFields(s);
   S.formCourses = JSON.parse(JSON.stringify(s.courses));
@@ -618,8 +672,29 @@ async function handleStudentSave(){
     if(idx>-1){
       const prev = S.students[idx];
       const oldName = prev.name;
-      await dropAssignmentsForRemovedDesiredSlots(prev, prev.courses, coursesCopy);
-      S.students[idx] = { ...prev, name, nameKana, level, grade, courseStartDate, freeLessonCount, ...profile, courses: coursesCopy };
+      const from = readChangeFromDate();
+      const prevCourse = prev.tuitionCourse || '';
+      const courseChanged = prevCourse !== profile.tuitionCourse;
+      const prevGradeKey = gradeKeyOf(prev.level, prev.grade);
+      const gradeChanged = prevGradeKey !== gradeKeyOf(level, grade);
+      if(courseChanged || gradeChanged || oneToOneChanged(prev.courses, coursesCopy)){
+        const block = changeFromBlockMessage(from);
+        if(block){ msg.textContent = block; return; }
+      }
+      const tuitionCourseChanges = courseChanged
+        ? recordChange(prev.tuitionCourseChanges, prevCourse, from, profile.tuitionCourse)
+        : (prev.tuitionCourseChanges || []);
+      const gradeChanges = gradeChanged
+        ? recordChange(prev.gradeChanges, prevGradeKey, from, gradeKeyOf(level, grade))
+        : (prev.gradeChanges || []);
+      const nextCourses = withOneToOneChanges(prev.courses, coursesCopy, from);
+      await dropAssignmentsForRemovedDesiredSlots(prev, prev.courses, nextCourses);
+      S.students[idx] = { ...prev, name, nameKana, level, grade, courseStartDate, freeLessonCount, ...profile, courses: nextCourses };
+      if(tuitionCourseChanges.length) S.students[idx].tuitionCourseChanges = tuitionCourseChanges;
+      else delete S.students[idx].tuitionCourseChanges;
+      if(gradeChanges.length) S.students[idx].gradeChanges = gradeChanges;
+      else delete S.students[idx].gradeChanges;
+      S.formCourses = JSON.parse(JSON.stringify(nextCourses));
       if(oldName !== name || prev.courseStartDate !== courseStartDate){
         await syncStudentIdentityOnTickets(S.students[idx], oldName);
       }
@@ -942,6 +1017,12 @@ function dashboardSubjectLabel(course, subjects){
   return subjects?.length >= 2 ? subjects.join('') : course.subject;
 }
 
+/** 追加コマは毎週の受講科目に入らないので、授業そのものの教科で並べる */
+function findDashboardCourse(student, a){
+  return student.courses.find(c=> c.id === a.courseId)
+    || (a.extraBookingId ? { id: a.courseId, subject: a.subject } : null);
+}
+
 function collectUpcomingDraftsFlat(){
   const ym = getActiveYearMonth();
   const flat = [];
@@ -957,7 +1038,7 @@ function collectUpcomingDraftsFlat(){
       if(findAbsenceFor(a.studentId, a.courseId, dateStr, a.day, a.slot)) return;
       const student = S.students.find(s=> s.id === a.studentId);
       if(!student) return;
-      const course = student.courses.find(c=> c.id === a.courseId);
+      const course = findDashboardCourse(student, a);
       if(!course) return;
       const { subjects, dualGroupId } = resolveDashboardDualSubjects(student, a.day, a.slot);
       if(dualGroupId){
@@ -995,7 +1076,7 @@ function collectUpcomingPendingFlat(){
       if(findAbsenceFor(a.studentId, a.courseId, dateStr, a.day, a.slot)) return;
       const student = S.students.find(s=> s.id === a.studentId);
       if(!student) return;
-      const course = student.courses.find(c=> c.id === a.courseId);
+      const course = findDashboardCourse(student, a);
       if(!course) return;
       const { subjects, dualGroupId } = resolveDashboardDualSubjects(student, a.day, a.slot);
       if(dualGroupId){
@@ -1229,7 +1310,8 @@ function bindShortageDashboardActions(wrap){
       confirmLabel: '送信する',
       variant: 'primary',
     }, async ()=>{
-      const { sent, skippedNoLogin, noLoginTeachers: skippedNames, saved } = await sendDraftAssignments();
+      const { sentIds = [], skippedNoLogin, noLoginTeachers: skippedNames, saved } = await sendDraftAssignments();
+      const sent = draftItems.filter(item=> sentIds.includes(item.assignment.id)).length;
       if(!saved){
         if(resultEl) resultEl.textContent = '保存できませんでした。仮決めはそのままです。';
         return { ok: false };

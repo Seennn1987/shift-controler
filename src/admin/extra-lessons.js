@@ -535,6 +535,7 @@ function detailHtml(student, booking){
   const history = (booking.history || []).slice(0, 8).map(row =>
     `<li>${esc(historyWhen(row.at))} ${esc(row.by)} ${esc(row.action)}${row.before || row.after ? `（${esc(row.before)} → ${esc(row.after)}）` : ''}</li>`
   ).join('');
+  const draftCount = draftIdsOf(summary).size;
   return `<div class="extra-lesson-head"><span class="field-label">詳細・変更</span></div>
     <div class="extra-lesson-card" id="extraDetailCard">
       <div class="extra-lesson-title">${esc(booking.purposeLabel)}｜${esc(subjectLine(booking))}</div>
@@ -548,6 +549,7 @@ function detailHtml(student, booking){
         <button type="button" class="confirm-btn" data-action="save-counts">申込数を保存</button>
         <button type="button" class="confirm-btn" data-action="edit">名称・期間を変更</button>
         <button type="button" class="confirm-btn" data-action="schedule" data-id="${esc(booking.id)}">日程を決める</button>
+        ${draftCount ? '<button type="button" class="confirm-btn" data-action="send-drafts">講師にスケジュールを送信</button>' : ''}
         <button type="button" class="danger-ghost" data-action="cancel-booking">申込みを取り消す</button>
         <button type="button" class="confirm-btn" data-action="back">一覧へ戻る</button>
       </div>
@@ -635,6 +637,18 @@ function bindSection(host, student){
   paintPrice(host, student);
   host.querySelector('[data-action="save-form"]')?.addEventListener('click', () => saveForm(host, student));
   host.querySelector('[data-action="save-counts"]')?.addEventListener('click', () => saveCounts(host, student));
+  host.querySelector('[data-action="send-drafts"]')?.addEventListener('click', event => {
+    const booking = findBooking(ui.bookingId);
+    if(!booking) return;
+    mountInlineConfirm(host, event.currentTarget, {
+      message: sendConfirmText(booking),
+      confirmLabel: '送信する',
+      cancelLabel: 'やめる',
+      variant: 'primary',
+      mountSelector: '.extra-lesson-card',
+      onConfirm: () => sendBookingDrafts(booking),
+    });
+  });
   host.querySelector('[data-action="cancel-booking"]')?.addEventListener('click', event => {
     mountInlineConfirm(host, event.currentTarget, {
       message: 'この申込みを取り消しますか？実施済みがある場合は取り消せません。',
@@ -946,6 +960,42 @@ async function saved(message){
   deps.scheduleSave();
   deps.refresh();
   return { ok: true, msg: message };
+}
+
+function draftIdsOf(summary){
+  return new Set(summary.placedItems.filter(row => row.role === 'draft').map(row => row.assignmentId));
+}
+
+function noLoginNames(ids){
+  return [...new Set((S.draftAssignments || [])
+    .filter(row => ids.has(row.id))
+    .map(row => findTeacher(row.teacherId))
+    .filter(teacher => teacher && !teacher.loginUid)
+    .map(teacher => teacher.name))];
+}
+
+function sendConfirmText(booking){
+  const ids = draftIdsOf(summaryFor(booking));
+  let text = `仮決め ${ids.size}件を講師に依頼します。講師がOKするまで承認待ち（講師の返事待ち）です。`;
+  const names = noLoginNames(ids);
+  if(names.length) text += `${names.join('、')} はまだログインできないため、依頼できません。「講師管理」でログインを用意してください。`;
+  return text;
+}
+
+async function sendBookingDrafts(booking){
+  const ids = draftIdsOf(summaryFor(booking));
+  if(!ids.size) return { ok: false, msg: '送信する仮決めがありません。' };
+  const result = await deps.sendDraftAssignments({ only: row => ids.has(row.id) });
+  if(!result.saved) return { ok: false, msg: '保存できませんでした。仮決めはそのままです。' };
+  const names = result.noLoginTeachers.join('、');
+  if(result.sent === 0) return { ok: false, msg: `送れませんでした。${names} のログインを「講師管理」で用意してください。` };
+  pushHistory(booking, '講師に送信', `仮決め ${result.sent}件`, '承認待ち');
+  flash = result.skippedNoLogin
+    ? `✓ ${result.sent}件を依頼しました。${names} 分はログインがないため仮決めのままです。`
+    : `✓ ${result.sent}件を講師に依頼しました（講師の返事待ち）。`;
+  deps.afterSend();
+  deps.refresh();
+  return { ok: true };
 }
 
 async function cancelBooking(student){

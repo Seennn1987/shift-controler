@@ -3,6 +3,8 @@ import { getTodayStr } from '../shared/date-utils.js';
 import { fbAuth, fbDb, S } from './state.js';
 import { isActivePerson } from './active-people.js';
 import { persistDraftDiff } from './lesson-drafts.js';
+import { recordChange } from './course-history.js';
+import { gradeKeyOf } from './tuition-rates.js';
 
 /** 4月始まりの年度。2026-04-01 → 2026、2026-03-31 → 2025 */
 function schoolYearOf(dateStr){
@@ -68,13 +70,17 @@ function renameSansuForStudent(studentId){
   });
 }
 
-function promoteAllStudentsOneYear(){
+function promoteAllStudentsOneYear(schoolYear){
   let changedCount = 0;
   let high3Count = 0;
+  const from = `${schoolYear}-04-01`;
   (S.students || []).filter(isActivePerson).forEach(student=>{
     const next = nextSchoolGrade(student.level, student.grade);
     if(next.stayedHigh3) high3Count++;
     if(!next.changed) return;
+    student.gradeChanges = recordChange(
+      student.gradeChanges, gradeKeyOf(student.level, student.grade), from, gradeKeyOf(next.level, next.grade),
+    );
     student.level = next.level;
     student.grade = next.grade;
     if(next.renameSansu) renameSansuForStudent(student.id);
@@ -130,7 +136,7 @@ function applyPromotionsUntil(currentYear){
   let changedCount = 0;
   let high3Count = 0;
   while(S.lastGradePromotionYear < currentYear){
-    const step = promoteAllStudentsOneYear();
+    const step = promoteAllStudentsOneYear(S.lastGradePromotionYear + 1);
     changedCount += step.changedCount;
     high3Count += step.high3Count;
     S.lastGradePromotionYear += 1;

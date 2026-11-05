@@ -517,7 +517,7 @@ export function renderDayDetailPanel(container, dateStr){
         });
         html += `<div class="sched-teacher-box">
           <div class="sched-teacher-head-row">
-            <div class="sched-teacher-name">${teacherHonorific(teacher)}<span class="sched-cap">（${busiestSeatText(entries)}）</span></div>
+            <div class="sched-teacher-name">${teacherHonorific(teacher)}<span class="sched-cap">（${busiestSeatText(entries, dateStr)}）</span></div>
             <button type="button" class="ghost handle-teacher-absence-btn" data-teacher="${teacherId}" data-date="${dateStr}" aria-expanded="false">欠勤・代講</button>
           </div>
           ${studentsHtml}

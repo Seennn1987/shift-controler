@@ -231,7 +231,7 @@ function renderCalendarWeekGrid(axis){
       ).join('');
       const cellInner = (axis==='student'
         ? buildStudentAxisCell(list) + buildWeekUnassignedStudentBoxes(unassigned) + buildWeekAbsenceStudentBoxes(absences)
-        : buildTeacherAxisCell(list) + buildWeekUnassignedTeacherBlock(unassigned) + buildWeekAbsenceTeacherBlock(absences)) + holdHtml;
+        : buildTeacherAxisCell(list, ds) + buildWeekUnassignedTeacherBlock(unassigned) + buildWeekAbsenceTeacherBlock(absences)) + holdHtml;
       tbody += `<td class="sched-cell week-date-cell" data-date="${ds}">
         <div class="sched-cell-inner">
           <div class="sched-total">\u5408\u8a08${totalCount}\u540d</div>
@@ -316,7 +316,7 @@ function buildWeekTeacherStudentCard({ subjectHtml, studentName, gradeLabel, isP
 }
 
 // 講師軸：マス目の中に講師の箱を作り、その中に担当生徒を並べる
-function buildTeacherAxisCell(list){
+function buildTeacherAxisCell(list, dateStr){
   const byTeacher = {};
   list.forEach(a=>{
     if(!byTeacher[a.teacherId]) byTeacher[a.teacherId] = [];
@@ -329,7 +329,7 @@ function buildTeacherAxisCell(list){
     const displayRows = collapseDualAssignmentDisplayRows(entries);
     const studentsHtml = displayRows.map(weekAssignmentStudentCard).join('');
     boxesHtml += `<div class="sched-teacher-group">
-      <div class="sched-teacher-head">${teacherHonorific(teacher)}<span class="sched-cap">（${busiestSeatText(entries)}）</span></div>
+      <div class="sched-teacher-head">${teacherHonorific(teacher)}<span class="sched-cap">（${busiestSeatText(entries, dateStr)}）</span></div>
       <div class="sched-teacher-students">${studentsHtml}</div>
     </div>`;
   });
@@ -514,7 +514,7 @@ function buildWeekTeacherFilterCell(teacher, dateStr, slot){
   const displayRows = collapseDualAssignmentDisplayRows(list);
   const studentsHtml = displayRows.map(weekAssignmentStudentCard).join('') + buildWeekAbsenceTeacherBlock(absences);
   return `<div class="sched-teacher-group">
-    <div class="sched-teacher-head">${teacherHonorific(teacher)}<span class="sched-cap">（${busiestSeatText(list)}）</span></div>
+    <div class="sched-teacher-head">${teacherHonorific(teacher)}<span class="sched-cap">（${busiestSeatText(list, dateStr)}）</span></div>
     <div class="sched-teacher-students">${studentsHtml}</div>
   </div>`;
 }

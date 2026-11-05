@@ -1,4 +1,5 @@
 import { GRADE_MAX_BY_LEVEL, LEVEL_ABBR } from '../shared/constants.js';
+import { valueOnDate } from './course-history.js';
 
 /** 高校はアドバンスだけ。ベーシックは小学・中学のみ */
 const TUITION_COURSE_LEVELS = {
@@ -65,9 +66,26 @@ function tuitionRateFor(rates, level, grade, tuitionCourse){
   return Number(rates?.[course]?.[tuitionGradeKey(level, safeGrade)]) || 0;
 }
 
-function studentTuitionRate(rates, student){
+/** その日の授業に使う授業料コース。日付がなければいまの設定 */
+function studentTuitionCourseOn(student, dateStr){
+  return valueOnDate(student?.tuitionCourseChanges, student?.tuitionCourse || '', dateStr);
+}
+
+function gradeKeyOf(level, grade){
+  return `${level || ''}:${grade ?? ''}`;
+}
+
+/** その日の授業に使う区分・学年。進級や編集で変えた日より前は、前の学年 */
+function studentGradeOn(student, dateStr){
+  const key = valueOnDate(student?.gradeChanges, gradeKeyOf(student?.level, student?.grade), dateStr);
+  const [level, grade] = String(key).split(':');
+  return { level, grade: grade === '' ? null : Number(grade) };
+}
+
+function studentTuitionRate(rates, student, dateStr){
   if(!student) return 0;
-  return tuitionRateFor(rates, student.level, student.grade, student.tuitionCourse);
+  const { level, grade } = studentGradeOn(student, dateStr);
+  return tuitionRateFor(rates, level, grade, studentTuitionCourseOn(student, dateStr));
 }
 
 /** 小学40分だけ。小1〜小6。未入力は0円（90分の表はコピーしない）。 */
@@ -95,9 +113,11 @@ function normalizeShortTuitionRates(d){
   return result;
 }
 
-function studentShortTuitionRate(rates, student){
-  if(!student || student.level !== '小学') return 0;
-  return tuitionRateFor(rates, student.level, student.grade, student.tuitionCourse);
+function studentShortTuitionRate(rates, student, dateStr){
+  if(!student) return 0;
+  const { level, grade } = studentGradeOn(student, dateStr);
+  if(level !== '小学') return 0;
+  return tuitionRateFor(rates, level, grade, studentTuitionCourseOn(student, dateStr));
 }
 
 /**
@@ -168,6 +188,9 @@ export {
   normalizeOneShortTuitionRates,
   effectiveTuitionCourse,
   tuitionRateFor,
+  gradeKeyOf,
+  studentGradeOn,
+  studentTuitionCourseOn,
   studentTuitionRate,
   studentShortTuitionRate,
   tuitionDurationNote,

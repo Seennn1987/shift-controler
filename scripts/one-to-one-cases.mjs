@@ -45,14 +45,26 @@ globalThis.firebase = {
   },
   auth(){ return { currentUser: { uid: 'case-admin' } }; },
   firestore(){
-    return {
-      settings(){},
-      collection(){
-        return { add(){ return Promise.resolve({ id: 'case' }); } };
-      },
-    };
+    return fakeDb();
   },
 };
+
+function fakeDb(){
+  const asyncOps = new Set(['add', 'set', 'update', 'delete', 'commit', 'get']);
+  const fn = function(){ return fakeDb(); };
+  return new Proxy(fn, {
+    get(_t, prop){
+      if(prop === 'then') return undefined;
+      if(prop === 'settings') return () => {};
+      if(prop === 'onSnapshot') return () => () => {};
+      if(asyncOps.has(prop)){
+        return () => Promise.resolve({ id: 'case', exists: false, empty: true, docs: [], size: 0, data(){ return null; }, forEach(){} });
+      }
+      return fakeDb();
+    },
+    apply(){ return fakeDb(); },
+  });
+}
 globalThis.firebase.firestore.FieldValue = { serverTimestamp(){ return null; } };
 
 const server = await createServer({
@@ -302,7 +314,7 @@ S.students = [
 ];
 put('a', 'ca', '国語');
 {
-  const result = sched.confirmAssignment('b', 'cb', '数学', '月', 4, 't1', 'manual', { dateStr: DATE });
+  const result = await sched.confirmAssignment('b', 'cb', '数学', '月', 4, 't1', 'manual', { dateStr: DATE });
   check('1対1の隣にその日は置けない', 'H1', result.ok === false, { ok: result.ok, msg: result.msg || '' });
 }
 
@@ -314,7 +326,7 @@ S.students = [
 ];
 put('a', 'ca', '国語');
 {
-  const result = sched.confirmAssignment('b', 'cb', '数学', '月', 4, 't1', 'manual', { dateStr: DATE });
+  const result = await sched.confirmAssignment('b', 'cb', '数学', '月', 4, 't1', 'manual', { dateStr: DATE });
   check('人がいるコマに1対1は置けない', 'H2', result.ok === false, { ok: result.ok, msg: result.msg || '' });
 }
 
@@ -326,7 +338,7 @@ S.students = [
 ];
 put('a', 'ca', '国語', { half: 'early' });
 {
-  const late = sched.confirmAssignment('b', 'cb', '数学', '月', 4, 't1', 'manual', { dateStr: DATE, half: 'late' });
+  const late = await sched.confirmAssignment('b', 'cb', '数学', '月', 4, 't1', 'manual', { dateStr: DATE, half: 'late' });
   check('前半1対1の後半には別の生徒を置ける', 'H3', late.ok === true, { ok: late.ok, msg: late.msg || '' });
 }
 reset();
@@ -336,7 +348,7 @@ S.students = [
 ];
 put('a', 'ca', '国語', { half: 'early' });
 {
-  const full = sched.confirmAssignment('b', 'cb', '数学', '月', 4, 't1', 'manual', { dateStr: DATE });
+  const full = await sched.confirmAssignment('b', 'cb', '数学', '月', 4, 't1', 'manual', { dateStr: DATE });
   check('前半1対1がある90分は置けない', 'H3', full.ok === false, { ok: full.ok, msg: full.msg || '' });
 }
 reset();
@@ -346,7 +358,7 @@ S.students = [
 ];
 put('a', 'ca', '国語', { half: 'early' });
 {
-  const early = sched.confirmAssignment('b', 'cb', '数学', '月', 4, 't1', 'manual', { dateStr: DATE, half: 'early' });
+  const early = await sched.confirmAssignment('b', 'cb', '数学', '月', 4, 't1', 'manual', { dateStr: DATE, half: 'early' });
   check('前半1対1の前半には置けない', 'H3', early.ok === false, { ok: early.ok, msg: early.msg || '' });
 }
 
@@ -359,8 +371,8 @@ S.students = [
 ];
 put('a', 'ca', '国語');
 {
-  const second = sched.confirmAssignment('b', 'cb', '数学', '月', 4, 't1', 'manual', { dateStr: DATE });
-  const third = sched.confirmAssignment('c', 'cc', '英語', '月', 4, 't1', 'manual', { dateStr: DATE });
+  const second = await sched.confirmAssignment('b', 'cb', '数学', '月', 4, 't1', 'manual', { dateStr: DATE });
+  const third = await sched.confirmAssignment('c', 'cc', '英語', '月', 4, 't1', 'manual', { dateStr: DATE });
   const seat = sched.teacherSeatTextOnDate('t1', DATE, 4);
   check('2人用は2人までで3人目は不可', 'H1', second.ok === true && third.ok === false && seat === '2/2', {
     second: second.ok,
@@ -378,7 +390,7 @@ S.students = [
 ];
 put('a', 'ca', '国語');
 {
-  const result = sched.confirmAssignment('b', 'cb', '数学', '月', 4, 't1', 'manual', { dateStr: DATE, recurring: true });
+  const result = await sched.confirmAssignment('b', 'cb', '数学', '月', 4, 't1', 'manual', { dateStr: DATE, recurring: true });
   check('毎週の担当でも1対1の隣は不可', 'H1', result.ok === false, { ok: result.ok, msg: result.msg || '' });
 }
 
@@ -468,7 +480,7 @@ reset();
     { id: 'b', name: 'b', level: '中学', grade: 1, tuitionCourse: 'basic', courseStartDate: '2026-04-01', courses: [kokugo, math] },
   ];
   put('a', 'ca', '英語');
-  const result = sched.confirmDualAssignment('b', {
+  const result = await sched.confirmDualAssignment('b', {
     dualGroupId: g,
     entries: [{ course: kokugo }, { course: math }],
   }, '月', 4, 't1', 'manual', { dateStr: DATE });
